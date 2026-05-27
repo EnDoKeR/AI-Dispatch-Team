@@ -35,3 +35,7 @@ data/sent_search_health_alerts.txt
 data/sent_reload_chain_alerts.txt
 # Backups
 backup_before_fix/
+
+# Decision history / private operational data
+data/decision_history.jsonl
+data/decision_runs.jsonl
