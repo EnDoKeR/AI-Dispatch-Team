@@ -285,18 +285,28 @@ def apply_outbox_to_case(case_record, outbox_record):
 
     return case_record
 
-
 def feedback_matches_case(feedback_record, case_record):
+    feedback_driver = normalize_text(feedback_record.get("driver_name", ""))
     feedback_load_id = normalize_text(feedback_record.get("load_id", ""))
     feedback_reference_id = normalize_text(feedback_record.get("reference_id", ""))
 
+    case_driver = normalize_text(case_record.get("driver_name", ""))
     case_load_id = normalize_text(case_record.get("load_id", ""))
     case_reference_id = normalize_text(case_record.get("reference_id", ""))
+
+    if feedback_driver and case_driver and feedback_driver != case_driver:
+        return False
 
     if feedback_load_id and feedback_load_id == case_load_id:
         return True
 
     if feedback_reference_id and feedback_reference_id == case_reference_id:
+        return True
+
+    if feedback_load_id and feedback_load_id == case_reference_id:
+        return True
+
+    if feedback_reference_id and feedback_reference_id == case_load_id:
         return True
 
     return False

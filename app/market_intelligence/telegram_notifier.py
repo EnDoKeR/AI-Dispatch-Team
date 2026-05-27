@@ -2,6 +2,7 @@ import json
 from operator import index
 import urllib.parse
 import urllib.request
+from app.market_intelligence.telegram_buttons import build_feedback_buttons
 from pathlib import Path
 from app.market_intelligence.telegram_outbox_logger import log_outgoing_telegram_message
 
@@ -193,7 +194,7 @@ def remove_duplicates(loads, search_request):
     return unique_loads
 
 
-def send_telegram_message(text):
+def send_telegram_message(text, reply_markup=None):
     env = load_env()
 
     token = env.get("TELEGRAM_BOT_TOKEN")
@@ -226,6 +227,8 @@ def send_telegram_message(text):
         "text": text,
         "disable_web_page_preview": "true",
     }
+    if reply_markup:
+     data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
 
     encoded_data = urllib.parse.urlencode(data).encode("utf-8")
 
@@ -484,6 +487,7 @@ def send_market_summary_to_telegram(
     )
 
     success = send_telegram_message(message)
+
 
     if success:
         save_sent_summary(key)
@@ -1009,7 +1013,13 @@ def send_top_opportunities_to_telegram(loads, search_request, limit=3):
     for index, load in enumerate(loads_to_send, start=1):
         message = format_opportunity_message(load, index, search_request)
 
-        success = send_telegram_message(message)
+        success = send_telegram_message(
+        message,
+        reply_markup=build_feedback_buttons(
+            "load",
+            reference_id=getattr(load, "reference_id", ""),
+        ),
+)
 
         if success:
             save_sent_load(load, search_request)
@@ -1058,7 +1068,13 @@ def send_review_once_to_telegram(loads, search_request, limit=3):
             search_request,
         )
 
-        success = send_telegram_message(message)
+        success = send_telegram_message(
+            message,
+            reply_markup=build_feedback_buttons(
+            "review_once",
+            reference_id=getattr(load, "reference_id", ""),
+),
+)
 
         if success:
             save_sent_review_once_load(load, search_request)

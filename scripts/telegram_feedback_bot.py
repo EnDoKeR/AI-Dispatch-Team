@@ -151,6 +151,67 @@ def send_message(chat_id, text):
         print("Failed to send Telegram reply:")
         print(error)
 
+def answer_callback_query(callback_query_id, text="Feedback saved"):
+    try:
+        api_post(
+            "answerCallbackQuery",
+            {
+                "callback_query_id": callback_query_id,
+                "text": text,
+                "show_alert": "false",
+            },
+        )
+    except Exception as error:
+        print("Failed to answer callback query:")
+        print(error)
+
+
+def extract_reference_id_from_text(text):
+    text = str(text or "")
+
+    patterns = [
+        r"Reference ID:\s*([A-Za-z0-9_.\-]+)",
+        r"REF:\s*([A-Za-z0-9_.\-]+)",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+
+        if not match:
+            continue
+
+        reference_id = match.group(1).strip()
+
+        if reference_id and reference_id.upper() != "NO":
+            return reference_id
+
+    return ""
+
+
+def parse_button_callback_data(callback_data):
+    callback_data = str(callback_data or "").strip()
+
+    if not callback_data.startswith("fb|"):
+        return None
+
+    parts = callback_data.split("|")
+
+    if len(parts) < 2:
+        return None
+
+    feedback_type = parts[1].strip()
+    reference_id = ""
+
+    if len(parts) >= 3:
+        reference_id = parts[2].strip()
+
+    if not feedback_type:
+        return None
+
+    return {
+        "feedback_type": feedback_type,
+        "reference_id": reference_id,
+    }
 
 def load_jsonl(file_path):
     file_path = Path(file_path)
@@ -534,6 +595,55 @@ def handle_text_message(message):
             telegram_message=message,
         )
 
+def handle_callback_query(callback_query):
+    callback_query_id = callback_query.get("id", "")
+    message = callback_query.get("message", {}) or {}
+    chat_id = message.get("chat", {}).get("id", "")
+
+    if not chat_allowed(chat_id):
+        answer_callback_query(callback_query_id, "Not allowed")
+        return
+
+    callback_data = callback_query.get("data", "")
+    parsed_callback = parse_button_callback_data(callback_data)
+
+    if not parsed_callback:
+        answer_callback_query(callback_query_id, "Unknown button")
+        return
+
+    feedback_type = parsed_callback.get("feedback_type", "")
+    load_id = parsed_callback.get("reference_id", "")
+
+    if not load_id:
+        message_text = message.get("text", "")
+        load_id = extract_reference_id_from_text(message_text)
+
+    if not load_id:
+        answer_callback_query(callback_query_id, "Reference ID not found")
+        send_message(
+            chat_id,
+            "⚠️ I could not find Reference ID in this Telegram alert.\n\n"
+            "Use manual command instead:\n"
+            f"/{feedback_type} LOAD_ID note",
+        )
+        return
+
+    note = f"Button clicked: {feedback_type}"
+
+    save_feedback(
+        chat_id=chat_id,
+        load_id=load_id,
+        feedback_type=feedback_type,
+        note=note,
+        source="telegram_button",
+        telegram_message=message,
+    )
+
+    answer_callback_query(
+        callback_query_id,
+        f"Saved: {feedback_type}",
+    )
+
 
 def handle_document_message(message):
     chat_id = message.get("chat", {}).get("id", "")
@@ -594,8 +704,13 @@ def handle_document_message(message):
         document_path=document_path,
     )
 
-
 def handle_update(update):
+    callback_query = update.get("callback_query")
+
+    if callback_query:
+        handle_callback_query(callback_query)
+        return
+
     message = update.get("message")
 
     if not message:
@@ -623,7 +738,7 @@ def run_bot():
             params = {
                 "timeout": 50,
                 "offset": offset,
-                "allowed_updates": json.dumps(["message"]),
+                "allowed_updates": json.dumps(["message", "callback_query"]),
             }
 
             result = api_get("getUpdates", params)
