@@ -44,3 +44,10 @@ data/dispatcher_feedback.jsonl
 # Telegram feedback bot private files
 data/telegram_feedback_state.json
 data/ratecons/
+
+# DispatchCase / event timeline private data
+data/dispatch_cases.jsonl
+data/dispatch_events.jsonl
+# DispatchCase / event timeline private data
+data/dispatch_cases.jsonl
+data/dispatch_events.jsonl
