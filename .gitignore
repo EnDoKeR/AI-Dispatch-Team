@@ -55,3 +55,7 @@ data/dispatch_events.jsonl
 # Simulation runtime data
 data/simulation/current_simulated_loads.json
 data/simulation/load_board_simulation_events.jsonl
+
+
+# Telegram outgoing message log / private operational data
+data/telegram_outbox.jsonl

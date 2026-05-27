@@ -9,6 +9,15 @@ CURRENT_SIMULATED_LOADS_FILE = Path("data/simulation/current_simulated_loads.jso
 SIMULATION_EVENTS_FILE = Path("data/simulation/load_board_simulation_events.jsonl")
 
 
+SENT_LOCK_FILES = [
+    Path("data/sent_market_summaries.txt"),
+    Path("data/sent_telegram_loads.txt"),
+    Path("data/sent_review_once_loads.txt"),
+    Path("data/sent_search_health_alerts.txt"),
+    Path("data/sent_reload_chain_alerts.txt"),
+]
+
+
 def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
@@ -37,6 +46,16 @@ def append_jsonl(file_path, record):
 
     with open(file_path, "a", encoding="utf-8") as file:
         file.write(json.dumps(record, ensure_ascii=False) + "\n")
+
+
+def clear_sent_files():
+    for file_path in SENT_LOCK_FILES:
+        file_path.parent.mkdir(parents=True, exist_ok=True)
+
+        with open(file_path, "w", encoding="utf-8") as file:
+            file.write("")
+
+        print(f"Cleared: {file_path}")
 
 
 def normalize_load(load_id, load_data):
@@ -120,13 +139,28 @@ def build_simulation_state(step):
 def reset_simulation():
     if CURRENT_SIMULATED_LOADS_FILE.exists():
         CURRENT_SIMULATED_LOADS_FILE.unlink()
+        print(f"Removed: {CURRENT_SIMULATED_LOADS_FILE}")
+    else:
+        print(f"Already clean: {CURRENT_SIMULATED_LOADS_FILE}")
 
     if SIMULATION_EVENTS_FILE.exists():
         SIMULATION_EVENTS_FILE.unlink()
+        print(f"Removed: {SIMULATION_EVENTS_FILE}")
+    else:
+        print(f"Already clean: {SIMULATION_EVENTS_FILE}")
 
-    print("Simulation reset.")
-    print(f"Removed: {CURRENT_SIMULATED_LOADS_FILE}")
-    print(f"Removed: {SIMULATION_EVENTS_FILE}")
+    print("Simulation reset completed.")
+
+
+def print_usage():
+    print("Use:")
+    print("py scripts/run_load_board_simulation.py --step 1")
+    print("py scripts/run_load_board_simulation.py --step 2")
+    print("py scripts/run_load_board_simulation.py --step 3")
+    print("py scripts/run_load_board_simulation.py --reset")
+    print("py scripts/run_load_board_simulation.py --clear-sent")
+    print("py scripts/run_load_board_simulation.py --reset --clear-sent")
+    print("py scripts/run_load_board_simulation.py --step 1 --clear-sent")
 
 
 def main():
@@ -141,17 +175,23 @@ def main():
         action="store_true",
         help="Clear current simulated load board state and simulation event log.",
     )
+    parser.add_argument(
+        "--clear-sent",
+        action="store_true",
+        help="Clear Telegram sent-lock files for clean simulation testing.",
+    )
 
     args = parser.parse_args()
 
     if args.reset:
         reset_simulation()
-        return
+
+    if args.clear_sent:
+        clear_sent_files()
 
     if args.step is None:
-        print("Use:")
-        print("py scripts/run_load_board_simulation.py --step 1")
-        print("py scripts/run_load_board_simulation.py --reset")
+        if not args.reset and not args.clear_sent:
+            print_usage()
         return
 
     result = build_simulation_state(args.step)
