@@ -6,6 +6,7 @@ from app.market_intelligence.market_models import MarketLoad
 
 LOADS_FILE = Path("data/current_loads.json")
 MANUAL_TEST_LOADS_FILE = Path("data/manual_test_loads.json")
+SIMULATED_LOADS_FILE = Path("data/simulation/current_simulated_loads.json")
 
 
 def read_load_dicts(file_path):
@@ -74,12 +75,14 @@ def build_market_load(item):
 def load_market_loads(file_path=LOADS_FILE):
     imported_loads = read_load_dicts(file_path)
     manual_test_loads = read_load_dicts(MANUAL_TEST_LOADS_FILE)
+    simulated_loads = read_load_dicts(SIMULATED_LOADS_FILE)
 
-    combined_loads = imported_loads + manual_test_loads
+    combined_loads = imported_loads + manual_test_loads + simulated_loads
 
     if not combined_loads:
         print(f"No loads found in: {file_path}")
         print(f"No manual test loads found in: {MANUAL_TEST_LOADS_FILE}")
+        print(f"No simulated loads found in: {SIMULATED_LOADS_FILE}")
         return []
 
     loads = []
@@ -88,10 +91,11 @@ def load_market_loads(file_path=LOADS_FILE):
         load = build_market_load(item)
         loads.append(load)
 
-    if manual_test_loads:
+    if manual_test_loads or simulated_loads:
         print(
             f"Loaded loads: {len(imported_loads)} imported + "
-            f"{len(manual_test_loads)} manual tests = {len(loads)} total"
+            f"{len(manual_test_loads)} manual tests + "
+            f"{len(simulated_loads)} simulated = {len(loads)} total"
         )
 
     return loads
