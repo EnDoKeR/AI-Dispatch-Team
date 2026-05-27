@@ -2,6 +2,7 @@ from pathlib import Path
 from app.market_intelligence.reload_chain import build_chain_candidates
 from app.market_intelligence.load_source import load_market_loads
 from app.market_intelligence.search_request import load_search_request
+from app.market_intelligence.decision_logger import log_decisions
 from app.market_intelligence.driver_profile_loader import apply_driver_profile_to_search_request
 from app.market_intelligence.telegram_notifier import (
     send_chain_candidates_to_telegram,
@@ -487,7 +488,6 @@ def process_search_request(request_file):
     )
 
     stats = bucket_stats(loads)
-
     fit = fit_stats(loads)
 
     recommendation = market_recommendation(
@@ -501,7 +501,6 @@ def process_search_request(request_file):
     )
 
     top_opportunities = get_top_opportunities(loads)
-
     review_once_loads = get_review_once_loads(loads)
 
     chain_candidates = build_chain_candidates(
@@ -510,15 +509,21 @@ def process_search_request(request_file):
         limit=5,
     )
 
-    top_opportunities = get_top_opportunities(loads)
-
-    review_once_loads = get_review_once_loads(loads)
-
-    chain_candidates = build_chain_candidates(
-        loads,
-        search_request,
-        limit=5,
+    decision_log_result = log_decisions(
+        search_request=search_request,
+        loads=loads,
+        recommendation=recommendation,
     )
+
+    print(
+        f"Decision log saved for {search_request.driver_name}: "
+        f"{decision_log_result['loads_logged']} loads | "
+        f"MATCH: {decision_log_result['match_count']} | "
+        f"REVIEW_ONCE: {decision_log_result['review_once_count']} | "
+        f"BLOCK: {decision_log_result['block_count']} | "
+        f"Run ID: {decision_log_result['run_id']}"
+    )
+
     telegram_loads = top_opportunities
 
     print(f"\n===== TELEGRAM SUMMARY SEND — {search_request.driver_name} =====\n")
@@ -556,7 +561,6 @@ def process_search_request(request_file):
         review_once_loads,
         monitored_minutes=30,
     )
-
 
 def run_market_snapshot():
     active_requests = get_active_search_request_files()

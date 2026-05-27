@@ -336,12 +336,86 @@ def outbox_matches_case(outbox_record, case_record):
     return False
 
 
+def simulation_event_matches_case(simulation_event, case_record):
+    payload = simulation_event.get("payload", {}) or {}
+
+    simulation_load_id = normalize_text(simulation_event.get("load_id", ""))
+    event_load = payload.get("load", {}) or {}
+    updates = payload.get("updates", {}) or {}
+
+    possible_reference_ids = [
+        simulation_load_id,
+        normalize_text(event_load.get("reference_id", "")),
+        normalize_text(updates.get("reference_id", "")),
+    ]
+
+    case_reference_id = normalize_text(case_record.get("reference_id", ""))
+    case_load_id = normalize_text(case_record.get("load_id", ""))
+
+    for possible_id in possible_reference_ids:
+        if not possible_id:
+            continue
+
+        if possible_id == case_reference_id:
+            return True
+
+        if possible_id == case_load_id:
+            return True
+
+    return False
+
+
+def build_simulation_payload(simulation_event):
+    payload = simulation_event.get("payload", {}) or {}
+    event_type = simulation_event.get("event_type", "")
+    event_load = payload.get("load", {}) or {}
+    updates = payload.get("updates", {}) or {}
+
+    if event_type == "LOAD_APPEARED":
+        return {
+            "simulation_step": simulation_event.get("simulation_step", ""),
+            "event_time": simulation_event.get("event_time", ""),
+            "simulation_load_id": simulation_event.get("load_id", ""),
+            "pickup": event_load.get("pickup", ""),
+            "delivery": event_load.get("delivery", ""),
+            "rate": event_load.get("rate", ""),
+            "broker": event_load.get("broker_name", ""),
+            "broker_mc": event_load.get("broker_mc", ""),
+            "reference_id": event_load.get("reference_id", simulation_event.get("load_id", "")),
+        }
+
+    if event_type == "LOAD_UPDATED":
+        return {
+            "simulation_step": simulation_event.get("simulation_step", ""),
+            "event_time": simulation_event.get("event_time", ""),
+            "simulation_load_id": simulation_event.get("load_id", ""),
+            "updates": updates,
+        }
+
+    if event_type == "LOAD_REMOVED":
+        return {
+            "simulation_step": simulation_event.get("simulation_step", ""),
+            "event_time": simulation_event.get("event_time", ""),
+            "simulation_load_id": simulation_event.get("load_id", ""),
+            "reason": simulation_event.get("reason", ""),
+        }
+
+    return {
+        "simulation_step": simulation_event.get("simulation_step", ""),
+        "event_time": simulation_event.get("event_time", ""),
+        "simulation_load_id": simulation_event.get("load_id", ""),
+        "payload": payload,
+    }
+
+
 def build_cases_and_events(
     decision_records,
     feedback_records,
     telegram_outbox_records=None,
+    simulation_event_records=None,
 ):
     telegram_outbox_records = telegram_outbox_records or []
+    simulation_event_records = simulation_event_records or []
 
     cases_by_id = {}
     events = []
@@ -423,6 +497,54 @@ def build_cases_and_events(
                 },
             )
         )
+
+        for simulation_event in simulation_event_records:
+         event_type = simulation_event.get("event_type", "")
+
+        if event_type not in [
+            "LOAD_APPEARED",
+            "LOAD_UPDATED",
+            "LOAD_REMOVED",
+        ]:
+            continue
+
+        for case_id, case in cases_by_id.items():
+            if not simulation_event_matches_case(simulation_event, case):
+                continue
+
+            if event_type == "LOAD_REMOVED":
+                removed_reason = str(simulation_event.get("reason", "") or "").strip().lower()
+
+                if removed_reason == "covered":
+                    case["status"] = "COVERED"
+                    case["final_outcome"] = "COVERED"
+                else:
+                    case["status"] = "REMOVED"
+                    case["final_outcome"] = "REMOVED"
+
+                case["updated_at_utc"] = simulation_event.get(
+                    "timestamp_utc",
+                    case.get("updated_at_utc", ""),
+                )
+
+            if event_type == "LOAD_UPDATED":
+                case["updated_at_utc"] = simulation_event.get(
+                    "timestamp_utc",
+                    case.get("updated_at_utc", ""),
+                )
+
+            events.append(
+                build_dispatch_event(
+                    case_id=case_id,
+                    event_type=event_type,
+                    driver_name=case.get("driver_name", ""),
+                    load_id=case.get("load_id", ""),
+                    reference_id=case.get("reference_id", ""),
+                    timestamp_utc=simulation_event.get("timestamp_utc", ""),
+                    source="load_board_simulation",
+                    payload=build_simulation_payload(simulation_event),
+                )
+            )
 
     for feedback in feedback_records:
         matched_case_id = None
@@ -518,6 +640,34 @@ def build_cases_and_events(
                     },
                 )
             )
+
+        deduped_events = []
+    seen_event_keys = set()
+
+    for event in events:
+        payload = event.get("payload", {}) or {}
+
+        event_key = "|".join(
+            [
+                str(event.get("case_id", "")),
+                str(event.get("event_type", "")),
+                str(event.get("timestamp_utc", "")),
+                str(event.get("source", "")),
+                str(payload.get("simulation_step", "")),
+                str(payload.get("simulation_load_id", "")),
+                str(payload.get("telegram_message_id", "")),
+                str(payload.get("feedback", "")),
+                str(payload.get("document_path", "")),
+            ]
+        )
+
+        if event_key in seen_event_keys:
+            continue
+
+        seen_event_keys.add(event_key)
+        deduped_events.append(event)
+
+    events = deduped_events
 
     cases = list(cases_by_id.values())
 
