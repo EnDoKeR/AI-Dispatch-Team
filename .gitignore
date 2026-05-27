@@ -40,3 +40,7 @@ backup_before_fix/
 data/decision_history.jsonl
 data/decision_runs.jsonl
 data/dispatcher_feedback.jsonl
+
+# Telegram feedback bot private files
+data/telegram_feedback_state.json
+data/ratecons/
