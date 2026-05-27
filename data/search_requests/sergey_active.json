@@ -1,0 +1,13 @@
+{
+  "driver_name": "Sergey",
+  "current_location": "Dade City, FL",
+  "available_time": "12 PM",
+  "pickup_date": "today",
+  "search_radius": 200,
+  "target_direction": "Midwest",
+  "target_direction_mode": "SOFT",
+  "target_city": "",
+  "target_radius_miles": 200,
+  "min_total_rpm": 2.5,
+  "notes": "Conestoga driver. Prefer Midwest but can review strong exceptions."
+}

@@ -1,0 +1,31 @@
+{
+  "name": "TestCA",
+  "driver_name": "TestCA",
+  "current_location": "Stockton, CA",
+  "available_time": "10 AM",
+  "equipment": "Conestoga",
+  "max_weight": 40000,
+  "max_empty_miles": 200,
+  "target_direction": "Texas",
+  "target_city": "",
+  "target_radius_miles": 200,
+  "min_total_rpm": 2.5,
+
+  "can_take_tarps": false,
+  "max_tarp_size": "",
+
+  "can_take_od": false,
+  "can_take_permit_loads": false,
+
+  "hazmat": null,
+  "tanker_endorsement": null,
+  "twic": null,
+
+  "us_citizen": null,
+  "green_card_holder": null,
+  "work_permit": null,
+
+  "ramps": null,
+  "dunnage": null,
+  "tracking_ok": true
+}

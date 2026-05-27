@@ -1,0 +1,13 @@
+{
+  "driver_name": "Alex",
+  "equipment": "Flatbed",
+  "max_weight": 46000,
+  "accept_coils": true,
+  "accept_tarps": true,
+  "blocked_states": [],
+  "preferred_directions": ["Midwest", "Texas", "Southeast"],
+  "avg_daily_miles": 700,
+  "home_city": "",
+  "home_state": "",
+  "notes": "Flatbed driver. Can take heavier loads and tarp loads if the rate is good."
+}

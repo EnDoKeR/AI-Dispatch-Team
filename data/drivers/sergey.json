@@ -1,0 +1,13 @@
+{
+  "driver_name": "Sergey",
+  "equipment": "Conestoga",
+  "max_weight": 40000,
+  "accept_coils": true,
+  "accept_tarps": false,
+  "blocked_states": [],
+  "preferred_directions": ["Midwest", "Southeast", "Texas"],
+  "avg_daily_miles": 650,
+  "home_city": "",
+  "home_state": "",
+  "notes": "Conestoga driver. Prefer legal full loads, reasonable weight, and simple 1P/1D loads."
+}

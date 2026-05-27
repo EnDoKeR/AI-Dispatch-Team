@@ -1,0 +1,13 @@
+{
+  "driver_name": "Alex",
+  "current_location": "Dade City, FL",
+  "available_time": "10 AM",
+  "pickup_date": "today",
+  "search_radius": 200,
+  "target_direction": "Texas",
+  "target_direction_mode": "TARGET_THEN_ROUTE",
+  "target_city": "Dallas, TX",
+  "target_radius_miles": 150,
+  "min_total_rpm": 2.5,
+  "notes": "Flatbed driver. Prefer Dallas/Texas. If no Dallas/Texas options, allow loads going in that direction."
+}

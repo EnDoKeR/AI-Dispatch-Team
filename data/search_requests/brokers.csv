@@ -1,0 +1,4 @@
+broker,score,status,notes,last_used,loads
+Primary Freight,80,GOOD,Pays normally,05/23/2026,15
+TQL,60,MEDIUM,Watch rates,05/01/2026,50
+Scam Broker,0,BLOCK,DNP,03/01/2026,1

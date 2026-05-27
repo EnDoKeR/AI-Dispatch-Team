@@ -1,0 +1,35 @@
+# Secrets
+.env
+*.env
+data/credentials/
+data/credentials/*.json
+
+# Python
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+
+# Logs / temp
+*.log
+tmp/
+temp/
+
+# Optional local runtime locks
+data/sent_market_summaries.txt
+data/sent_telegram_loads.txt
+data/sent_review_once_loads.txt
+data/sent_search_health_alerts.txt
+data/sent_reload_chain_alerts.txt

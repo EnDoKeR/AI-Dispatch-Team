@@ -1,0 +1,13 @@
+{
+  "driver_name": "TestCA",
+  "current_location": "Stockton, CA",
+  "available_time": "10 AM",
+  "pickup_date": "today",
+  "search_radius": 200,
+  "target_direction": "Texas",
+  "target_direction_mode": "SOFT",
+  "target_city": "",
+  "target_radius_miles": 200,
+  "min_total_rpm": 2.5,
+  "notes": "Test CA driver for real California load examples."
+}
