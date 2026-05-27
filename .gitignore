@@ -119,3 +119,8 @@ data/simulation/load_board_simulation_events.jsonl
 # =========================
 backup_before_fix/
 
+# SQLite operational memory
+data/dispatch_memory.db
+data/dispatch_memory.db-journal
+data/dispatch_memory.db-wal
+data/dispatch_memory.db-shm
