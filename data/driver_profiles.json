@@ -3,21 +3,16 @@
     "driver_name": "Alex",
     "equipment": "Flatbed",
     "max_weight": 46000,
-
     "can_take_tarps": true,
     "max_tarp_size": "8 ft",
-
     "can_take_od": false,
     "can_take_permit_loads": false,
-
     "hazmat": null,
     "tanker_endorsement": null,
     "twic": null,
-
     "us_citizen": null,
     "green_card_holder": null,
     "work_permit": null,
-
     "ramps": null,
     "dunnage": null,
     "tracking_ok": true
@@ -27,21 +22,16 @@
     "driver_name": "Sergey",
     "equipment": "Conestoga",
     "max_weight": 40000,
-
     "can_take_tarps": false,
     "max_tarp_size": "",
-
     "can_take_od": false,
     "can_take_permit_loads": false,
-
     "hazmat": null,
     "tanker_endorsement": null,
     "twic": null,
-
     "us_citizen": null,
     "green_card_holder": null,
     "work_permit": null,
-
     "ramps": null,
     "dunnage": null,
     "tracking_ok": true
@@ -51,21 +41,35 @@
     "driver_name": "TestCA",
     "equipment": "Conestoga",
     "max_weight": 40000,
-
     "can_take_tarps": false,
     "max_tarp_size": "",
-
     "can_take_od": false,
     "can_take_permit_loads": false,
-
     "hazmat": null,
     "tanker_endorsement": null,
     "twic": null,
-
     "us_citizen": null,
     "green_card_holder": null,
     "work_permit": null,
+    "ramps": null,
+    "dunnage": null,
+    "tracking_ok": true
+  },
 
+  "TestCAFlatbed": {
+    "driver_name": "TestCAFlatbed",
+    "equipment": "Flatbed",
+    "max_weight": 46000,
+    "can_take_tarps": true,
+    "max_tarp_size": "8 ft",
+    "can_take_od": false,
+    "can_take_permit_loads": false,
+    "hazmat": null,
+    "tanker_endorsement": null,
+    "twic": null,
+    "us_citizen": null,
+    "green_card_holder": null,
+    "work_permit": null,
     "ramps": null,
     "dunnage": null,
     "tracking_ok": true

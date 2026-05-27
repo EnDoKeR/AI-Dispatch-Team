@@ -190,20 +190,12 @@ class MarketLoad:
             elif value:
                 all_reason_parts.append(str(value))
 
-        notes = getattr(self, "notes", "")
-
-        if notes:
-            all_reason_parts.append(str(notes))
-
-        parsed_notes = getattr(self, "parsed_notes", {})
-
-        if parsed_notes:
-            all_reason_parts.append(str(parsed_notes))
+        notes = str(getattr(self, "notes", "") or "").lower()
+        commodity = str(getattr(self, "commodity", "") or "").lower()
 
         reasons = " ".join(all_reason_parts).lower()
 
-        # Highest priority: missing rate should stay RATE CHECK
-        # even if Conestoga verification is also needed.
+        # RATE CHECK has highest priority.
         if (
             "rate is missing" in reasons
             or "posted as $0" in reasons
@@ -212,7 +204,7 @@ class MarketLoad:
         ):
             return "RATE CHECK"
 
-        # OD / permit should be shown before document or conestoga category.
+        # OD / PERMIT.
         if (
             "od / permit" in reasons
             or "od load" in reasons
@@ -225,11 +217,21 @@ class MarketLoad:
             or "oversize" in reasons
             or "over size" in reasons
             or "os/ow" in reasons
+            or "od / permit" in notes
+            or "od load" in notes
+            or "permit load" in notes
+            or "permits required" in notes
+            or "permit required" in notes
+            or "wide load" in notes
+            or "oversize" in notes
+            or "over size" in notes
+            or "over-dimensional" in notes
+            or "overdimensional" in notes
+            or "os/ow" in notes
         ):
             return "OD / PERMIT"
 
-        # Conestoga verification should be clear when Flatbed/Step Deck
-        # posting needs dispatcher/broker confirmation.
+        # Conestoga verify.
         if (
             "conestoga must be verified" in reasons
             or "posted as flatbed/step deck" in reasons
@@ -237,35 +239,43 @@ class MarketLoad:
         ):
             return "CONESTOGA VERIFY"
 
-        # Document-related review.
-        # Keep this list precise so "Reference ID: NO ID" or normal notes
-        # do not accidentally become DOCUMENTS REQUIRED.
-        if (
-            "hazmat" in reasons
-            or "haz mat" in reasons
-            or "tanker endorsement" in reasons
-            or "tank endorsement" in reasons
-            or "twic" in reasons
-            or "us citizen" in reasons
-            or "u.s. citizen" in reasons
-            or "green card" in reasons
-            or "work permit" in reasons
-            or "legal status" in reasons
-            or "ramps required" in reasons
-            or "need ramps" in reasons
-            or "dunnage" in reasons
-            or "must provide wood" in reasons
-            or "provide wood" in reasons
-            or "wood required" in reasons
-            or "blocking and bracing" in reasons
-            or "block and brace" in reasons
-            or "iso tank" in reasons
-            or "iso tanks" in reasons
-        ):
-            return "DOCUMENTS REQUIRED"
-
+        # Along route should not become DOCUMENTS REQUIRED because of words like Midwest.
         if "along route" in reasons:
             return "ALONG ROUTE"
+
+        # Document-related review.
+        # Important: do NOT use generic "id" here.
+        document_terms = [
+            "hazmat",
+            "haz mat",
+            "tanker endorsement",
+            "tank endorsement",
+            "twic",
+            "us citizen",
+            "u.s. citizen",
+            "green card",
+            "work permit",
+            "legal status",
+            "ramps required",
+            "need ramps",
+            "dunnage",
+            "must provide wood",
+            "provide wood",
+            "wood required",
+            "blocking and bracing",
+            "block and brace",
+            "iso tank",
+            "iso tanks",
+        ]
+
+        if any(term in reasons for term in document_terms):
+            return "DOCUMENTS REQUIRED"
+
+        if "iso tank" in notes or "iso tanks" in notes:
+            return "DOCUMENTS REQUIRED"
+
+        if "iso tank" in commodity or "iso tanks" in commodity:
+            return "DOCUMENTS REQUIRED"
 
         if "strong off-target" in reasons:
             return "STRONG OFF-TARGET"
@@ -289,6 +299,9 @@ class MarketLoad:
             return "TARPS REQUIRED"
 
         return "GENERAL REVIEW"
+
+
+
     def _to_number(self, value):
         if value is None:
             return 0
