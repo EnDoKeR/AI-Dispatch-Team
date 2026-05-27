@@ -52,6 +52,10 @@ def write_jsonl(file_path, records):
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
+def normalize_text(value):
+    return str(value or "").strip().lower()
+
+
 def build_case_id(driver_name, load_id, reference_id="", broker_mc=""):
     reference_id = str(reference_id or "").strip()
     load_id = str(load_id or "").strip()
@@ -85,7 +89,14 @@ def status_from_feedback(feedback_type):
     if feedback_type == "sent_to_driver":
         return "SENT_TO_DRIVER"
 
-    if feedback_type in ["driver_rejected", "rate_too_low", "bad_broker", "wrong_equipment", "weight_issue", "time_issue"]:
+    if feedback_type in [
+        "driver_rejected",
+        "rate_too_low",
+        "bad_broker",
+        "wrong_equipment",
+        "weight_issue",
+        "time_issue",
+    ]:
         return "REJECTED"
 
     if feedback_type == "covered":
@@ -151,6 +162,65 @@ def build_case_from_decision(decision_record):
             "timestamp_utc": decision_record.get("timestamp_utc", ""),
         },
 
+        "telegram_alerts": [],
+        "dispatcher_feedback": [],
+        "ratecons": [],
+        "events_count": 0,
+    }
+
+
+def build_case_from_outbox(outbox_record):
+    case_id = build_case_id(
+        driver_name=outbox_record.get("driver_name", ""),
+        load_id="",
+        reference_id=outbox_record.get("reference_id", ""),
+        broker_mc=outbox_record.get("broker_mc", ""),
+    )
+
+    return {
+        "case_id": case_id,
+        "created_at_utc": outbox_record.get("timestamp_utc", ""),
+        "updated_at_utc": outbox_record.get("timestamp_utc", ""),
+
+        "status": "OPEN",
+        "final_outcome": None,
+
+        "driver_name": safe(outbox_record.get("driver_name", "")),
+        "driver_location": "",
+        "driver_equipment": "",
+
+        "load_id": "",
+        "reference_id": safe(outbox_record.get("reference_id", "")),
+
+        "pickup": safe(outbox_record.get("pickup", "")),
+        "delivery": safe(outbox_record.get("delivery", "")),
+        "rate": safe(outbox_record.get("rate", "")),
+        "loaded_miles": 0,
+        "empty_miles": 0,
+        "total_miles": 0,
+        "total_rpm": 0,
+        "weight": 0,
+        "posted_trailer_type": "",
+        "commodity": "",
+
+        "broker_name": safe(outbox_record.get("broker", "")),
+        "broker_mc": safe(outbox_record.get("broker_mc", "")),
+        "broker_contact": "",
+        "broker_status": "",
+        "credit_score": "",
+        "days_to_pay": "",
+
+        "ai_decision": {
+            "decision": "",
+            "category": safe(outbox_record.get("category", "")),
+            "score": 0,
+            "priority": "",
+            "suggested_action": "",
+            "reasons": [],
+            "timestamp_utc": "",
+        },
+
+        "telegram_alerts": [],
         "dispatcher_feedback": [],
         "ratecons": [],
         "events_count": 0,
@@ -196,12 +266,32 @@ def apply_feedback_to_case(case_record, feedback_record):
     return case_record
 
 
-def feedback_matches_case(feedback_record, case_record):
-    feedback_load_id = str(feedback_record.get("load_id", "") or "").strip().lower()
-    feedback_reference_id = str(feedback_record.get("reference_id", "") or "").strip().lower()
+def apply_outbox_to_case(case_record, outbox_record):
+    case_record["updated_at_utc"] = outbox_record.get(
+        "timestamp_utc",
+        case_record.get("updated_at_utc", ""),
+    )
 
-    case_load_id = str(case_record.get("load_id", "") or "").strip().lower()
-    case_reference_id = str(case_record.get("reference_id", "") or "").strip().lower()
+    alert_item = {
+        "timestamp_utc": outbox_record.get("timestamp_utc", ""),
+        "message_type": outbox_record.get("message_type", ""),
+        "category": outbox_record.get("category", ""),
+        "telegram_message_id": outbox_record.get("telegram_message_id", ""),
+        "send_success": outbox_record.get("send_success", False),
+        "source": "telegram_outbox",
+    }
+
+    case_record["telegram_alerts"].append(alert_item)
+
+    return case_record
+
+
+def feedback_matches_case(feedback_record, case_record):
+    feedback_load_id = normalize_text(feedback_record.get("load_id", ""))
+    feedback_reference_id = normalize_text(feedback_record.get("reference_id", ""))
+
+    case_load_id = normalize_text(case_record.get("load_id", ""))
+    case_reference_id = normalize_text(case_record.get("reference_id", ""))
 
     if feedback_load_id and feedback_load_id == case_load_id:
         return True
@@ -212,7 +302,47 @@ def feedback_matches_case(feedback_record, case_record):
     return False
 
 
-def build_cases_and_events(decision_records, feedback_records):
+def outbox_matches_case(outbox_record, case_record):
+    outbox_reference_id = normalize_text(outbox_record.get("reference_id", ""))
+    outbox_driver = normalize_text(outbox_record.get("driver_name", ""))
+    outbox_pickup = normalize_text(outbox_record.get("pickup", ""))
+    outbox_delivery = normalize_text(outbox_record.get("delivery", ""))
+    outbox_broker_mc = normalize_text(outbox_record.get("broker_mc", ""))
+
+    case_reference_id = normalize_text(case_record.get("reference_id", ""))
+    case_driver = normalize_text(case_record.get("driver_name", ""))
+    case_pickup = normalize_text(case_record.get("pickup", ""))
+    case_delivery = normalize_text(case_record.get("delivery", ""))
+    case_broker_mc = normalize_text(case_record.get("broker_mc", ""))
+
+    if outbox_reference_id and outbox_reference_id != "no id":
+        if outbox_reference_id == case_reference_id and outbox_driver == case_driver:
+            return True
+
+    if (
+        outbox_driver
+        and outbox_pickup
+        and outbox_delivery
+        and outbox_driver == case_driver
+        and outbox_pickup == case_pickup
+        and outbox_delivery == case_delivery
+    ):
+        if not outbox_broker_mc or not case_broker_mc:
+            return True
+
+        if outbox_broker_mc == case_broker_mc:
+            return True
+
+    return False
+
+
+def build_cases_and_events(
+    decision_records,
+    feedback_records,
+    telegram_outbox_records=None,
+):
+    telegram_outbox_records = telegram_outbox_records or []
+
     cases_by_id = {}
     events = []
 
@@ -240,6 +370,56 @@ def build_cases_and_events(decision_records, feedback_records):
                     "pickup": decision.get("pickup", ""),
                     "delivery": decision.get("delivery", ""),
                     "rate": decision.get("rate", 0),
+                },
+            )
+        )
+
+    for outbox in telegram_outbox_records:
+        if not outbox.get("send_success", False):
+            continue
+
+        if outbox.get("message_type") not in [
+            "LOAD_OPPORTUNITY",
+            "REVIEW_ONCE",
+            "MARKET_SNAPSHOT",
+            "SEARCH_HEALTH_CHECK",
+        ]:
+            continue
+
+        matched_case_id = None
+
+        for case_id, case in cases_by_id.items():
+            if outbox_matches_case(outbox, case):
+                matched_case_id = case_id
+                break
+
+        if not matched_case_id:
+            case = build_case_from_outbox(outbox)
+            matched_case_id = case["case_id"]
+            cases_by_id[matched_case_id] = case
+
+        case = cases_by_id[matched_case_id]
+        apply_outbox_to_case(case, outbox)
+
+        events.append(
+            build_dispatch_event(
+                case_id=matched_case_id,
+                event_type="TELEGRAM_ALERT_SENT",
+                driver_name=case.get("driver_name", ""),
+                load_id=case.get("load_id", ""),
+                reference_id=case.get("reference_id", ""),
+                timestamp_utc=outbox.get("timestamp_utc", ""),
+                source="telegram_outbox",
+                payload={
+                    "message_type": outbox.get("message_type", ""),
+                    "category": outbox.get("category", ""),
+                    "telegram_message_id": outbox.get("telegram_message_id", ""),
+                    "pickup": outbox.get("pickup", ""),
+                    "delivery": outbox.get("delivery", ""),
+                    "rate": outbox.get("rate", ""),
+                    "broker": outbox.get("broker", ""),
+                    "broker_mc": outbox.get("broker_mc", ""),
+                    "reference_id": outbox.get("reference_id", ""),
                 },
             )
         )
@@ -296,6 +476,7 @@ def build_cases_and_events(decision_records, feedback_records):
                     "reasons": feedback.get("ai_reasons", []),
                     "timestamp_utc": "",
                 },
+                "telegram_alerts": [],
                 "dispatcher_feedback": [],
                 "ratecons": [],
                 "events_count": 0,
