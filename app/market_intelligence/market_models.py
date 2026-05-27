@@ -191,14 +191,19 @@ class MarketLoad:
                 all_reason_parts.append(str(value))
 
         notes = getattr(self, "notes", "")
+
         if notes:
             all_reason_parts.append(str(notes))
 
         parsed_notes = getattr(self, "parsed_notes", {})
+
         if parsed_notes:
             all_reason_parts.append(str(parsed_notes))
 
         reasons = " ".join(all_reason_parts).lower()
+
+        # Highest priority: missing rate should stay RATE CHECK
+        # even if Conestoga verification is also needed.
         if (
             "rate is missing" in reasons
             or "posted as $0" in reasons
@@ -207,37 +212,57 @@ class MarketLoad:
         ):
             return "RATE CHECK"
 
+        # OD / permit should be shown before document or conestoga category.
         if (
-            "hazmat" in reasons
-            or "haz mat" in reasons
-            or "tanker" in reasons
-            or "twic" in reasons
-            or "document" in reasons
-            or "green card" in reasons
-            or "work permit" in reasons
-            or "us citizen" in reasons
-            or "legal status" in reasons
-            or "ramps" in reasons
-            or "dunnage" in reasons
-            or "wood" in reasons
-            or "blocking" in reasons
-            or "bracing" in reasons
-        ):
-            return "DOCUMENTS REQUIRED"
-
-        if (
-            "od" in reasons
+            "od / permit" in reasons
+            or "od load" in reasons
             or "over dimension" in reasons
             or "overdimensional" in reasons
-            or "permit" in reasons
+            or "permit load" in reasons
+            or "permits required" in reasons
+            or "permit required" in reasons
             or "wide load" in reasons
             or "oversize" in reasons
+            or "over size" in reasons
             or "os/ow" in reasons
         ):
             return "OD / PERMIT"
 
-        if "conestoga" in reasons:
+        # Conestoga verification should be clear when Flatbed/Step Deck
+        # posting needs dispatcher/broker confirmation.
+        if (
+            "conestoga must be verified" in reasons
+            or "posted as flatbed/step deck" in reasons
+            or "conestoga verify" in reasons
+        ):
             return "CONESTOGA VERIFY"
+
+        # Document-related review.
+        # Keep this list precise so "Reference ID: NO ID" or normal notes
+        # do not accidentally become DOCUMENTS REQUIRED.
+        if (
+            "hazmat" in reasons
+            or "haz mat" in reasons
+            or "tanker endorsement" in reasons
+            or "tank endorsement" in reasons
+            or "twic" in reasons
+            or "us citizen" in reasons
+            or "u.s. citizen" in reasons
+            or "green card" in reasons
+            or "work permit" in reasons
+            or "legal status" in reasons
+            or "ramps required" in reasons
+            or "need ramps" in reasons
+            or "dunnage" in reasons
+            or "must provide wood" in reasons
+            or "provide wood" in reasons
+            or "wood required" in reasons
+            or "blocking and bracing" in reasons
+            or "block and brace" in reasons
+            or "iso tank" in reasons
+            or "iso tanks" in reasons
+        ):
+            return "DOCUMENTS REQUIRED"
 
         if "along route" in reasons:
             return "ALONG ROUTE"
@@ -256,11 +281,14 @@ class MarketLoad:
         if "weight" in reasons:
             return "WEIGHT CHECK"
 
-        if "tarps" in reasons or "tarp" in reasons:
+        if (
+            "tarps required" in reasons
+            or "tarp required" in reasons
+            or "ft tarps" in reasons
+        ):
             return "TARPS REQUIRED"
 
         return "GENERAL REVIEW"
-
     def _to_number(self, value):
         if value is None:
             return 0
