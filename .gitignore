@@ -59,3 +59,63 @@ data/simulation/load_board_simulation_events.jsonl
 
 # Telegram outgoing message log / private operational data
 data/telegram_outbox.jsonl
+# =========================
+# Local secrets
+# =========================
+.env
+*.env
+
+# =========================
+# Python cache
+# =========================
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# =========================
+# Private operational runtime data
+# =========================
+data/decision_history.jsonl
+data/decision_runs.jsonl
+data/dispatcher_feedback.jsonl
+data/dispatch_cases.jsonl
+data/dispatch_events.jsonl
+data/telegram_outbox.jsonl
+data/telegram_feedback_state.json
+
+# =========================
+# Telegram sent locks
+# =========================
+data/sent_market_summary.txt
+data/sent_market_summaries.txt
+data/sent_telegram_loads.txt
+data/sent_review_once_loads.txt
+data/sent_search_health_alerts.txt
+data/sent_reload_chain_alerts.txt
+
+# =========================
+# Rate confirmations / private documents
+# =========================
+data/ratecons/
+data/ratecons/**
+
+# =========================
+# Imported/live load data
+# =========================
+data/current_loads.json
+data/imported_loads.csv
+data/imported_loads.txt
+
+# =========================
+# Simulation runtime data
+# =========================
+data/simulation/current_simulated_loads.json
+data/simulation/load_board_simulation_events.jsonl
+
+# =========================
+# Local backups
+# =========================
+backup_before_fix/
+
