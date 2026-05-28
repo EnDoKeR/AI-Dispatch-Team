@@ -25,6 +25,7 @@ from app.market_intelligence.market_local_load_rules import apply_local_load_rul
 from app.market_intelligence.market_weight_rules import apply_weight_rules
 from app.market_intelligence.market_od_permit_rules import apply_od_permit_rules
 from app.market_intelligence.market_quality_rules import apply_quality_rules
+from app.market_intelligence.market_payment_risk_rules import apply_payment_risk_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -281,18 +282,7 @@ class MarketLoad:
         apply_quality_rules(self, max_empty, min_total_rpm)
 
         # Payment / broker no-buy warning
-        if (
-            "cash or zelle" in combined_text
-            or "cash/zelle" in combined_text
-            or "cashapp" in combined_text
-            or "cash app" in combined_text
-            or "zelle" in combined_text
-            or "venmo" in combined_text
-        ):
-            self.is_blocked = True
-            self.block_reasons.append(
-                "Cash/Zelle type payment detected; likely no-buy / risky broker payment."
-            )
+        apply_payment_risk_rules(self, combined_text)
 
         # Hazmat
         if (
