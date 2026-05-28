@@ -10,7 +10,6 @@ from app.market_intelligence.market_location_helpers import (
 )
 
 
-
 class MarketLoad:
     def __init__(
         self,
