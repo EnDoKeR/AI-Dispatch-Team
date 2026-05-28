@@ -515,6 +515,21 @@ def detect_cash_or_zelle(text):
     return False
 
 
+def detect_quickpay_review(text):
+    text = clean_text(text)
+
+    patterns = [
+        r"\bquickpay\b",
+        r"\bquick\s*pay\b",
+    ]
+
+    for pattern in patterns:
+        if re.search(pattern, text):
+            return True
+
+    return False
+
+
 def detect_hazmat_required(text):
     text = clean_text(text)
 
@@ -989,6 +1004,7 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
         "straight_through": detect_straight_through(combined_text),
 
         "cash_or_zelle": detect_cash_or_zelle(combined_text),
+        "quickpay_review": detect_quickpay_review(combined_text),
 
         "hazmat_required": detect_hazmat_required(combined_text),
         "tanker_required": detect_tanker_required(combined_text),
@@ -1064,6 +1080,9 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
 
     if flags["cash_or_zelle"]:
         notes_summary.append("cash/Zelle payment language detected")
+
+    if flags["quickpay_review"]:
+        notes_summary.append("QuickPay language detected; check broker MC")
 
     if flags["hazmat_required"]:
         notes_summary.append("hazmat required")

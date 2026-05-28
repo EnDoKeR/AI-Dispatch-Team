@@ -6,7 +6,9 @@ from app.market_intelligence.market_payment_risk_rules import apply_payment_risk
 class FakeLoad:
     def __init__(self):
         self.is_blocked = False
+        self.is_review_once = False
         self.block_reasons = []
+        self.review_reasons = []
 
 
 class TestMarketPaymentRiskRules(unittest.TestCase):
@@ -17,7 +19,9 @@ class TestMarketPaymentRiskRules(unittest.TestCase):
 
         self.assertIs(result, load)
         self.assertFalse(load.is_blocked)
+        self.assertFalse(load.is_review_once)
         self.assertEqual(load.block_reasons, [])
+        self.assertEqual(load.review_reasons, [])
 
     def test_apply_payment_risk_rules_blocks_cash_or_zelle(self):
         load = FakeLoad()
@@ -25,6 +29,18 @@ class TestMarketPaymentRiskRules(unittest.TestCase):
         apply_payment_risk_rules(load, "payment cash or zelle only")
 
         self.assertTrue(load.is_blocked)
+        self.assertEqual(
+            load.block_reasons,
+            ["Cash/Zelle type payment detected; likely no-buy / risky broker payment."],
+        )
+
+    def test_apply_payment_risk_rules_blocks_cash_on_delivery(self):
+        load = FakeLoad()
+
+        apply_payment_risk_rules(load, "cash on delivery")
+
+        self.assertTrue(load.is_blocked)
+        self.assertFalse(load.is_review_once)
         self.assertEqual(
             load.block_reasons,
             ["Cash/Zelle type payment detected; likely no-buy / risky broker payment."],
@@ -51,6 +67,19 @@ class TestMarketPaymentRiskRules(unittest.TestCase):
             self.assertEqual(
                 load.block_reasons,
                 ["Cash/Zelle type payment detected; likely no-buy / risky broker payment."],
+            )
+
+    def test_apply_payment_risk_rules_reviews_quickpay(self):
+        for text in ["quickpay", "quick pay"]:
+            load = FakeLoad()
+
+            apply_payment_risk_rules(load, text)
+
+            self.assertFalse(load.is_blocked)
+            self.assertTrue(load.is_review_once)
+            self.assertEqual(
+                load.review_reasons,
+                ["QuickPay payment language detected; check broker MC before buying."],
             )
 
 

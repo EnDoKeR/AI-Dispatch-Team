@@ -4,6 +4,7 @@ from app.market_intelligence.notes_parser import (
     clean_text,
     detect_actual_pickup_city,
     detect_cash_or_zelle,
+    detect_quickpay_review,
     detect_contact_override,
     detect_multiple_loads_available,
     detect_number_of_straps,
@@ -89,6 +90,11 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertTrue(detect_cash_or_zelle("zelle"))
         self.assertTrue(detect_cash_or_zelle("cashapp"))
 
+    def test_detect_quickpay_review_detects_quickpay_but_not_cash_block(self):
+        self.assertTrue(detect_quickpay_review("quickpay available"))
+        self.assertTrue(detect_quickpay_review("quick pay available"))
+        self.assertFalse(detect_cash_or_zelle("quickpay available"))
+
     def test_detect_weight_unknown_for_missing_or_placeholder_weight(self):
         self.assertTrue(detect_weight_unknown("weight TBD"))
         self.assertTrue(detect_weight_unknown("call for weight"))
@@ -131,6 +137,7 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertEqual(result["strap_count"], 6)
         self.assertTrue(result["is_od"])
         self.assertTrue(result["twic_required"])
+        self.assertFalse(result["quickpay_review"])
 
         self.assertIn("8 ft tarps detected", result["notes_summary"])
         self.assertIn("6 straps required", result["notes_summary"])
