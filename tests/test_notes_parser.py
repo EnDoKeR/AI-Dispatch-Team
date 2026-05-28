@@ -122,15 +122,25 @@ class TestNotesParserBasics(unittest.TestCase):
     def test_detect_stops_from_text_detects_multistop_language(self):
         self.assertGreaterEqual(detect_stops_from_text("multistop load"), 2)
 
-    def test_detect_actual_pickup_city_detects_strict_city_state(self):
-        self.assertEqual(
-            detect_actual_pickup_city("actual pickup in Dallas, TX"),
-            "Dallas, TX",
-        )
-        self.assertEqual(
-            detect_actual_pickup_city("load actually in Chicago, IL"),
-            "Chicago, IL",
-        )
+    def test_detect_actual_pickup_city_detects_explicit_actual_city_state(self):
+        cases = [
+            ("actual pickup in Dallas, TX", "Dallas, TX"),
+            ("load actually in Chicago, IL", "Chicago, IL"),
+            ("actual pickup city Dallas TX", "Dallas, TX"),
+            ("actual pick up -- Dallas (TX)", "Dallas, TX"),
+            ("actual PU: Atlanta (GA)", "Atlanta, GA"),
+            ("pickup is actually in Phoenix, AZ", "Phoenix, AZ"),
+        ]
+
+        for text, expected in cases:
+            with self.subTest(text=text):
+                self.assertEqual(detect_actual_pickup_city(text), expected)
+
+    def test_detect_actual_pickup_city_ignores_normal_pickup_city_without_actual_signal(self):
+        self.assertEqual(detect_actual_pickup_city("pickup in Dallas, TX"), "")
+        self.assertEqual(detect_actual_pickup_city("load in Dallas, TX"), "")
+        self.assertEqual(detect_actual_pickup_city("pu in Dallas, TX"), "")
+        self.assertEqual(detect_actual_pickup_city("load in Dallas"), "")
 
     def test_detect_contact_override_detects_obfuscated_email(self):
         result = detect_contact_override("email dispatch at example dot com")

@@ -840,61 +840,28 @@ def detect_contact_override(text):
 def detect_actual_pickup_city(text):
     original = normalize_text(text)
 
-    patterns = [
-        r"actually\s*load\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"actual\s*pickup\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"actual\s*pick\s*up\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"actual\s*pu\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"load\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"pickup\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"pu\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
-        r"load\s*actually\s*in\s+([a-zA-Z\s.]+,\s*[A-Z]{2})",
+    city_state_patterns = [
+        r"actual\s*pickup\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"actual\s*pick\s*up\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"actual\s*pu\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"actual\s*pickup\s*city\s+([a-zA-Z\s.]+),?\s+([A-Z]{2})",
+        r"actual\s*pick\s*up\s*[-:]+\s*([a-zA-Z\s.]+)\s*\(\s*([A-Z]{2})\s*\)",
+        r"actual\s*pickup\s*[-:]+\s*([a-zA-Z\s.]+)\s*\(\s*([A-Z]{2})\s*\)",
+        r"actual\s*pu\s*[-:]+\s*([a-zA-Z\s.]+)\s*\(\s*([A-Z]{2})\s*\)",
+        r"load\s*actually\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"actually\s*load\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"actually\s*loads\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"real\s*pickup\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"correct\s*pickup\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
+        r"pickup\s*is\s*actually\s*in\s+([a-zA-Z\s.]+),\s*([A-Z]{2})",
     ]
 
-    for pattern in patterns:
+    for pattern in city_state_patterns:
         match = re.search(pattern, original, re.IGNORECASE)
         if match:
-            return match.group(1).strip(" .,-")
-
-    soft_patterns = [
-        r"actually\s*load\s*in\s+([a-zA-Z\s.]+)",
-        r"actual\s*pickup\s*in\s+([a-zA-Z\s.]+)",
-        r"actual\s*pick\s*up\s*in\s+([a-zA-Z\s.]+)",
-        r"actual\s*pu\s*in\s+([a-zA-Z\s.]+)",
-        r"load\s*actually\s*in\s+([a-zA-Z\s.]+)",
-        r"load\s*in\s+([a-zA-Z\s.]+)",
-    ]
-
-    stop_words = [
-        "today",
-        "tomorrow",
-        "with",
-        "from",
-        "at",
-        "pickup",
-        "delivery",
-        "deliver",
-        "need",
-        "needs",
-        "no",
-        "yes",
-        "load",
-    ]
-
-    for pattern in soft_patterns:
-        match = re.search(pattern, original, re.IGNORECASE)
-        if match:
-            city = match.group(1).strip(" .,-")
-            city_words = city.split()
-            clean_words = []
-
-            for word in city_words:
-                if word.lower().strip(".,") in stop_words:
-                    break
-                clean_words.append(word)
-
-            if clean_words:
-                return " ".join(clean_words).strip(" .,-")
+            city = match.group(1).strip(" .,-:")
+            state = match.group(2).strip().upper()
+            return f"{city}, {state}"
 
     return ""
 
