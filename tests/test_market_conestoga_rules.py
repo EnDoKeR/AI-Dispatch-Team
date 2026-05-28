@@ -60,6 +60,51 @@ class TestMarketConestogaRules(unittest.TestCase):
             ["Notes say Conestoga is not accepted."],
         )
 
+    def test_apply_conestoga_rules_blocks_flat_only_and_no_con(self):
+        for notes_lower in [
+            "flat only",
+            "must be flatbed",
+            "conestoga would not work",
+            "conestoga won't work",
+            "no con",
+        ]:
+            load = FakeLoad()
+
+            apply_conestoga_rules(
+                load,
+                equipment="conestoga",
+                notes_lower=notes_lower,
+                posted_lower="conestoga",
+            )
+
+            self.assertTrue(load.is_blocked)
+            self.assertEqual(
+                load.block_reasons,
+                ["Notes say Conestoga is not accepted."],
+            )
+
+    def test_apply_conestoga_rules_reviews_flatbed_preferred_notes(self):
+        for notes_lower in [
+            "flatbed preferred",
+            "prefer flatbed",
+            "preferred flatbed",
+        ]:
+            load = FakeLoad()
+
+            apply_conestoga_rules(
+                load,
+                equipment="conestoga",
+                notes_lower=notes_lower,
+                posted_lower="conestoga",
+            )
+
+            self.assertFalse(load.is_blocked)
+            self.assertTrue(load.is_review_once)
+            self.assertEqual(
+                load.review_reasons,
+                ["Notes prefer Flatbed; Conestoga must be verified."],
+            )
+
     def test_apply_conestoga_rules_reviews_flatbed_posting(self):
         load = FakeLoad()
 
