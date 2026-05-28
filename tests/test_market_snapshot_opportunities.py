@@ -1,6 +1,6 @@
-﻿import unittest
+import unittest
 
-from app.market_intelligence.market_snapshot import (
+from app.market_intelligence.market_snapshot_opportunities import (
     get_review_once_loads,
     get_top_opportunities,
 )
