@@ -269,7 +269,6 @@ class MarketLoad:
         apply_local_load_rules(self, origin_text, destination_text)
 
         # Weight logic
-                # Weight logic
         if max_weight and self.weight and self.weight > max_weight:
             self.is_overweight = True
 
