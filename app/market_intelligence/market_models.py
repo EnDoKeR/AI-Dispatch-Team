@@ -24,6 +24,7 @@ from app.market_intelligence.market_broker_memory import apply_broker_memory
 from app.market_intelligence.market_local_load_rules import apply_local_load_rules
 from app.market_intelligence.market_weight_rules import apply_weight_rules
 from app.market_intelligence.market_od_permit_rules import apply_od_permit_rules
+from app.market_intelligence.market_quality_rules import apply_quality_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -276,28 +277,8 @@ class MarketLoad:
         # OD / permit logic
         apply_od_permit_rules(self, search_request, parsed_notes, notes_lower)
 
-        # Empty miles logic
-        if max_empty and self.empty_miles and self.empty_miles > max_empty:
-            self.is_too_far_empty = True
-            self.is_review_once = True
-            self.review_reasons.append(
-                f"Empty miles {self.empty_miles} are above driver setting {max_empty}."
-            )
-        # Rate check logic
-        if not self.rate:
-            self.is_review_once = True
-            self.review_reasons.append(
-                "Rate is missing / posted as $0; dispatcher should check rate with broker."
-            )
-
-        # RPM logic
-        # RPM should not be a hard blocker.
-        # It is only a quality warning / scoring factor.
-        if min_total_rpm and self.total_rpm and self.total_rpm < min_total_rpm:
-            self.is_low_rpm = True
-            self.match_reasons.append(
-                f"RPM ${self.total_rpm} is below preferred minimum ${min_total_rpm}."
-            )
+        # Empty miles / rate / RPM quality logic
+        apply_quality_rules(self, max_empty, min_total_rpm)
 
         # Payment / broker no-buy warning
         if (
