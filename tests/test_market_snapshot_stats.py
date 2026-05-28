@@ -1,6 +1,6 @@
 import unittest
 
-from app.market_intelligence.market_snapshot import (
+from app.market_intelligence.market_snapshot_stats import (
     average_score,
     bucket_stats,
     choose_best_bucket,
