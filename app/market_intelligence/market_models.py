@@ -12,6 +12,7 @@ from app.market_intelligence.market_review_category import classify_review_categ
 from app.market_intelligence.market_contact_extractor import extract_email, extract_phone
 from app.market_intelligence.market_city_distance import distance_between_known_cities
 from app.market_intelligence.market_region_conflict import pickup_region_conflict_with_driver
+from app.market_intelligence.market_match_status import finalize_driver_match
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -781,20 +782,7 @@ class MarketLoad:
                         f"Broker memory positive signal: {'; '.join(broker_memory_reasons)}."
                     )
 
-        # Final status
-        if self.is_blocked:
-            self.driver_fit_status = "BLOCKED"
-            self.driver_match_status = "BLOCK"
-            self.driver_match_notes = self.block_reasons
-        elif self.is_review_once:
-            self.driver_fit_status = "REVIEW_ONCE"
-            self.driver_match_status = "REVIEW_ONCE"
-            self.driver_match_notes = self.review_reasons
-        else:
-            self.driver_fit_status = "CLEAN_MATCH"
-            self.driver_match_status = "MATCH"
-            self.driver_match_notes = self.match_reasons
-            self.is_clean_match = True
+        finalize_driver_match(self)
 
         return self
 
