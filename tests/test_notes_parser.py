@@ -137,6 +137,20 @@ class TestNotesParserBasics(unittest.TestCase):
 
         self.assertEqual(result["email"], "dispatch@example.com")
 
+    def test_detect_contact_override_detects_more_obfuscated_email_formats(self):
+        cases = [
+            "email dispatch(at)example(dot)com",
+            "email dispatch [at] example [dot] com",
+            "email dispatch at example.com",
+            "email dispatch@example dot com",
+            "email d i s p a t c h at example dot com",
+        ]
+
+        for case in cases:
+            with self.subTest(case=case):
+                result = detect_contact_override(case)
+                self.assertEqual(result["email"], "dispatch@example.com")
+
     def test_parse_notes_returns_core_flags_and_summary(self):
         result = parse_notes(
             notes="8 ft tarps required, need 6 straps, permit load, TWIC card required",
