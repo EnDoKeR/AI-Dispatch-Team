@@ -270,17 +270,51 @@ def apply_feedback_to_case(case_record, feedback_record):
 
     status_update = status_update_from_feedback(feedback_type)
     new_status = status_update.get("status", "OPEN")
-    final_outcome = status_update.get("final_outcome")
+    new_final_outcome = status_update.get("final_outcome")
 
-    if new_status != "OPEN":
+    current_status = str(case_record.get("status", "") or "").strip()
+    current_final_outcome = case_record.get("final_outcome")
+
+    final_statuses = {
+        "BOOKED",
+        "RATECON_RECEIVED",
+        "REJECTED",
+        "SKIPPED",
+        "COVERED",
+        "REMOVED",
+        "DUPLICATE",
+    }
+
+    working_status_order = {
+        "OPEN": 0,
+        "CALLED": 1,
+        "SENT_TO_DRIVER": 2,
+    }
+
+    # Final feedback always wins.
+    if new_final_outcome:
         case_record["status"] = new_status
+        case_record["final_outcome"] = new_final_outcome
+        return case_record
 
-    if final_outcome:
-        case_record["final_outcome"] = final_outcome
+    # If the case already has a final outcome, do not downgrade it
+    # with working feedback like called_broker or sent_to_driver.
+    if current_final_outcome:
+        return case_record
+
+    if current_status in final_statuses:
+        return case_record
+
+    # Working statuses can only move forward:
+    # OPEN -> CALLED -> SENT_TO_DRIVER
+    if new_status != "OPEN":
+        current_rank = working_status_order.get(current_status, 0)
+        new_rank = working_status_order.get(new_status, 0)
+
+        if new_rank >= current_rank:
+            case_record["status"] = new_status
 
     return case_record
-
-
 
 def apply_outbox_to_case(case_record, outbox_record):
     case_record["updated_at_utc"] = outbox_record.get(
