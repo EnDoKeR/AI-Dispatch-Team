@@ -14,6 +14,10 @@ from app.market_intelligence.market_city_distance import distance_between_known_
 from app.market_intelligence.market_region_conflict import pickup_region_conflict_with_driver
 from app.market_intelligence.market_match_status import finalize_driver_match, reset_driver_match_state
 from app.market_intelligence.market_tarp_requirements import apply_tarps_requirement
+from app.market_intelligence.market_document_requirements import (
+    require_driver_document,
+    require_one_of_driver_documents,
+)
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -257,60 +261,6 @@ class MarketLoad:
             f"{self.equipment}"
         ).lower()
 
-        def document_status(document_key):
-            return getattr(search_request, document_key, None)
-
-        def require_driver_document(document_key, document_label):
-            status = document_status(document_key)
-
-            if status is True:
-                self.match_reasons.append(
-                    f"{document_label} confirmed in driver profile."
-                )
-                return
-
-            if status is False:
-                self.is_blocked = True
-                self.block_reasons.append(
-                    f"{document_label} required, but driver profile says driver does not have it."
-                )
-                return
-
-            self.is_review_once = True
-            self.review_reasons.append(
-                f"{document_label} required; ask driver and save answer in driver profile."
-            )
-
-        def require_one_of_driver_documents(document_options, requirement_label):
-            confirmed_documents = []
-            unknown_documents = []
-
-            for document_key, document_label in document_options:
-                status = document_status(document_key)
-
-                if status is True:
-                    confirmed_documents.append(document_label)
-                elif status is None:
-                    unknown_documents.append(document_label)
-
-            if confirmed_documents:
-                self.match_reasons.append(
-                    f"{requirement_label} confirmed in driver profile: {', '.join(confirmed_documents)}."
-                )
-                return
-
-            if unknown_documents:
-                self.is_review_once = True
-                self.review_reasons.append(
-                    f"{requirement_label} required; ask driver about: {', '.join(unknown_documents)} and save answer in driver profile."
-                )
-                return
-
-            self.is_blocked = True
-            self.block_reasons.append(
-                f"{requirement_label} required, but driver profile has no accepted document/status."
-            )
-
         # Same city / local load blocker
         if origin_text and destination_text and origin_text == destination_text:
             self.is_local_load = True
@@ -423,6 +373,8 @@ class MarketLoad:
             or "hazardous" in combined_text
         ):
             require_driver_document(
+                self,
+                search_request,
                 "driver_hazmat",
                 "Hazmat certificate",
             )
@@ -436,6 +388,8 @@ class MarketLoad:
             or "tanker endoresment" in combined_text
         ):
             require_driver_document(
+                self,
+                search_request,
                 "driver_tanker_endorsement",
                 "Tanker endorsement",
             )
@@ -446,6 +400,8 @@ class MarketLoad:
             or "twic card" in combined_text
         ):
             require_driver_document(
+                self,
+                search_request,
                 "driver_twic",
                 "TWIC card",
             )
@@ -463,6 +419,8 @@ class MarketLoad:
             or "ead card" in combined_text
         ):
             require_one_of_driver_documents(
+                self,
+                search_request,
                 [
                     ("driver_us_citizen", "US citizen"),
                     ("driver_green_card_holder", "Green card"),
@@ -479,6 +437,8 @@ class MarketLoad:
             or "need ramp" in combined_text
         ):
             require_driver_document(
+                self,
+                search_request,
                 "driver_ramps",
                 "Ramps",
             )
@@ -493,6 +453,8 @@ class MarketLoad:
             or "block and brace" in combined_text
         ):
             require_driver_document(
+                self,
+                search_request,
                 "driver_dunnage",
                 "Dunnage / wood / blocking material",
             )
