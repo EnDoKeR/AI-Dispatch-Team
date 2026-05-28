@@ -5,6 +5,10 @@ import urllib.request
 from app.market_intelligence.telegram_buttons import build_feedback_buttons
 from pathlib import Path
 from app.market_intelligence.telegram_outbox_logger import log_outgoing_telegram_message
+from app.market_intelligence.broker_memory_rules import (
+    format_broker_memory_status,
+    get_broker_memory_status,
+)
 
 
 ENV_FILE = ".env"
@@ -44,6 +48,8 @@ def load_env():
 
 def normalize(value):
     return str(value).strip().lower()
+
+
 
 
 def load_duplicate_key(load, driver_name=""):
@@ -976,6 +982,9 @@ def format_search_health_message(
 
     return message
 
+
+
+
 def send_top_opportunities_to_telegram(loads, search_request, limit=3):
     if not loads:
         print(f"No loads to send to Telegram ({search_request.driver_name})")
@@ -1144,6 +1153,33 @@ def save_sent_chain_alert(chain_candidate, search_request):
     )
 
 
+def get_broker_status_text(load):
+    existing_status = str(getattr(load, "broker_status", "") or "").strip()
+    broker_mc = str(getattr(load, "broker_mc", "") or "").strip()
+
+    invalid_mc_values = [
+        "",
+        "NEEDS CHECK",
+        "NO MC",
+        "UNKNOWN",
+        "NONE",
+    ]
+
+    if broker_mc.upper() in invalid_mc_values:
+        return "NEEDS MC CHECK"
+
+    memory_status = get_broker_memory_status(broker_mc)
+    memory_status_name = memory_status.get("status", "UNKNOWN")
+
+    if memory_status_name and memory_status_name != "UNKNOWN":
+        return format_broker_memory_status(memory_status)
+
+    if existing_status and existing_status.upper() != "BUY":
+        return existing_status
+
+    return "UNKNOWN"
+
+
 def broker_block(load):
     """
     Builds a clean broker/contact block for Telegram.
@@ -1292,10 +1328,7 @@ def broker_block(load):
     if factoring_text:
         text += f"{factoring_text}\n"
 
-    if broker_status:
-        text += f"Broker Status: {broker_status}\n"
-    else:
-        text += "Broker Status: UNKNOWN\n"
+    text += f"Broker Status: {get_broker_status_text(load)}\n"
 
     return text
 
