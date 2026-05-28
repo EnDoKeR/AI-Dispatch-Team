@@ -315,17 +315,3 @@ def get_driver_lane_preference_status(
         "feedback_counts": matched_group["feedback_counts"],
         "lane_group": matched_group,
     }
-def format_driver_lane_preference_status(preference_status):
-    status = preference_status.get("status", "UNKNOWN")
-    confidence = preference_status.get("confidence", "UNKNOWN")
-    sample_quality = preference_status.get("sample_quality", "UNKNOWN")
-    sample_size = preference_status.get("sample_size", 0)
-    reasons = preference_status.get("reasons", [])
-
-    base_text = f"{status} / {confidence} / {sample_quality} ({sample_size} signals)"
-
-    if reasons:
-        return f"{base_text} — {'; '.join(reasons)}"
-
-    return base_text
-
