@@ -19,6 +19,7 @@ from app.market_intelligence.market_document_requirements import (
     require_one_of_driver_documents,
 )
 from app.market_intelligence.market_tracking_requirements import apply_tracking_requirement
+from app.market_intelligence.market_direction_matcher import apply_direction_match
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -467,34 +468,7 @@ class MarketLoad:
         apply_tracking_requirement(self, search_request, combined_text)
 
         # Direction / target logic
-        if self.matches_target_city_radius(search_request):
-            self.target_relation = "MATCH"
-            self.match_reasons.append("Destination matches target city.")
-
-        elif self.delivery_matches_target(search_request):
-            self.target_relation = "MATCH"
-            self.match_reasons.append("Destination matches target state/region.")
-
-        else:
-            reason = self.off_target_review_reason(search_request)
-
-            if self.should_block_off_target(search_request):
-                self.target_relation = "MISMATCH"
-                self.is_blocked = True
-                self.block_reasons.append(
-                    f"Delivery does not match target direction: {getattr(search_request, 'target_direction', '')}."
-                )
-
-            else:
-                if self.delivery_is_along_route(search_request):
-                    self.target_relation = "ALONG_ROUTE"
-                else:
-                    self.target_relation = "OFF_TARGET_EXCEPTION"
-
-                self.is_review_once = True
-
-                if reason:
-                    self.review_reasons.append(reason)
+        apply_direction_match(self, search_request)
 
         # Conestoga logic
         no_conestoga_terms = [
