@@ -819,11 +819,11 @@ def detect_contact_override(text):
     # name at domain dot com
     # name@domain com
     email_patterns = [
+        r"(?<![A-Za-z0-9])(?:[A-Za-z0-9]\s+){2,}[A-Za-z0-9]\s+at\s+[A-Za-z0-9.\-]+\s+dot\s+[A-Za-z]{2,}",
         r"[A-Za-z0-9._%+\-]+\s*@\s*[A-Za-z0-9.\-]+\s*(?:\.|`|,|\s+dot\s+|\s+)\s*[A-Za-z]{2,}",
         r"[A-Za-z0-9._%+\-]+\s+at\s+[A-Za-z0-9.\-]+\s*(?:\.|\s+dot\s+|\s+)\s*[A-Za-z]{2,}",
         r"[A-Za-z0-9._%+\-]+\s*\(\s*at\s*\)\s*[A-Za-z0-9.\-]+\s*\(\s*dot\s*\)\s*[A-Za-z]{2,}",
         r"[A-Za-z0-9._%+\-]+\s*\[\s*at\s*\]\s*[A-Za-z0-9.\-]+\s*\[\s*dot\s*\]\s*[A-Za-z]{2,}",
-        r"(?:[A-Za-z0-9]\s+){2,}[A-Za-z0-9]\s+at\s+[A-Za-z0-9.\-]+\s+dot\s+[A-Za-z]{2,}",
     ]
 
     for pattern in email_patterns:
