@@ -706,5 +706,123 @@ class TestMarketLoadRouteAndDistanceHelpers(unittest.TestCase):
         self.assertFalse(load.is_along_route_toward_target(search_request))
 
 
+
+class TestMarketLoadReviewCategory(unittest.TestCase):
+    def test_review_category_rate_check_has_highest_priority(self):
+        load = MarketLoad(notes="OD load, permits required")
+        load.review_reasons = [
+            "Rate is missing / posted as $0; dispatcher should check rate with broker.",
+            "OD / permit / wide load detected.",
+        ]
+
+        self.assertEqual(load.review_category(), "RATE CHECK")
+
+    def test_review_category_broker_review(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Broker memory requires review. Risk: repeated no-answer.",
+        ]
+
+        self.assertEqual(load.review_category(), "BROKER REVIEW")
+
+    def test_review_category_od_permit_from_reasons(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "OD / permit / wide load detected; dispatcher must verify permits/dimensions.",
+        ]
+
+        self.assertEqual(load.review_category(), "OD / PERMIT")
+
+    def test_review_category_od_permit_from_notes(self):
+        load = MarketLoad(notes="Oversize load. Permits required.")
+
+        self.assertEqual(load.review_category(), "OD / PERMIT")
+
+    def test_review_category_conestoga_verify(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Posted as Flatbed/Step Deck; Conestoga must be verified.",
+        ]
+
+        self.assertEqual(load.review_category(), "CONESTOGA VERIFY")
+
+    def test_review_category_along_route_before_documents_required(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Load is along route toward Midwest.",
+        ]
+
+        self.assertEqual(load.review_category(), "ALONG ROUTE")
+
+    def test_review_category_documents_required_from_reasons(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Tanker endorsement required; ask driver and save answer in driver profile.",
+        ]
+
+        self.assertEqual(load.review_category(), "DOCUMENTS REQUIRED")
+
+    def test_review_category_documents_required_from_notes(self):
+        load = MarketLoad(notes="ISO tank load. Documents may be required.")
+
+        self.assertEqual(load.review_category(), "DOCUMENTS REQUIRED")
+
+    def test_review_category_documents_required_from_commodity(self):
+        load = MarketLoad(commodity="ISO Tanks")
+
+        self.assertEqual(load.review_category(), "DOCUMENTS REQUIRED")
+
+    def test_review_category_strong_off_target(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Strong off-target exception: RPM $6.0 and gross $3000.",
+        ]
+
+        self.assertEqual(load.review_category(), "STRONG OFF-TARGET")
+
+    def test_review_category_time_check(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Pickup time needs check before booking.",
+        ]
+
+        self.assertEqual(load.review_category(), "TIME CHECK")
+
+    def test_review_category_weight_check(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Weight 50000 is above driver setting 48000.",
+        ]
+
+        self.assertEqual(load.review_category(), "WEIGHT CHECK")
+
+    def test_review_category_tarps_required(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Tarps required; ask driver and save answer in driver profile.",
+        ]
+
+        self.assertEqual(load.review_category(), "TARPS REQUIRED")
+
+    def test_review_category_general_review_fallback(self):
+        load = MarketLoad()
+        load.review_reasons = [
+            "Dispatcher should manually review this exception.",
+        ]
+
+        self.assertEqual(load.review_category(), "GENERAL REVIEW")
+
+    def test_review_category_reads_driver_match_notes_and_block_reasons(self):
+        load = MarketLoad()
+        load.driver_match_notes = [
+            "Check rate with broker before booking.",
+        ]
+        load.block_reasons = [
+            "Weight is above driver setting.",
+        ]
+
+        self.assertEqual(load.review_category(), "RATE CHECK")
+
+
 if __name__ == "__main__":
     unittest.main()
