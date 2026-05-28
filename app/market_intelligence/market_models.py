@@ -11,6 +11,7 @@ from app.market_intelligence.market_location_helpers import (
 from app.market_intelligence.market_review_category import classify_review_category
 from app.market_intelligence.market_contact_extractor import extract_email, extract_phone
 from app.market_intelligence.market_city_distance import distance_between_known_cities
+from app.market_intelligence.market_region_conflict import pickup_region_conflict_with_driver
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -229,62 +230,8 @@ class MarketLoad:
         )
 
     def pickup_region_conflict_with_driver(self, search_request):
-        """
-        Safety check for MVP.
+        return pickup_region_conflict_with_driver(self, search_request)
 
-        If driver location state and pickup state are clearly different,
-        but empty miles are suspiciously low, we should not allow the load.
-
-        Example:
-        - Driver in Stockton, CA
-        - Pickup in Lakeland, FL
-        - Empty miles says 45
-
-        That is impossible and usually means the load belongs to another
-        test/search area.
-        """
-
-        driver_location = str(getattr(search_request, "current_location", "") or "").strip()
-        pickup_location = str(self.pickup or self.origin or "").strip()
-
-        if not driver_location or not pickup_location:
-            return False
-
-        driver_state = location_state(driver_location)
-        pickup_state = location_state(pickup_location)
-
-        if not driver_state or not pickup_state:
-            return False
-
-        if driver_state == pickup_state:
-            return False
-
-        nearby_states = {
-            "CA": ["NV", "OR", "AZ"],
-            "OR": ["CA", "WA", "ID", "NV"],
-            "WA": ["OR", "ID"],
-            "NV": ["CA", "OR", "ID", "UT", "AZ"],
-            "AZ": ["CA", "NV", "UT", "NM"],
-            "TX": ["OK", "AR", "LA", "NM"],
-            "FL": ["GA", "AL"],
-            "GA": ["FL", "AL", "TN", "SC", "NC"],
-            "AL": ["FL", "GA", "MS", "TN"],
-            "TN": ["AL", "GA", "KY", "AR", "MS", "MO", "NC"],
-            "CO": ["WY", "NE", "KS", "OK", "NM", "AZ", "UT"],
-            "IL": ["WI", "IA", "MO", "KY", "IN"],
-            "IN": ["IL", "MI", "OH", "KY"],
-            "OH": ["IN", "MI", "PA", "WV", "KY"],
-        }
-
-        allowed_neighbor_states = nearby_states.get(driver_state, [])
-
-        if pickup_state in allowed_neighbor_states:
-            return False
-
-        if self.empty_miles <= 250:
-            return True
-
-        return False
     def apply_search_request(self, search_request):
         self.match_reasons = []
         self.review_reasons = []
