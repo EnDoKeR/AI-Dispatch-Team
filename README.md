@@ -928,3 +928,102 @@ That is the foundation for a future AI Dispatch Observer and eventually a semi-a
 ```
 ```
 
+
+---
+
+## Current Foundation Status
+
+The project is currently in the Foundation Hardening phase.
+
+Completed foundation refactors:
+
+- `DispatchCase` logic was split into focused case modules.
+- `market_snapshot.py` was partially split into focused snapshot/helper modules.
+- `market_models.py` was reduced by moving decision helpers into focused market modules.
+- `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state modules.
+- `notes_parser.py` is now an orchestration file around `parse_notes()`.
+- `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
+
+Current modular notes parser structure:
+
+~~~text
+notes_parser.py
+notes_parser_text_helpers.py
+notes_parser_securement.py
+notes_parser_dimensions.py
+notes_parser_equipment.py
+notes_parser_load_requirements.py
+notes_parser_payment.py
+notes_parser_documents.py
+notes_parser_weight_stops.py
+notes_parser_pickup.py
+notes_parser_contact.py
+notes_parser_flags.py
+~~~
+
+Current driver lane preference structure:
+
+~~~text
+driver_lane_preference_rules.py
+driver_lane_preference_core.py
+driver_lane_preference_groups.py
+driver_lane_preference_queries.py
+~~~
+
+Current testing baseline:
+
+~~~powershell
+py -m compileall app scripts main.py test_sheet_connection.py
+py -m unittest discover -s tests -p "test_*.py"
+~~~
+
+Recent full test discovery passed with 455 tests.
+
+See also:
+
+- `docs/ARCHITECTURE.md`
+- `docs/FOUNDATION_HARDENING.md`
+- `docs/DEVELOPMENT_RULES.md`
+- `docs/ROADMAP.md`
+- `docs/TESTING.md`
+---
+
+## Detailed Roadmap
+
+The detailed roadmap is maintained in:
+
+~~~text
+docs/ROADMAP.md
+~~~
+
+The roadmap is organized by large logical blocks:
+
+- Foundation Hardening
+- DispatchCase and Event Timeline
+- Simulation and Replay
+- SQLite Dispatch Memory
+- Broker / Driver / Lane Memory
+- Telegram Feedback UX
+- Documentation and Development Rules
+- Future DAT/API Integration
+- Future AI Dispatch Observer
+---
+
+## Engineering Rule Going Forward
+
+New project logic should not be added into already-large files.
+
+Default pattern:
+
+~~~text
+small focused module + matching test file + orchestrator import
+~~~
+
+Examples:
+
+~~~text
+app/market_intelligence/example_feature_core.py
+tests/test_example_feature_core.py
+~~~
+
+Orchestrator files should coordinate workflow only. They should not become large business-rule containers again.
