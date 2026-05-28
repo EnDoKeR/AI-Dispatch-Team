@@ -147,6 +147,8 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertTrue(detect_weight_unknown("weight TBD"))
         self.assertTrue(detect_weight_unknown("call for weight"))
         self.assertTrue(detect_weight_unknown("confirm weight"))
+        self.assertTrue(detect_weight_unknown("weight 1 lb"))
+        self.assertTrue(detect_weight_unknown("posted weight 1"))
         self.assertTrue(detect_weight_unknown("clean notes", posted_weight=1))
 
     def test_detect_multiple_loads_available_is_not_stops(self):
@@ -155,6 +157,9 @@ class TestNotesParserBasics(unittest.TestCase):
 
     def test_detect_stops_from_text_detects_multistop_language(self):
         self.assertGreaterEqual(detect_stops_from_text("multistop load"), 2)
+        self.assertGreaterEqual(detect_stops_from_text("multi stop load"), 2)
+        self.assertGreaterEqual(detect_stops_from_text("multiple drops"), 2)
+        self.assertGreaterEqual(detect_stops_from_text("multiple pickups"), 2)
 
     def test_detect_actual_pickup_city_detects_explicit_actual_city_state(self):
         cases = [

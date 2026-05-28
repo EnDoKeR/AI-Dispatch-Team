@@ -651,6 +651,9 @@ def detect_weight_unknown(text, posted_weight=0):
         r"\bweight\s*tbd\b",
         r"\bweight\s*unknown\b",
         r"\bcall\s*for\s*weight\b",
+        r"\bweight\s*1\s*lb\b",
+        r"\bweight\s*1\s*lbs\b",
+        r"\bposted\s*weight\s*1\b",
     ]
 
     for pattern in patterns:
