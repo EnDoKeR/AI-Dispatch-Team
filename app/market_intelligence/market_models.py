@@ -10,6 +10,15 @@ from app.market_intelligence.market_location_helpers import (
 )
 from app.market_intelligence.market_review_category import classify_review_category
 from app.market_intelligence.market_contact_extractor import extract_email, extract_phone
+from app.market_intelligence.market_scoring import (
+    is_good as score_is_good,
+    is_qualified as score_is_qualified,
+    opportunity_reason as score_opportunity_reason,
+    opportunity_score as score_opportunity_score,
+    priority as score_priority,
+    reject_reasons as score_reject_reasons,
+    suggested_action as score_suggested_action,
+)
 
 
 class MarketLoad:
@@ -1062,110 +1071,22 @@ class MarketLoad:
 
 
     def is_qualified(self):
-        if self.driver_match_status == "BLOCK":
-            return False
-
-        if not self.rate:
-            return False
-
-        if not self.loaded_miles and not self.total_miles:
-            return False
-
-        return True
+        return score_is_qualified(self)
 
     def is_good(self):
-        if not self.is_qualified():
-            return False
-
-        if self.rate >= 3000:
-            return True
-
-        if self.total_rpm >= 3:
-            return True
-
-        return False
+        return score_is_good(self)
 
     def opportunity_score(self):
-        score = 0
-
-        if self.rate >= 5000:
-            score += 30
-        elif self.rate >= 3500:
-            score += 25
-        elif self.rate >= 2500:
-            score += 18
-        elif self.rate >= 1500:
-            score += 10
-        else:
-            score += 5
-
-        if self.total_rpm >= 4:
-            score += 30
-        elif self.total_rpm >= 3:
-            score += 25
-        elif self.total_rpm >= 2.5:
-            score += 18
-        elif self.total_rpm >= 2:
-            score += 10
-        else:
-            score += 3
-
-        if self.empty_miles <= 50:
-            score += 15
-        elif self.empty_miles <= 150:
-            score += 10
-        elif self.empty_miles <= 250:
-            score += 5
-
-        if self.driver_match_status == "MATCH":
-            score += 20
-        elif self.driver_match_status == "REVIEW_ONCE":
-            score += 8
-        elif self.driver_match_status == "BLOCK":
-            score -= 50
-
-        if self.delivery_zone and "GOOD" in str(self.delivery_zone).upper():
-            score += 5
-
-        return max(0, round(score))
+        return score_opportunity_score(self)
 
     def priority(self):
-        score = self.opportunity_score()
-
-        if self.driver_match_status == "BLOCK":
-            return "BLOCK"
-
-        if score >= 90:
-            return "HIGH"
-
-        if score >= 75:
-            return "MEDIUM"
-
-        return "LOW"
+        return score_priority(self)
 
     def suggested_action(self):
-        if self.driver_match_status == "BLOCK":
-            return "DO NOT SEND"
+        return score_suggested_action(self)
 
-        if self.driver_match_status == "REVIEW_ONCE":
-            return "REVIEW ONCE"
-
-        if self.opportunity_score() >= 85:
-            return "CALL NOW + EMAIL BACKUP"
-
-        if self.opportunity_score() >= 75:
-            return "CALL IF AVAILABLE"
-
-        return "MONITOR"
     def reject_reasons(self):
-        """
-        Backward compatibility for telegram_notifier health check.
-        Returns reasons why load was blocked/rejected.
-        """
-        if hasattr(self, "block_reasons") and self.block_reasons:
-            return self.block_reasons
-
-        return []
+        return score_reject_reasons(self)
 
     def distance_between_known_cities(self, city_a, city_b):
         """
@@ -1231,40 +1152,7 @@ class MarketLoad:
         return known_distances.get((city_a, city_b), 9999)
 
     def opportunity_reason(self):
-        """
-        Backward compatibility for telegram_notifier.
-        Explains why this load is considered an opportunity.
-        """
-
-        reasons = []
-
-        if self.rate >= 5000:
-            reasons.append("Strong gross")
-        elif self.rate >= 3000:
-            reasons.append("Good gross")
-
-        if self.total_rpm >= 4:
-            reasons.append("Excellent RPM")
-        elif self.total_rpm >= 3:
-            reasons.append("Good RPM")
-
-        if self.empty_miles <= 50:
-            reasons.append("Low empty miles")
-        elif self.empty_miles <= 150:
-            reasons.append("Acceptable empty miles")
-
-        if self.driver_match_status == "MATCH":
-            reasons.append("Matches driver target")
-        elif self.driver_match_status == "REVIEW_ONCE":
-            reasons.append("Needs dispatcher review")
-
-        if self.delivery_zone and "GOOD" in str(self.delivery_zone).upper():
-            reasons.append("Good reload area")
-
-        if not reasons:
-            reasons.append("Potential opportunity based on current filters")
-
-        return ", ".join(reasons)
+        return score_opportunity_reason(self)
 
     def to_dict(self):
         return {
