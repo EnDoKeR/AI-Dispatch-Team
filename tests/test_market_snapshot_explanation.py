@@ -1,6 +1,6 @@
 ﻿import unittest
 
-from app.market_intelligence.market_snapshot import build_market_explanation
+from app.market_intelligence.market_snapshot_explanation import build_market_explanation
 
 
 class TestMarketSnapshotExplanation(unittest.TestCase):
