@@ -1,9 +1,9 @@
 import json
 from datetime import datetime, timezone
 from pathlib import Path
-from app.market_intelligence.decision_logger_helpers import (
-    safe_value,
-    stable_text_hash,
+from app.market_intelligence.decision_run_builder import (
+    build_decision_run_record,
+    build_run_id,
 )
 from app.market_intelligence.decision_serializer import serialize_load_decision
 
@@ -17,7 +17,6 @@ def utc_now_iso():
 
 
 
-
 def append_jsonl(file_path, records):
     file_path = Path(file_path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
@@ -28,16 +27,11 @@ def append_jsonl(file_path, records):
 
 
 def log_decisions(search_request, loads, recommendation=None):
-    run_id_base = "|".join(
-        [
-            utc_now_iso(),
-            str(getattr(search_request, "driver_name", "")),
-            str(getattr(search_request, "current_location", "")),
-            str(len(loads)),
-        ]
+    run_id = build_run_id(
+        search_request=search_request,
+        loads_count=len(loads),
+        timestamp_utc=utc_now_iso(),
     )
-
-    run_id = f"RUN-{stable_text_hash(run_id_base)}"
 
     decision_records = []
 
@@ -52,33 +46,13 @@ def log_decisions(search_request, loads, recommendation=None):
             )
         )
 
-    match_count = len(
-        [record for record in decision_records if record["decision"] == "MATCH"]
+    run_record = build_decision_run_record(
+        search_request=search_request,
+        run_id=run_id,
+        decision_records=decision_records,
+        timestamp_utc=utc_now_iso(),
+        recommendation=recommendation,
     )
-
-    review_count = len(
-        [record for record in decision_records if record["decision"] == "REVIEW_ONCE"]
-    )
-
-    block_count = len(
-        [record for record in decision_records if record["decision"] == "BLOCK"]
-    )
-
-    run_record = {
-        "timestamp_utc": utc_now_iso(),
-        "run_id": run_id,
-        "driver_name": safe_value(getattr(search_request, "driver_name", "")),
-        "driver_location": safe_value(getattr(search_request, "current_location", "")),
-        "driver_equipment": safe_value(getattr(search_request, "equipment", "")),
-        "target_direction": safe_value(getattr(search_request, "target_direction", "")),
-        "loads_analyzed": len(decision_records),
-        "match_count": match_count,
-        "review_once_count": review_count,
-        "block_count": block_count,
-        "market_activity": safe_value((recommendation or {}).get("market_activity", "")),
-        "market_driver_fit": safe_value((recommendation or {}).get("driver_fit", "")),
-        "market_action_status": safe_value((recommendation or {}).get("action_status", "")),
-    }
 
     append_jsonl(DECISION_RUNS_FILE, [run_record])
     append_jsonl(DECISION_HISTORY_FILE, decision_records)
@@ -86,7 +60,7 @@ def log_decisions(search_request, loads, recommendation=None):
     return {
         "run_id": run_id,
         "loads_logged": len(decision_records),
-        "match_count": match_count,
-        "review_once_count": review_count,
-        "block_count": block_count,
+        "match_count": run_record["match_count"],
+        "review_once_count": run_record["review_once_count"],
+        "block_count": run_record["block_count"],
     }
