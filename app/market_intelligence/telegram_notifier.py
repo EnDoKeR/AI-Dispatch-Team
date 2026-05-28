@@ -208,22 +208,26 @@ def send_telegram_message(text, reply_markup=None):
 
     if not token:
         print("TELEGRAM_BOT_TOKEN is missing in .env")
+
         log_outgoing_telegram_message(
             text=text,
             success=False,
             telegram_response=None,
             error_text="TELEGRAM_BOT_TOKEN is missing in .env",
         )
+
         return False
 
     if not chat_id:
         print("TELEGRAM_CHAT_ID is missing in .env")
+
         log_outgoing_telegram_message(
             text=text,
             success=False,
             telegram_response=None,
             error_text="TELEGRAM_CHAT_ID is missing in .env",
         )
+
         return False
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -233,8 +237,9 @@ def send_telegram_message(text, reply_markup=None):
         "text": text,
         "disable_web_page_preview": "true",
     }
+
     if reply_markup:
-     data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
+        data["reply_markup"] = json.dumps(reply_markup, ensure_ascii=False)
 
     encoded_data = urllib.parse.urlencode(data).encode("utf-8")
 
@@ -247,30 +252,7 @@ def send_telegram_message(text, reply_markup=None):
 
         with urllib.request.urlopen(request, timeout=20) as response:
             response_text = response.read().decode("utf-8")
-
-        result = json.loads(response_text)
-
-        if result.get("ok"):
-            print("Telegram message sent ✅")
-            log_outgoing_telegram_message(
-                text=text,
-                success=True,
-                telegram_response=result,
-                error_text="",
-            )
-            return True
-
-        print("Telegram API returned error:")
-        print(result)
-
-        log_outgoing_telegram_message(
-            text=text,
-            success=False,
-            telegram_response=result,
-            error_text=str(result),
-        )
-
-        return False
+            result = json.loads(response_text)
 
     except Exception as error:
         print("Telegram send failed:")
@@ -285,7 +267,29 @@ def send_telegram_message(text, reply_markup=None):
 
         return False
 
+    if result.get("ok"):
+        print("Telegram message sent ✅")
 
+        log_outgoing_telegram_message(
+            text=text,
+            success=True,
+            telegram_response=result,
+            error_text="",
+        )
+
+        return True
+
+    print("Telegram API returned error:")
+    print(result)
+
+    log_outgoing_telegram_message(
+        text=text,
+        success=False,
+        telegram_response=result,
+        error_text=str(result),
+    )
+
+    return False
 
 def safe_value(value, fallback="NEEDS CHECK"):
     if value is None:
