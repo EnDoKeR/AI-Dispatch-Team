@@ -38,10 +38,18 @@ def normalize_email(raw_email):
 
     email = email.replace("`", ".")
     email = email.replace("'", "")
-    email = email.replace(" ", "")
 
+    email = re.sub(r"\s*\(\s*at\s*\)\s*", "@", email)
+    email = re.sub(r"\s*\[\s*at\s*\]\s*", "@", email)
+    email = re.sub(r"\s+at\s+", "@", email)
     email = re.sub(r"\bat\b", "@", email)
+
+    email = re.sub(r"\s*\(\s*dot\s*\)\s*", ".", email)
+    email = re.sub(r"\s*\[\s*dot\s*\]\s*", ".", email)
+    email = re.sub(r"\s+dot\s+", ".", email)
     email = re.sub(r"\bdot\b", ".", email)
+
+    email = email.replace(" ", "")
 
     # Common DAT/manual mistakes:
     # info@national-transportservices`com
@@ -83,7 +91,12 @@ def detect_tarp_required(text):
         r"\bno\s*tarping\b",
         r"\bnot\s*tarp\b",
         r"\bnot\s*tarps\b",
+        r"\btarp\s*not\s*required\b",
+        r"\btarps\s*not\s*required\b",
+        r"\btarp\s*not\s*needed\b",
+        r"\btarps\s*not\s*needed\b",
         r"\bno\s*tarp\s*needed\b",
+        r"\bno\s*tarps\s*needed\b",
     ]
 
     for pattern in no_tarp_patterns:
@@ -91,8 +104,6 @@ def detect_tarp_required(text):
             return False
 
     tarp_patterns = [
-        r"\btarp\b",
-        r"\btarps\b",
         r"\btarp\s*required\b",
         r"\btarps\s*required\b",
         r"\btarp\s*req\b",
@@ -691,6 +702,19 @@ def detect_stops_from_text(text):
     drop_matches = re.findall(r"\b\d+\s*drop\b", text)
     if drop_matches:
         return len(drop_matches) + 1
+
+    multistop_patterns = [
+        r"\bmultistop\b",
+        r"\bmulti\s*stop\b",
+        r"\bmulti\s*stops\b",
+        r"\bmultiple\s*stops\b",
+        r"\bmultiple\s*drops\b",
+        r"\bmultiple\s*pickups\b",
+    ]
+
+    for pattern in multistop_patterns:
+        if re.search(pattern, text):
+            return 2
 
     # "multiple loads available" is NOT stops.
     return 0
