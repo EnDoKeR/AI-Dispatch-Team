@@ -19,6 +19,15 @@ from app.market_intelligence.market_scoring import (
     reject_reasons as score_reject_reasons,
     suggested_action as score_suggested_action,
 )
+from app.market_intelligence.market_basic_metrics import (
+    broker_key as basic_broker_key,
+    calculate_bucket as basic_calculate_bucket,
+    lane_key as basic_lane_key,
+    loaded_rpm as basic_loaded_rpm,
+    rpm as basic_rpm,
+    to_bool as basic_to_bool,
+    to_number as basic_to_number,
+)
 
 
 class MarketLoad:
@@ -140,73 +149,25 @@ class MarketLoad:
         return classify_review_category(self)
 
     def _to_number(self, value):
-        if value is None:
-            return 0
-
-        if isinstance(value, (int, float)):
-            return value
-
-        text = str(value).strip()
-
-        if not text:
-            return 0
-
-        text = text.replace("$", "")
-        text = text.replace(",", "")
-        text = text.replace("lbs", "")
-        text = text.replace("lb", "")
-        text = text.replace("mi", "")
-        text = text.strip()
-
-        try:
-            if "." in text:
-                return float(text)
-            return int(text)
-        except ValueError:
-            return 0
+        return basic_to_number(value)
 
     def _to_bool(self, value):
-        if isinstance(value, bool):
-            return value
-
-        if value is None:
-            return False
-
-        text = str(value).strip().lower()
-
-        return text in ["true", "1", "yes", "y", "book", "bookable"]
+        return basic_to_bool(value)
 
     def rpm(self):
-        if not self.total_miles:
-            return 0
-
-        return round(self.rate / self.total_miles, 2)
+        return basic_rpm(self)
 
     def loaded_rpm(self):
-        if not self.loaded_miles:
-            return 0
-
-        return round(self.rate / self.loaded_miles, 2)
+        return basic_loaded_rpm(self)
 
     def calculate_bucket(self):
-        miles = self.loaded_miles or self.total_miles
-
-        if miles < 450:
-            return "0-450"
-
-        if miles < 700:
-            return "450-700"
-
-        if miles < 1300:
-            return "700-1300"
-
-        return "1300+"
+        return basic_calculate_bucket(self)
 
     def lane_key(self):
-        return f"{self.origin} -> {self.destination}"
+        return basic_lane_key(self)
 
     def broker_key(self):
-        return f"{self.broker_name}|{self.broker_mc}".strip("|")
+        return basic_broker_key(self)
 
     def matches_target_city_radius(self, search_request):
         """
