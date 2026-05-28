@@ -18,6 +18,7 @@ from app.market_intelligence.market_document_requirements import (
     require_driver_document,
     require_one_of_driver_documents,
 )
+from app.market_intelligence.market_tracking_requirements import apply_tracking_requirement
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -463,20 +464,7 @@ class MarketLoad:
         apply_tarps_requirement(self, search_request, combined_text)
 
         # Tracking
-        if (
-            "tracking required" in combined_text
-            or "macro point" in combined_text
-            or "macropoint" in combined_text
-        ):
-            if getattr(search_request, "driver_tracking_ok", True):
-                self.match_reasons.append(
-                    "Tracking is accepted by driver profile."
-                )
-            else:
-                self.is_blocked = True
-                self.block_reasons.append(
-                    "Tracking required, but driver profile says tracking is not accepted."
-                )
+        apply_tracking_requirement(self, search_request, combined_text)
 
         # Direction / target logic
         if self.matches_target_city_radius(search_request):
