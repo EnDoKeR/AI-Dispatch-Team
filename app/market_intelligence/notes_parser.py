@@ -1,6 +1,3 @@
-import re
-
-
 from app.market_intelligence.notes_parser_text_helpers import (
     clean_text,
     lower_text,
