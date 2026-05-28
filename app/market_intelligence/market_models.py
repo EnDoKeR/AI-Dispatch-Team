@@ -20,6 +20,7 @@ from app.market_intelligence.market_document_requirements import (
 )
 from app.market_intelligence.market_tracking_requirements import apply_tracking_requirement
 from app.market_intelligence.market_direction_matcher import apply_direction_match
+from app.market_intelligence.market_conestoga_rules import apply_conestoga_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -471,26 +472,7 @@ class MarketLoad:
         apply_direction_match(self, search_request)
 
         # Conestoga logic
-        no_conestoga_terms = [
-            "no conestoga",
-            "no conestogas",
-            "no stoga",
-            "no stogas",
-            "conestoga wouldn't work",
-            "conestoga wont work",
-            "conestoga will not work",
-            "flatbed only",
-        ]
-
-        if "conestoga" in equipment:
-            if any(term in notes_lower for term in no_conestoga_terms):
-                self.is_blocked = True
-                self.block_reasons.append("Notes say Conestoga is not accepted.")
-            elif "flatbed" in posted_lower or "step" in posted_lower or posted_lower in ["f", "fd", "ft"]:
-                self.is_review_once = True
-                self.review_reasons.append(
-                    "Posted as Flatbed/Step Deck; Conestoga must be verified."
-                )
+        apply_conestoga_rules(self, equipment, notes_lower, posted_lower)
 
         if self.pickup_region_conflict_with_driver(search_request):
             self.is_blocked = True
