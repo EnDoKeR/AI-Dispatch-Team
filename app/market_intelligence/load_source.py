@@ -1,4 +1,4 @@
-import json
+﻿import json
 from pathlib import Path
 
 from app.market_intelligence.market_models import MarketLoad

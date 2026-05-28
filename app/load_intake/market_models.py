@@ -1,4 +1,4 @@
-class MarketLoad:
+﻿class MarketLoad:
     def __init__(
         self,
         pickup="",

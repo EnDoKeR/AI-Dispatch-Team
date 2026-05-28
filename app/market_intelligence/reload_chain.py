@@ -1,4 +1,4 @@
-def load_identity(load):
+﻿def load_identity(load):
     reference_id = getattr(load, "reference_id", "")
 
     if reference_id:

@@ -1,4 +1,4 @@
-import json
+﻿import json
 from pathlib import Path
 
 from app.market_intelligence.driver_profile import load_driver_profile

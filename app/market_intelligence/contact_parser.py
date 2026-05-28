@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 
 COMMON_EMAIL_FIXES = {

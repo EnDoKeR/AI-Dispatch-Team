@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 
 def normalize_text(value):
@@ -14,10 +14,10 @@ def clean_text(value):
 
     replacements = {
         "`": ".",
-        "’": "'",
-        "‘": "'",
-        "“": '"',
-        "”": '"',
+        "вЂ™": "'",
+        "вЂ": "'",
+        "вЂњ": '"',
+        "вЂќ": '"',
         "_": " ",
         ";": " ",
         "|": " ",

@@ -1,4 +1,4 @@
-import gspread
+﻿import gspread
 from google.oauth2.service_account import Credentials
 
 SCOPES = [
@@ -65,4 +65,4 @@ def append_load(load):
 
     worksheet.insert_row(row, 2)
 
-    print("Load written to Google Sheet ✅")
+    print("Load written to Google Sheet вњ…")

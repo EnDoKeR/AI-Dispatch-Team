@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 from datetime import datetime, timezone
 from pathlib import Path
@@ -52,21 +52,21 @@ def infer_message_type(text):
 def parse_driver_name(text):
     first_line = str(text or "").splitlines()[0] if text else ""
 
-    if "—" in first_line:
-        return first_line.split("—")[-1].strip().split("#")[0].strip()
+    if "вЂ”" in first_line:
+        return first_line.split("вЂ”")[-1].strip().split("#")[0].strip()
 
     return ""
 
 
 def parse_lane(text):
     for line in str(text or "").splitlines():
-        if "→" not in line:
+        if "в†’" not in line:
             continue
 
         if "Google" in line:
             continue
 
-        parts = line.split("→", 1)
+        parts = line.split("в†’", 1)
 
         if len(parts) != 2:
             continue
@@ -117,8 +117,8 @@ def parse_mc(text):
 def parse_category(text):
     first_line = str(text or "").splitlines()[0] if text else ""
 
-    if "REVIEW ONCE" in first_line and "—" in first_line:
-        parts = [part.strip() for part in first_line.split("—")]
+    if "REVIEW ONCE" in first_line and "вЂ”" in first_line:
+        parts = [part.strip() for part in first_line.split("вЂ”")]
 
         if len(parts) >= 2:
             return parts[1]

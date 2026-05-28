@@ -1,4 +1,4 @@
-import json
+﻿import json
 import re
 import sys
 import time
@@ -491,12 +491,12 @@ def save_feedback(
 
     warning = record.get("warning", "")
 
-    reply = "✅ Feedback saved.\n\n"
+    reply = "вњ… Feedback saved.\n\n"
     reply += f"Feedback: {feedback_type}\n"
     reply += f"Load ID / Reference: {load_id}\n"
 
     if record.get("pickup") or record.get("delivery"):
-        reply += f"Load: {record.get('pickup')} → {record.get('delivery')}\n"
+        reply += f"Load: {record.get('pickup')} в†’ {record.get('delivery')}\n"
 
     if record.get("ai_decision"):
         reply += f"AI decision: {record.get('ai_decision')}\n"
@@ -511,7 +511,7 @@ def save_feedback(
         reply += f"Note: {note}\n"
 
     if warning:
-        reply += f"\n⚠️ {warning}"
+        reply += f"\nвљ пёЏ {warning}"
 
     send_message(chat_id, reply)
 
@@ -575,7 +575,7 @@ def handle_text_message(message):
         return
 
     if command == "invalid":
-        send_message(chat_id, f"⚠️ {parsed.get('error')}\n\nUse /help")
+        send_message(chat_id, f"вљ пёЏ {parsed.get('error')}\n\nUse /help")
         return
 
     if command == "unknown":
@@ -622,7 +622,7 @@ def handle_callback_query(callback_query):
         answer_callback_query(callback_query_id, "Reference ID not found")
         send_message(
             chat_id,
-            "⚠️ I could not find Reference ID in this Telegram alert.\n\n"
+            "вљ пёЏ I could not find Reference ID in this Telegram alert.\n\n"
             "Use manual command instead:\n"
             f"/{feedback_type} LOAD_ID note",
         )

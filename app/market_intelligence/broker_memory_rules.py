@@ -1,4 +1,4 @@
-import sqlite3
+﻿import sqlite3
 from pathlib import Path
 
 from app.market_intelligence.sqlite_memory import SQLITE_DB_FILE
@@ -257,6 +257,6 @@ def format_broker_memory_status(memory_status):
 
     if reasons:
         reason_text = "; ".join(reasons)
-        return f"{status} / {risk_level} — {reason_text}"
+        return f"{status} / {risk_level} вЂ” {reason_text}"
 
     return f"{status} / {risk_level}"

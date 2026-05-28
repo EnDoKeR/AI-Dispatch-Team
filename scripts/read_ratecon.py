@@ -1,4 +1,4 @@
-from pypdf import PdfReader
+﻿from pypdf import PdfReader
 import re
 
 PDF_PATH = r"data/ratecons/test_ratecon.pdf"

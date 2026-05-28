@@ -1,4 +1,4 @@
-def make_callback(feedback_type, reference_id=""):
+﻿def make_callback(feedback_type, reference_id=""):
     reference_id = str(reference_id or "").strip()
 
     if reference_id and reference_id.upper() != "NO ID":
@@ -12,41 +12,41 @@ def build_feedback_buttons(message_kind="load", reference_id=""):
         buttons = [
             [
                 {
-                    "text": "📞 Called",
+                    "text": "рџ“ћ Called",
                     "callback_data": make_callback("called_broker", reference_id),
                 },
                 {
-                    "text": "💸 Rate too low",
+                    "text": "рџ’ё Rate too low",
                     "callback_data": make_callback("rate_too_low", reference_id),
                 },
             ],
             [
                 {
-                    "text": "🚚 Sent to driver",
+                    "text": "рџљљ Sent to driver",
                     "callback_data": make_callback("sent_to_driver", reference_id),
                 },
                 {
-                    "text": "🙅 Driver rejected",
+                    "text": "рџ™… Driver rejected",
                     "callback_data": make_callback("driver_rejected", reference_id),
                 },
             ],
             [
                 {
-                    "text": "⛔ Bad broker",
+                    "text": "в›” Bad broker",
                     "callback_data": make_callback("bad_broker", reference_id),
                 },
                 {
-                    "text": "❌ Covered",
+                    "text": "вќЊ Covered",
                     "callback_data": make_callback("covered", reference_id),
                 },
             ],
             [
                 {
-                    "text": "⏭️ Skip",
+                    "text": "вЏ­пёЏ Skip",
                     "callback_data": make_callback("skipped", reference_id),
                 },
                 {
-                    "text": "📝 Other",
+                    "text": "рџ“ќ Other",
                     "callback_data": make_callback("other", reference_id),
                 },
             ],
@@ -56,31 +56,31 @@ def build_feedback_buttons(message_kind="load", reference_id=""):
         buttons = [
             [
                 {
-                    "text": "✅ Booked",
+                    "text": "вњ… Booked",
                     "callback_data": make_callback("booked", reference_id),
                 },
                 {
-                    "text": "📞 Called",
+                    "text": "рџ“ћ Called",
                     "callback_data": make_callback("called_broker", reference_id),
                 },
             ],
             [
                 {
-                    "text": "🚚 Sent to driver",
+                    "text": "рџљљ Sent to driver",
                     "callback_data": make_callback("sent_to_driver", reference_id),
                 },
                 {
-                    "text": "💸 Rate too low",
+                    "text": "рџ’ё Rate too low",
                     "callback_data": make_callback("rate_too_low", reference_id),
                 },
             ],
             [
                 {
-                    "text": "⛔ Bad broker",
+                    "text": "в›” Bad broker",
                     "callback_data": make_callback("bad_broker", reference_id),
                 },
                 {
-                    "text": "❌ Covered",
+                    "text": "вќЊ Covered",
                     "callback_data": make_callback("covered", reference_id),
                 },
             ],

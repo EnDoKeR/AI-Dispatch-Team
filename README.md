@@ -1,4 +1,4 @@
-# AI Dispatch Team
+﻿# AI Dispatch Team
 
 AI Dispatch Team is an early-stage Dispatch Operating Intelligence System for flatbed and conestoga freight dispatch.
 
@@ -160,7 +160,7 @@ are not automatically blocked.
 If the load otherwise fits the driver and does not contain hard blockers, it is sent as:
 
 ```text
-REVIEW ONCE — RATE CHECK
+REVIEW ONCE вЂ” RATE CHECK
 ```
 
 Expected reason:
@@ -194,7 +194,7 @@ dimensions that do not fit Conestoga
 Flatbed / Flat or Step / Flatbed or Step Deck postings for Conestoga should usually be:
 
 ```text
-REVIEW ONCE — CONESTOGA VERIFY
+REVIEW ONCE вЂ” CONESTOGA VERIFY
 ```
 
 unless there is a clear hard blocker.
@@ -206,7 +206,7 @@ unless there is a clear hard blocker.
 Flatbed OD / permit / wide loads are sent as:
 
 ```text
-REVIEW ONCE — OD / PERMIT
+REVIEW ONCE вЂ” OD / PERMIT
 ```
 
 Conestoga should not take OD / permit / wide / oversize loads.
@@ -234,9 +234,9 @@ tracking_ok
 Document logic:
 
 ```text
-true    → driver can take it
-false   → block
-null    → REVIEW ONCE / DOCUMENTS REQUIRED
+true    в†’ driver can take it
+false   в†’ block
+null    в†’ REVIEW ONCE / DOCUMENTS REQUIRED
 ```
 
 This allows the dispatcher to ask the driver once and later update the driver profile.
@@ -265,8 +265,8 @@ The system attempts to extract broker information from structured fields and not
 Reference ID behavior:
 
 ```text
-If found → show Reference ID
-If not found → show Reference ID: NO ID
+If found в†’ show Reference ID
+If not found в†’ show Reference ID: NO ID
 ```
 
 ---
@@ -719,7 +719,7 @@ data/sent_reload_chain_alerts.txt
 
 ## Current Roadmap
 
-### Phase 1 — Current MVP
+### Phase 1 вЂ” Current MVP
 
 Status: in progress.
 
@@ -737,7 +737,7 @@ Status: in progress.
 * event timeline builder
 * timed load board simulator
 
-### Phase 2 — DispatchCase + Event Timeline
+### Phase 2 вЂ” DispatchCase + Event Timeline
 
 Next priority:
 
@@ -747,7 +747,7 @@ Next priority:
 * add case replay report
 * add case status report
 
-### Phase 3 — Simulation Runner
+### Phase 3 вЂ” Simulation Runner
 
 Build a controlled mini load board before DAT API.
 
@@ -761,7 +761,7 @@ Goals:
 * RATE CHECK testing
 * event timeline validation
 
-### Phase 4 — SQLite Dispatch Memory
+### Phase 4 вЂ” SQLite Dispatch Memory
 
 Move from JSONL-only logs toward:
 
@@ -784,7 +784,7 @@ simulation_events
 
 SQLite is the next local operational memory layer.
 
-### Phase 5 — Broker Memory
+### Phase 5 вЂ” Broker Memory
 
 Build broker intelligence from feedback and outcomes.
 
@@ -802,7 +802,7 @@ Broker memory should track:
 * rate=0 behavior
 * payment / trust notes
 
-### Phase 6 — Telegram Feedback Buttons
+### Phase 6 вЂ” Telegram Feedback Buttons
 
 Improve feedback UX with inline buttons:
 
@@ -817,7 +817,7 @@ Covered
 Rate con received
 ```
 
-### Phase 7 — Desktop Observer
+### Phase 7 вЂ” Desktop Observer
 
 Future Shadow Dispatcher mode.
 
@@ -838,7 +838,7 @@ Do not book.
 Do not send without confirmation.
 ```
 
-### Phase 8 — DAT/API Integration
+### Phase 8 вЂ” DAT/API Integration
 
 DAT/API or other live data integration should come after:
 
@@ -927,3 +927,4 @@ That is the foundation for a future AI Dispatch Observer and eventually a semi-a
 
 ```
 ```
+

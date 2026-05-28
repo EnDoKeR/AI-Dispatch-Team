@@ -1,4 +1,4 @@
-import gspread
+﻿import gspread
 from google.oauth2.service_account import Credentials
 
 SCOPES = [
@@ -25,4 +25,4 @@ test_row = [
 
 worksheet.append_row(test_row)
 
-print("Row added successfully ✅")
+print("Row added successfully вњ…")

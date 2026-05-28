@@ -1,4 +1,4 @@
-import re
+﻿import re
 
 from app.market_intelligence.broker_memory_rules import get_broker_memory_status
 
@@ -847,7 +847,7 @@ class MarketLoad:
             text = str(text or "").lower()
 
             match = re.search(
-                r"\b(4|6|8)\s*(?:ft|feet|foot|['’])\b",
+                r"\b(4|6|8)\s*(?:ft|feet|foot|['вЂ™])\b",
                 text,
             )
 
@@ -876,9 +876,9 @@ class MarketLoad:
                 return False, 0
 
             tarp_patterns = [
-                r"\b4\s*(?:ft|feet|foot|['’])\s*tarps?\b",
-                r"\b6\s*(?:ft|feet|foot|['’])\s*tarps?\b",
-                r"\b8\s*(?:ft|feet|foot|['’])\s*tarps?\b",
+                r"\b4\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
+                r"\b6\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
+                r"\b8\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
                 r"\b4ft\s*tarps?\b",
                 r"\b6ft\s*tarps?\b",
                 r"\b8ft\s*tarps?\b",

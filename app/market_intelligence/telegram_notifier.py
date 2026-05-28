@@ -1,4 +1,4 @@
-import json
+﻿import json
 from operator import index
 import urllib.parse
 import urllib.request
@@ -268,7 +268,7 @@ def send_telegram_message(text, reply_markup=None):
         return False
 
     if result.get("ok"):
-        print("Telegram message sent ✅")
+        print("Telegram message sent вњ…")
 
         log_outgoing_telegram_message(
             text=text,
@@ -392,7 +392,7 @@ def format_market_summary_message(
 
     message = ""
 
-    message += f"📊 MARKET SNAPSHOT — {search_request.driver_name}\n\n"
+    message += f"рџ“Љ MARKET SNAPSHOT вЂ” {search_request.driver_name}\n\n"
     message += f"Search Area: {search_location}\n"
     message += f"Available: {search_request.available_time}\n"
     message += f"Equipment: {search_request.equipment}\n"
@@ -420,7 +420,7 @@ def format_market_summary_message(
 
     if best_load:
         message += "Best Clean Match:\n"
-        message += f"{best_load.pickup} → {best_load.delivery}\n"
+        message += f"{best_load.pickup} в†’ {best_load.delivery}\n"
         message += f"Rate: ${best_load.rate}\n"
         message += f"Total miles: {best_load.total_miles}\n"
         message += f"Total RPM: ${best_load.total_rpm}\n"
@@ -501,7 +501,7 @@ def send_market_summary_to_telegram(
 
     if success:
         save_sent_summary(key)
-        print(f"Market summary sent ✅ ({search_request.driver_name})")
+        print(f"Market summary sent вњ… ({search_request.driver_name})")
 
     return success
 
@@ -514,8 +514,8 @@ def format_opportunity_message(load, index, search_request):
 
     message = ""
 
-    message = f"🔥 LOAD OPPORTUNITY #{index} — {search_request.driver_name}\n\n"
-    message += f"{load.pickup} → {load.delivery}\n\n"
+    message = f"рџ”Ґ LOAD OPPORTUNITY #{index} вЂ” {search_request.driver_name}\n\n"
+    message += f"{load.pickup} в†’ {load.delivery}\n\n"
 
     message += f"Rate: ${load.rate}\n"
     message += f"Loaded miles: {load.loaded_miles}\n"
@@ -535,10 +535,10 @@ def format_opportunity_message(load, index, search_request):
     message += "\n"
 
     if pickup_time == "NEEDS CHECK" or delivery_time == "NEEDS CHECK":
-        message += "⚠️ Time check required before booking.\n\n"
+        message += "вљ пёЏ Time check required before booking.\n\n"
 
     if "RISKY" in zone_outlook:
-        message += "⚠️ Reload risk: check exit plan before booking.\n\n"
+        message += "вљ пёЏ Reload risk: check exit plan before booking.\n\n"
 
     message += f"Priority: {load.priority()}\n"
     message += f"Score: {load.opportunity_score()}\n"
@@ -699,11 +699,11 @@ def format_review_once_message(load, index, search_request):
     message = ""
 
     message += (
-        f"⚠️ REVIEW ONCE — {category} — "
+        f"вљ пёЏ REVIEW ONCE вЂ” {category} вЂ” "
         f"{search_request.driver_name} #{index}\n\n"
     )
 
-    message += f"{load.pickup} → {load.delivery}\n\n"
+    message += f"{load.pickup} в†’ {load.delivery}\n\n"
 
     message += f"Rate: ${load.rate}\n"
     message += f"Loaded miles: {load.loaded_miles}\n"
@@ -723,7 +723,7 @@ def format_review_once_message(load, index, search_request):
     message += "\n"
 
     if "RISKY" in zone_outlook:
-        message += "⚠️ Reload risk: exit plan should be checked before booking.\n\n"
+        message += "вљ пёЏ Reload risk: exit plan should be checked before booking.\n\n"
 
     message += "Why shown:\n"
     shown_notes = []
@@ -809,7 +809,7 @@ def format_search_health_message(
 
     message = ""
 
-    message += f"⚠️ SEARCH HEALTH CHECK — {search_request.driver_name}\n\n"
+    message += f"вљ пёЏ SEARCH HEALTH CHECK вЂ” {search_request.driver_name}\n\n"
     message += f"Location: {search_request.current_location}\n"
     message += f"Monitored: ~{monitored_minutes} min\n\n"
 
@@ -1132,7 +1132,7 @@ def send_search_health_check_to_telegram(
 
     if success:
         save_sent_health_alert(search_request)
-        print(f"Search health check sent ✅ ({search_request.driver_name})")
+        print(f"Search health check sent вњ… ({search_request.driver_name})")
 def chain_duplicate_key(chain_candidate, search_request):
     first_load = chain_candidate["first_load"]
     reload_load = chain_candidate["reload_load"]
@@ -1383,10 +1383,10 @@ def format_chain_candidate_message(chain_candidate, search_request, index):
 
     message = ""
 
-    message += f"🔁 LOAD WITH RELOAD PLAN #{index} — {search_request.driver_name}\n\n"
+    message += f"рџ”Ѓ LOAD WITH RELOAD PLAN #{index} вЂ” {search_request.driver_name}\n\n"
 
     message += "FIRST LOAD:\n"
-    message += f"{first_load.pickup} → {first_load.delivery}\n"
+    message += f"{first_load.pickup} в†’ {first_load.delivery}\n"
     message += f"Rate: ${first_load.rate}\n"
     message += f"Loaded miles: {first_load.loaded_miles}\n"
     message += f"Empty miles: {first_load.empty_miles}\n"
@@ -1411,7 +1411,7 @@ def format_chain_candidate_message(chain_candidate, search_request, index):
     message += f"{important_checklist(first_load, search_request)}\n\n"
 
     message += "RELOAD OPTION:\n"
-    message += f"{reload_load.pickup} → {reload_load.delivery}\n"
+    message += f"{reload_load.pickup} в†’ {reload_load.delivery}\n"
     message += f"Rate: ${reload_load.rate}\n"
     message += f"Loaded miles: {reload_load.loaded_miles}\n"
     message += f"Empty miles: {reload_load.empty_miles}\n"

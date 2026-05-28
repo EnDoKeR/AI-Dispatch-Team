@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 from app.market_intelligence.reload_chain import build_chain_candidates
 from app.market_intelligence.load_source import load_market_loads
 from app.market_intelligence.search_request import load_search_request
@@ -526,7 +526,7 @@ def process_search_request(request_file):
 
     telegram_loads = top_opportunities
 
-    print(f"\n===== TELEGRAM SUMMARY SEND — {search_request.driver_name} =====\n")
+    print(f"\n===== TELEGRAM SUMMARY SEND вЂ” {search_request.driver_name} =====\n")
 
     send_market_summary_to_telegram(
         stats,
@@ -536,7 +536,7 @@ def process_search_request(request_file):
         search_location=search_location,
     )
 
-    print(f"\n===== TELEGRAM MATCH LOADS SEND — {search_request.driver_name} =====\n")
+    print(f"\n===== TELEGRAM MATCH LOADS SEND вЂ” {search_request.driver_name} =====\n")
 
     send_top_opportunities_to_telegram(
         telegram_loads,
@@ -544,7 +544,7 @@ def process_search_request(request_file):
         limit=3,
     )
 
-    print(f"\n===== TELEGRAM REVIEW ONCE SEND — {search_request.driver_name} =====\n")
+    print(f"\n===== TELEGRAM REVIEW ONCE SEND вЂ” {search_request.driver_name} =====\n")
 
     send_review_once_to_telegram(
         review_once_loads,
@@ -552,7 +552,7 @@ def process_search_request(request_file):
         limit=3,
     )
 
-    print(f"\n===== TELEGRAM SEARCH HEALTH CHECK — {search_request.driver_name} =====\n")
+    print(f"\n===== TELEGRAM SEARCH HEALTH CHECK вЂ” {search_request.driver_name} =====\n")
 
     send_search_health_check_to_telegram(
         search_request,

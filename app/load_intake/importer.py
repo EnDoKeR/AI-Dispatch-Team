@@ -1,4 +1,4 @@
-from pathlib import Path
+﻿from pathlib import Path
 
 from app.load_intake.parser import parse_ratecon
 from app.load_intake.sheet_writer import append_load

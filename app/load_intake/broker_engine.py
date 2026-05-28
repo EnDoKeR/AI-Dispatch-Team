@@ -1,4 +1,4 @@
-import csv
+﻿import csv
 
 
 BROKER_FILE = "data/brokers.csv"

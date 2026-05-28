@@ -1,4 +1,4 @@
-STRONG_RELOAD = [
+﻿STRONG_RELOAD = [
     "IL",
     "OH",
     "IN",

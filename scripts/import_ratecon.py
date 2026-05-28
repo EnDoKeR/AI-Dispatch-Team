@@ -1,4 +1,4 @@
-import re
+﻿import re
 import gspread
 from pypdf import PdfReader
 from google.oauth2.service_account import Credentials
@@ -83,5 +83,5 @@ worksheet = spreadsheet.worksheet(SHEET_NAME)
 
 worksheet.append_row(row)
 
-print("Rate confirmation imported successfully ✅")
+print("Rate confirmation imported successfully вњ…")
 print(load)
