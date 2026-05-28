@@ -66,45 +66,12 @@ from app.market_intelligence.notes_parser_weight_stops import (
 )
 
 
-def detect_pickup_time_from_text(text):
-    original = normalize_text(text)
-    text_lower = clean_text(text)
-
-    if "fcfs" in text_lower:
-        match = re.search(
-            r"\bfcfs\s*\d{1,2}\s*(?:am|pm)?\s*(?:-|to)\s*\d{1,2}\s*(?:am|pm)?\b",
-            text_lower,
-        )
-
-        if match:
-            return match.group(0).upper()
-
-        return "FCFS - NEEDS HOURS CHECK"
-
-    time_window = re.search(
-        r"\b\d{1,2}\s*(?:am|pm)\s*(?:-|to)\s*\d{1,2}\s*(?:am|pm)\b",
-        text_lower,
-    )
-
-    if time_window:
-        return time_window.group(0).upper()
-
-    # Important: require 4 digits on both sides, so phone numbers like 443-2707 are NOT detected as time.
-    military_window = re.search(
-        r"\b([01]\d{3}|2[0-3]\d{2})\s*(?:-|to)\s*([01]\d{3}|2[0-3]\d{2})\b",
-        text_lower,
-    )
-
-    if military_window:
-        return military_window.group(0).upper()
-
-    if re.search(r"\bready\s*now\b", text_lower):
-        return "Ready now"
-
-    if detect_appointment_required(original):
-        return "Appointment required"
-
-    return ""
+from app.market_intelligence.notes_parser_pickup import (
+    detect_actual_pickup_city,
+    detect_extra_pickup,
+    detect_multiple_loads_available,
+    detect_pickup_time_from_text,
+)
 
 
 def detect_contact_override(text):
