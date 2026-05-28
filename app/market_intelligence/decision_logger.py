@@ -16,7 +16,6 @@ def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
 
-
 def append_jsonl(file_path, records):
     file_path = Path(file_path)
     file_path.parent.mkdir(parents=True, exist_ok=True)
