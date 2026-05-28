@@ -1,4 +1,3 @@
-import hashlib
 import json
 from app.market_intelligence.case_id_resolver import (
     build_case_id,
@@ -12,7 +11,14 @@ from app.market_intelligence.case_status_engine import (
     status_update_from_feedback,
     status_update_from_simulation_removed,
 )
-from app.market_intelligence.event_logger import build_dispatch_event
+from app.market_intelligence.case_event_builder import (
+    build_ai_decision_created_event,
+    build_dispatcher_feedback_added_event,
+    build_load_board_simulation_event,
+    build_ratecon_received_event,
+    build_telegram_alert_sent_event,
+    dedupe_dispatch_events,
+)
 
 
 DISPATCH_CASES_FILE = Path("data/dispatch_cases.jsonl")
@@ -389,23 +395,10 @@ def build_cases_and_events(
         cases_by_id[case_id] = case
 
         events.append(
-            build_dispatch_event(
+            build_ai_decision_created_event(
                 case_id=case_id,
-                event_type="AI_DECISION_CREATED",
-                driver_name=case.get("driver_name", ""),
-                load_id=case.get("load_id", ""),
-                reference_id=case.get("reference_id", ""),
-                timestamp_utc=decision.get("timestamp_utc", ""),
-                source="decision_logger",
-                payload={
-                    "decision": decision.get("decision", ""),
-                    "category": decision.get("category", ""),
-                    "score": decision.get("score", 0),
-                    "reasons": decision.get("reasons", []),
-                    "pickup": decision.get("pickup", ""),
-                    "delivery": decision.get("delivery", ""),
-                    "rate": decision.get("rate", 0),
-                },
+                case_record=case,
+                decision_record=decision,
             )
         )
 
@@ -437,75 +430,33 @@ def build_cases_and_events(
         apply_outbox_to_case(case, outbox)
 
         events.append(
-            build_dispatch_event(
+            build_telegram_alert_sent_event(
                 case_id=matched_case_id,
-                event_type="TELEGRAM_ALERT_SENT",
-                driver_name=case.get("driver_name", ""),
-                load_id=case.get("load_id", ""),
-                reference_id=case.get("reference_id", ""),
-                timestamp_utc=outbox.get("timestamp_utc", ""),
-                source="telegram_outbox",
-                payload={
-                    "message_type": outbox.get("message_type", ""),
-                    "category": outbox.get("category", ""),
-                    "telegram_message_id": outbox.get("telegram_message_id", ""),
-                    "pickup": outbox.get("pickup", ""),
-                    "delivery": outbox.get("delivery", ""),
-                    "rate": outbox.get("rate", ""),
-                    "broker": outbox.get("broker", ""),
-                    "broker_mc": outbox.get("broker_mc", ""),
-                    "reference_id": outbox.get("reference_id", ""),
-                },
+                case_record=case,
+                outbox_record=outbox,
             )
         )
 
+    if simulation_event_records:
         for simulation_event in simulation_event_records:
-         event_type = simulation_event.get("event_type", "")
+            event_type = simulation_event.get("event_type", "")
 
-        if event_type not in [
-            "LOAD_APPEARED",
-            "LOAD_UPDATED",
-            "LOAD_REMOVED",
-        ]:
-            continue
-
-        for case_id, case in cases_by_id.items():
-            if not simulation_event_matches_case(simulation_event, case):
+            if event_type != "LOAD_APPEARED":
                 continue
 
-            if event_type == "LOAD_REMOVED":
-                status_update = status_update_from_simulation_removed(
-                    simulation_event.get("reason", "")
+            for case_id, case in cases_by_id.items():
+                if not simulation_event_matches_case(simulation_event, case):
+                    continue
+
+                events.append(
+                    build_load_board_simulation_event(
+                        case_id=case_id,
+                        case_record=case,
+                        simulation_event=simulation_event,
+                    )
                 )
 
-                apply_status_update_to_case(
-                    case_record=case,
-                    status_update=status_update,
-                )
-
-                case["updated_at_utc"] = simulation_event.get(
-                    "timestamp_utc",
-                    case.get("updated_at_utc", ""),
-                )
-
-            if event_type == "LOAD_UPDATED":
-                case["updated_at_utc"] = simulation_event.get(
-                    "timestamp_utc",
-                    case.get("updated_at_utc", ""),
-                )
-
-            events.append(
-                build_dispatch_event(
-                    case_id=case_id,
-                    event_type=event_type,
-                    driver_name=case.get("driver_name", ""),
-                    load_id=case.get("load_id", ""),
-                    reference_id=case.get("reference_id", ""),
-                    timestamp_utc=simulation_event.get("timestamp_utc", ""),
-                    source="load_board_simulation",
-                    payload=build_simulation_payload(simulation_event),
-                )
-            )
+                break
 
     for feedback in feedback_records:
         matched_case_id = None
@@ -528,7 +479,7 @@ def build_cases_and_events(
                 "created_at_utc": feedback.get("timestamp_utc", ""),
                 "updated_at_utc": feedback.get("timestamp_utc", ""),
                 "status": status_update_from_feedback(
-                     feedback.get("dispatcher_feedback", "")
+                    feedback.get("dispatcher_feedback", "")
                 ).get("status", "OPEN"),
                 "final_outcome": status_update_from_feedback(
                     feedback.get("dispatcher_feedback", "")
@@ -573,66 +524,23 @@ def build_cases_and_events(
         apply_feedback_to_case(case, feedback)
 
         events.append(
-            build_dispatch_event(
+            build_dispatcher_feedback_added_event(
                 case_id=matched_case_id,
-                event_type="DISPATCHER_FEEDBACK_ADDED",
-                driver_name=case.get("driver_name", ""),
-                load_id=case.get("load_id", ""),
-                reference_id=case.get("reference_id", ""),
-                timestamp_utc=feedback.get("timestamp_utc", ""),
-                source=feedback.get("source", "dispatcher_feedback"),
-                payload={
-                    "feedback": feedback.get("dispatcher_feedback", ""),
-                    "note": feedback.get("dispatcher_note", ""),
-                    "document_path": feedback.get("document_path", ""),
-                },
+                case_record=case,
+                feedback_record=feedback,
             )
         )
 
         if feedback.get("document_path"):
             events.append(
-                build_dispatch_event(
+                build_ratecon_received_event(
                     case_id=matched_case_id,
-                    event_type="RATECON_RECEIVED",
-                    driver_name=case.get("driver_name", ""),
-                    load_id=case.get("load_id", ""),
-                    reference_id=case.get("reference_id", ""),
-                    timestamp_utc=feedback.get("timestamp_utc", ""),
-                    source=feedback.get("source", "telegram_document"),
-                    payload={
-                        "document_path": feedback.get("document_path", ""),
-                        "note": feedback.get("dispatcher_note", ""),
-                    },
+                    case_record=case,
+                    feedback_record=feedback,
                 )
             )
 
-        deduped_events = []
-    seen_event_keys = set()
-
-    for event in events:
-        payload = event.get("payload", {}) or {}
-
-        event_key = "|".join(
-            [
-                str(event.get("case_id", "")),
-                str(event.get("event_type", "")),
-                str(event.get("timestamp_utc", "")),
-                str(event.get("source", "")),
-                str(payload.get("simulation_step", "")),
-                str(payload.get("simulation_load_id", "")),
-                str(payload.get("telegram_message_id", "")),
-                str(payload.get("feedback", "")),
-                str(payload.get("document_path", "")),
-            ]
-        )
-
-        if event_key in seen_event_keys:
-            continue
-
-        seen_event_keys.add(event_key)
-        deduped_events.append(event)
-
-    events = deduped_events
+    events = dedupe_dispatch_events(events)
 
     cases = list(cases_by_id.values())
 
