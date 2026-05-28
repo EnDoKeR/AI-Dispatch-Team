@@ -1,8 +1,4 @@
-import re
-
 from app.market_intelligence.market_location_helpers import (
-    ROUTE_TOWARD_TARGET_STATES,
-    TARGET_STATE_MAP,
     location_has_state,
     location_state,
     normalize_location_text,
