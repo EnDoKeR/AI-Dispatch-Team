@@ -1,7 +1,12 @@
 import hashlib
 import json
 from pathlib import Path
-
+from app.market_intelligence.case_status_engine import (
+    apply_status_update_to_case,
+    status_from_feedback,
+    status_update_from_feedback,
+    status_update_from_simulation_removed,
+)
 from app.market_intelligence.event_logger import build_dispatch_event
 
 
@@ -73,55 +78,8 @@ def build_case_id(driver_name, load_id, reference_id="", broker_mc=""):
 
     return f"CASE-{stable_hash(base)}"
 
-def status_update_from_feedback(feedback_type):
-    feedback_type = str(feedback_type or "").lower().strip()
-
-    working_status_map = {
-        "called_broker": "CALLED",
-        "called": "CALLED",
-        "sent_to_driver": "SENT_TO_DRIVER",
-    }
-
-    final_status_map = {
-        "booked": "BOOKED",
-        "ratecon": "RATECON_RECEIVED",
-        "ratecon_received": "RATECON_RECEIVED",
-        "driver_rejected": "REJECTED",
-        "rate_too_low": "REJECTED",
-        "bad_broker": "REJECTED",
-        "wrong_equipment": "REJECTED",
-        "weight_issue": "REJECTED",
-        "time_issue": "REJECTED",
-        "covered": "COVERED",
-        "duplicate": "DUPLICATE",
-        "skipped": "SKIPPED",
-        "not_interested": "SKIPPED",
-    }
-
-    if feedback_type in working_status_map:
-        return {
-            "status": working_status_map[feedback_type],
-            "final_outcome": None,
-        }
-
-    if feedback_type in final_status_map:
-        final_status = final_status_map[feedback_type]
-
-        return {
-            "status": final_status,
-            "final_outcome": final_status,
-        }
-
-    return {
-        "status": "OPEN",
-        "final_outcome": None,
-    }
-
-
-def status_from_feedback(feedback_type):
-    status_update = status_update_from_feedback(feedback_type)
-
-    return status_update.get("status", "OPEN")
+# Status rules are implemented in:
+# app.market_intelligence.case_status_engine
 
 
 def build_case_from_decision(decision_record):
@@ -239,7 +197,6 @@ def build_case_from_outbox(outbox_record):
         "events_count": 0,
     }
 
-
 def apply_feedback_to_case(case_record, feedback_record):
     feedback_type = feedback_record.get("dispatcher_feedback", "")
     document_path = feedback_record.get("document_path", "")
@@ -269,52 +226,11 @@ def apply_feedback_to_case(case_record, feedback_record):
         )
 
     status_update = status_update_from_feedback(feedback_type)
-    new_status = status_update.get("status", "OPEN")
-    new_final_outcome = status_update.get("final_outcome")
 
-    current_status = str(case_record.get("status", "") or "").strip()
-    current_final_outcome = case_record.get("final_outcome")
-
-    final_statuses = {
-        "BOOKED",
-        "RATECON_RECEIVED",
-        "REJECTED",
-        "SKIPPED",
-        "COVERED",
-        "REMOVED",
-        "DUPLICATE",
-    }
-
-    working_status_order = {
-        "OPEN": 0,
-        "CALLED": 1,
-        "SENT_TO_DRIVER": 2,
-    }
-
-    # Final feedback always wins.
-    if new_final_outcome:
-        case_record["status"] = new_status
-        case_record["final_outcome"] = new_final_outcome
-        return case_record
-
-    # If the case already has a final outcome, do not downgrade it
-    # with working feedback like called_broker or sent_to_driver.
-    if current_final_outcome:
-        return case_record
-
-    if current_status in final_statuses:
-        return case_record
-
-    # Working statuses can only move forward:
-    # OPEN -> CALLED -> SENT_TO_DRIVER
-    if new_status != "OPEN":
-        current_rank = working_status_order.get(current_status, 0)
-        new_rank = working_status_order.get(new_status, 0)
-
-        if new_rank >= current_rank:
-            case_record["status"] = new_status
-
-    return case_record
+    return apply_status_update_to_case(
+        case_record=case_record,
+        status_update=status_update,
+    )
 
 def apply_outbox_to_case(case_record, outbox_record):
     case_record["updated_at_utc"] = outbox_record.get(
@@ -573,14 +489,14 @@ def build_cases_and_events(
                 continue
 
             if event_type == "LOAD_REMOVED":
-                removed_reason = str(simulation_event.get("reason", "") or "").strip().lower()
+                status_update = status_update_from_simulation_removed(
+                    simulation_event.get("reason", "")
+                )
 
-                if removed_reason == "covered":
-                    case["status"] = "COVERED"
-                    case["final_outcome"] = "COVERED"
-                else:
-                    case["status"] = "REMOVED"
-                    case["final_outcome"] = "REMOVED"
+                apply_status_update_to_case(
+                    case_record=case,
+                    status_update=status_update,
+                )
 
                 case["updated_at_utc"] = simulation_event.get(
                     "timestamp_utc",

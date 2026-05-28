@@ -1,10 +1,9 @@
 import unittest
 from types import SimpleNamespace
 
-from app.market_intelligence.dispatch_case import (
-    apply_feedback_to_case,
-    status_update_from_feedback,
-)
+from app.market_intelligence.case_status_engine import status_update_from_feedback
+from app.market_intelligence.dispatch_case import apply_feedback_to_case
+
 from app.market_intelligence.driver_preference_rules import (
     get_sample_quality as get_driver_sample_quality,
 )
