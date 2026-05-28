@@ -1,9 +1,7 @@
 import json
-from operator import index
 import urllib.parse
 import urllib.request
 from app.market_intelligence.telegram_buttons import build_feedback_buttons
-from pathlib import Path
 from app.market_intelligence.telegram_outbox_logger import log_outgoing_telegram_message
 from app.market_intelligence.telegram_broker_block import (broker_block, get_broker_status_text)
 from app.market_intelligence.telegram_duplicate_keys import (
@@ -54,6 +52,7 @@ SENT_SUMMARY_FILE = "data/sent_market_summaries.txt"
 SENT_CHAIN_FILE = "data/sent_reload_chain_alerts.txt"
 
 
+
 def load_env():
     values = {}
 
@@ -78,7 +77,6 @@ def load_env():
         print(".env file not found")
 
     return values
-
 
 
 def send_telegram_message(text, reply_markup=None):
