@@ -284,5 +284,128 @@ class TestMarketLoadTargetMatching(unittest.TestCase):
         )
 
 
+
+class TestMarketLoadContactExtraction(unittest.TestCase):
+    def test_extract_email_from_parsed_contact(self):
+        load = MarketLoad(
+            parsed_contact={
+                "email": "dispatch@example.com",
+            }
+        )
+
+        self.assertEqual(load.primary_email, "dispatch@example.com")
+        self.assertTrue(load.has_email)
+
+    def test_extract_email_from_list_in_parsed_contact(self):
+        load = MarketLoad(
+            parsed_contact={
+                "emails": ["first@example.com", "second@example.com"],
+            }
+        )
+
+        self.assertEqual(load.primary_email, "first@example.com")
+
+    def test_extract_email_from_broker_contact_raw(self):
+        load = MarketLoad(
+            broker_contact_raw="Call 555-111-2222 or email dispatch@example.com"
+        )
+
+        self.assertEqual(load.primary_email, "dispatch@example.com")
+
+    def test_extract_email_fixes_dat_style_email_text(self):
+        load = MarketLoad(
+            notes="Email dispatch at example dot com for details"
+        )
+
+        self.assertEqual(load.primary_email, "dispatch@example.com")
+
+    def test_extract_email_fixes_backtick_dot(self):
+        load = MarketLoad(
+            notes="Email dispatch@example`com"
+        )
+
+        self.assertEqual(load.primary_email, "dispatch@example.com")
+
+    def test_extract_email_returns_empty_when_missing(self):
+        load = MarketLoad(
+            notes="Call broker for details"
+        )
+
+        self.assertEqual(load.primary_email, "")
+        self.assertFalse(load.has_email)
+
+    def test_extract_phone_from_parsed_contact(self):
+        load = MarketLoad(
+            parsed_contact={
+                "phone": "555-111-2222",
+            }
+        )
+
+        self.assertEqual(load.primary_phone, "555-111-2222")
+        self.assertTrue(load.has_phone)
+
+    def test_extract_phone_from_list_in_parsed_contact(self):
+        load = MarketLoad(
+            parsed_contact={
+                "phones": ["555-111-2222", "555-333-4444"],
+            }
+        )
+
+        self.assertEqual(load.primary_phone, "555-111-2222")
+
+    def test_extract_phone_from_notes(self):
+        load = MarketLoad(
+            notes="Contact broker at (555) 111-2222 for pickup info"
+        )
+
+        self.assertEqual(load.primary_phone, "(555) 111-2222")
+
+    def test_extract_phone_adds_extension_when_detected(self):
+        load = MarketLoad(
+            broker_contact_raw="Phone 555-111-2222 ext 345"
+        )
+
+        self.assertEqual(load.primary_phone, "555-111-2222 x345")
+
+    def test_extract_phone_adds_ref_as_extension_when_detected(self):
+        load = MarketLoad(
+            broker_contact_raw="Phone 555-111-2222 ref: 987"
+        )
+
+        self.assertEqual(load.primary_phone, "555-111-2222 x987")
+
+    def test_extract_phone_returns_empty_when_missing(self):
+        load = MarketLoad(
+            notes="Email only"
+        )
+
+        self.assertEqual(load.primary_phone, "")
+        self.assertFalse(load.has_phone)
+
+    def test_to_dict_includes_contact_fields(self):
+        load = MarketLoad(
+            broker_contact_raw="Call 555-111-2222 or email dispatch@example.com",
+            parsed_contact={
+                "email": "dispatch@example.com",
+                "phone": "555-111-2222",
+            },
+            broker_name="Test Broker",
+            broker_mc="123456",
+            reference_id="REF-123",
+        )
+
+        data = load.to_dict()
+
+        self.assertEqual(data["broker_name"], "Test Broker")
+        self.assertEqual(data["broker_mc"], "123456")
+        self.assertEqual(data["primary_email"], "dispatch@example.com")
+        self.assertEqual(data["primary_phone"], "555-111-2222")
+        self.assertTrue(data["has_email"])
+        self.assertTrue(data["has_phone"])
+        self.assertEqual(data["broker_contact_raw"], "Call 555-111-2222 or email dispatch@example.com")
+        self.assertEqual(data["parsed_contact"]["email"], "dispatch@example.com")
+        self.assertEqual(data["reference_id"], "REF-123")
+
+
 if __name__ == "__main__":
     unittest.main()
