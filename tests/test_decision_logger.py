@@ -1,7 +1,5 @@
 import unittest
-from unittest.mock import patch
-
-from app.market_intelligence.decision_logger import serialize_load_decision
+from app.market_intelligence.decision_serializer import serialize_load_decision
 from app.market_intelligence.decision_logger_helpers import (
     build_load_id,
     build_reason_list,
@@ -155,16 +153,13 @@ class TestDecisionLogger(unittest.TestCase):
             "best_bucket": "700-1300",
         }
 
-        with patch(
-            "app.market_intelligence.decision_logger.utc_now_iso",
-            return_value="2026-05-28T10:00:00+00:00",
-        ):
-            record = serialize_load_decision(
-                load=load,
-                search_request=search_request,
-                run_id="RUN-123",
-                recommendation=recommendation,
-            )
+        record = serialize_load_decision(
+            load=load,
+            search_request=search_request,
+            run_id="RUN-123",
+            timestamp_utc="2026-05-28T10:00:00+00:00",
+            recommendation=recommendation,
+        )
 
         self.assertEqual(record["timestamp_utc"], "2026-05-28T10:00:00+00:00")
         self.assertEqual(record["run_id"], "RUN-123")
