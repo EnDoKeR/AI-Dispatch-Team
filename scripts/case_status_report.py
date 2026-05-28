@@ -1,4 +1,4 @@
-﻿import argparse
+import argparse
 from asyncio import events
 import json
 from pathlib import Path

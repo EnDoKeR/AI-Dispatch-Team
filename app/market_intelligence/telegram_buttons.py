@@ -1,4 +1,4 @@
-﻿def make_callback(feedback_type, reference_id=""):
+def make_callback(feedback_type, reference_id=""):
     reference_id = str(reference_id or "").strip()
 
     if reference_id and reference_id.upper() != "NO ID":

@@ -1,4 +1,4 @@
-﻿import sqlite3
+import sqlite3
 from pathlib import Path
 
 from app.market_intelligence.sqlite_memory import SQLITE_DB_FILE

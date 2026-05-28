@@ -1,4 +1,4 @@
-﻿import json
+import json
 from operator import index
 import urllib.parse
 import urllib.request

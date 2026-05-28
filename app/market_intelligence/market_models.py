@@ -1,4 +1,4 @@
-﻿import re
+import re
 
 from app.market_intelligence.broker_memory_rules import get_broker_memory_status
 

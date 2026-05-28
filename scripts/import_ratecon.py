@@ -1,4 +1,4 @@
-﻿import re
+import re
 import gspread
 from pypdf import PdfReader
 from google.oauth2.service_account import Credentials

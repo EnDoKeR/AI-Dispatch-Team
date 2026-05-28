@@ -1,4 +1,4 @@
-﻿from pathlib import Path
+from pathlib import Path
 from app.market_intelligence.reload_chain import build_chain_candidates
 from app.market_intelligence.load_source import load_market_loads
 from app.market_intelligence.search_request import load_search_request

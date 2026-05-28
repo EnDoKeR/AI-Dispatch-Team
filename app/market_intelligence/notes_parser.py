@@ -1,4 +1,4 @@
-﻿import re
+import re
 
 
 def normalize_text(value):

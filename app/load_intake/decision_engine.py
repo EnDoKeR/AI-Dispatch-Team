@@ -1,4 +1,4 @@
-﻿def score_rpm(rpm):
+def score_rpm(rpm):
     try:
         rpm = float(rpm)
 

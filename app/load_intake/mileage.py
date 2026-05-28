@@ -1,4 +1,4 @@
-﻿from geopy.distance import geodesic
+from geopy.distance import geodesic
 
 
 def get_miles(origin, destination):

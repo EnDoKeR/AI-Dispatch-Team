@@ -1,4 +1,4 @@
-﻿# AI Dispatch Team
+# AI Dispatch Team
 
 AI Dispatch Team is an early-stage Dispatch Operating Intelligence System for flatbed and conestoga freight dispatch.
 
