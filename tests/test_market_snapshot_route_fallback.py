@@ -1,6 +1,6 @@
-﻿import unittest
+import unittest
 
-from app.market_intelligence.market_snapshot import prepare_route_fallback
+from app.market_intelligence.market_snapshot_route_fallback import prepare_route_fallback
 
 
 class FakeSearchRequest:
