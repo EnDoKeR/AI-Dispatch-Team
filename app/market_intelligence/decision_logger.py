@@ -1,7 +1,14 @@
-import hashlib
 import json
 from datetime import datetime, timezone
 from pathlib import Path
+from app.market_intelligence.decision_logger_helpers import (
+    build_load_id,
+    build_reason_list,
+    get_decision,
+    get_decision_category,
+    safe_value,
+    stable_text_hash,
+)
 
 
 DECISION_HISTORY_FILE = Path("data/decision_history.jsonl")
@@ -11,98 +18,6 @@ DECISION_RUNS_FILE = Path("data/decision_runs.jsonl")
 def utc_now_iso():
     return datetime.now(timezone.utc).isoformat()
 
-
-def safe_value(value, default=""):
-    if value is None:
-        return default
-
-    return value
-
-
-def safe_list(value):
-    if isinstance(value, list):
-        return value
-
-    if value:
-        return [str(value)]
-
-    return []
-
-
-def stable_text_hash(text):
-    text = str(text or "").strip().lower()
-
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
-
-
-def build_load_id(load):
-    reference_id = str(getattr(load, "reference_id", "") or "").strip()
-    broker_mc = str(getattr(load, "broker_mc", "") or "").strip()
-
-    if reference_id and reference_id.upper() != "NO ID":
-        if broker_mc:
-            return f"MC{broker_mc}-REF{reference_id}"
-
-        return f"REF{reference_id}"
-
-    base = "|".join(
-        [
-            str(getattr(load, "pickup", "") or ""),
-            str(getattr(load, "delivery", "") or ""),
-            str(getattr(load, "rate", "") or ""),
-            str(getattr(load, "loaded_miles", "") or ""),
-            str(getattr(load, "weight", "") or ""),
-            str(getattr(load, "broker_mc", "") or ""),
-            str(getattr(load, "notes", "") or "")[:300],
-        ]
-    )
-
-    return f"LOAD-{stable_text_hash(base)}"
-
-
-def get_decision_category(load):
-    status = str(getattr(load, "driver_match_status", "") or "").upper()
-
-    if status == "MATCH":
-        return "LOAD OPPORTUNITY"
-
-    if status == "BLOCK":
-        return "BLOCK"
-
-    if status == "REVIEW_ONCE":
-        if hasattr(load, "review_category") and callable(load.review_category):
-            return load.review_category()
-
-        return "GENERAL REVIEW"
-
-    return status or "UNKNOWN"
-
-
-def get_decision(load):
-    status = str(getattr(load, "driver_match_status", "") or "").upper()
-
-    if status in ["MATCH", "REVIEW_ONCE", "BLOCK"]:
-        return status
-
-    return status or "UNKNOWN"
-
-
-def build_reason_list(load):
-    reasons = []
-
-    for attr_name in [
-        "driver_match_notes",
-        "match_reasons",
-        "review_reasons",
-        "block_reasons",
-    ]:
-        for reason in safe_list(getattr(load, attr_name, [])):
-            reason_text = str(reason or "").strip()
-
-            if reason_text and reason_text not in reasons:
-                reasons.append(reason_text)
-
-    return reasons
 
 
 def serialize_load_decision(load, search_request, run_id, recommendation=None):

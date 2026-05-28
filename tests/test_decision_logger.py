@@ -1,14 +1,14 @@
-﻿import unittest
+import unittest
 from unittest.mock import patch
 
-from app.market_intelligence.decision_logger import (
+from app.market_intelligence.decision_logger import serialize_load_decision
+from app.market_intelligence.decision_logger_helpers import (
     build_load_id,
     build_reason_list,
     get_decision,
     get_decision_category,
     safe_list,
     safe_value,
-    serialize_load_decision,
     stable_text_hash,
 )
 
