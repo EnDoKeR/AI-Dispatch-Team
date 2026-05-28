@@ -2,6 +2,7 @@
 
 from app.market_intelligence.case_factory import (
     build_case_from_decision,
+    build_case_from_feedback,
     build_case_from_outbox,
     safe,
 )
@@ -222,6 +223,60 @@ class TestCaseFactory(unittest.TestCase):
 
         self.assertEqual(actual_case_id, expected_case_id)
 
+
+    def test_build_case_from_feedback_creates_fallback_case(self):
+        feedback = {
+            "timestamp_utc": "2026-05-28T10:30:00+00:00",
+            "driver_name": "Alex",
+            "load_id": "LOAD-FEEDBACK",
+            "reference_id": "REF-FEEDBACK",
+            "pickup": "Dallas, TX",
+            "delivery": "Austin, TX",
+            "rate": 1800,
+            "broker_name": "Feedback Broker",
+            "broker_mc": "777777",
+            "dispatcher_feedback": "driver_rejected",
+            "ai_decision": "REVIEW_ONCE",
+            "ai_category": "RATE CHECK",
+            "ai_score": 70,
+            "ai_reasons": ["created from feedback only"],
+        }
+
+        case = build_case_from_feedback(
+            feedback_record=feedback,
+            case_id="CASE-FEEDBACK",
+        )
+
+        self.assertEqual(case["case_id"], "CASE-FEEDBACK")
+        self.assertEqual(case["created_at_utc"], "2026-05-28T10:30:00+00:00")
+        self.assertEqual(case["updated_at_utc"], "2026-05-28T10:30:00+00:00")
+        self.assertEqual(case["status"], "REJECTED")
+        self.assertEqual(case["final_outcome"], "REJECTED")
+
+        self.assertEqual(case["driver_name"], "Alex")
+        self.assertEqual(case["driver_location"], "")
+        self.assertEqual(case["driver_equipment"], "")
+
+        self.assertEqual(case["load_id"], "LOAD-FEEDBACK")
+        self.assertEqual(case["reference_id"], "REF-FEEDBACK")
+        self.assertEqual(case["pickup"], "Dallas, TX")
+        self.assertEqual(case["delivery"], "Austin, TX")
+        self.assertEqual(case["rate"], 1800)
+
+        self.assertEqual(case["broker_name"], "Feedback Broker")
+        self.assertEqual(case["broker_mc"], "777777")
+        self.assertEqual(case["broker_contact"], "")
+        self.assertEqual(case["broker_status"], "")
+
+        self.assertEqual(case["ai_decision"]["decision"], "REVIEW_ONCE")
+        self.assertEqual(case["ai_decision"]["category"], "RATE CHECK")
+        self.assertEqual(case["ai_decision"]["score"], 70)
+        self.assertEqual(case["ai_decision"]["reasons"], ["created from feedback only"])
+
+        self.assertEqual(case["telegram_alerts"], [])
+        self.assertEqual(case["dispatcher_feedback"], [])
+        self.assertEqual(case["ratecons"], [])
+        self.assertEqual(case["events_count"], 0)
 
 if __name__ == "__main__":
     unittest.main()

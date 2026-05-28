@@ -2,6 +2,7 @@ import json
 from app.market_intelligence.case_id_resolver import build_case_id
 from app.market_intelligence.case_factory import (
     build_case_from_decision,
+    build_case_from_feedback,
     build_case_from_outbox,
 )
 from app.market_intelligence.case_matcher import (
@@ -10,7 +11,6 @@ from app.market_intelligence.case_matcher import (
     simulation_event_matches_case,
 )
 from pathlib import Path
-from app.market_intelligence.case_status_engine import status_update_from_feedback
 from app.market_intelligence.case_event_builder import (
     build_ai_decision_created_event,
     build_dispatcher_feedback_added_event,
@@ -26,16 +26,6 @@ from app.market_intelligence.case_update_applier import (
 
 
 DISPATCH_CASES_FILE = Path("data/dispatch_cases.jsonl")
-
-
-
-
-def safe(value, default=""):
-    if value is None:
-        return default
-
-    return value
-
 
 def load_jsonl(file_path):
     file_path = Path(file_path)
@@ -170,59 +160,17 @@ def build_cases_and_events(
                 matched_case_id = case_id
                 break
 
-        if not matched_case_id:
             matched_case_id = build_case_id(
-                driver_name=feedback.get("driver_name", ""),
-                load_id=feedback.get("load_id", ""),
-                reference_id=feedback.get("reference_id", ""),
-                broker_mc=feedback.get("broker_mc", ""),
+                    driver_name=feedback.get("driver_name", ""),
+                    load_id=feedback.get("load_id", ""),
+                    reference_id=feedback.get("reference_id", ""),
+                    broker_mc=feedback.get("broker_mc", ""),
             )
 
-            cases_by_id[matched_case_id] = {
-                "case_id": matched_case_id,
-                "created_at_utc": feedback.get("timestamp_utc", ""),
-                "updated_at_utc": feedback.get("timestamp_utc", ""),
-                "status": status_update_from_feedback(
-                    feedback.get("dispatcher_feedback", "")
-                ).get("status", "OPEN"),
-                "final_outcome": status_update_from_feedback(
-                    feedback.get("dispatcher_feedback", "")
-                ).get("final_outcome"),
-                "driver_name": safe(feedback.get("driver_name", "")),
-                "driver_location": "",
-                "driver_equipment": "",
-                "load_id": safe(feedback.get("load_id", "")),
-                "reference_id": safe(feedback.get("reference_id", "")),
-                "pickup": safe(feedback.get("pickup", "")),
-                "delivery": safe(feedback.get("delivery", "")),
-                "rate": safe(feedback.get("rate", 0)),
-                "loaded_miles": 0,
-                "empty_miles": 0,
-                "total_miles": 0,
-                "total_rpm": 0,
-                "weight": 0,
-                "posted_trailer_type": "",
-                "commodity": "",
-                "broker_name": safe(feedback.get("broker_name", "")),
-                "broker_mc": safe(feedback.get("broker_mc", "")),
-                "broker_contact": "",
-                "broker_status": "",
-                "credit_score": "",
-                "days_to_pay": "",
-                "ai_decision": {
-                    "decision": safe(feedback.get("ai_decision", "")),
-                    "category": safe(feedback.get("ai_category", "")),
-                    "score": safe(feedback.get("ai_score", 0)),
-                    "priority": "",
-                    "suggested_action": "",
-                    "reasons": feedback.get("ai_reasons", []),
-                    "timestamp_utc": "",
-                },
-                "telegram_alerts": [],
-                "dispatcher_feedback": [],
-                "ratecons": [],
-                "events_count": 0,
-            }
+            cases_by_id[matched_case_id] = build_case_from_feedback(
+                feedback_record=feedback,
+                case_id=matched_case_id,
+            )
 
         case = cases_by_id[matched_case_id]
         apply_feedback_to_case(case, feedback)

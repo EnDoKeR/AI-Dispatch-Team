@@ -122,3 +122,52 @@ def build_case_from_outbox(outbox_record):
         "ratecons": [],
         "events_count": 0,
     }
+
+def build_case_from_feedback(feedback_record, case_id):
+    from app.market_intelligence.case_status_engine import status_update_from_feedback
+
+    status_update = status_update_from_feedback(
+        feedback_record.get("dispatcher_feedback", "")
+    )
+
+    return {
+        "case_id": case_id,
+        "created_at_utc": feedback_record.get("timestamp_utc", ""),
+        "updated_at_utc": feedback_record.get("timestamp_utc", ""),
+        "status": status_update.get("status", "OPEN"),
+        "final_outcome": status_update.get("final_outcome"),
+        "driver_name": safe(feedback_record.get("driver_name", "")),
+        "driver_location": "",
+        "driver_equipment": "",
+        "load_id": safe(feedback_record.get("load_id", "")),
+        "reference_id": safe(feedback_record.get("reference_id", "")),
+        "pickup": safe(feedback_record.get("pickup", "")),
+        "delivery": safe(feedback_record.get("delivery", "")),
+        "rate": safe(feedback_record.get("rate", 0)),
+        "loaded_miles": 0,
+        "empty_miles": 0,
+        "total_miles": 0,
+        "total_rpm": 0,
+        "weight": 0,
+        "posted_trailer_type": "",
+        "commodity": "",
+        "broker_name": safe(feedback_record.get("broker_name", "")),
+        "broker_mc": safe(feedback_record.get("broker_mc", "")),
+        "broker_contact": "",
+        "broker_status": "",
+        "credit_score": "",
+        "days_to_pay": "",
+        "ai_decision": {
+            "decision": safe(feedback_record.get("ai_decision", "")),
+            "category": safe(feedback_record.get("ai_category", "")),
+            "score": safe(feedback_record.get("ai_score", 0)),
+            "priority": "",
+            "suggested_action": "",
+            "reasons": feedback_record.get("ai_reasons", []),
+            "timestamp_utc": "",
+        },
+        "telegram_alerts": [],
+        "dispatcher_feedback": [],
+        "ratecons": [],
+        "events_count": 0,
+    }
