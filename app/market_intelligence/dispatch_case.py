@@ -73,42 +73,55 @@ def build_case_id(driver_name, load_id, reference_id="", broker_mc=""):
 
     return f"CASE-{stable_hash(base)}"
 
-
-def status_from_feedback(feedback_type):
+def status_update_from_feedback(feedback_type):
     feedback_type = str(feedback_type or "").lower().strip()
 
-    if feedback_type == "booked":
-        return "BOOKED"
+    working_status_map = {
+        "called_broker": "CALLED",
+        "called": "CALLED",
+        "sent_to_driver": "SENT_TO_DRIVER",
+    }
 
-    if feedback_type == "ratecon" or feedback_type == "ratecon_received":
-        return "RATECON_RECEIVED"
+    final_status_map = {
+        "booked": "BOOKED",
+        "ratecon": "RATECON_RECEIVED",
+        "ratecon_received": "RATECON_RECEIVED",
+        "driver_rejected": "REJECTED",
+        "rate_too_low": "REJECTED",
+        "bad_broker": "REJECTED",
+        "wrong_equipment": "REJECTED",
+        "weight_issue": "REJECTED",
+        "time_issue": "REJECTED",
+        "covered": "COVERED",
+        "duplicate": "DUPLICATE",
+        "skipped": "SKIPPED",
+        "not_interested": "SKIPPED",
+    }
 
-    if feedback_type == "called_broker":
-        return "CALLED_BROKER"
+    if feedback_type in working_status_map:
+        return {
+            "status": working_status_map[feedback_type],
+            "final_outcome": None,
+        }
 
-    if feedback_type == "sent_to_driver":
-        return "SENT_TO_DRIVER"
+    if feedback_type in final_status_map:
+        final_status = final_status_map[feedback_type]
 
-    if feedback_type in [
-        "driver_rejected",
-        "rate_too_low",
-        "bad_broker",
-        "wrong_equipment",
-        "weight_issue",
-        "time_issue",
-    ]:
-        return "REJECTED"
+        return {
+            "status": final_status,
+            "final_outcome": final_status,
+        }
 
-    if feedback_type == "covered":
-        return "COVERED"
+    return {
+        "status": "OPEN",
+        "final_outcome": None,
+    }
 
-    if feedback_type == "duplicate":
-        return "DUPLICATE"
 
-    if feedback_type in ["skipped", "not_interested"]:
-        return "SKIPPED"
+def status_from_feedback(feedback_type):
+    status_update = status_update_from_feedback(feedback_type)
 
-    return "OPEN"
+    return status_update.get("status", "OPEN")
 
 
 def build_case_from_decision(decision_record):
@@ -255,15 +268,18 @@ def apply_feedback_to_case(case_record, feedback_record):
             }
         )
 
-    new_status = status_from_feedback(feedback_type)
+    status_update = status_update_from_feedback(feedback_type)
+    new_status = status_update.get("status", "OPEN")
+    final_outcome = status_update.get("final_outcome")
 
     if new_status != "OPEN":
         case_record["status"] = new_status
 
-    if new_status in ["BOOKED", "REJECTED", "COVERED", "SKIPPED", "DUPLICATE"]:
-        case_record["final_outcome"] = new_status
+    if final_outcome:
+        case_record["final_outcome"] = final_outcome
 
     return case_record
+
 
 
 def apply_outbox_to_case(case_record, outbox_record):
@@ -576,8 +592,12 @@ def build_cases_and_events(
                 "case_id": matched_case_id,
                 "created_at_utc": feedback.get("timestamp_utc", ""),
                 "updated_at_utc": feedback.get("timestamp_utc", ""),
-                "status": status_from_feedback(feedback.get("dispatcher_feedback", "")),
-                "final_outcome": None,
+                "status": status_update_from_feedback(
+                     feedback.get("dispatcher_feedback", "")
+                ).get("status", "OPEN"),
+                "final_outcome": status_update_from_feedback(
+                    feedback.get("dispatcher_feedback", "")
+                ).get("final_outcome"),
                 "driver_name": safe(feedback.get("driver_name", "")),
                 "driver_location": "",
                 "driver_equipment": "",

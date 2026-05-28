@@ -29,6 +29,7 @@ def build_where_clause(args, table_alias=""):
 
     driver_name = column_name("driver_name", table_alias)
     status = column_name("status", table_alias)
+    final_outcome = column_name("final_outcome", table_alias)
     ai_category = column_name("ai_category", table_alias)
     ai_decision = column_name("ai_decision", table_alias)
     broker_mc = column_name("broker_mc", table_alias)
@@ -44,6 +45,13 @@ def build_where_clause(args, table_alias=""):
     if args.status:
         filters.append(f"LOWER({status}) = LOWER(?)")
         params.append(args.status)
+
+    if args.final_outcome:
+        if args.final_outcome.upper() == "NONE":
+            filters.append(f"({final_outcome} IS NULL OR {final_outcome} = '')")
+        else:
+            filters.append(f"LOWER({final_outcome}) = LOWER(?)")
+            params.append(args.final_outcome)
 
     if args.category:
         filters.append(f"LOWER({ai_category}) = LOWER(?)")
@@ -76,6 +84,7 @@ def build_where_clause(args, table_alias=""):
     return "WHERE " + " AND ".join(filters), params
 
 
+
 def print_count(connection, table_name):
     cursor = connection.cursor()
     cursor.execute(f"SELECT COUNT(*) AS count FROM {table_name}")
@@ -103,13 +112,27 @@ def print_group_counts(connection, title, field_name, where_clause="", params=No
     print(title)
     print("-" * len(title))
 
-    query = f"""
-        SELECT {field_name} AS value, COUNT(*) AS count
-        FROM dispatch_cases
-        {where_clause}
-        GROUP BY {field_name}
-        ORDER BY count DESC, value ASC
-    """
+    if field_name == "final_outcome":
+        query = f"""
+            SELECT
+                CASE
+                    WHEN final_outcome IS NULL OR final_outcome = '' THEN 'NONE'
+                    ELSE final_outcome
+                END AS value,
+                COUNT(*) AS count
+            FROM dispatch_cases
+            {where_clause}
+            GROUP BY value
+            ORDER BY count DESC, value ASC
+        """
+    else:
+        query = f"""
+            SELECT {field_name} AS value, COUNT(*) AS count
+            FROM dispatch_cases
+            {where_clause}
+            GROUP BY {field_name}
+            ORDER BY count DESC, value ASC
+        """
 
     cursor = connection.cursor()
     cursor.execute(query, params)
@@ -270,6 +293,21 @@ def build_parser():
 
     parser.add_argument("--driver", default="")
     parser.add_argument("--status", default="")
+    parser.add_argument("--final-outcome", default="")
+    parser.add_argument("--category", default="")
+    parser.add_argument("--decision", default="")
+    parser.add_argument("--broker-mc", default="")
+    parser.add_argument("--reference-id", default="")
+    parser.add_argument("--has-telegram", action="store_true")
+    parser.add_argument("--has-feedback", action="store_true")
+    parser.add_argument("--has-ratecon", action="store_true")
+    parser.add_argument("--summary", action="store_true")
+    parser.add_argument("--limit", type=int, default=10)
+
+    return parser
+
+    parser.add_argument("--driver", default="")
+    parser.add_argument("--status", default="")
     parser.add_argument("--category", default="")
     parser.add_argument("--decision", default="")
     parser.add_argument("--broker-mc", default="")
@@ -303,6 +341,7 @@ def main():
     where_clause, params = build_where_clause(args)
 
     print_group_counts(connection, "Status Counts", "status", where_clause, params)
+    print_group_counts(connection, "Final Outcome Counts", "final_outcome", where_clause, params)
     print_group_counts(connection, "AI Decision Counts", "ai_decision", where_clause, params)
     print_group_counts(connection, "AI Category Counts", "ai_category", where_clause, params)
 

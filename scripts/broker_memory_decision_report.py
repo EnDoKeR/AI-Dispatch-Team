@@ -264,32 +264,71 @@ def print_recommendations(results):
         print("No recommendations.")
         return
 
-    high_risk_count = 0
-    rate_negotiation_count = 0
+    high_risk_review_count = 0
+    high_risk_block_count = 0
+    rate_negotiation_review_count = 0
+    rate_negotiation_block_count = 0
     positive_count = 0
+    watchlist_count = 0
 
     for item in results:
+        row = item["row"]
+        ai_decision = str(row["ai_decision"] or "").upper()
         reasons = " ".join(item["broker_memory_reasons"]).lower()
 
+        is_block = ai_decision == "BLOCK"
+        is_review = ai_decision == "REVIEW_ONCE"
+
         if "bad_broker" in reasons or "risk: high" in reasons:
-            high_risk_count += 1
+            if is_block:
+                high_risk_block_count += 1
+            elif is_review:
+                high_risk_review_count += 1
 
         if "rate_too_low" in reasons or "rate negotiation" in reasons:
-            rate_negotiation_count += 1
+            if is_block:
+                rate_negotiation_block_count += 1
+            elif is_review:
+                rate_negotiation_review_count += 1
 
-        if "positive signal" in reasons or "booked" in reasons or "ratecon_received" in reasons:
+        if "watchlist" in reasons:
+            watchlist_count += 1
+
+        if (
+            "positive signal" in reasons
+            or "booked" in reasons
+            or "ratecon_received" in reasons
+        ):
             positive_count += 1
 
-    if high_risk_count:
+    if high_risk_review_count:
         print(
-            f"- {high_risk_count} case(s) affected by high-risk broker memory. "
-            "Keep as REVIEW_ONCE; do not auto-block until dispatcher confirms."
+            f"- {high_risk_review_count} REVIEW_ONCE case(s) affected by high-risk broker memory. "
+            "Keep as REVIEW_ONCE until dispatcher confirms whether this broker should be blocked."
         )
 
-    if rate_negotiation_count:
+    if high_risk_block_count:
         print(
-            f"- {rate_negotiation_count} case(s) affected by rate negotiation memory. "
-            "Keep review/rate-check flow and compare broker offers against target RPM."
+            f"- {high_risk_block_count} BLOCK case(s) also have high-risk broker memory. "
+            "Keep BLOCK if hard-block reasons exist; broker memory is an additional warning, not the only reason."
+        )
+
+    if rate_negotiation_review_count:
+        print(
+            f"- {rate_negotiation_review_count} REVIEW_ONCE case(s) affected by rate negotiation memory. "
+            "Keep rate-check/review flow and compare broker offers against target RPM."
+        )
+
+    if rate_negotiation_block_count:
+        print(
+            f"- {rate_negotiation_block_count} BLOCK case(s) also have rate negotiation memory. "
+            "Keep BLOCK if equipment, lane, weight, timing, or other hard-block reasons exist."
+        )
+
+    if watchlist_count:
+        print(
+            f"- {watchlist_count} case(s) affected by broker watchlist memory. "
+            "Review manually; do not auto-block yet."
         )
 
     if positive_count:
@@ -298,9 +337,15 @@ def print_recommendations(results):
             "Use as confidence boost, not as automatic booking."
         )
 
-    if not high_risk_count and not rate_negotiation_count and not positive_count:
+    if (
+        not high_risk_review_count
+        and not high_risk_block_count
+        and not rate_negotiation_review_count
+        and not rate_negotiation_block_count
+        and not positive_count
+        and not watchlist_count
+    ):
         print("- Broker memory is present, but no strong recommendation category was detected.")
-
 
 def build_parser():
     parser = argparse.ArgumentParser(

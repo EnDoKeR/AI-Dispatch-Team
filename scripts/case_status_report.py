@@ -48,6 +48,19 @@ def count_by(records, key, default="UNKNOWN"):
 
     return counts
 
+def count_final_outcomes(cases):
+    counts = {}
+
+    for case in cases:
+        final_outcome = case.get("final_outcome", "")
+
+        if final_outcome is None or final_outcome == "":
+            final_outcome = "NONE"
+
+        counts[final_outcome] = counts.get(final_outcome, 0) + 1
+
+    return counts
+
 
 def count_ai_categories(cases):
     counts = {}
@@ -145,7 +158,16 @@ def case_ai_category(case):
     return ai_decision.get("category", "") or "UNKNOWN"
 
 
-def filter_cases(cases, driver="", status="", category="", decision="", has_feedback=False, has_telegram=False):
+def filter_cases(
+    cases,
+    driver="",
+    status="",
+    final_outcome="",
+    category="",
+    decision="",
+    has_feedback=False,
+    has_telegram=False,
+):
     filtered = []
 
     for case in cases:
@@ -155,6 +177,15 @@ def filter_cases(cases, driver="", status="", category="", decision="", has_feed
 
         if status:
             if normalize(case.get("status", "")) != normalize(status):
+                continue
+
+        if final_outcome:
+            case_final_outcome = case.get("final_outcome", "")
+
+            if case_final_outcome is None:
+                case_final_outcome = "NONE"
+
+            if normalize(case_final_outcome) != normalize(final_outcome):
                 continue
 
         if category:
@@ -281,6 +312,9 @@ def print_filters(args):
     if args.status:
         active_filters.append(f"status={args.status}")
 
+    if args.final_outcome:
+        active_filters.append(f"final_outcome={args.final_outcome}")
+
     if args.category:
         active_filters.append(f"category={args.category}")
 
@@ -301,7 +335,6 @@ def print_filters(args):
         for item in active_filters:
             print(f"- {item}")
 
-
 def build_parser():
     parser = argparse.ArgumentParser(
         description="Show DispatchCase status report."
@@ -317,6 +350,12 @@ def build_parser():
         "--status",
         default="",
         help="Filter by case status. Example: --status OPEN",
+    )
+
+    parser.add_argument(
+        "--final-outcome",
+        default="",
+        help="Filter by final outcome. Example: --final-outcome REJECTED",
     )
 
     parser.add_argument(
@@ -376,6 +415,7 @@ def main():
         cases=cases,
         driver=args.driver,
         status=args.status,
+        final_outcome=args.final_outcome,
         category=args.category,
         decision=args.decision,
         has_feedback=args.has_feedback,
@@ -387,12 +427,16 @@ def main():
     print("=" * 80)
 
     print_filters(args)
-
     print_overview(filtered_cases, events)
 
     print_count_section(
         "Status Counts",
         count_by(filtered_cases, "status"),
+    )
+
+    print_count_section(
+        "Final Outcome Counts",
+        count_final_outcomes(filtered_cases),
     )
 
     print_count_section(
@@ -409,7 +453,7 @@ def main():
 
     print_count_section(
         "Event Counts",
-         event_counts(filtered_events),
+        event_counts(filtered_events),
     )
 
     if args.summary:
