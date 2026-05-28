@@ -6,6 +6,7 @@ from app.market_intelligence.notes_parser import (
     detect_cash_or_zelle,
     detect_quickpay_review,
     detect_contact_override,
+    detect_iso_tank_required,
     detect_multiple_loads_available,
     detect_number_of_straps,
     detect_od,
@@ -95,6 +96,19 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertTrue(detect_quickpay_review("quick pay available"))
         self.assertFalse(detect_cash_or_zelle("quickpay available"))
 
+    def test_detect_iso_tank_required_creates_document_review_warning(self):
+        self.assertTrue(detect_iso_tank_required("ISO tank load"))
+        self.assertTrue(detect_iso_tank_required("iso tanks"))
+        self.assertFalse(detect_iso_tank_required("regular steel load"))
+
+        result = parse_notes(notes="ISO tank load")
+
+        self.assertTrue(result["iso_tank_required"])
+        self.assertIn(
+            "ISO tank document/review warning detected",
+            result["notes_summary"],
+        )
+
     def test_detect_weight_unknown_for_missing_or_placeholder_weight(self):
         self.assertTrue(detect_weight_unknown("weight TBD"))
         self.assertTrue(detect_weight_unknown("call for weight"))
@@ -138,6 +152,7 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertTrue(result["is_od"])
         self.assertTrue(result["twic_required"])
         self.assertFalse(result["quickpay_review"])
+        self.assertFalse(result["iso_tank_required"])
 
         self.assertIn("8 ft tarps detected", result["notes_summary"])
         self.assertIn("6 straps required", result["notes_summary"])

@@ -602,6 +602,23 @@ def detect_document_required(text):
     return False
 
 
+def detect_iso_tank_required(text):
+    text = clean_text(text)
+
+    patterns = [
+        r"\biso\s*tank\b",
+        r"\biso\s*tanks\b",
+        r"\bisotank\b",
+        r"\bisotanks\b",
+    ]
+
+    for pattern in patterns:
+        if re.search(pattern, text):
+            return True
+
+    return False
+
+
 def detect_weight_unknown(text, posted_weight=0):
     text = clean_text(text)
 
@@ -1010,6 +1027,7 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
         "tanker_required": detect_tanker_required(combined_text),
         "twic_required": detect_twic_required(combined_text),
         "document_required": detect_document_required(combined_text),
+        "iso_tank_required": detect_iso_tank_required(combined_text),
 
         "weight_unknown": detect_weight_unknown(combined_text, posted_weight),
         "detected_weight": detected_weight,
@@ -1095,6 +1113,9 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
 
     if flags["document_required"]:
         notes_summary.append("driver document requirement detected")
+
+    if flags["iso_tank_required"]:
+        notes_summary.append("ISO tank document/review warning detected")
 
     if flags["weight_unknown"]:
         notes_summary.append("posted weight may be incorrect / must verify real weight")
