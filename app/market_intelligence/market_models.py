@@ -23,6 +23,7 @@ from app.market_intelligence.market_conestoga_rules import apply_conestoga_rules
 from app.market_intelligence.market_broker_memory import apply_broker_memory
 from app.market_intelligence.market_local_load_rules import apply_local_load_rules
 from app.market_intelligence.market_weight_rules import apply_weight_rules
+from app.market_intelligence.market_od_permit_rules import apply_od_permit_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -273,44 +274,7 @@ class MarketLoad:
         apply_weight_rules(self, max_weight, equipment)
 
         # OD / permit logic
-        is_od_note = bool(
-            parsed_notes.get("is_od")
-            or parsed_notes.get("is_oversize")
-            or parsed_notes.get("is_wide")
-            or parsed_notes.get("requires_permit")
-            or parsed_notes.get("permit_load")
-        )
-
-        od_keywords = [
-            "permit load",
-            "permits required",
-            "permit required",
-            "over dimension",
-            "over-dimensional",
-            "overdimensional",
-            "oversize",
-            "over size",
-            "wide load",
-            "od load",
-            "os/ow",
-        ]
-
-        if any(keyword in notes_lower for keyword in od_keywords):
-            is_od_note = True
-
-        if is_od_note:
-            self.is_od = True
-
-            if str(search_request.equipment or "").lower() == "conestoga":
-                self.is_blocked = True
-                self.block_reasons.append(
-                    "OD / permit / wide load detected; Conestoga should not take OD loads."
-                )
-            else:
-                self.is_review_once = True
-                self.review_reasons.append(
-                    "OD / permit / wide load detected; dispatcher must verify permits/dimensions."
-                )
+        apply_od_permit_rules(self, search_request, parsed_notes, notes_lower)
 
         # Empty miles logic
         if max_empty and self.empty_miles and self.empty_miles > max_empty:
