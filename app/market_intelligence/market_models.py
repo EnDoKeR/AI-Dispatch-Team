@@ -9,6 +9,7 @@ from app.market_intelligence.market_location_helpers import (
     normalize_location_text,
 )
 from app.market_intelligence.market_review_category import classify_review_category
+from app.market_intelligence.market_contact_extractor import extract_email, extract_phone
 
 
 class MarketLoad:
@@ -421,99 +422,20 @@ class MarketLoad:
         return False
 
     def _extract_email(self):
-        """
-        Finds best available broker email from parsed_contact, broker_contact,
-        broker_contact_raw, or notes.
-        Also fixes common DAT-style mistakes like ` instead of .
-        """
-
-        import re
-
-        candidates = []
-
-        if isinstance(self.parsed_contact, dict):
-            for key in ["email", "emails", "contact_email"]:
-                value = self.parsed_contact.get(key)
-
-                if isinstance(value, list):
-                    candidates.extend(value)
-                elif value:
-                    candidates.append(value)
-
-        candidates.extend([
-            self.broker_contact,
-            self.broker_contact_raw,
-            self.notes,
-        ])
-
-        combined = " ".join(str(item or "") for item in candidates)
-
-        combined = combined.replace("`", ".")
-        combined = combined.replace(" dot ", ".")
-        combined = combined.replace("[dot]", ".")
-        combined = combined.replace("(dot)", ".")
-        combined = combined.replace(" at ", "@")
-        combined = combined.replace("[at]", "@")
-        combined = combined.replace("(at)", "@")
-
-        match = re.search(
-            r"[A-Za-z0-9._%+\-]+@[A-Za-z0-9.\-]+\.[A-Za-z]{2,}",
-            combined,
+        return extract_email(
+            parsed_contact=self.parsed_contact,
+            broker_contact=self.broker_contact,
+            broker_contact_raw=self.broker_contact_raw,
+            notes=self.notes,
         )
-
-        if match:
-            return match.group(0).strip()
-
-        return ""
 
     def _extract_phone(self):
-        """
-        Finds phone number from parsed_contact, broker_contact,
-        broker_contact_raw, or notes.
-        Keeps extension if detected.
-        """
-
-        import re
-
-        candidates = []
-
-        if isinstance(self.parsed_contact, dict):
-            for key in ["phone", "phones", "contact_phone"]:
-                value = self.parsed_contact.get(key)
-
-                if isinstance(value, list):
-                    candidates.extend(value)
-                elif value:
-                    candidates.append(value)
-
-        candidates.extend([
-            self.broker_contact,
-            self.broker_contact_raw,
-            self.notes,
-        ])
-
-        combined = " ".join(str(item or "") for item in candidates)
-
-        phone_match = re.search(
-            r"(\(?\d{3}\)?[\s\-.]?\d{3}[\s\-.]?\d{4})",
-            combined,
+        return extract_phone(
+            parsed_contact=self.parsed_contact,
+            broker_contact=self.broker_contact,
+            broker_contact_raw=self.broker_contact_raw,
+            notes=self.notes,
         )
-
-        if not phone_match:
-            return ""
-
-        phone = phone_match.group(1).strip()
-
-        ext_match = re.search(
-            r"(?:ext|x|extension|ref)\s*[:#.]?\s*(\d{1,6})",
-            combined,
-            re.IGNORECASE,
-        )
-
-        if ext_match:
-            phone = f"{phone} x{ext_match.group(1)}"
-
-        return phone
 
     def pickup_region_conflict_with_driver(self, search_request):
         """
