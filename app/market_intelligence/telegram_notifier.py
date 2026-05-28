@@ -9,6 +9,12 @@ from app.market_intelligence.broker_memory_rules import (
     format_broker_memory_status,
     get_broker_memory_status,
 )
+from app.market_intelligence.telegram_duplicate_keys import (
+    load_duplicate_key,
+    market_summary_key,
+    remove_duplicates,
+    search_health_key,
+)
 
 
 ENV_FILE = ".env"
@@ -45,159 +51,6 @@ def load_env():
 
     return values
 
-
-def normalize(value):
-    return str(value).strip().lower()
-
-
-
-
-def load_duplicate_key(load, driver_name=""):
-    broker = getattr(load, "broker", "")
-    pickup_date = getattr(load, "pickup_date", "")
-
-    key_parts = [
-        normalize(driver_name),
-        normalize(broker),
-        normalize(load.pickup),
-        normalize(load.delivery),
-        normalize(load.rate),
-        normalize(load.loaded_miles),
-        normalize(pickup_date),
-    ]
-
-    return "|".join(key_parts)
-
-
-def market_summary_key(
-    stats,
-    recommendation,
-    top_opportunities,
-    search_location,
-    search_request,
-):
-    best_load_key = "no_best_load"
-
-    if top_opportunities:
-        best_load_key = load_duplicate_key(
-            top_opportunities[0],
-            driver_name=search_request.driver_name,
-        )
-
-    key_parts = [
-        normalize(search_request.driver_name),
-        normalize(search_request.current_location),
-        normalize(search_request.available_time),
-        normalize(search_request.equipment),
-        normalize(search_request.target_direction),
-        normalize(search_location),
-        normalize(recommendation["market_status"]),
-        normalize(recommendation["best_bucket"]),
-        normalize(recommendation["total_good_loads"]),
-        normalize(recommendation["total_qualified_loads"]),
-        normalize(best_load_key),
-    ]
-
-    return "|".join(key_parts)
-
-
-def search_health_key(search_request):
-    return "|".join(
-        [
-            normalize(search_request.driver_name),
-            normalize(search_request.current_location),
-            normalize(search_request.available_time),
-            normalize(search_request.equipment),
-            normalize(search_request.target_direction),
-            normalize(search_request.min_total_rpm),
-            normalize(search_request.max_weight),
-        ]
-    )
-
-
-def get_lines(file_path):
-    path = Path(file_path)
-
-    if not path.exists():
-        return set()
-
-    with open(path, "r", encoding="utf-8") as file:
-        return set(file.read().splitlines())
-
-
-def save_line(file_path, value):
-    path = Path(file_path)
-    path.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(path, "a", encoding="utf-8") as file:
-        file.write(value + "\n")
-
-
-def get_sent_loads():
-    return get_lines(SENT_FILE)
-
-
-def save_sent_load(load, search_request):
-    save_line(
-        SENT_FILE,
-        load_duplicate_key(
-            load,
-            driver_name=search_request.driver_name,
-        ),
-    )
-
-
-def get_sent_review_once_loads():
-    return get_lines(SENT_REVIEW_ONCE_FILE)
-
-
-def save_sent_review_once_load(load, search_request):
-    save_line(
-        SENT_REVIEW_ONCE_FILE,
-        load_duplicate_key(
-            load,
-            driver_name=search_request.driver_name,
-        ),
-    )
-
-
-def get_sent_health_alerts():
-    return get_lines(SENT_HEALTH_FILE)
-
-
-def save_sent_health_alert(search_request):
-    save_line(SENT_HEALTH_FILE, search_health_key(search_request))
-
-
-def get_sent_summaries():
-    return get_lines(SENT_SUMMARY_FILE)
-
-
-def save_sent_summary(summary_key):
-    save_line(SENT_SUMMARY_FILE, summary_key)
-
-
-def remove_duplicates(loads, search_request):
-    unique_loads = []
-    seen_keys = set()
-
-    for load in loads:
-        key = load_duplicate_key(
-            load,
-            driver_name=search_request.driver_name,
-        )
-
-        if key in seen_keys:
-            print(
-                f"Duplicate skipped in current run for {search_request.driver_name}: "
-                f"{load.pickup} -> {load.delivery}"
-            )
-            continue
-
-        seen_keys.add(key)
-        unique_loads.append(load)
-
-    return unique_loads
 
 
 def send_telegram_message(text, reply_markup=None):
