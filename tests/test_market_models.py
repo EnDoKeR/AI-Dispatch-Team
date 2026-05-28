@@ -407,5 +407,168 @@ class TestMarketLoadContactExtraction(unittest.TestCase):
         self.assertEqual(data["reference_id"], "REF-123")
 
 
+
+class TestMarketLoadScoringAndActions(unittest.TestCase):
+    def test_is_qualified_false_when_blocked(self):
+        load = MarketLoad(rate=2200, loaded_miles=240)
+        load.driver_match_status = "BLOCK"
+
+        self.assertFalse(load.is_qualified())
+
+    def test_is_qualified_false_when_rate_is_missing(self):
+        load = MarketLoad(rate=0, loaded_miles=240)
+        load.driver_match_status = "MATCH"
+
+        self.assertFalse(load.is_qualified())
+
+    def test_is_qualified_false_when_miles_are_missing(self):
+        load = MarketLoad(rate=2200, loaded_miles=0, total_miles=0)
+        load.driver_match_status = "MATCH"
+
+        self.assertFalse(load.is_qualified())
+
+    def test_is_qualified_true_for_rate_and_miles_when_not_blocked(self):
+        load = MarketLoad(rate=2200, loaded_miles=240)
+        load.driver_match_status = "MATCH"
+
+        self.assertTrue(load.is_qualified())
+
+    def test_is_good_true_for_high_rate(self):
+        load = MarketLoad(rate=3000, loaded_miles=1000)
+        load.driver_match_status = "MATCH"
+
+        self.assertTrue(load.is_good())
+
+    def test_is_good_true_for_high_total_rpm(self):
+        load = MarketLoad(rate=1500, loaded_miles=500)
+        load.driver_match_status = "MATCH"
+
+        self.assertEqual(load.total_rpm, 3.0)
+        self.assertTrue(load.is_good())
+
+    def test_is_good_false_when_not_qualified(self):
+        load = MarketLoad(rate=0, loaded_miles=500)
+        load.driver_match_status = "MATCH"
+
+        self.assertFalse(load.is_good())
+
+    def test_opportunity_score_for_clean_strong_good_zone_load(self):
+        load = MarketLoad(
+            rate=5000,
+            loaded_miles=1000,
+            empty_miles=40,
+            delivery_zone="GOOD / STRONG RELOAD AREA",
+        )
+        load.driver_match_status = "MATCH"
+
+        self.assertEqual(load.total_rpm, 4.81)
+        self.assertEqual(load.opportunity_score(), 100)
+        self.assertEqual(load.priority(), "HIGH")
+        self.assertEqual(load.suggested_action(), "CALL NOW + EMAIL BACKUP")
+
+    def test_opportunity_score_for_review_once_load(self):
+        load = MarketLoad(
+            rate=2500,
+            loaded_miles=1000,
+            empty_miles=100,
+        )
+        load.driver_match_status = "REVIEW_ONCE"
+
+        self.assertEqual(load.opportunity_score(), 46)
+        self.assertEqual(load.priority(), "LOW")
+        self.assertEqual(load.suggested_action(), "REVIEW ONCE")
+
+    def test_opportunity_score_for_blocked_load_never_goes_below_zero(self):
+        load = MarketLoad(
+            rate=1000,
+            loaded_miles=1000,
+            empty_miles=500,
+        )
+        load.driver_match_status = "BLOCK"
+
+        self.assertEqual(load.opportunity_score(), 0)
+        self.assertEqual(load.priority(), "BLOCK")
+        self.assertEqual(load.suggested_action(), "DO NOT SEND")
+
+    def test_priority_medium_for_score_75_to_89(self):
+        load = MarketLoad(
+            rate=3500,
+            loaded_miles=1000,
+            empty_miles=100,
+        )
+        load.driver_match_status = "MATCH"
+
+        self.assertEqual(load.opportunity_score(), 80)
+        self.assertEqual(load.priority(), "MEDIUM")
+        self.assertEqual(load.suggested_action(), "CALL IF AVAILABLE")
+
+    def test_priority_low_for_lower_score(self):
+        load = MarketLoad(
+            rate=1500,
+            loaded_miles=1000,
+            empty_miles=300,
+        )
+        load.driver_match_status = "UNKNOWN"
+
+        self.assertLess(load.opportunity_score(), 75)
+        self.assertEqual(load.priority(), "LOW")
+        self.assertEqual(load.suggested_action(), "MONITOR")
+
+    def test_reject_reasons_returns_block_reasons_only(self):
+        load = MarketLoad(rate=2200, loaded_miles=240)
+        load.block_reasons = ["Weight above driver setting"]
+
+        self.assertEqual(load.reject_reasons(), ["Weight above driver setting"])
+
+    def test_reject_reasons_returns_empty_without_block_reasons(self):
+        load = MarketLoad(rate=2200, loaded_miles=240)
+
+        self.assertEqual(load.reject_reasons(), [])
+
+    def test_opportunity_reason_lists_positive_factors(self):
+        load = MarketLoad(
+            rate=5000,
+            loaded_miles=1000,
+            empty_miles=40,
+            delivery_zone="GOOD / STRONG RELOAD AREA",
+        )
+        load.driver_match_status = "MATCH"
+
+        reason = load.opportunity_reason()
+
+        self.assertIn("Strong gross", reason)
+        self.assertIn("Excellent RPM", reason)
+        self.assertIn("Low empty miles", reason)
+        self.assertIn("Matches driver target", reason)
+        self.assertIn("Good reload area", reason)
+
+    def test_opportunity_reason_for_review_once(self):
+        load = MarketLoad(
+            rate=1500,
+            loaded_miles=1000,
+            empty_miles=120,
+        )
+        load.driver_match_status = "REVIEW_ONCE"
+
+        reason = load.opportunity_reason()
+
+        self.assertIn("Acceptable empty miles", reason)
+        self.assertIn("Needs dispatcher review", reason)
+
+    def test_opportunity_reason_fallback_when_no_positive_factors(self):
+        load = MarketLoad(
+            rate=500,
+            loaded_miles=1000,
+            empty_miles=500,
+        )
+        load.driver_match_status = "UNKNOWN"
+        load.delivery_zone = "UNKNOWN"
+
+        self.assertEqual(
+            load.opportunity_reason(),
+            "Potential opportunity based on current filters",
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
