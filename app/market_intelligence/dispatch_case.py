@@ -1,5 +1,10 @@
 import hashlib
 import json
+from app.market_intelligence.case_id_resolver import (
+    build_case_id,
+    normalize_text,
+    stable_hash,
+)
 from pathlib import Path
 from app.market_intelligence.case_status_engine import (
     apply_status_update_to_case,
@@ -13,9 +18,6 @@ from app.market_intelligence.event_logger import build_dispatch_event
 DISPATCH_CASES_FILE = Path("data/dispatch_cases.jsonl")
 
 
-def stable_hash(text):
-    text = str(text or "").strip().lower()
-    return hashlib.sha1(text.encode("utf-8")).hexdigest()[:12]
 
 
 def safe(value, default=""):
@@ -57,26 +59,9 @@ def write_jsonl(file_path, records):
             file.write(json.dumps(record, ensure_ascii=False) + "\n")
 
 
-def normalize_text(value):
-    return str(value or "").strip().lower()
+# Case ID helpers are implemented in:
+# app.market_intelligence.case_id_resolver
 
-
-def build_case_id(driver_name, load_id, reference_id="", broker_mc=""):
-    reference_id = str(reference_id or "").strip()
-    load_id = str(load_id or "").strip()
-    driver_name = str(driver_name or "").strip()
-    broker_mc = str(broker_mc or "").strip()
-
-    if reference_id and reference_id.upper() != "NO ID":
-        base = f"{driver_name}|REF:{reference_id}|MC:{broker_mc}"
-
-    elif load_id:
-        base = f"{driver_name}|LOAD:{load_id}|MC:{broker_mc}"
-
-    else:
-        base = f"{driver_name}|MC:{broker_mc}"
-
-    return f"CASE-{stable_hash(base)}"
 
 # Status rules are implemented in:
 # app.market_intelligence.case_status_engine

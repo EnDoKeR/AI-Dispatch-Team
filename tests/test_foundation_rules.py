@@ -1,4 +1,11 @@
 import unittest
+from app.market_intelligence.case_id_resolver import (
+    build_case_id,
+    has_valid_reference_id,
+    same_reference_id,
+    stable_hash,
+)
+
 from types import SimpleNamespace
 
 from app.market_intelligence.case_status_engine import status_update_from_feedback
@@ -182,6 +189,82 @@ class BrokerStatusSafetyTest(unittest.TestCase):
 
         self.assertEqual(result, "NEEDS MC CHECK")
 
+
+class CaseIdResolverTest(unittest.TestCase):
+    def test_stable_hash_is_stable(self):
+        first_hash = stable_hash("Test Value")
+        second_hash = stable_hash("Test Value")
+
+        self.assertEqual(first_hash, second_hash)
+
+    def test_stable_hash_is_case_insensitive(self):
+        first_hash = stable_hash("Test Value")
+        second_hash = stable_hash("test value")
+
+        self.assertEqual(first_hash, second_hash)
+
+    def test_build_case_id_uses_reference_id_when_available(self):
+        case_id = build_case_id(
+            driver_name="TestDriver",
+            load_id="LOAD-001",
+            reference_id="REF-001",
+            broker_mc="123456",
+        )
+
+        expected = f"CASE-{stable_hash('TestDriver|REF:REF-001|MC:123456')}"
+
+        self.assertEqual(case_id, expected)
+
+    def test_build_case_id_uses_load_id_when_reference_missing(self):
+        case_id = build_case_id(
+            driver_name="TestDriver",
+            load_id="LOAD-001",
+            reference_id="",
+            broker_mc="123456",
+        )
+
+        expected = f"CASE-{stable_hash('TestDriver|LOAD:LOAD-001|MC:123456')}"
+
+        self.assertEqual(case_id, expected)
+
+    def test_build_case_id_ignores_no_id_reference(self):
+        case_id = build_case_id(
+            driver_name="TestDriver",
+            load_id="LOAD-001",
+            reference_id="NO ID",
+            broker_mc="123456",
+        )
+
+        expected = f"CASE-{stable_hash('TestDriver|LOAD:LOAD-001|MC:123456')}"
+
+        self.assertEqual(case_id, expected)
+
+    def test_build_case_id_falls_back_to_driver_and_mc(self):
+        case_id = build_case_id(
+            driver_name="TestDriver",
+            load_id="",
+            reference_id="",
+            broker_mc="123456",
+        )
+
+        expected = f"CASE-{stable_hash('TestDriver|MC:123456')}"
+
+        self.assertEqual(case_id, expected)
+
+    def test_valid_reference_id(self):
+        self.assertTrue(has_valid_reference_id("REF-001"))
+
+    def test_invalid_reference_id_no_id(self):
+        self.assertFalse(has_valid_reference_id("NO ID"))
+
+    def test_invalid_reference_id_needs_check(self):
+        self.assertFalse(has_valid_reference_id("NEEDS CHECK"))
+
+    def test_same_reference_id(self):
+        self.assertTrue(same_reference_id("REF-001", "ref-001"))
+
+    def test_same_reference_id_rejects_invalid_values(self):
+        self.assertFalse(same_reference_id("NO ID", "NO ID"))
 
 if __name__ == "__main__":
     unittest.main()
