@@ -56,7 +56,6 @@ def print_driver_report(
     search_request,
     chain_candidates,
 ):
-
     print("\nReload Chain Candidates:")
     if not chain_candidates:
         print("No reload chain candidates.")
