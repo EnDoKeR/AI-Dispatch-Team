@@ -56,6 +56,40 @@ def is_valid_driver_name(driver_name):
 
     return True
 
+def get_sample_quality(sample_size):
+    sample_size = int(sample_size or 0)
+
+    if sample_size >= 50:
+        return {
+            "sample_quality": "RELIABLE_PATTERN",
+            "sample_note": "50+ lane feedback signals available",
+            "can_affect_decision": True,
+        }
+
+    if sample_size >= 25:
+        return {
+            "sample_quality": "DEVELOPING_PATTERN",
+            "sample_note": "25-49 lane feedback signals available",
+            "can_affect_decision": False,
+        }
+
+    if sample_size >= 10:
+        return {
+            "sample_quality": "EARLY_SIGNAL",
+            "sample_note": "10-24 lane feedback signals available",
+            "can_affect_decision": False,
+        }
+
+    return {
+        "sample_quality": "INSUFFICIENT_SAMPLE",
+        "sample_note": "Less than 10 lane feedback signals available",
+        "can_affect_decision": False,
+    }
+
+
+def lane_sample_size(feedback_counts):
+    return sum(int(value or 0) for value in feedback_counts.values())
+
 
 def average(values):
     if not values:
@@ -74,15 +108,26 @@ def classify_lane_signal(feedback_counts):
         for item in NEGATIVE_OR_UNCLEAR_FEEDBACK
     )
 
+    sample_size = lane_sample_size(feedback_counts)
+    sample_quality = get_sample_quality(sample_size)
+
     reasons = []
+
+    base_result = {
+        "sample_size": sample_size,
+        "sample_quality": sample_quality["sample_quality"],
+        "sample_note": sample_quality["sample_note"],
+        "can_affect_decision": sample_quality["can_affect_decision"],
+    }
 
     if positive_count >= 2 and rate_count >= 1:
         reasons.append(f"positive feedback {positive_count}x")
         reasons.append(f"rate feedback {rate_count}x")
 
         return {
+            **base_result,
             "status": "POSITIVE_LANE_WITH_RATE_SENSITIVITY",
-            "confidence": "MEDIUM",
+            "confidence": "MEDIUM" if sample_size < 50 else "HIGH",
             "reasons": reasons,
         }
 
@@ -90,8 +135,9 @@ def classify_lane_signal(feedback_counts):
         reasons.append(f"positive feedback {positive_count}x")
 
         return {
+            **base_result,
             "status": "POSITIVE_LANE",
-            "confidence": "MEDIUM",
+            "confidence": "MEDIUM" if sample_size < 50 else "HIGH",
             "reasons": reasons,
         }
 
@@ -99,6 +145,7 @@ def classify_lane_signal(feedback_counts):
         reasons.append(f"broker/workflow feedback {broker_count}x")
 
         return {
+            **base_result,
             "status": "BROKER_ISSUE_NOT_DRIVER_PREFERENCE",
             "confidence": "MEDIUM",
             "reasons": reasons,
@@ -108,8 +155,9 @@ def classify_lane_signal(feedback_counts):
         reasons.append(f"rate feedback {rate_count}x")
 
         return {
+            **base_result,
             "status": "RATE_SENSITIVE_LANE",
-            "confidence": "MEDIUM",
+            "confidence": "LOW" if sample_size < 50 else "MEDIUM",
             "reasons": reasons,
         }
 
@@ -117,6 +165,7 @@ def classify_lane_signal(feedback_counts):
         reasons.append(f"market timing feedback {market_count}x")
 
         return {
+            **base_result,
             "status": "MARKET_TIMING_SIGNAL",
             "confidence": "LOW",
             "reasons": reasons,
@@ -126,6 +175,7 @@ def classify_lane_signal(feedback_counts):
         reasons.append(f"negative/unclear feedback {negative_count}x")
 
         return {
+            **base_result,
             "status": "NEEDS_DRIVER_OR_DISPATCH_REVIEW",
             "confidence": "LOW",
             "reasons": reasons,
@@ -135,12 +185,14 @@ def classify_lane_signal(feedback_counts):
         reasons.append("single positive feedback")
 
         return {
+            **base_result,
             "status": "WEAK_POSITIVE_LANE",
             "confidence": "LOW",
             "reasons": reasons,
         }
 
     return {
+        **base_result,
         "status": "INSUFFICIENT_LANE_DATA",
         "confidence": "LOW",
         "reasons": [],
@@ -150,13 +202,16 @@ def classify_lane_signal(feedback_counts):
 def format_lane_preference_status(classification):
     status = classification.get("status", "UNKNOWN")
     confidence = classification.get("confidence", "UNKNOWN")
+    sample_quality = classification.get("sample_quality", "UNKNOWN")
+    sample_size = classification.get("sample_size", 0)
     reasons = classification.get("reasons", [])
 
+    base_text = f"{status} / {confidence} / {sample_quality} ({sample_size} signals)"
+
     if reasons:
-        return f"{status} / {confidence} — {'; '.join(reasons)}"
+        return f"{base_text} — {'; '.join(reasons)}"
 
-    return f"{status} / {confidence}"
-
+    return base_text
 
 def get_lane_feedback_rows(
     connection,
@@ -357,6 +412,10 @@ def get_driver_lane_preference_status(
             "delivery": delivery,
             "status": "UNKNOWN",
             "confidence": "UNKNOWN",
+            "sample_size": 0,
+            "sample_quality": "UNKNOWN",
+            "sample_note": "driver name missing or not checked",
+            "can_affect_decision": False,
             "reasons": ["driver name missing or not checked"],
             "feedback_counts": {},
             "lane_group": None,
@@ -369,6 +428,10 @@ def get_driver_lane_preference_status(
             "delivery": delivery,
             "status": "UNKNOWN",
             "confidence": "UNKNOWN",
+            "sample_size": 0,
+            "sample_quality": "UNKNOWN",
+            "sample_note": "pickup or delivery missing",
+            "can_affect_decision": False,
             "reasons": ["pickup or delivery missing"],
             "feedback_counts": {},
             "lane_group": None,
@@ -381,6 +444,10 @@ def get_driver_lane_preference_status(
             "delivery": delivery,
             "status": "UNKNOWN",
             "confidence": "UNKNOWN",
+            "sample_size": 0,
+            "sample_quality": "UNKNOWN",
+            "sample_note": "SQLite memory database not found",
+            "can_affect_decision": False,
             "reasons": ["SQLite memory database not found"],
             "feedback_counts": {},
             "lane_group": None,
@@ -411,12 +478,18 @@ def get_driver_lane_preference_status(
             break
 
     if not matched_group:
+        sample_quality = get_sample_quality(0)
+
         return {
             "driver_name": driver_name,
             "pickup": pickup,
             "delivery": delivery,
             "status": "INSUFFICIENT_LANE_DATA",
             "confidence": "LOW",
+            "sample_size": 0,
+            "sample_quality": sample_quality["sample_quality"],
+            "sample_note": sample_quality["sample_note"],
+            "can_affect_decision": sample_quality["can_affect_decision"],
             "reasons": [],
             "feedback_counts": {},
             "lane_group": None,
@@ -430,18 +503,25 @@ def get_driver_lane_preference_status(
         "delivery": delivery,
         "status": classification.get("status", "UNKNOWN"),
         "confidence": classification.get("confidence", "UNKNOWN"),
+        "sample_size": classification.get("sample_size", 0),
+        "sample_quality": classification.get("sample_quality", "UNKNOWN"),
+        "sample_note": classification.get("sample_note", ""),
+        "can_affect_decision": classification.get("can_affect_decision", False),
         "reasons": classification.get("reasons", []),
         "feedback_counts": matched_group["feedback_counts"],
         "lane_group": matched_group,
     }
-
-
 def format_driver_lane_preference_status(preference_status):
     status = preference_status.get("status", "UNKNOWN")
     confidence = preference_status.get("confidence", "UNKNOWN")
+    sample_quality = preference_status.get("sample_quality", "UNKNOWN")
+    sample_size = preference_status.get("sample_size", 0)
     reasons = preference_status.get("reasons", [])
 
-    if reasons:
-        return f"{status} / {confidence} — {'; '.join(reasons)}"
+    base_text = f"{status} / {confidence} / {sample_quality} ({sample_size} signals)"
 
-    return f"{status} / {confidence}"
+    if reasons:
+        return f"{base_text} — {'; '.join(reasons)}"
+
+    return base_text
+

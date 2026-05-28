@@ -25,6 +25,40 @@ def is_valid_driver_name(driver_name):
 
     return True
 
+def get_sample_quality(sample_size):
+    sample_size = int(sample_size or 0)
+
+    if sample_size >= 50:
+        return {
+            "sample_quality": "RELIABLE_PATTERN",
+            "sample_note": "50+ feedback/case signals available",
+            "can_affect_decision": True,
+        }
+
+    if sample_size >= 25:
+        return {
+            "sample_quality": "DEVELOPING_PATTERN",
+            "sample_note": "25-49 feedback/case signals available",
+            "can_affect_decision": False,
+        }
+
+    if sample_size >= 10:
+        return {
+            "sample_quality": "EARLY_SIGNAL",
+            "sample_note": "10-24 feedback/case signals available",
+            "can_affect_decision": False,
+        }
+
+    return {
+        "sample_quality": "INSUFFICIENT_SAMPLE",
+        "sample_note": "Less than 10 feedback/case signals available",
+        "can_affect_decision": False,
+    }
+
+
+def feedback_sample_size(feedback_counts):
+    return sum(int(value or 0) for value in feedback_counts.values())
+
 
 def get_driver_feedback_counts(connection, driver_name):
     driver_name = normalize_driver_name(driver_name)
@@ -155,7 +189,6 @@ def get_driver_lane_feedback(connection, driver_name, limit=20):
     cursor.execute(query, (driver_name, limit))
     return cursor.fetchall()
 
-
 def classify_driver_from_counts(feedback_counts, case_counts):
     booked = feedback_counts.get("booked", 0)
     ratecon_received = feedback_counts.get("ratecon_received", 0)
@@ -170,7 +203,20 @@ def classify_driver_from_counts(feedback_counts, case_counts):
     load_opportunity_cases = case_counts.get("load_opportunity_cases", 0)
     rate_check_cases = case_counts.get("rate_check_cases", 0)
 
+    sample_size = max(
+        feedback_sample_size(feedback_counts),
+        int(feedback_items or 0),
+    )
+    sample_quality = get_sample_quality(sample_size)
+
     reasons = []
+
+    base_result = {
+        "sample_size": sample_size,
+        "sample_quality": sample_quality["sample_quality"],
+        "sample_note": sample_quality["sample_note"],
+        "can_affect_decision": sample_quality["can_affect_decision"],
+    }
 
     if booked >= 1 or ratecon_received >= 1:
         if booked:
@@ -180,8 +226,9 @@ def classify_driver_from_counts(feedback_counts, case_counts):
             reasons.append(f"ratecon_received feedback {ratecon_received}x")
 
         return {
+            **base_result,
             "status": "STRONG_POSITIVE",
-            "confidence": "MEDIUM",
+            "confidence": "MEDIUM" if sample_size < 50 else "HIGH",
             "reasons": reasons,
         }
 
@@ -189,8 +236,9 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"sent_to_driver feedback {sent_to_driver}x")
 
         return {
+            **base_result,
             "status": "WEAK_POSITIVE",
-            "confidence": "LOW",
+            "confidence": "LOW" if sample_size < 50 else "MEDIUM",
             "reasons": reasons,
         }
 
@@ -198,8 +246,9 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"driver_rejected feedback {driver_rejected}x")
 
         return {
+            **base_result,
             "status": "NEEDS_REVIEW",
-            "confidence": "MEDIUM",
+            "confidence": "LOW" if sample_size < 50 else "MEDIUM",
             "reasons": reasons,
         }
 
@@ -207,6 +256,7 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"skipped feedback {skipped}x")
 
         return {
+            **base_result,
             "status": "NEEDS_REVIEW",
             "confidence": "LOW",
             "reasons": reasons,
@@ -216,15 +266,17 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"rate_too_low feedback {rate_too_low}x")
 
         return {
+            **base_result,
             "status": "RATE_SENSITIVE",
-            "confidence": "MEDIUM",
+            "confidence": "LOW" if sample_size < 50 else "MEDIUM",
             "reasons": reasons,
         }
 
-    if bad_broker >= 1 and feedback_items <= 3:
+    if bad_broker >= 1:
         reasons.append(f"bad_broker feedback {bad_broker}x, should stay broker-side")
 
         return {
+            **base_result,
             "status": "INSUFFICIENT_DRIVER_DATA",
             "confidence": "LOW",
             "reasons": reasons,
@@ -234,6 +286,7 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"{telegram_alerts} Telegram alerts but no feedback")
 
         return {
+            **base_result,
             "status": "NEEDS_MORE_FEEDBACK",
             "confidence": "LOW",
             "reasons": reasons,
@@ -243,6 +296,7 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"{load_opportunity_cases} load opportunities but no feedback")
 
         return {
+            **base_result,
             "status": "NEEDS_MORE_FEEDBACK",
             "confidence": "LOW",
             "reasons": reasons,
@@ -252,12 +306,14 @@ def classify_driver_from_counts(feedback_counts, case_counts):
         reasons.append(f"{rate_check_cases} rate-check cases but no feedback")
 
         return {
+            **base_result,
             "status": "NEEDS_MORE_FEEDBACK",
             "confidence": "LOW",
             "reasons": reasons,
         }
 
     return {
+        **base_result,
         "status": "INSUFFICIENT_DRIVER_DATA",
         "confidence": "LOW",
         "reasons": [],
@@ -272,6 +328,10 @@ def get_driver_preference_status(driver_name, db_path=SQLITE_DB_FILE):
             "driver_name": driver_name,
             "status": "UNKNOWN",
             "confidence": "UNKNOWN",
+            "sample_size": 0,
+            "sample_quality": "UNKNOWN",
+            "sample_note": "driver name missing or not checked",
+            "can_affect_decision": False,
             "reasons": ["driver name missing or not checked"],
             "feedback_counts": {},
             "case_counts": {},
@@ -283,6 +343,10 @@ def get_driver_preference_status(driver_name, db_path=SQLITE_DB_FILE):
             "driver_name": driver_name,
             "status": "UNKNOWN",
             "confidence": "UNKNOWN",
+            "sample_size": 0,
+            "sample_quality": "UNKNOWN",
+            "sample_note": "SQLite memory database not found",
+            "can_affect_decision": False,
             "reasons": ["SQLite memory database not found"],
             "feedback_counts": {},
             "case_counts": {},
@@ -306,20 +370,28 @@ def get_driver_preference_status(driver_name, db_path=SQLITE_DB_FILE):
         "driver_name": driver_name,
         "status": classification.get("status", "UNKNOWN"),
         "confidence": classification.get("confidence", "UNKNOWN"),
+        "sample_size": classification.get("sample_size", 0),
+        "sample_quality": classification.get("sample_quality", "UNKNOWN"),
+        "sample_note": classification.get("sample_note", ""),
+        "can_affect_decision": classification.get("can_affect_decision", False),
         "reasons": classification.get("reasons", []),
         "feedback_counts": feedback_counts,
         "case_counts": case_counts,
         "lane_feedback": lane_feedback,
     }
 
-
 def format_driver_preference_status(preference_status):
     status = preference_status.get("status", "UNKNOWN")
     confidence = preference_status.get("confidence", "UNKNOWN")
+    sample_quality = preference_status.get("sample_quality", "UNKNOWN")
+    sample_size = preference_status.get("sample_size", 0)
     reasons = preference_status.get("reasons", [])
+
+    base_text = f"{status} / {confidence} / {sample_quality} ({sample_size} signals)"
 
     if reasons:
         reason_text = "; ".join(reasons)
-        return f"{status} / {confidence} — {reason_text}"
+        return f"{base_text} — {reason_text}"
 
-    return f"{status} / {confidence}"
+    return base_text
+
