@@ -21,6 +21,7 @@ from app.market_intelligence.market_tracking_requirements import apply_tracking_
 from app.market_intelligence.market_direction_matcher import apply_direction_match
 from app.market_intelligence.market_conestoga_rules import apply_conestoga_rules
 from app.market_intelligence.market_broker_memory import apply_broker_memory
+from app.market_intelligence.market_local_load_rules import apply_local_load_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -265,15 +266,7 @@ class MarketLoad:
         ).lower()
 
         # Same city / local load blocker
-        if origin_text and destination_text and origin_text == destination_text:
-            self.is_local_load = True
-            self.is_blocked = True
-            self.block_reasons.append("Same pickup and delivery city.")
-
-        if self.loaded_miles and self.loaded_miles <= 10:
-            self.is_local_load = True
-            self.is_blocked = True
-            self.block_reasons.append("Loaded miles are too low / local load.")
+        apply_local_load_rules(self, origin_text, destination_text)
 
         # Weight logic
                 # Weight logic
