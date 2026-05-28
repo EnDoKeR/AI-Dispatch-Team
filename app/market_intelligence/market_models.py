@@ -13,6 +13,7 @@ from app.market_intelligence.market_contact_extractor import extract_email, extr
 from app.market_intelligence.market_city_distance import distance_between_known_cities
 from app.market_intelligence.market_region_conflict import pickup_region_conflict_with_driver
 from app.market_intelligence.market_match_status import finalize_driver_match, reset_driver_match_state
+from app.market_intelligence.market_tarp_requirements import apply_tarps_requirement
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -310,148 +311,6 @@ class MarketLoad:
                 f"{requirement_label} required, but driver profile has no accepted document/status."
             )
 
-        def get_tarp_size_feet(text):
-            import re
-
-            text = str(text or "").lower()
-
-            match = re.search(
-                r"\b(4|6|8)\s*(?:ft|feet|foot|['вЂ™])\b",
-                text,
-            )
-
-            if not match:
-                return 0
-
-            return int(match.group(1))
-
-        def detect_tarps_requirement(text):
-            import re
-
-            text = str(text or "").lower()
-
-            no_tarp_terms = [
-                "no tarp",
-                "no tarps",
-                "no tarping",
-                "no tarp required",
-                "no tarps required",
-                "does not need tarps",
-                "tarps not required",
-                "tarp not required",
-            ]
-
-            if any(term in text for term in no_tarp_terms):
-                return False, 0
-
-            tarp_patterns = [
-                r"\b4\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
-                r"\b6\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
-                r"\b8\s*(?:ft|feet|foot|['вЂ™])\s*tarps?\b",
-                r"\b4ft\s*tarps?\b",
-                r"\b6ft\s*tarps?\b",
-                r"\b8ft\s*tarps?\b",
-                r"\btarps?\s*required\b",
-                r"\btarps?\s*req\b",
-                r"\bneed\s*tarps?\b",
-                r"\bneeds\s*tarps?\b",
-                r"\bmust\s*tarp\b",
-                r"\btarping\s*required\b",
-            ]
-
-            for pattern in tarp_patterns:
-                if re.search(pattern, text):
-                    required_size = get_tarp_size_feet(text)
-                    return True, required_size
-
-            return None, 0
-
-        def apply_tarps_requirement():
-            tarps_required, required_tarp_size = detect_tarps_requirement(combined_text)
-
-            if tarps_required is not True:
-                return
-
-            driver_equipment = str(
-                getattr(search_request, "equipment", "") or ""
-            ).lower()
-
-            if "conestoga" in driver_equipment:
-                if required_tarp_size:
-                    self.match_reasons.append(
-                        f"{required_tarp_size} ft tarp requirement covered by Conestoga."
-                    )
-                else:
-                    self.match_reasons.append(
-                        "Tarp requirement covered by Conestoga."
-                    )
-
-                return
-
-            driver_can_take_tarps_value = getattr(
-                search_request,
-                "driver_can_take_tarps",
-                None,
-            )
-
-            driver_max_tarp_size_value = getattr(
-                search_request,
-                "driver_max_tarp_size",
-                "",
-            )
-
-            driver_max_tarp_size_feet = get_tarp_size_feet(
-                driver_max_tarp_size_value
-            )
-
-            if driver_can_take_tarps_value is True:
-                if (
-                    required_tarp_size
-                    and driver_max_tarp_size_feet
-                    and required_tarp_size > driver_max_tarp_size_feet
-                ):
-                    self.is_review_once = True
-                    self.review_reasons.append(
-                        f"{required_tarp_size} ft tarps required, but driver max tarp size is {driver_max_tarp_size_feet} ft."
-                    )
-                    return
-
-                if required_tarp_size:
-                    self.match_reasons.append(
-                        f"{required_tarp_size} ft tarps accepted by driver profile."
-                    )
-                else:
-                    self.match_reasons.append(
-                        "Tarps accepted by driver profile."
-                    )
-
-                return
-
-            if driver_can_take_tarps_value is False:
-                self.is_blocked = True
-
-                if required_tarp_size:
-                    self.block_reasons.append(
-                        f"{required_tarp_size} ft tarps required, but driver profile says driver cannot take tarps."
-                    )
-                else:
-                    self.block_reasons.append(
-                        "Tarps required, but driver profile says driver cannot take tarps."
-                    )
-
-                return
-
-            self.is_review_once = True
-
-            if required_tarp_size:
-                self.review_reasons.append(
-                    f"{required_tarp_size} ft tarps required; ask driver and save answer in driver profile."
-                )
-            else:
-                self.review_reasons.append(
-                    "Tarps required; ask driver and save answer in driver profile."
-                )
-
         # Same city / local load blocker
         if origin_text and destination_text and origin_text == destination_text:
             self.is_local_load = True
@@ -639,7 +498,7 @@ class MarketLoad:
             )
 
         # Tarps
-        apply_tarps_requirement()
+        apply_tarps_requirement(self, search_request, combined_text)
 
         # Tracking
         if (
