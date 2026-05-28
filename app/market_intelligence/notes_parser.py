@@ -364,6 +364,22 @@ def detect_flatbed_required(text):
     return False
 
 
+def detect_flatbed_preferred(text):
+    text = clean_text(text)
+
+    patterns = [
+        r"\bflatbed\s*preferred\b",
+        r"\bprefer\s*flatbed\b",
+        r"\bpreferred\s*flatbed\b",
+    ]
+
+    for pattern in patterns:
+        if re.search(pattern, text):
+            return True
+
+    return False
+
+
 def detect_stepdeck_allowed(text):
     text = clean_text(text)
 
@@ -981,6 +997,7 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
         "no_conestoga": detect_no_conestoga(combined_text),
         "conestoga_ok": detect_conestoga_ok(combined_text),
         "flatbed_required": detect_flatbed_required(combined_text),
+        "flatbed_preferred": detect_flatbed_preferred(combined_text),
         "stepdeck_allowed": detect_stepdeck_allowed(combined_text),
         "no_box_truck": detect_no_box_truck(combined_text),
 
@@ -1044,6 +1061,9 @@ def parse_notes(notes="", commodity="", posted_trailer_type="", posted_weight=0)
 
     if flags["flatbed_required"]:
         notes_summary.append("flatbed required")
+
+    if flags["flatbed_preferred"]:
+        notes_summary.append("flatbed preferred; verify Conestoga acceptance")
 
     if flags["stepdeck_allowed"]:
         notes_summary.append("flatbed or step deck allowed")

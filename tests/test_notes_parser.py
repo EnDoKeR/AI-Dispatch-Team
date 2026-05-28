@@ -6,6 +6,10 @@ from app.market_intelligence.notes_parser import (
     detect_cash_or_zelle,
     detect_quickpay_review,
     detect_contact_override,
+    detect_conestoga_ok,
+    detect_flatbed_preferred,
+    detect_flatbed_required,
+    detect_no_conestoga,
     detect_iso_tank_required,
     detect_multiple_loads_available,
     detect_number_of_straps,
@@ -84,6 +88,36 @@ class TestNotesParserBasics(unittest.TestCase):
     def test_detect_od_does_not_detect_plain_od_inside_words(self):
         self.assertFalse(detect_od("good legal load"))
         self.assertFalse(detect_od("commodity is wood products"))
+
+    def test_detect_conestoga_notes_logic(self):
+        self.assertTrue(detect_no_conestoga("no conestoga"))
+        self.assertTrue(detect_no_conestoga("no stoga"))
+        self.assertTrue(detect_no_conestoga("flatbed only"))
+        self.assertTrue(detect_no_conestoga("flat only"))
+
+        self.assertTrue(detect_flatbed_required("flatbed only"))
+        self.assertTrue(detect_flatbed_required("flat only"))
+
+        self.assertTrue(detect_conestoga_ok("conestoga ok"))
+        self.assertTrue(detect_conestoga_ok("stoga ok"))
+        self.assertTrue(detect_conestoga_ok("conestoga accepted"))
+
+    def test_detect_flatbed_preferred_for_conestoga_verify(self):
+        self.assertTrue(detect_flatbed_preferred("flatbed preferred"))
+        self.assertTrue(detect_flatbed_preferred("prefer flatbed"))
+
+        self.assertFalse(detect_no_conestoga("flatbed preferred"))
+        self.assertFalse(detect_flatbed_required("flatbed preferred"))
+
+        result = parse_notes(notes="flatbed preferred")
+
+        self.assertTrue(result["flatbed_preferred"])
+        self.assertFalse(result["no_conestoga"])
+        self.assertFalse(result["flatbed_required"])
+        self.assertIn(
+            "flatbed preferred; verify Conestoga acceptance",
+            result["notes_summary"],
+        )
 
     def test_detect_cash_or_zelle_blocks_cash_payment_language(self):
         self.assertTrue(detect_cash_or_zelle("cash or zelle"))
@@ -177,6 +211,7 @@ class TestNotesParserBasics(unittest.TestCase):
         self.assertTrue(result["twic_required"])
         self.assertFalse(result["quickpay_review"])
         self.assertFalse(result["iso_tank_required"])
+        self.assertFalse(result["flatbed_preferred"])
 
         self.assertIn("8 ft tarps detected", result["notes_summary"])
         self.assertIn("6 straps required", result["notes_summary"])
