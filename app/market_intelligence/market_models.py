@@ -22,6 +22,7 @@ from app.market_intelligence.market_direction_matcher import apply_direction_mat
 from app.market_intelligence.market_conestoga_rules import apply_conestoga_rules
 from app.market_intelligence.market_broker_memory import apply_broker_memory
 from app.market_intelligence.market_local_load_rules import apply_local_load_rules
+from app.market_intelligence.market_weight_rules import apply_weight_rules
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -269,19 +270,7 @@ class MarketLoad:
         apply_local_load_rules(self, origin_text, destination_text)
 
         # Weight logic
-        if max_weight and self.weight and self.weight > max_weight:
-            self.is_overweight = True
-
-            if "conestoga" in equipment:
-                self.is_blocked = True
-                self.block_reasons.append(
-                    f"Weight {self.weight} is above Conestoga driver setting {max_weight}."
-                )
-            else:
-                self.is_review_once = True
-                self.review_reasons.append(
-                    f"Weight {self.weight} is above driver setting {max_weight}."
-                )
+        apply_weight_rules(self, max_weight, equipment)
 
         # OD / permit logic
         is_od_note = bool(
