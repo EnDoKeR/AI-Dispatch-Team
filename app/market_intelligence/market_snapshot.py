@@ -47,9 +47,6 @@ def apply_search_request(loads, search_request):
     return loads
 
 
-
-
-
 def print_driver_report(
     request_file,
     stats,
@@ -57,8 +54,9 @@ def print_driver_report(
     top_opportunities,
     review_once_loads,
     search_request,
-    chain_candidates
-    ):
+    chain_candidates,
+):
+
     print("\nReload Chain Candidates:")
     if not chain_candidates:
         print("No reload chain candidates.")
