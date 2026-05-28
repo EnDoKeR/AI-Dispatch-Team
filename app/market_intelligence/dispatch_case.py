@@ -332,47 +332,6 @@ def simulation_event_matches_case(simulation_event, case_record):
     return False
 
 
-def build_simulation_payload(simulation_event):
-    payload = simulation_event.get("payload", {}) or {}
-    event_type = simulation_event.get("event_type", "")
-    event_load = payload.get("load", {}) or {}
-    updates = payload.get("updates", {}) or {}
-
-    if event_type == "LOAD_APPEARED":
-        return {
-            "simulation_step": simulation_event.get("simulation_step", ""),
-            "event_time": simulation_event.get("event_time", ""),
-            "simulation_load_id": simulation_event.get("load_id", ""),
-            "pickup": event_load.get("pickup", ""),
-            "delivery": event_load.get("delivery", ""),
-            "rate": event_load.get("rate", ""),
-            "broker": event_load.get("broker_name", ""),
-            "broker_mc": event_load.get("broker_mc", ""),
-            "reference_id": event_load.get("reference_id", simulation_event.get("load_id", "")),
-        }
-
-    if event_type == "LOAD_UPDATED":
-        return {
-            "simulation_step": simulation_event.get("simulation_step", ""),
-            "event_time": simulation_event.get("event_time", ""),
-            "simulation_load_id": simulation_event.get("load_id", ""),
-            "updates": updates,
-        }
-
-    if event_type == "LOAD_REMOVED":
-        return {
-            "simulation_step": simulation_event.get("simulation_step", ""),
-            "event_time": simulation_event.get("event_time", ""),
-            "simulation_load_id": simulation_event.get("load_id", ""),
-            "reason": simulation_event.get("reason", ""),
-        }
-
-    return {
-        "simulation_step": simulation_event.get("simulation_step", ""),
-        "event_time": simulation_event.get("event_time", ""),
-        "simulation_load_id": simulation_event.get("load_id", ""),
-        "payload": payload,
-    }
 
 
 def build_cases_and_events(
