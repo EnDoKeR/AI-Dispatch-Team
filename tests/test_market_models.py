@@ -137,5 +137,152 @@ class TestMarketLoadBasics(unittest.TestCase):
         self.assertEqual(MarketLoad(rate=1000, loaded_miles=1400).bucket, "1300+")
 
 
+
+class FakeSearchRequest:
+    def __init__(
+        self,
+        target_direction="TX",
+        target_city="",
+        target_radius_miles=0,
+    ):
+        self.target_direction = target_direction
+        self.target_city = target_city
+        self.target_radius_miles = target_radius_miles
+
+
+class TestMarketLoadTargetMatching(unittest.TestCase):
+    def test_target_states_returns_known_direction_states(self):
+        load = MarketLoad()
+
+        self.assertEqual(load.target_states(FakeSearchRequest(target_direction="TX")), ["TX"])
+        self.assertIn("IL", load.target_states(FakeSearchRequest(target_direction="midwest")))
+        self.assertEqual(load.target_states(FakeSearchRequest(target_direction="unknown")), [])
+
+    def test_route_toward_target_states_returns_route_states(self):
+        load = MarketLoad()
+
+        route_states = load.route_toward_target_states(
+            FakeSearchRequest(target_direction="TX")
+        )
+
+        self.assertIn("AL", route_states)
+        self.assertIn("TX", route_states)
+
+    def test_delivery_matches_target_when_delivery_state_is_target(self):
+        load = MarketLoad(
+            pickup="Dallas, TX",
+            delivery="Houston, TX",
+            rate=2200,
+            loaded_miles=240,
+        )
+
+        self.assertTrue(
+            load.delivery_matches_target(FakeSearchRequest(target_direction="TX"))
+        )
+
+    def test_delivery_matches_target_returns_false_for_non_target_state(self):
+        load = MarketLoad(
+            pickup="Dallas, TX",
+            delivery="Denver, CO",
+            rate=2200,
+            loaded_miles=800,
+        )
+
+        self.assertFalse(
+            load.delivery_matches_target(FakeSearchRequest(target_direction="TX"))
+        )
+
+    def test_delivery_is_along_route_for_route_state(self):
+        load = MarketLoad(
+            pickup="Atlanta, GA",
+            delivery="Birmingham, AL",
+            rate=1200,
+            loaded_miles=150,
+        )
+
+        self.assertTrue(
+            load.delivery_is_along_route(FakeSearchRequest(target_direction="TX"))
+        )
+
+    def test_should_block_off_target_for_non_target_non_route_load(self):
+        load = MarketLoad(
+            pickup="Dallas, TX",
+            delivery="Denver, CO",
+            rate=1200,
+            loaded_miles=800,
+            empty_miles=50,
+        )
+
+        self.assertTrue(
+            load.should_block_off_target(FakeSearchRequest(target_direction="TX"))
+        )
+
+    def test_should_not_block_strong_off_target_exception(self):
+        load = MarketLoad(
+            pickup="Dallas, TX",
+            delivery="Denver, CO",
+            rate=3000,
+            loaded_miles=500,
+            empty_miles=50,
+        )
+
+        self.assertTrue(load.is_strong_off_target_exception())
+        self.assertFalse(
+            load.should_block_off_target(FakeSearchRequest(target_direction="TX"))
+        )
+
+    def test_off_target_review_reason_for_along_route_load(self):
+        load = MarketLoad(
+            pickup="Atlanta, GA",
+            delivery="Birmingham, AL",
+            rate=1200,
+            loaded_miles=150,
+        )
+
+        reason = load.off_target_review_reason(
+            FakeSearchRequest(target_direction="TX")
+        )
+
+        self.assertEqual(reason, "Load is along route toward TX.")
+
+    def test_off_target_review_reason_for_strong_exception(self):
+        load = MarketLoad(
+            pickup="Dallas, TX",
+            delivery="Denver, CO",
+            rate=3000,
+            loaded_miles=500,
+            empty_miles=50,
+        )
+
+        reason = load.off_target_review_reason(
+            FakeSearchRequest(target_direction="TX")
+        )
+
+        self.assertIn("Strong off-target exception", reason)
+        self.assertIn("RPM $", reason)
+        self.assertIn("gross $3000", reason)
+
+    def test_matches_target_state_or_region(self):
+        target_load = MarketLoad(delivery="Houston, TX")
+        midwest_load = MarketLoad(delivery="Chicago, IL")
+        miss_load = MarketLoad(delivery="Denver, CO")
+
+        self.assertTrue(
+            target_load.matches_target_state_or_region(
+                FakeSearchRequest(target_direction="TX")
+            )
+        )
+        self.assertTrue(
+            midwest_load.matches_target_state_or_region(
+                FakeSearchRequest(target_direction="midwest")
+            )
+        )
+        self.assertFalse(
+            miss_load.matches_target_state_or_region(
+                FakeSearchRequest(target_direction="TX")
+            )
+        )
+
+
 if __name__ == "__main__":
     unittest.main()
