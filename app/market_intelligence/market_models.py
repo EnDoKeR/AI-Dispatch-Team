@@ -12,7 +12,7 @@ from app.market_intelligence.market_review_category import classify_review_categ
 from app.market_intelligence.market_contact_extractor import extract_email, extract_phone
 from app.market_intelligence.market_city_distance import distance_between_known_cities
 from app.market_intelligence.market_region_conflict import pickup_region_conflict_with_driver
-from app.market_intelligence.market_match_status import finalize_driver_match
+from app.market_intelligence.market_match_status import finalize_driver_match, reset_driver_match_state
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -234,18 +234,7 @@ class MarketLoad:
         return pickup_region_conflict_with_driver(self, search_request)
 
     def apply_search_request(self, search_request):
-        self.match_reasons = []
-        self.review_reasons = []
-        self.block_reasons = []
-
-        self.is_blocked = False
-        self.is_review_once = False
-        self.is_clean_match = False
-
-        self.target_relation = "MISMATCH"
-        self.driver_fit_status = "UNKNOWN"
-        self.driver_match_status = "UNKNOWN"
-        self.driver_match_notes = []
+        reset_driver_match_state(self)
 
         max_weight = getattr(search_request, "max_weight", 0) or 0
         max_empty = getattr(search_request, "max_empty_miles", 200) or 200

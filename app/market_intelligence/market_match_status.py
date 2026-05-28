@@ -1,4 +1,21 @@
-﻿def finalize_driver_match(load):
+﻿def reset_driver_match_state(load):
+    load.match_reasons = []
+    load.review_reasons = []
+    load.block_reasons = []
+
+    load.is_blocked = False
+    load.is_review_once = False
+    load.is_clean_match = False
+
+    load.target_relation = "MISMATCH"
+    load.driver_fit_status = "UNKNOWN"
+    load.driver_match_status = "UNKNOWN"
+    load.driver_match_notes = []
+
+    return load
+
+
+def finalize_driver_match(load):
     if load.is_blocked:
         load.driver_fit_status = "BLOCKED"
         load.driver_match_status = "BLOCK"

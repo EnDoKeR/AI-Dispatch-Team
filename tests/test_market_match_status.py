@@ -1,6 +1,6 @@
 ﻿import unittest
 
-from app.market_intelligence.market_match_status import finalize_driver_match
+from app.market_intelligence.market_match_status import finalize_driver_match, reset_driver_match_state
 
 
 class FakeLoad:
@@ -57,6 +57,41 @@ class TestMarketMatchStatus(unittest.TestCase):
         self.assertEqual(load.driver_match_status, "MATCH")
         self.assertEqual(load.driver_match_notes, ["Clean fit"])
         self.assertTrue(load.is_clean_match)
+
+
+
+class TestMarketMatchStateReset(unittest.TestCase):
+    def test_reset_driver_match_state_clears_match_state(self):
+        load = FakeLoad()
+
+        load.match_reasons = ["Old match"]
+        load.review_reasons = ["Old review"]
+        load.block_reasons = ["Old block"]
+
+        load.is_blocked = True
+        load.is_review_once = True
+        load.is_clean_match = True
+
+        load.target_relation = "MATCH"
+        load.driver_fit_status = "CLEAN_MATCH"
+        load.driver_match_status = "MATCH"
+        load.driver_match_notes = ["Old notes"]
+
+        result = reset_driver_match_state(load)
+
+        self.assertIs(result, load)
+        self.assertEqual(load.match_reasons, [])
+        self.assertEqual(load.review_reasons, [])
+        self.assertEqual(load.block_reasons, [])
+
+        self.assertFalse(load.is_blocked)
+        self.assertFalse(load.is_review_once)
+        self.assertFalse(load.is_clean_match)
+
+        self.assertEqual(load.target_relation, "MISMATCH")
+        self.assertEqual(load.driver_fit_status, "UNKNOWN")
+        self.assertEqual(load.driver_match_status, "UNKNOWN")
+        self.assertEqual(load.driver_match_notes, [])
 
 
 if __name__ == "__main__":
