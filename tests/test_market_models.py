@@ -570,5 +570,141 @@ class TestMarketLoadScoringAndActions(unittest.TestCase):
         )
 
 
+
+class FakeRouteSearchRequest:
+    def __init__(
+        self,
+        current_location="Dallas, TX",
+        target_direction="texas",
+        route_fallback_active=False,
+    ):
+        self.current_location = current_location
+        self.target_direction = target_direction
+        self.route_fallback_active = route_fallback_active
+
+
+class TestMarketLoadRouteAndDistanceHelpers(unittest.TestCase):
+    def test_pickup_region_conflict_false_when_driver_and_pickup_same_state(self):
+        load = MarketLoad(
+            pickup="Austin, TX",
+            empty_miles=45,
+        )
+        search_request = FakeRouteSearchRequest(current_location="Dallas, TX")
+
+        self.assertFalse(load.pickup_region_conflict_with_driver(search_request))
+
+    def test_pickup_region_conflict_false_when_pickup_is_neighbor_state(self):
+        load = MarketLoad(
+            pickup="Oklahoma City, OK",
+            empty_miles=45,
+        )
+        search_request = FakeRouteSearchRequest(current_location="Dallas, TX")
+
+        self.assertFalse(load.pickup_region_conflict_with_driver(search_request))
+
+    def test_pickup_region_conflict_true_when_states_far_and_empty_miles_low(self):
+        load = MarketLoad(
+            pickup="Lakeland, FL",
+            empty_miles=45,
+        )
+        search_request = FakeRouteSearchRequest(current_location="Stockton, CA")
+
+        self.assertTrue(load.pickup_region_conflict_with_driver(search_request))
+
+    def test_pickup_region_conflict_false_when_states_far_but_empty_miles_high(self):
+        load = MarketLoad(
+            pickup="Lakeland, FL",
+            empty_miles=900,
+        )
+        search_request = FakeRouteSearchRequest(current_location="Stockton, CA")
+
+        self.assertFalse(load.pickup_region_conflict_with_driver(search_request))
+
+    def test_pickup_region_conflict_false_when_state_is_missing(self):
+        load = MarketLoad(
+            pickup="Lakeland",
+            empty_miles=45,
+        )
+        search_request = FakeRouteSearchRequest(current_location="Stockton, CA")
+
+        self.assertFalse(load.pickup_region_conflict_with_driver(search_request))
+
+    def test_distance_between_known_cities_returns_zero_for_same_city(self):
+        load = MarketLoad()
+
+        self.assertEqual(
+            load.distance_between_known_cities("Denver, CO", "Denver, CO"),
+            0,
+        )
+
+    def test_distance_between_known_cities_returns_known_distance(self):
+        load = MarketLoad()
+
+        self.assertEqual(
+            load.distance_between_known_cities("Englewood, CO", "Denver, CO"),
+            15,
+        )
+        self.assertEqual(
+            load.distance_between_known_cities("Denver, CO", "Englewood, CO"),
+            15,
+        )
+
+    def test_distance_between_known_cities_returns_9999_for_unknown_or_missing(self):
+        load = MarketLoad()
+
+        self.assertEqual(
+            load.distance_between_known_cities("Unknown, XX", "Nowhere, YY"),
+            9999,
+        )
+        self.assertEqual(
+            load.distance_between_known_cities("", "Denver, CO"),
+            9999,
+        )
+
+    def test_is_along_route_toward_target_false_when_route_fallback_disabled(self):
+        load = MarketLoad(
+            delivery="Birmingham, AL",
+        )
+        search_request = FakeRouteSearchRequest(
+            target_direction="texas",
+            route_fallback_active=False,
+        )
+
+        self.assertFalse(load.is_along_route_toward_target(search_request))
+
+    def test_is_along_route_toward_target_true_when_fallback_enabled_and_state_matches(self):
+        load = MarketLoad(
+            delivery="Birmingham, AL",
+        )
+        search_request = FakeRouteSearchRequest(
+            target_direction="texas",
+            route_fallback_active=True,
+        )
+
+        self.assertTrue(load.is_along_route_toward_target(search_request))
+
+    def test_is_along_route_toward_target_false_when_state_not_in_route_map(self):
+        load = MarketLoad(
+            delivery="Denver, CO",
+        )
+        search_request = FakeRouteSearchRequest(
+            target_direction="texas",
+            route_fallback_active=True,
+        )
+
+        self.assertFalse(load.is_along_route_toward_target(search_request))
+
+    def test_is_along_route_toward_target_false_for_unknown_target(self):
+        load = MarketLoad(
+            delivery="Birmingham, AL",
+        )
+        search_request = FakeRouteSearchRequest(
+            target_direction="unknown",
+            route_fallback_active=True,
+        )
+
+        self.assertFalse(load.is_along_route_toward_target(search_request))
+
+
 if __name__ == "__main__":
     unittest.main()
