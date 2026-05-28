@@ -17,6 +17,9 @@ from app.market_intelligence.driver_lane_preference_core import (
 )
 
 
+from app.market_intelligence.driver_lane_preference_groups import build_lane_groups
+
+
 def get_lane_feedback_rows(
     connection,
     driver_name,
@@ -105,98 +108,6 @@ def get_lane_feedback_rows(
     cursor = connection.cursor()
     cursor.execute(query, query_params)
     return cursor.fetchall()
-
-
-def build_lane_groups(rows):
-    lane_groups = {}
-
-    for row in rows:
-        key = (
-            row["driver_name"] or "UNKNOWN",
-            row["pickup"] or "UNKNOWN",
-            row["delivery"] or "UNKNOWN",
-        )
-
-        if key not in lane_groups:
-            lane_groups[key] = {
-                "driver_name": key[0],
-                "pickup": key[1],
-                "delivery": key[2],
-                "feedback_counts": {},
-                "case_count": 0,
-                "avg_rate_values": [],
-                "avg_miles_values": [],
-                "avg_rpm_values": [],
-                "avg_weight_values": [],
-                "booked_cases": 0,
-                "ratecon_received_cases": 0,
-                "sent_to_driver_cases": 0,
-                "rejected_cases": 0,
-                "skipped_cases": 0,
-                "covered_cases": 0,
-                "final_booked": 0,
-                "final_ratecon_received": 0,
-                "final_rejected": 0,
-                "final_skipped": 0,
-                "final_covered": 0,
-                "match_cases": 0,
-                "review_once_cases": 0,
-                "blocked_cases": 0,
-                "load_opportunity_cases": 0,
-                "rate_check_cases": 0,
-                "broker_review_cases": 0,
-                "latest_feedback": "",
-            }
-
-        group = lane_groups[key]
-        feedback = row["feedback"] or "UNKNOWN"
-
-        group["feedback_counts"][feedback] = (
-            group["feedback_counts"].get(feedback, 0)
-            + (row["feedback_count"] or 0)
-        )
-
-        group["case_count"] += row["case_count"] or 0
-
-        if row["avg_rate"] is not None:
-            group["avg_rate_values"].append(row["avg_rate"])
-
-        if row["avg_total_miles"] is not None:
-            group["avg_miles_values"].append(row["avg_total_miles"])
-
-        if row["avg_total_rpm"] is not None:
-            group["avg_rpm_values"].append(row["avg_total_rpm"])
-
-        if row["avg_weight"] is not None:
-            group["avg_weight_values"].append(row["avg_weight"])
-
-        for field_name in [
-            "booked_cases",
-            "ratecon_received_cases",
-            "sent_to_driver_cases",
-            "rejected_cases",
-            "skipped_cases",
-            "covered_cases",
-            "final_booked",
-            "final_ratecon_received",
-            "final_rejected",
-            "final_skipped",
-            "final_covered",
-            "match_cases",
-            "review_once_cases",
-            "blocked_cases",
-            "load_opportunity_cases",
-            "rate_check_cases",
-            "broker_review_cases",
-        ]:
-            group[field_name] += row[field_name] or 0
-
-        latest_feedback = row["latest_feedback"] or ""
-
-        if latest_feedback > group["latest_feedback"]:
-            group["latest_feedback"] = latest_feedback
-
-    return list(lane_groups.values())
 
 
 def get_driver_lane_preference_status(
