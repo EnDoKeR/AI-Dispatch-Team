@@ -180,7 +180,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 511 tests.
+- Recent full test discovery passed with 526 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -205,12 +205,35 @@ Current state:
 - Telegram delivery is isolated in `market_snapshot_telegram_dispatcher.py`.
 - Direct `telegram_notifier.py` imports were removed from `market_snapshot.py`.
 
-### 1.8 Next candidates for hardening
+### 1.8 Completed: Reload chain refactor
+
+Completed modules:
+
+~~~text
+reload_chain.py
+reload_chain_identity.py
+reload_chain_location.py
+reload_chain_rules.py
+reload_chain_scoring.py
+~~~
+
+Completed tests:
+
+~~~text
+test_reload_chain.py
+~~~
+
+Current state:
+
+- `reload_chain.py` now coordinates reload-chain candidate building.
+- Identity, location/proximity, qualification rules, and scoring are isolated in focused helper modules.
+- Reload-chain behavior is protected by focused tests before future reload intelligence work.
+
+### 1.9 Next candidates for hardening
 
 Candidate files:
 
 ~~~text
-reload_chain.py
 telegram_notifier.py
 market_models.py
 ~~~

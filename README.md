@@ -946,6 +946,7 @@ Completed foundation refactors:
 - `driver_preference_rules.py` is now an orchestration file around `get_driver_preference_status()`.
 - `broker_memory_rules.py` is now an orchestration file around `get_broker_memory_status()`.
 - `sqlite_memory.py` is now a backward-compatible facade around focused SQLite memory modules.
+- `reload_chain.py` is now an orchestrator/facade around focused reload-chain helper modules.
 
 Current modular notes parser structure:
 
@@ -1014,6 +1015,16 @@ market_snapshot_stats.py
 market_snapshot_telegram_dispatcher.py
 ~~~
 
+Current reload chain structure:
+
+~~~text
+reload_chain.py
+reload_chain_identity.py
+reload_chain_location.py
+reload_chain_rules.py
+reload_chain_scoring.py
+~~~
+
 Current testing baseline:
 
 ~~~powershell
@@ -1021,7 +1032,7 @@ py -m compileall app scripts main.py test_sheet_connection.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 511 tests.
+Recent full test discovery passed with 526 tests.
 
 See also:
 

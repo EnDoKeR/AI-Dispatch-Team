@@ -41,7 +41,7 @@ The next risk is architectural growth without stable boundaries.
 
 - Some modules still need layer-boundary review.
 - `market_snapshot.py` has been split into focused builder/report/dispatcher/helper modules.
-- `reload_chain.py` still needs architecture review before scaling reload intelligence.
+- `reload_chain.py` has been split into focused identity/location/rules/scoring helper modules.
 - SQLite is now split into focused memory modules, but it is still mostly rebuild/export memory rather than primary operational memory.
 - Tests are much stronger now, but every new module still needs focused test coverage from the beginning.
 - README is too long for external presentation.
@@ -239,6 +239,34 @@ Target future:
 - JSONL remains append-only audit log / backup.
 - `driver_memory_repository.py`
 
+### Phase 6 - Reload chain refactor
+
+Status: completed for the current Foundation Hardening scope.
+
+Completed modules:
+
+~~~text
+reload_chain.py
+reload_chain_identity.py
+reload_chain_location.py
+reload_chain_rules.py
+reload_chain_scoring.py
+~~~
+
+Completed tests:
+
+~~~text
+test_reload_chain.py
+~~~
+
+Current state:
+
+- `reload_chain.py` is now runner/facade logic for building chain candidates.
+- Load identity, chain identity, and duplicate matching live in `reload_chain_identity.py`.
+- City/state normalization and first-delivery-to-reload-pickup proximity live in `reload_chain_location.py`.
+- First-load and reload-load qualification checks live in `reload_chain_rules.py`.
+- Total chain score calculation lives in `reload_chain_scoring.py`.
+
 ## Definition of done for this sprint
 
 This foundation sprint is successful when:
@@ -264,3 +292,9 @@ Start with:
 3. DispatchCase refactor
 4. market snapshot refactor
 5. SQLite repository layer
+6. reload chain refactor
+
+Next safe candidates:
+
+1. `telegram_notifier.py`
+2. `market_models.py`

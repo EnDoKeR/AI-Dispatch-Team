@@ -222,6 +222,16 @@ market_snapshot_console_report.py          # console report formatting
 market_snapshot_telegram_dispatcher.py     # Telegram delivery orchestration
 ~~~
 
+Current reload chain boundary:
+
+~~~text
+reload_chain.py                            # runner/facade for chain candidate building
+reload_chain_identity.py                   # load and chain identity helpers
+reload_chain_location.py                   # city/state proximity helpers
+reload_chain_rules.py                      # first-load and reload qualification rules
+reload_chain_scoring.py                    # total chain score calculation
+~~~
+
 Telegram formatting should not decide whether a load is good.
 
 Dashboard views should not mutate decisions directly.
