@@ -693,6 +693,27 @@ Current non-scope:
 
 This foundation gives future timeline work a shared vocabulary, but it is not wired into existing case creation, matching, update, or event-writing paths yet.
 
+## Base Event Payload Foundation
+
+`app/market_intelligence/case_event_payload.py` now provides a pure JSON-ready base payload helper.
+
+Current scope:
+
+- builds an event envelope with `event_type`, `event_group`, `case_id`, `timestamp_utc`, `source`, `details`, and `related_ids`
+- normalizes the event type through the taxonomy helper
+- keeps `details` and `related_ids` as dictionaries
+- handles unknown event types safely
+
+Current non-scope:
+
+- no event writes
+- no replacement of `case_event_builder.py`
+- no DispatchCase updates
+- no runtime event creation changes
+- no DecisionResult timeline writes
+
+This helper is a future payload foundation only. Existing event builders remain the runtime source for current case events.
+
 ## Current Recommended Next Target
 
 Recommended next implementation target after this policy:
