@@ -1058,9 +1058,11 @@ telegram_watch_formatter.py
 reload_watch_record.py
 reload_watch_repository.py
 reload_watch_service.py
+reload_watch_report.py
+scripts/report_reload_watch.py
 ~~~
 
-These helpers provide state decisions, structured event payloads, side-effect-free action plans, Telegram text formatting, JSON-ready state records, a small JSON-file repository, and a manual-call service only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, write JSONL/SQLite, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
+These helpers provide state decisions, structured event payloads, side-effect-free action plans, Telegram text formatting, JSON-ready state records, a small JSON-file repository, a manual-call service, and a dry-run report only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, write JSONL/SQLite, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
 Reload-watch Telegram text formatting is isolated in `telegram_watch_formatter.py`. It formats structured plans and payloads only; it does not send messages or decide whether a message should be sent.
 
@@ -1069,6 +1071,8 @@ Reload-watch records are isolated in `reload_watch_record.py`. It builds and upd
 Reload-watch JSON persistence is isolated in `reload_watch_repository.py`. It reads and writes a JSON list only; it does not decide watch behavior or send messages.
 
 Reload-watch service orchestration is isolated in `reload_watch_service.py`. It coordinates records, plans, and repository upserts only; it does not format or send Telegram messages.
+
+Reload-watch visibility is isolated in `reload_watch_report.py` and `scripts/report_reload_watch.py`. It reads records and prints a dry-run report only.
 
 Reload-watch boundary tests protect these modules from importing sender, scheduler, Telegram, or DispatchCase layers before those are explicitly wired later.
 
@@ -1108,7 +1112,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 687 tests.
+Recent full test discovery passed with 697 tests.
 
 See also:
 

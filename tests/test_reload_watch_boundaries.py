@@ -181,6 +181,31 @@ class TestReloadWatchBoundaries(unittest.TestCase):
             ["send_telegram_message", "save_line", "sleep"],
         )
 
+    def test_reload_watch_report_has_no_messaging_or_mutation_imports(self):
+        self.assert_no_imports(
+            "reload_watch_report.py",
+            [
+                "time",
+                "threading",
+                "sched",
+                "sqlite3",
+                "app.market_intelligence.reload_watch_state",
+                "app.market_intelligence.reload_watch_action_planner",
+                "app.market_intelligence.reload_watch_service",
+                "app.market_intelligence.telegram_watch_formatter",
+                "app.market_intelligence.telegram_sender",
+                "app.market_intelligence.telegram_notifier",
+                "app.market_intelligence.telegram_sent_state",
+                "app.market_intelligence.event_logger",
+                "app.market_intelligence.dispatch_case",
+                "app.market_intelligence.case_event_builder",
+            ],
+        )
+        self.assert_no_calls(
+            "reload_watch_report.py",
+            ["send_telegram_message", "save_line", "write", "sleep"],
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
