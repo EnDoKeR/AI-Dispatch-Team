@@ -278,6 +278,17 @@ It must not:
 - start an automatic watch loop
 - call Google Maps or live DAT/API
 
+Future reload-watch integration should stay separated:
+
+~~~text
+reload_watch_persistence.py                # future watch state storage only
+telegram_watch_sender.py                   # future send/wiring only, if needed
+telegram_watch_buttons.py                  # future button callbacks only
+reload_watch_case_events.py                # future DispatchCase event wiring only
+~~~
+
+Boundary tests protect the current foundation modules from importing sender, persistence, scheduler, or DispatchCase layers early.
+
 Current reload chain boundary:
 
 ~~~text

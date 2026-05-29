@@ -393,6 +393,7 @@ test_reload_watch_state.py
 test_reload_watch_event_builder.py
 test_reload_watch_action_planner.py
 test_telegram_watch_formatter.py
+test_reload_watch_boundaries.py
 ~~~
 
 Current state:
@@ -401,6 +402,7 @@ Current state:
 - `reload_watch_event_builder.py` builds structured reload-watch event payloads without side effects.
 - `reload_watch_action_planner.py` returns side-effect-free next-action plans from state decisions and event payloads.
 - `telegram_watch_formatter.py` formats structured reload-watch action plans into Telegram text without sending anything.
+- `test_reload_watch_boundaries.py` protects reload-watch module boundaries before future persistence, sender, buttons, scheduler, or DispatchCase wiring.
 - It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
 - This foundation does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
