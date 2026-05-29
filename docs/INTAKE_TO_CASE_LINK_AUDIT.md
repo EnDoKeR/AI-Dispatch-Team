@@ -732,3 +732,69 @@ Before writing any intake link events, add tests for:
 8. event payloads are JSON-serializable;
 9. event taxonomy recognizes any new link-specific event names before use;
 10. no parser/Telegram/Gmail/Google Sheets/PDF/OCR imports in event policy helpers.
+
+## Closeout And Next Target Recommendation
+
+The intake-to-case link audit is complete enough for a narrow pure-helper implementation next.
+
+Completed audit/design outcomes:
+
+- IntakeRecord remains structured evidence.
+- DispatchCase remains load-level operational state and timeline.
+- parser/intake must not automatically create DispatchCases.
+- future linking should produce candidates first, not mutations.
+- missing and needs-check fields must remain visible.
+- low-confidence critical fields require review.
+- case creation from intake requires human approval.
+- future timeline writes require a separate accepted implementation block.
+
+Recommended next target:
+
+```text
+IntakeCaseLinkCandidate pure helper
+```
+
+Why this is safest:
+
+- policy is now documented;
+- candidate output can stay JSON-ready and report-only;
+- it can be tested without DispatchCase writes;
+- it gives future intake-to-case dry-run reports a stable shape;
+- it does not require PDF/OCR, private RateCon reads, Telegram, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, replay, or reload-chain metadata.
+
+Suggested future scope:
+
+```text
+app/market_intelligence/intake/case_link_candidate.py
+tests/test_intake_case_link_candidate.py
+```
+
+The helper should build a candidate from an IntakeRecord and optional case-like evidence, preserve missing/needs-check fields, calculate a conservative recommendation, and never mutate or write anything.
+
+Recommended second target:
+
+```text
+intake-to-case dry-run report
+```
+
+This should wait until the candidate helper exists. It should remain synthetic/report-only and should not create cases or events.
+
+Alternative target:
+
+```text
+private RateCon field inventory plan
+```
+
+Useful if the project wants to prepare private document review before adding any link helper.
+
+Not recommended next:
+
+- automatic DispatchCase creation from intake;
+- writing `RATECON_PARSED` or link events;
+- setting `linked_dispatch_case_id`;
+- reading private RateCon files;
+- PDF/OCR parser work;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- reload-chain DispatchCase wiring;
+- synthetic 100-200 load dataset.

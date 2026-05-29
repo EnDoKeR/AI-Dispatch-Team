@@ -1696,3 +1696,73 @@ Not recommended next:
 - synthetic 100-200 load dataset: still too early;
 - private RateCon field inventory plan: useful, but intake-to-case ownership should be clarified first;
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, live automation, or runtime event writes.
+
+## Intake-to-Case Link Audit Closeout
+
+Completed:
+
+- current intake and DispatchCase boundary audit;
+- conservative link/create/keep-unlinked policy proposal;
+- future `IntakeCaseLinkCandidate` model design;
+- future intake-to-case event/timeline policy;
+- roadmap and event timeline policy sync.
+
+Current status:
+
+- IntakeRecords remain structured evidence.
+- IntakeRecords do not create DispatchCases.
+- IntakeRecords do not link to DispatchCases in runtime.
+- parser output does not write DispatchCase events.
+- `linked_dispatch_case_id` is not set by current helpers.
+- existing `RATECON_RECEIVED` behavior remains tied to dispatcher feedback with `document_path`.
+
+Options evaluated:
+
+1. IntakeCaseLinkCandidate pure helper
+2. intake-to-case dry-run report
+3. private RateCon field inventory plan
+4. reload-chain DispatchCase policy audit
+5. synthetic 100-200 load dataset planning
+6. PDF extraction strategy audit
+
+Recommended next target:
+
+```text
+IntakeCaseLinkCandidate pure helper
+```
+
+Why:
+
+- the policy is now documented and conservative;
+- the helper can be pure, JSON-ready, and report-only;
+- it can preserve missing/needs-check/confidence evidence without writing cases;
+- it sets up a later dry-run report before any runtime linking exists;
+- it does not require PDF/OCR, private RateCons, Telegram upload, Gmail/email, Google Sheets, DispatchCase writes, DAT/API, Google Maps, accounting/factoring, replay, or reload-chain metadata.
+
+Recommended second target:
+
+```text
+intake-to-case dry-run report
+```
+
+This should wait until the candidate helper exists and should remain synthetic/report-only.
+
+Useful alternative:
+
+```text
+private RateCon field inventory plan
+```
+
+Use this if private document preparation becomes more important than link-candidate helpers.
+
+Not recommended next:
+
+- automatic case creation from intake;
+- writing intake link events;
+- setting `linked_dispatch_case_id`;
+- PDF/OCR parser work;
+- reading private RateCon files;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- reload-chain DispatchCase wiring;
+- synthetic 100-200 load dataset.

@@ -477,9 +477,11 @@ Recommended order:
 46. Event report support for normalized wrapper output is complete.
 47. DecisionEngine comparison + timeline preview combined report is complete.
 48. Current built-events normalization report is complete.
-49. Recommended next backend target: intake-to-case link audit, audit/design only.
-50. Recommended follow-up: reload-chain DispatchCase policy audit.
-51. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+49. Intake-to-case link audit is complete.
+50. Recommended next backend target: IntakeCaseLinkCandidate pure helper, report-only/no case writes.
+51. Recommended follow-up: intake-to-case dry-run report after the helper exists.
+52. Recommended later audit: reload-chain DispatchCase policy audit.
+53. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -677,10 +679,18 @@ py scripts/run_current_built_events_normalization_report.py
 Next backend target:
 
 ```text
+IntakeCaseLinkCandidate pure helper
+```
+
+This should remain pure and report-only. It should build a JSON-ready candidate recommendation from IntakeRecord and optional case-like evidence without creating cases, linking records, writing events, reading private RateCons, or changing runtime behavior.
+
+Completed backend audit:
+
+```text
 intake-to-case link audit
 ```
 
-This should remain audit/design only. It should define how future IntakeRecord, parser output, RateCon/document evidence, and DispatchCase linking should work before any case writes are added.
+The audit defines current boundaries, conservative link/create policy, future `IntakeCaseLinkCandidate` shape, and event/timeline rules. Intake records still do not create or update DispatchCases.
 
 ---
 
