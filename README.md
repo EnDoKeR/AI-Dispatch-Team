@@ -1055,11 +1055,14 @@ reload_watch_state.py
 reload_watch_event_builder.py
 reload_watch_action_planner.py
 telegram_watch_formatter.py
+reload_watch_record.py
 ~~~
 
-These helpers provide state decisions, structured event payloads, side-effect-free action plans, and Telegram text formatting only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
+These helpers provide state decisions, structured event payloads, side-effect-free action plans, Telegram text formatting, and JSON-ready state records only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, write JSONL/SQLite, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
 Reload-watch Telegram text formatting is isolated in `telegram_watch_formatter.py`. It formats structured plans and payloads only; it does not send messages or decide whether a message should be sent.
+
+Reload-watch records are isolated in `reload_watch_record.py`. It builds and updates JSON-ready dict records only; actual persistence I/O remains a future separate module.
 
 Reload-watch boundary tests protect these modules from importing sender, persistence, scheduler, or DispatchCase layers before those are explicitly wired later.
 
@@ -1099,7 +1102,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 652 tests.
+Recent full test discovery passed with 665 tests.
 
 See also:
 

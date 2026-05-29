@@ -260,6 +260,7 @@ reload_watch_state.py                      # reload-watch state transition decis
 reload_watch_event_builder.py              # structured reload-watch event payloads only
 reload_watch_action_planner.py             # side-effect-free reload-watch action plans only
 telegram_watch_formatter.py                # structured reload-watch plan/payload to text only
+reload_watch_record.py                     # JSON-ready reload-watch state records only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -270,9 +271,13 @@ telegram_watch_formatter.py                # structured reload-watch plan/payloa
 
 `telegram_watch_formatter.py` formats structured reload-watch action plans into Telegram text. It does not decide whether to send, import Telegram senders, parse Telegram text, or attach buttons.
 
+`reload_watch_record.py` builds and updates JSON-ready reload-watch records. It does not read or write files, SQLite, DispatchCase events, or Telegram state.
+
 It must not:
 
 - send Telegram messages
+- write JSONL or SQLite
+- write DispatchCase events
 - run a scheduler
 - handle Telegram buttons
 - start an automatic watch loop
