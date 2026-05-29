@@ -127,10 +127,25 @@ Do not build next:
 
 ## Decision
 
-Proceed next with:
+Implemented:
 
 ```text
 JSON-ready intake record helper
+```
+
+Files:
+
+```text
+app/market_intelligence/intake_record.py
+tests/test_intake_record.py
+```
+
+The helper is pure and does not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, DAT/API, Google Maps, scheduler, or legacy `app/load_intake` behavior.
+
+Recommended next target:
+
+```text
+Manual intake dry-run summary helper/CLI
 ```
 
 Only after confirmation.

@@ -200,16 +200,16 @@ Before implementation, add focused tests for:
 
 ## Recommended First Implementation
 
-Next safe implementation target after this proposal:
+Implemented first helper:
 
 ```text
-JSON-ready intake record helper
+app/market_intelligence/intake_record.py
 ```
 
-The target decision is tracked in:
+Focused tests:
 
 ```text
-docs/FOUNDATION_NEXT_TARGET_DECISION.md
+tests/test_intake_record.py
 ```
 
 Expected helper responsibilities:
@@ -220,4 +220,4 @@ Expected helper responsibilities:
 - calculate `needs_check_fields`
 - keep output JSON-serializable
 
-Do not implement parser/storage/integration behavior in that first helper.
+Current helper remains pure. It does not parse PDFs, read/write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, import legacy `app/load_intake`, or make dispatch decisions.
