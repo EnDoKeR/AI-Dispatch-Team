@@ -113,12 +113,11 @@ It creates or updates cases only for these outbox message types:
 ```text
 LOAD_OPPORTUNITY
 REVIEW_ONCE
-SEARCH_HEALTH_CHECK
 ```
 
 `MARKET_SNAPSHOT` is logged for outbox/reporting, but it is excluded from load-level DispatchCase creation and matching until a search-level entity exists.
 
-`SEARCH_HEALTH_CHECK` is still eligible for load-level DispatchCase handling today, but policy audit recommends excluding it before metadata wiring.
+`SEARCH_HEALTH_CHECK` is logged for outbox/reporting, but it is excluded from load-level DispatchCase creation and matching until a search-level entity exists.
 
 `RELOAD_CHAIN` is currently logged but not used to create DispatchCases.
 
@@ -176,9 +175,10 @@ Recommended path:
 13. Exclude `MARKET_SNAPSHOT` from load-level DispatchCase handling. Completed.
 14. Wire market summary metadata. Completed.
 15. Audit DispatchCase `SEARCH_HEALTH_CHECK` policy. Completed.
-16. Wire search health and reload-chain only in separate future blocks.
-17. Keep reload-chain DispatchCase role separate until it has an accepted design.
-18. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+16. Exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase handling. Completed.
+17. Wire search health and reload-chain only in separate future blocks.
+18. Keep reload-chain DispatchCase role separate until it has an accepted design.
+19. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -331,14 +331,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-DispatchCase SEARCH_HEALTH_CHECK load-case exclusion
+Telegram search health metadata helper foundation
 ```
 
 Scope should be limited to:
 
-- test-first behavior change
-- prevent successful `SEARCH_HEALTH_CHECK` outbox records from creating or updating load-level DispatchCases
-- do not wire search health metadata yet
+- build the helper only
+- keep load-specific core keys intentionally empty
+- do not wire the helper into `send_search_health_check_to_telegram(...)`
 - do not change outbox schema or DispatchCase behavior
 - possibly a small docs note
 

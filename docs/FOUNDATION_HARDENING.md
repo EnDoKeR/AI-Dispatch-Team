@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase creation/matching before wiring search health metadata.
+1. Add search health metadata helper only; do not wire it until helper shape is tested.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.

@@ -328,6 +328,105 @@ class TestDispatchCaseBuilder(unittest.TestCase):
         self.assertEqual(cases, [])
         self.assertEqual(events, [])
 
+    def test_search_health_outbox_does_not_attach_to_existing_load_case(self):
+        decision_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:00:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-123",
+                "reference_id": "REF-123",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "broker_mc": "123456",
+                "decision": "MATCH",
+                "category": "LOAD OPPORTUNITY",
+            }
+        ]
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "SEARCH_HEALTH_CHECK",
+                "category": "SEARCH HEALTH CHECK",
+                "telegram_message_id": "999",
+                "reference_id": "",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=decision_records,
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(cases[0]["telegram_alerts"], [])
+        self.assertEqual(events[0]["event_type"], "AI_DECISION_CREATED")
+
+    def test_search_health_outbox_does_not_create_outbox_only_load_case(self):
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "SEARCH_HEALTH_CHECK",
+                "category": "SEARCH HEALTH CHECK",
+                "telegram_message_id": "999",
+                "reference_id": "",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(cases, [])
+        self.assertEqual(events, [])
+
+    def test_search_health_with_empty_metadata_fields_does_not_create_generic_case(self):
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "SEARCH_HEALTH_CHECK",
+                "category": "SEARCH HEALTH CHECK",
+                "telegram_message_id": "999",
+                "reference_id": "",
+                "pickup": "",
+                "delivery": "",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(cases, [])
+        self.assertEqual(events, [])
+
     def test_build_cases_and_events_creates_case_from_feedback_only(self):
         feedback_records = [
             {

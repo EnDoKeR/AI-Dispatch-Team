@@ -29,7 +29,6 @@ DISPATCH_CASES_FILE = Path("data/dispatch_cases.jsonl")
 CASE_ELIGIBLE_OUTBOX_MESSAGE_TYPES = {
     "LOAD_OPPORTUNITY",
     "REVIEW_ONCE",
-    "SEARCH_HEALTH_CHECK",
 }
 
 def load_jsonl(file_path):

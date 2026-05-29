@@ -2,17 +2,20 @@
 
 Date: 2026-05-29
 
+Status:
+
+```text
+Implemented for load-level DispatchCase flow.
+```
+
 Scope:
 
-- audit/design only
-- no runtime behavior changes
 - no Telegram formatter/sender/notifier changes
 - no outbox JSONL schema changes
-- no DispatchCase code changes in this block
 - no reload-watch live wiring
 - no scheduler, buttons, DAT/API, Google Maps, or RateCon work
 
-## Current Behavior
+## Previous Behavior
 
 Successful Telegram outbox records are processed by:
 
@@ -20,7 +23,7 @@ Successful Telegram outbox records are processed by:
 dispatch_case.build_cases_and_events(...)
 ```
 
-Current case-eligible outbox message types are:
+Previously case-eligible outbox message types were:
 
 ```text
 LOAD_OPPORTUNITY
@@ -28,14 +31,33 @@ REVIEW_ONCE
 SEARCH_HEALTH_CHECK
 ```
 
-For every successful eligible outbox record, DispatchCase currently:
+For every successful eligible outbox record, DispatchCase previously:
 
 1. Tries to match an existing case with `outbox_matches_case(...)`.
 2. If no case matches, creates a new case with `build_case_from_outbox(...)`.
 3. Applies the outbox alert to the case with `apply_outbox_to_case(...)`.
 4. Emits a `TELEGRAM_ALERT_SENT` event.
 
-This means `SEARCH_HEALTH_CHECK` is currently treated as a load-level outbox candidate even though it describes a driver/search condition, not one load.
+This meant `SEARCH_HEALTH_CHECK` was treated as a load-level outbox candidate even though it describes a driver/search condition, not one load.
+
+## Implemented Behavior
+
+`SEARCH_HEALTH_CHECK` is now excluded from load-level DispatchCase outbox handling.
+
+Current case-eligible outbox message types:
+
+```text
+LOAD_OPPORTUNITY
+REVIEW_ONCE
+```
+
+Practical result:
+
+- successful `SEARCH_HEALTH_CHECK` outbox records do not create load-level DispatchCases
+- successful `SEARCH_HEALTH_CHECK` outbox records do not attach to existing load-level DispatchCases through accidental load-like fields
+- successful `SEARCH_HEALTH_CHECK` outbox records with empty metadata fields do not create generic outbox-only load cases
+- `LOAD_OPPORTUNITY` and `REVIEW_ONCE` remain load-level case events
+- `MARKET_SNAPSHOT` remains excluded from load-level DispatchCase flow
 
 ## Current Search Health Outbox Shape
 
@@ -85,21 +107,21 @@ Because `build_case_id(...)` falls back to driver + broker MC when there is no l
 
 That is not ideal because a search health check is not a load opportunity.
 
-## Recommended Policy
+## Implemented Policy
 
-Recommended current policy:
+Implemented current policy:
 
 ```text
-SEARCH_HEALTH_CHECK should be outbox/reporting-only in DispatchCase flow until a search-level entity exists.
+SEARCH_HEALTH_CHECK is outbox/reporting-only in DispatchCase flow until a search-level entity exists.
 ```
 
 Practical meaning:
 
-- `SEARCH_HEALTH_CHECK` should still be written to `telegram_outbox.jsonl`.
-- `SEARCH_HEALTH_CHECK` should remain available for outbox reports, replay, and SQLite/reporting work.
-- `SEARCH_HEALTH_CHECK` should not create a load-level DispatchCase.
-- `SEARCH_HEALTH_CHECK` should not attach to a load-level DispatchCase through future metadata or accidental parsed fields.
-- `SEARCH_HEALTH_CHECK` should not create a generic outbox-only case with empty load identity.
+- `SEARCH_HEALTH_CHECK` is still written to `telegram_outbox.jsonl`.
+- `SEARCH_HEALTH_CHECK` remains available for outbox reports, replay, and SQLite/reporting work.
+- `SEARCH_HEALTH_CHECK` does not create a load-level DispatchCase.
+- `SEARCH_HEALTH_CHECK` does not attach to a load-level DispatchCase through future metadata or accidental parsed fields.
+- `SEARCH_HEALTH_CHECK` does not create a generic outbox-only case with empty load identity.
 
 Future policy after a search-level model exists:
 
@@ -160,9 +182,9 @@ Recommended context fields for future use:
 
 These context fields should be treated as future metadata until outbox reports, SQLite memory, and a search/session model are ready to preserve or consume them.
 
-## Tests Needed Before Behavior Change
+## Behavior Tests
 
-Before changing DispatchCase behavior, add focused tests covering:
+The behavior change is protected by focused tests covering:
 
 1. A successful `SEARCH_HEALTH_CHECK` with no decision records does not create a load case.
 2. A successful `SEARCH_HEALTH_CHECK` with accidental load-like fields does not attach to an existing load case.
@@ -192,16 +214,15 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-DispatchCase SEARCH_HEALTH_CHECK load-case exclusion
+Telegram search health metadata helper foundation
 ```
 
 Scope should be:
 
 - test-first
-- exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase creation/matching
-- preserve `LOAD_OPPORTUNITY` and `REVIEW_ONCE`
-- preserve `MARKET_SNAPSHOT` exclusion
-- do not wire search health metadata in the same block
-- do not change Telegram/outbox schema
+- helper + tests only
+- no notifier wiring
+- keep formatter text unchanged
+- do not change Telegram/outbox schema or DispatchCase behavior
 
-After that behavior is protected, search health metadata helper and wiring can be handled in separate mini-blocks.
+After that helper is protected, search health metadata wiring can be handled in a separate mini-block.
