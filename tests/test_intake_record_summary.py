@@ -2,6 +2,7 @@ import copy
 import inspect
 import io
 import json
+import tempfile
 import unittest
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -198,6 +199,100 @@ class TestIntakeRecordSummary(unittest.TestCase):
         self.assertEqual(result, 1)
         self.assertIn("JSON input must be an object", text)
 
+    def test_cli_reads_valid_json_file(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "intake_record.json"
+            file_path.write_text(json.dumps(clean_source()), encoding="utf-8")
+
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    ["--json-file", str(file_path)]
+                )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Status: READY_FOR_REVIEW", text)
+        self.assertIn("Broker: Acme Logistics", text)
+        self.assertIn("DRY RUN ONLY - no parser/storage/integration used", text)
+
+    def test_cli_missing_json_file_exits_safely(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "missing.json"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    ["--json-file", str(file_path)]
+                )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 1)
+        self.assertIn("JSON file not found", text)
+        self.assertIn("DRY RUN ONLY - no parser/storage/integration used", text)
+
+    def test_cli_invalid_json_file_exits_safely(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "bad.json"
+            file_path.write_text("{bad json", encoding="utf-8")
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    ["--json-file", str(file_path)]
+                )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 1)
+        self.assertIn("Invalid JSON input", text)
+
+    def test_cli_rejects_json_file_list(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            file_path = Path(temp_dir) / "list.json"
+            file_path.write_text("[]", encoding="utf-8")
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    ["--json-file", str(file_path)]
+                )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 1)
+        self.assertIn("JSON input must be an object", text)
+
+    def test_cli_reads_synthetic_sample_json_file(self):
+        from scripts import run_intake_record_dry_run
+
+        fixture_path = Path(
+            "tests/fixtures/intake_sample_records/clean_full_ratecon.json"
+        )
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = run_intake_record_dry_run.main(
+                ["--json-file", str(fixture_path)]
+            )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Synthetic Sample Broker A", text)
+        self.assertIn("SYNTH-SAMPLE-001", text)
+
     def test_accepts_already_built_intake_record(self):
         record = build_intake_record(clean_source(), intake_id="INTAKE-1")
         summary = build_intake_record_summary(record)
@@ -226,7 +321,6 @@ class TestIntakeRecordSummary(unittest.TestCase):
             "googlemaps",
             "load_intake",
             "open(",
-            "read_text(",
             "read_bytes(",
         ]
 

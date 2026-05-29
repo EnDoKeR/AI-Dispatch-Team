@@ -119,7 +119,13 @@ The manual dry-run CLI can now accept a pasted JSON object:
 py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
 ```
 
-This is command-line JSON input only. It does not read JSON files, parse PDFs, store intake records, or connect to any live integration.
+The CLI can also read one explicit local JSON object file:
+
+```powershell
+py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json
+```
+
+This is dry-run input only. It does not parse PDFs, store intake records, or connect to any live integration. JSON lists/batches are intentionally rejected in the first version.
 
 Synthetic dry-run fixtures now exist in:
 
@@ -173,7 +179,7 @@ JSON file input policy is documented in:
 docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 ```
 
-The synthetic sample JSON fixtures now exist. The next approved path is explicit `--json-file` support for one local JSON object only.
+The synthetic sample JSON fixtures and explicit `--json-file` support now exist for one local JSON object only.
 
 ## Mandatory Fields
 

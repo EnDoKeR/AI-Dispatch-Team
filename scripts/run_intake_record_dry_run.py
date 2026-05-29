@@ -39,21 +39,24 @@ def parse_args(args=None):
     parser = argparse.ArgumentParser(
         description="Run a manual intake record dry-run summary.",
     )
-    parser.add_argument(
+    input_group = parser.add_mutually_exclusive_group()
+    input_group.add_argument(
         "--json",
         dest="json_text",
         help="JSON object string with intake fields.",
+    )
+    input_group.add_argument(
+        "--json-file",
+        dest="json_file",
+        help="Local JSON file containing one intake record object.",
     )
 
     return parser.parse_args(args)
 
 
-def source_from_args(args):
-    if not args.json_text:
-        return SAMPLE_SOURCE, 0
-
+def load_json_source(json_text):
     try:
-        source = json.loads(args.json_text)
+        source = json.loads(json_text)
     except json.JSONDecodeError as error:
         print(DRY_RUN_WARNING)
         print(f"Invalid JSON input: {error.msg}")
@@ -65,6 +68,33 @@ def source_from_args(args):
         return None, 1
 
     return source, 0
+
+
+def load_json_file(file_path):
+    path = Path(file_path)
+
+    try:
+        json_text = path.read_text(encoding="utf-8")
+    except FileNotFoundError:
+        print(DRY_RUN_WARNING)
+        print(f"JSON file not found: {file_path}")
+        return None, 1
+    except OSError as error:
+        print(DRY_RUN_WARNING)
+        print(f"Could not read JSON file: {error}")
+        return None, 1
+
+    return load_json_source(json_text)
+
+
+def source_from_args(args):
+    if args.json_text:
+        return load_json_source(args.json_text)
+
+    if args.json_file:
+        return load_json_file(args.json_file)
+
+    return SAMPLE_SOURCE, 0
 
 
 def main(args=None):

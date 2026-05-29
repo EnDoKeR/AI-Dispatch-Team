@@ -234,12 +234,13 @@ tests/test_intake_record_summary.py
 
 The summary layer normalizes source data through `build_intake_record(...)`, returns structured status/missing/needs-check data, and formats a human-readable dry-run summary.
 
-It is still manual and local only. The CLI can accept a pasted JSON object through `--json`, but it does not parse PDFs, read or write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, or import legacy `app/load_intake`.
+It is still manual and local only. The CLI can accept a pasted JSON object through `--json` or one explicit JSON object file through `--json-file`, but it does not parse PDFs, write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, or import legacy `app/load_intake`.
 
 Example:
 
 ```powershell
 py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
+py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json
 ```
 
 ## Synthetic Fixtures

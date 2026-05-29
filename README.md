@@ -1122,10 +1122,11 @@ Manual intake dry-run commands:
 ~~~powershell
 py scripts/run_intake_record_dry_run.py
 py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
+py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json
 py scripts/run_intake_scenarios.py
 ~~~
 
-This is dry-run only. It normalizes pasted JSON into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, read files, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
 Current Telegram notifier structure:
 
@@ -1163,7 +1164,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 842 tests.
+Recent full test discovery passed with 847 tests.
 
 See also:
 

@@ -85,10 +85,10 @@ Intake sample JSON fixture foundation
 
 The synthetic sample records now exist under `tests/fixtures/intake_sample_records/`.
 
-Approved next implementation target:
+Implemented:
 
 ```text
 Intake dry-run CLI JSON file input
 ```
 
-The first implementation should read one explicit local JSON object only.
+The first implementation reads one explicit local JSON object only. JSON list/batch input remains intentionally rejected.
