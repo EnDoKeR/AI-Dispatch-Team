@@ -670,6 +670,29 @@ Any future case/event behavior change should add focused tests for:
 - JSON serializability
 - no forbidden adapter imports in core helpers
 
+## Event Type Taxonomy Foundation
+
+`app/market_intelligence/case_event_types.py` now defines stable event type constants and group helpers for current and future timeline events.
+
+Current scope:
+
+- pure constants/helper only
+- normalizes event type strings
+- validates known event types
+- returns event group/category
+- lists event types by group
+
+Current non-scope:
+
+- no event writing
+- no DispatchCase runtime behavior changes
+- no changes to `case_event_builder.py`
+- no DecisionResult case/event writes
+- no Telegram behavior changes
+- no storage/schema changes
+
+This foundation gives future timeline work a shared vocabulary, but it is not wired into existing case creation, matching, update, or event-writing paths yet.
+
 ## Current Recommended Next Target
 
 Recommended next implementation target after this policy:
