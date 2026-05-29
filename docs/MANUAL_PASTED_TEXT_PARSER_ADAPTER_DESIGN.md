@@ -179,6 +179,15 @@ Before implementing the adapter, add tests with synthetic text only:
 13. no file reading
 14. no private data
 
+Synthetic pasted-text fixtures now exist in:
+
+```text
+tests/fixtures/pasted_text_ratecon_examples.py
+tests/test_pasted_text_ratecon_examples.py
+```
+
+They contain fake RateCon-like text only. No real RateCon text, private broker/customer/driver/contact data, PDFs, OCR output, or private files are committed.
+
 ## Recommended First Implementation Shape
 
 If accepted later, implement a small pure helper:
