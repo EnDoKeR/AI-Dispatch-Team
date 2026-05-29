@@ -18,6 +18,8 @@ def build_parser():
     )
     parser.add_argument(
         "--file",
+        "--file-path",
+        dest="file_path",
         default="data/reload_watch_records.json",
         help="Reload-watch JSON records file.",
     )
@@ -25,11 +27,13 @@ def build_parser():
     return parser
 
 
-def main():
-    args = build_parser().parse_args()
-    report = build_reload_watch_report(args.file)
+def main(argv=None):
+    args = build_parser().parse_args(argv)
+    report = build_reload_watch_report(args.file_path)
     print(format_reload_watch_report(report))
+
+    return 0
 
 
 if __name__ == "__main__":
-    main()
+    raise SystemExit(main())

@@ -205,7 +205,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 718 tests.
+- Recent full test discovery passed with 719 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -316,6 +316,7 @@ test_reload_watch_service.py
 test_reload_watch_report.py
 test_reload_watch_manual_cli.py
 test_reload_watch_start_cli.py
+test_reload_watch_dry_run_workflow.py
 test_reload_watch_boundaries.py
 ~~~
 
@@ -331,10 +332,21 @@ Current state:
 - `reload_watch_report.py` and `scripts/report_reload_watch.py` provide manual dry-run visibility into watch records.
 - `reload_watch_manual_cli.py` and `scripts/run_reload_watch_event.py` provide manual one-event dry-run testing for existing watch records.
 - `reload_watch_start_cli.py` and `scripts/start_reload_watch.py` provide manual dry-run watch creation from minimal parent-load fields.
+- `test_reload_watch_dry_run_workflow.py` protects the manual start -> report -> event preview -> report workflow with a temp file.
 - `test_reload_watch_boundaries.py` protects reload-watch module boundaries before sender, buttons, scheduler, or DispatchCase wiring exists.
 - It answers whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
 - This foundation includes a small JSON repository, manual-call service, dry-run report, manual start CLI, and manual event CLI, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
+
+Manual dry-run workflow:
+
+~~~powershell
+$watchFile = "$env:TEMP\reload_watch_records.json"
+py scripts/start_reload_watch.py --file-path $watchFile --watch-id WATCH-1 --driver-name Alex --parent-load-id LOAD-1 --parent-reference-id REF-1 --pickup "Dallas, TX" --delivery "Denver, CO" --rate 3200 --timestamp 2026-05-29T10:00:00Z
+py scripts/report_reload_watch.py --file-path $watchFile
+py scripts/run_reload_watch_event.py --file-path $watchFile --watch-id WATCH-1 --event CLEAN_EXIT_FOUND --clean-exits 2 --best-exit-reference-id EXIT-1 --best-exit-pickup "Denver, CO" --best-exit-delivery "Houston, TX" --best-exit-rate 2600 --timestamp 2026-05-29T10:10:00Z --preview-message
+py scripts/report_reload_watch.py --file-path $watchFile
+~~~
 
 ### 1.11 Next candidates for hardening
 

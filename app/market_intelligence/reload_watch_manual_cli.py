@@ -1,4 +1,5 @@
 import argparse
+import sys
 
 from app.market_intelligence.reload_watch_repository import RELOAD_WATCH_FILE
 from app.market_intelligence.reload_watch_service import handle_reload_watch_event
@@ -150,9 +151,21 @@ def print_preview(action_plan):
     preview = format_reload_watch_message(action_plan)
 
     if preview:
-        print(preview)
+        print(console_safe_text(preview))
     else:
         print("No preview text for this action.")
+
+
+def console_safe_text(text):
+    text = str(text)
+    encoding = getattr(sys.stdout, "encoding", None) or "utf-8"
+
+    try:
+        text.encode(encoding)
+    except UnicodeEncodeError:
+        return text.encode(encoding, errors="replace").decode(encoding)
+
+    return text
 
 
 def run_reload_watch_event(args):

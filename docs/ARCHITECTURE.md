@@ -291,6 +291,18 @@ scripts/start_reload_watch.py              # manual watch-start CLI only
 
 `reload_watch_start_cli.py` and `scripts/start_reload_watch.py` provide manual dry-run watch creation from minimal parent-load fields. They must not send messages, run loops, or start live automation.
 
+Manual dry-run workflow:
+
+~~~powershell
+$watchFile = "$env:TEMP\reload_watch_records.json"
+py scripts/start_reload_watch.py --file-path $watchFile --watch-id WATCH-1 --driver-name Alex --parent-load-id LOAD-1 --parent-reference-id REF-1 --pickup "Dallas, TX" --delivery "Denver, CO" --rate 3200 --timestamp 2026-05-29T10:00:00Z
+py scripts/report_reload_watch.py --file-path $watchFile
+py scripts/run_reload_watch_event.py --file-path $watchFile --watch-id WATCH-1 --event CLEAN_EXIT_FOUND --clean-exits 2 --best-exit-reference-id EXIT-1 --best-exit-pickup "Denver, CO" --best-exit-delivery "Houston, TX" --best-exit-rate 2600 --timestamp 2026-05-29T10:10:00Z --preview-message
+py scripts/report_reload_watch.py --file-path $watchFile
+~~~
+
+This workflow validates start -> report -> event -> preview-only -> report without Telegram sending or live automation.
+
 It must not:
 
 - send Telegram messages

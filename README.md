@@ -1082,6 +1082,18 @@ Reload-watch manual event testing is isolated in `reload_watch_manual_cli.py` an
 
 Reload-watch manual start testing is isolated in `reload_watch_start_cli.py` and `scripts/start_reload_watch.py`. It can create or upsert one watch record from minimal parent-load fields without starting automation.
 
+Manual dry-run workflow:
+
+~~~powershell
+$watchFile = "$env:TEMP\reload_watch_records.json"
+py scripts/start_reload_watch.py --file-path $watchFile --watch-id WATCH-1 --driver-name Alex --parent-load-id LOAD-1 --parent-reference-id REF-1 --pickup "Dallas, TX" --delivery "Denver, CO" --rate 3200 --timestamp 2026-05-29T10:00:00Z
+py scripts/report_reload_watch.py --file-path $watchFile
+py scripts/run_reload_watch_event.py --file-path $watchFile --watch-id WATCH-1 --event CLEAN_EXIT_FOUND --clean-exits 2 --best-exit-reference-id EXIT-1 --best-exit-pickup "Denver, CO" --best-exit-delivery "Houston, TX" --best-exit-rate 2600 --timestamp 2026-05-29T10:10:00Z --preview-message
+py scripts/report_reload_watch.py --file-path $watchFile
+~~~
+
+This workflow is manual dry-run only. It writes only to the file path you provide and sends no Telegram messages.
+
 Reload-watch boundary tests protect these modules from importing sender, scheduler, Telegram, or DispatchCase layers before those are explicitly wired later.
 
 Current Telegram notifier structure:
@@ -1120,7 +1132,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 718 tests.
+Recent full test discovery passed with 719 tests.
 
 See also:
 
