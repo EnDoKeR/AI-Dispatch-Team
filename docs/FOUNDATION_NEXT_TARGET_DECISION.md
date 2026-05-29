@@ -434,3 +434,47 @@ Do not build next:
 - scheduler/background processing
 - reload-chain metadata
 - synthetic 100-200 load dataset
+
+## Parser Preparation Closeout
+
+Completed parser preparation:
+
+- private RateCon parser audit
+- private RateCon sample checklist
+- synthetic parser expected-output fixtures
+- parser confidence policy/helper
+
+Options evaluated:
+
+1. manual text parser dry-run adapter
+2. private RateCon parser interface CLI that accepts pasted text only
+3. first PDF text extraction audit
+4. synthetic parser scenario runner
+5. pause parser and do reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+Synthetic parser scenario runner
+```
+
+Why this is safest:
+
+- it uses synthetic parser-shaped outputs only
+- it validates the parser contract, intake summary, missing-field behavior, special requirements, and confidence data without reading private files
+- it can produce a manual dry-run report before any parser implementation exists
+- it keeps PDF parsing, OCR, Telegram upload, Gmail/email, Google Sheets, DispatchCase writes, DAT/API, Google Maps, and scheduler work out of scope
+
+Recommended after that:
+
+```text
+Manual pasted-text parser adapter design
+```
+
+That should remain design-first. A pasted-text adapter should not start extracting fields until the input/output contract, confidence policy, and test scenarios are accepted.
+
+Not recommended next:
+
+- first PDF text extraction audit: still too close to file/document handling before synthetic parser reporting exists
+- private RateCon parser interface CLI: should wait until the synthetic scenario runner proves reporting shape
+- reload-chain DispatchCase policy audit: important, but separate from parser preparation

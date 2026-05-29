@@ -414,6 +414,8 @@ docs/INTAKE_RECORD_MODEL.md
 docs/FOUNDATION_NEXT_TARGET_DECISION.md
 docs/RATECON_FIXTURE_SAFETY.md
 docs/PRIVATE_RATECON_TESTING_PLAN.md
+docs/PRIVATE_RATECON_PARSER_AUDIT.md
+docs/PRIVATE_RATECON_SAMPLE_CHECKLIST.md
 docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 docs/INTAKE_JSON_REPOSITORY_POLICY.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
@@ -440,9 +442,12 @@ Recommended order:
 13. Intake package migration is complete with compatibility wrappers.
 14. Intake package boundary tests are complete.
 15. Architecture structure closeout and next-target decision are complete.
-16. Next recommended target: private RateCon parser audit, audit-only.
-17. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-18. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+16. Private RateCon parser audit and sample checklist are complete.
+17. Synthetic parser expected outputs are complete.
+18. Parser confidence policy/helper is complete.
+19. Next recommended parser target: synthetic parser scenario runner, dry-run only.
+20. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+21. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
