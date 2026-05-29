@@ -113,6 +113,15 @@ scripts/run_intake_record_dry_run.py
 
 These helpers provide record normalization and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
 
+Synthetic dry-run fixtures now exist in:
+
+```text
+tests/fixtures/synthetic_intake_records.py
+tests/test_synthetic_intake_records.py
+```
+
+They contain fake RateCon-like records only. They do not contain real broker, customer, driver, contact, or RateCon data.
+
 The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
 
 ## Mandatory Fields

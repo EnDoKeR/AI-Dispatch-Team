@@ -421,7 +421,7 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Add small synthetic intake fixtures for the dry-run summary path.
+2. Add a dry-run scenario runner for the synthetic intake fixtures.
 3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -746,5 +746,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: synthetic intake scenario records foundation.
+4. Recommended next target: intake dry-run scenario runner.
 5. Avoid new large files by default.

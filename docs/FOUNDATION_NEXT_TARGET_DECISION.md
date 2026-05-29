@@ -145,7 +145,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 Recommended next target:
 
 ```text
-Synthetic intake scenario records foundation
+Intake dry-run scenario runner
 ```
 
 Only after confirmation.

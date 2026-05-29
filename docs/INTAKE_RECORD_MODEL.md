@@ -235,3 +235,14 @@ tests/test_intake_record_summary.py
 The summary layer normalizes source data through `build_intake_record(...)`, returns structured status/missing/needs-check data, and formats a human-readable dry-run summary.
 
 It is still manual and local only. It does not parse PDFs, read or write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, or import legacy `app/load_intake`.
+
+## Synthetic Fixtures
+
+Synthetic intake fixtures now exist for focused dry-run testing:
+
+```text
+tests/fixtures/synthetic_intake_records.py
+tests/test_synthetic_intake_records.py
+```
+
+The fixtures cover clean records, missing broker fields, missing dates, missing weight, missing commodity, missing reference id, special requirements, weak confidence fields, and missing rate. They are fake data only.
