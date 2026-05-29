@@ -389,8 +389,10 @@ reload_watch_repository.py
 reload_watch_service.py
 reload_watch_report.py
 reload_watch_manual_cli.py
+reload_watch_start_cli.py
 scripts/report_reload_watch.py
 scripts/run_reload_watch_event.py
+scripts/start_reload_watch.py
 ~~~
 
 Completed tests:
@@ -405,6 +407,7 @@ test_reload_watch_repository.py
 test_reload_watch_service.py
 test_reload_watch_report.py
 test_reload_watch_manual_cli.py
+test_reload_watch_start_cli.py
 test_reload_watch_boundaries.py
 ~~~
 
@@ -419,10 +422,11 @@ Current state:
 - `reload_watch_service.py` coordinates manual start/event handling with planner, record update, and repository upsert.
 - `reload_watch_report.py` and `scripts/report_reload_watch.py` provide manual dry-run visibility into reload-watch records.
 - `reload_watch_manual_cli.py` and `scripts/run_reload_watch_event.py` provide manual one-event dry-run testing for existing watch records.
+- `reload_watch_start_cli.py` and `scripts/start_reload_watch.py` provide manual dry-run watch creation from minimal parent-load fields.
 - `test_reload_watch_boundaries.py` protects reload-watch module boundaries before future sender, buttons, scheduler, or DispatchCase wiring.
 - It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
-- This foundation includes a small JSON repository, manual-call service, dry-run report, and manual event CLI, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
+- This foundation includes a small JSON repository, manual-call service, dry-run report, manual start CLI, and manual event CLI, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
 
 ## Definition of done for this sprint
 
