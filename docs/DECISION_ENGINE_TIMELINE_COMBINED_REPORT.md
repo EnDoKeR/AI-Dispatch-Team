@@ -185,3 +185,38 @@ Focused tests should cover:
 7. JSON serializability;
 8. input immutability;
 9. no forbidden imports.
+
+## Implementation Status
+
+Completed report-only implementation:
+
+```text
+app/market_intelligence/decision_engine/combined_report.py
+tests/fixtures/decision_engine_combined_report_loads.py
+scripts/run_decision_engine_timeline_report.py
+```
+
+Manual command:
+
+```powershell
+py scripts/run_decision_engine_timeline_report.py
+```
+
+Current status:
+
+- synthetic/fake load-like fixtures only;
+- no runtime event writes;
+- no DispatchCase reads/writes;
+- no `case_event_builder.py` changes;
+- no `MarketLoad.apply_search_request(...)` calls;
+- no Telegram behavior changes;
+- no load selection or market snapshot changes.
+
+The report now demonstrates the full dry-run chain:
+
+```text
+current load decision fields
+-> read-only DecisionResult adapter
+-> future AI_DECISION_CREATED timeline preview
+-> normalized event wrapper view
+```

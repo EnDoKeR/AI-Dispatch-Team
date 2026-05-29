@@ -1561,3 +1561,70 @@ Not recommended next:
 - reload-chain DispatchCase policy audit: still needed before reload-chain metadata/case wiring, but not part of this event wrapper lane;
 - synthetic 100-200 load dataset: too early before report-only backend views are complete;
 - runtime event writes, DecisionResult event writes, DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, or live automation.
+
+## DecisionEngine Timeline Combined Report Closeout
+
+Completed:
+
+- combined report design audit
+- pure helper: `app/market_intelligence/decision_engine/combined_report.py`
+- synthetic/fake load fixtures: `tests/fixtures/decision_engine_combined_report_loads.py`
+- manual CLI: `scripts/run_decision_engine_timeline_report.py`
+- README command reference
+
+Current command:
+
+```powershell
+py scripts/run_decision_engine_timeline_report.py
+```
+
+Current status:
+
+- report-only
+- synthetic/fake load-like fixtures only
+- reads existing decision fields through the accepted read-only adapter
+- builds future `AI_DECISION_CREATED` timeline preview payloads
+- normalizes preview payloads into wrapper/report views
+- writes no events
+- changes no DispatchCase runtime behavior
+- changes no Telegram, MarketLoad, load selection, or market snapshot behavior
+
+Options evaluated:
+
+1. current built-events normalization report
+2. DispatchCase builder migration dry-run
+3. intake-to-case link audit
+4. reload-chain DispatchCase policy audit
+5. synthetic 100-200 load dataset planning
+6. dependency adoption audit
+
+Recommended next target:
+
+```text
+current built-events normalization report
+```
+
+Why:
+
+- current builder-style event samples already exist;
+- the normalizer and wrapper-aware event report are now stable;
+- this can inspect generated current-style events through the normalizer without changing runtime writers;
+- it should stay synthetic/report-only and avoid runtime JSONL reads.
+
+Recommended second target:
+
+```text
+intake-to-case link audit
+```
+
+Why:
+
+- after event reporting views are stable, intake evidence linkage is the next important backend policy;
+- it should be audit/design first before any DispatchCase writes.
+
+Not recommended next:
+
+- DispatchCase builder migration dry-run: still premature before built-event normalization reporting;
+- reload-chain DispatchCase policy audit: important, but separate from the current event-reporting lane;
+- synthetic 100-200 load dataset: still too early;
+- runtime event writes, DecisionResult event writes, DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, or live automation.

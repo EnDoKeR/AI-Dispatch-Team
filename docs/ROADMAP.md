@@ -475,9 +475,10 @@ Recommended order:
 44. case_event_builder migration plan is complete.
 45. Normalized event wrapper helper, fixtures, report helper, and CLI are complete.
 46. Event report support for normalized wrapper output is complete.
-47. Recommended next backend target: DecisionEngine comparison + timeline preview combined report.
-48. Recommended follow-up: current built-events normalization report.
-49. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+47. DecisionEngine comparison + timeline preview combined report is complete.
+48. Recommended next backend target: current built-events normalization report.
+49. Recommended follow-up: intake-to-case link audit, audit/design only.
+50. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -644,13 +645,27 @@ event report support for wrapper output
 
 The normalized wrapper helper and event report support are complete and remain report-only. `case_event_report.py` can now consume both legacy event dictionaries and normalized wrapper records. `py scripts/run_case_event_report.py --wrapped` demonstrates the wrapper path with synthetic fixtures only. Runtime DispatchCase behavior and `case_event_builder.py` remain unchanged.
 
-Next backend target:
+Completed backend target:
 
 ```text
 DecisionEngine comparison + timeline preview combined report
 ```
 
-This should stay report-only and synthetic/fake-data first. It should compare existing load decision fields, normalized DecisionResult output, and future timeline preview payloads without writing events or changing runtime DispatchCase behavior.
+This remains report-only and synthetic/fake-data only. It compares existing load decision fields, normalized DecisionResult output, future timeline preview payloads, and normalized wrapper event views without writing events or changing runtime DispatchCase behavior.
+
+Command:
+
+```powershell
+py scripts/run_decision_engine_timeline_report.py
+```
+
+Next backend target:
+
+```text
+current built-events normalization report
+```
+
+This should inspect generated current-style synthetic builder events through the normalizer/report path without changing `case_event_builder.py`, writing events, or reading runtime JSONL data.
 
 ---
 
