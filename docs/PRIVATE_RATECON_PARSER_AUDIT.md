@@ -251,3 +251,16 @@ Safer next candidates:
 3. manual pasted-text parser adapter design
 
 Any real private RateCon work must stay local under `data/private_ratecons/` and should begin with a small 10-15 document batch after this audit is accepted.
+
+## Synthetic Expected Outputs
+
+Synthetic parser expected-output fixtures exist in:
+
+```text
+tests/fixtures/parser_expected_outputs.py
+tests/test_parser_expected_outputs.py
+```
+
+They describe fake future parser outputs for clean RateCons, missing fields, multi-stop structure, accessorial notes, low-confidence fields, appointment windows, special requirements, and Conestoga-specific language.
+
+These fixtures do not parse files and do not use real RateCon data. They only prove that future parser-shaped output can normalize through the intake parser contract and produce intake summaries.
