@@ -1128,6 +1128,12 @@ py scripts/run_intake_scenarios.py
 
 This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
+Intake docs:
+
+- `docs/RATECON_INTAKE_WORKFLOW.md`
+- `docs/INTAKE_RECORD_MODEL.md`
+- `docs/RATECON_FIXTURE_SAFETY.md`
+
 Current Telegram notifier structure:
 
 ~~~text
