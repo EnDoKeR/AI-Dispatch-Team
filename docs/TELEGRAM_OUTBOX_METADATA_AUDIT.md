@@ -169,9 +169,10 @@ Recommended path:
 9. Wire review-once metadata. Completed.
 10. Audit market summary metadata shape before wiring. Completed.
 11. Add market summary metadata helper. Completed.
-12. Wire market summary/search health and reload-chain only in separate future blocks.
-13. Keep reload-chain DispatchCase role separate until it has an accepted design.
-14. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+12. Audit DispatchCase `MARKET_SNAPSHOT` policy. Completed.
+13. Wire market summary/search health and reload-chain only in separate future blocks.
+14. Keep reload-chain DispatchCase role separate until it has an accepted design.
+15. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -296,6 +297,16 @@ Compatibility recommendation:
 - Extra context fields should be considered future-only until outbox reports, SQLite memory, and DispatchCase handling are ready to preserve or consume them.
 - Do not wire market summary metadata until a separate DispatchCase policy block decides whether `MARKET_SNAPSHOT` should create load cases, create driver/search-level events, or stay outbox-only.
 
+Policy decision:
+
+```text
+docs/DISPATCH_CASE_MARKET_SNAPSHOT_POLICY.md
+```
+
+Recommended current policy: `MARKET_SNAPSHOT` should be outbox/reporting-only in DispatchCase flow until a search-level entity exists.
+
+It should not create or attach to load-level DispatchCases through parsed best-load lane fields.
+
 ## Do not change yet
 
 Do not change yet:
@@ -314,15 +325,16 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-DispatchCase MARKET_SNAPSHOT policy audit
+DispatchCase MARKET_SNAPSHOT load-case exclusion
 ```
 
 Scope should be limited to:
 
-- decide whether successful `MARKET_SNAPSHOT` outbox records should create load cases, driver/search-level events, or stay outbox-only
+- test-first behavior change
+- prevent successful `MARKET_SNAPSHOT` outbox records from creating or updating load-level DispatchCases
 - keep `send_market_summary_to_telegram(...)` unchanged
 - do not wire market summary metadata yet
 - do not change formatter text
 - possibly a small docs note
 
-Before wiring market summary metadata, run a separate DispatchCase policy mini-block for `MARKET_SNAPSHOT` handling.
+Before wiring market summary metadata, protect this behavior in DispatchCase tests.
