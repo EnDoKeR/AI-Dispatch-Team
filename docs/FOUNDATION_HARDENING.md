@@ -44,6 +44,7 @@ The next risk is architectural growth without stable boundaries.
 - `market_snapshot.py` has been split into focused builder/report/dispatcher/helper modules.
 - `telegram_notifier.py` has been split into focused sender/selection/formatter/state modules.
 - `reload_chain.py` has been split into focused identity/location/rules/scoring helper modules.
+- Market context helpers now exist for current-snapshot baseline, city/state exit context, exit labels, and two-load chain scoring.
 - SQLite is now split into focused memory modules, but it is still mostly rebuild/export memory rather than primary operational memory.
 - Tests are much stronger now, but every new module still needs focused test coverage from the beginning.
 - README is too long for external presentation.
@@ -342,6 +343,36 @@ Current state:
 - The compatibility `DriverProfile` model now lives in `market_driver_profile_model.py`.
 - Existing market rule helpers remain focused modules.
 
+### Phase 9 - Market context foundation
+
+Status: completed for the current Foundation Hardening scope.
+
+Completed modules:
+
+~~~text
+market_baseline.py
+market_zone_snapshot.py
+market_exit_classifier.py
+chain_scoring.py
+~~~
+
+Completed tests:
+
+~~~text
+test_market_baseline.py
+test_market_zone_snapshot.py
+test_market_exit_classifier.py
+test_chain_scoring.py
+~~~
+
+Current state:
+
+- `market_baseline.py` calculates current snapshot baseline statistics by mileage bucket and equipment view.
+- `market_zone_snapshot.py` calculates delivery city/state and state exit-market context.
+- `market_exit_classifier.py` returns context labels such as `LOW_EXIT_CONFIDENCE`, `CLEAN_EXIT_AVAILABLE`, and `STRONG_PAY_RELOAD_WATCH_RECOMMENDED`.
+- `chain_scoring.py` evaluates only a two-load inbound + exit chain.
+- These modules are foundation/context helpers only. They do not change Telegram behavior, dispatch decisions, reload-watch lifecycle, load selection, or live automation.
+
 ## Definition of done for this sprint
 
 This foundation sprint is successful when:
@@ -370,7 +401,9 @@ Start with:
 6. reload chain refactor
 7. Telegram notifier refactor
 8. market model follow-up refactor
+9. market context foundation
 
 Next safe candidates:
 
-1. Run a fresh architecture/file-size audit before choosing another target.
+1. Reload watch state foundation.
+2. Run a fresh architecture/file-size audit before choosing another target.

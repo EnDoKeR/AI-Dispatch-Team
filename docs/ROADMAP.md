@@ -101,6 +101,8 @@ Current direction:
 
 - `telegram_notifier.py` should remain send/orchestration logic.
 - Message formatting should stay in formatter modules.
+- `telegram_load_selection.py` now scans unique sorted loads before applying the unsent alert limit, so already-sent top loads do not hide later unsent good loads.
+- `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
 
@@ -252,7 +254,36 @@ Current state:
 - Identity, location/proximity, qualification rules, and scoring are isolated in focused helper modules.
 - Reload-chain behavior is protected by focused tests before future reload intelligence work.
 
-### 1.9 Next candidates for hardening
+### 1.9 Completed: Market context foundation
+
+Completed modules:
+
+~~~text
+market_baseline.py
+market_zone_snapshot.py
+market_exit_classifier.py
+chain_scoring.py
+~~~
+
+Completed tests:
+
+~~~text
+test_market_baseline.py
+test_market_zone_snapshot.py
+test_market_exit_classifier.py
+test_chain_scoring.py
+~~~
+
+Current state:
+
+- `market_baseline.py` calculates current snapshot market context by equipment view and mileage bucket.
+- `market_zone_snapshot.py` calculates delivery city/state and state exit-market context.
+- `market_exit_classifier.py` converts baseline + zone context into explainable exit labels only.
+- `chain_scoring.py` scores a two-load inbound + exit chain as context only.
+- These helpers do not change Telegram behavior, dispatch decisions, reload-watch lifecycle, or load selection until explicitly wired later.
+- Current market/zone statuses are context labels, not hard business decisions.
+
+### 1.10 Next candidates for hardening
 
 Candidate approach:
 
@@ -270,11 +301,11 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 
 Recommended order:
 
-1. Documentation update.
+1. Reload watch state foundation.
 2. Architecture/import audit.
 3. Review remaining large files.
 4. Choose next target based on layer-boundary risk.
-5. Avoid new product features until the next target is selected.
+5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

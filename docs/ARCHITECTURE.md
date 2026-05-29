@@ -232,6 +232,27 @@ market_snapshot_console_report.py          # console report formatting
 market_snapshot_telegram_dispatcher.py     # Telegram delivery orchestration
 ~~~
 
+Current market context boundary:
+
+~~~text
+market_baseline.py                         # current snapshot baseline by equipment view and mileage bucket
+market_zone_snapshot.py                    # delivery city/state and state exit-market context
+market_exit_classifier.py                  # context labels for load exit risk; no mutation
+chain_scoring.py                           # two-load inbound + exit chain scoring context
+~~~
+
+Market context helpers provide review context only at this stage.
+
+They must not:
+
+- send Telegram messages
+- mutate loads
+- start reload watches
+- decide MATCH / REVIEW_ONCE / BLOCK
+- call Google Maps or live DAT/API
+
+Until explicitly wired later, these helpers calculate current snapshot context only.
+
 Current reload chain boundary:
 
 ~~~text

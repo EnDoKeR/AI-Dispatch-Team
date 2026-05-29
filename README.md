@@ -941,6 +941,7 @@ Completed foundation refactors:
 - `market_snapshot.py` is now a runner/orchestrator around focused snapshot modules.
 - `market_models.py` was reduced by moving decision helpers, serialization, and driver-profile model helpers into focused market modules.
 - `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state/transport/selection modules.
+- Market context foundation helpers now calculate current snapshot baseline, city/state exit context, exit labels, and two-load chain context.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
 - `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
 - `driver_preference_rules.py` is now an orchestration file around `get_driver_preference_status()`.
@@ -1035,6 +1036,17 @@ market_snapshot_route_fallback.py
 market_snapshot_stats.py
 market_snapshot_telegram_dispatcher.py
 ~~~
+
+Current market context foundation structure:
+
+~~~text
+market_baseline.py
+market_zone_snapshot.py
+market_exit_classifier.py
+chain_scoring.py
+~~~
+
+These helpers provide context only. They do not yet change Telegram behavior, dispatch decisions, reload-watch lifecycle, load selection, Google Maps, RateCon parsing, or live DAT/API behavior.
 
 Current Telegram notifier structure:
 
