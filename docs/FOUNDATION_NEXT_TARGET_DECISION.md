@@ -1049,6 +1049,34 @@ tests/test_decision_engine_comparison_report.py
 
 The report should use synthetic/fake records first or existing decision history only in explicit manual mode. It must not mutate cases, write events, send Telegram, or call external services.
 
+## DecisionEngine Comparison Report Closeout
+
+Completed:
+
+- pure comparison helper: `app/market_intelligence/decision_engine/comparison_report.py`
+- synthetic comparison fixtures: `tests/fixtures/decision_engine_comparison_loads.py`
+- manual dry-run CLI: `scripts/run_decision_engine_comparison_report.py`
+
+Command:
+
+```powershell
+py scripts/run_decision_engine_comparison_report.py
+```
+
+Current status:
+
+- report-only
+- synthetic/fake load-like fixtures only
+- compares existing decision/category fields with adapter output
+- summarizes adapter risk flags and missing-field warnings
+- does not evaluate whether a dispatch decision is correct
+- does not call `MarketLoad.apply_search_request(...)`
+- does not change runtime behavior
+- does not write DispatchCases or events
+- does not change Telegram, market snapshot, load selection, or current decision behavior
+
+The comparison report is now enough to show adapter coverage before deciding whether timeline/event vocabulary or further report-only previews should come next.
+
 Recommended second target:
 
 ```text

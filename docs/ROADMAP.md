@@ -468,8 +468,9 @@ Recommended order:
 37. Read-only MarketLoad DecisionResult adapter and dry-run CLI are complete.
 38. Telegram UX future interface plan is documented.
 39. DispatchCase/Event Timeline gap audit and ownership policy are complete.
-40. Next recommended target: DecisionEngine comparison report.
-41. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+40. DecisionEngine comparison report helper, fixtures, and CLI are complete.
+41. Next backend target decision is pending after comparison report closeout.
+42. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -531,13 +532,21 @@ DispatchCase/Event Timeline gap audit
 
 This audit defines current load-level, future search/session-level, reporting-only, intake/document, DecisionEngine, reload-watch, and reload-chain ownership boundaries before new case-writing behavior.
 
-Immediate next target:
+Completed report-only target:
 
 ```text
 DecisionEngine comparison report
 ```
 
-This should remain report-only and compare current MarketLoad fields against normalized DecisionResult output before any runtime wiring, case writes, Telegram behavior changes, or load-selection changes.
+This remains report-only and compares current load decision fields against normalized DecisionResult output before any runtime wiring, case writes, Telegram behavior changes, or load-selection changes.
+
+Command:
+
+```powershell
+py scripts/run_decision_engine_comparison_report.py
+```
+
+The report validates adapter reflection of current fields. It does not judge decision correctness.
 
 Possible follow-up target:
 

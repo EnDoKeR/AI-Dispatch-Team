@@ -571,3 +571,28 @@ Current non-scope:
 - no external service calls
 
 The adapter is ready for report-only comparison tooling, but not for changing production decision flow.
+
+## Comparison Report Status
+
+`app/market_intelligence/decision_engine/comparison_report.py` and `scripts/run_decision_engine_comparison_report.py` now provide a report-only comparison between existing load decision fields and the normalized `DecisionResult` produced by the read-only adapter.
+
+Current scope:
+
+- uses synthetic/fake load-like fixtures
+- compares original decision/category fields with adapter decision/category fields
+- summarizes adapter risk flags
+- reports missing decision/category/reference warnings
+- supports a dry-run command: `py scripts/run_decision_engine_comparison_report.py`
+
+Current non-scope:
+
+- no decision correctness evaluation
+- no call to `MarketLoad.apply_search_request(...)`
+- no runtime wiring
+- no load selection changes
+- no Telegram behavior changes
+- no DispatchCase writes
+- no market snapshot behavior changes
+- no external service calls
+
+The report is a compatibility lens only. It helps validate adapter coverage before any future timeline/case integration is considered.

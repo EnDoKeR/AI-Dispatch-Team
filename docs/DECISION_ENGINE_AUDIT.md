@@ -248,3 +248,5 @@ The first pure DecisionEngine foundation now exists in:
 The scenario runner uses synthetic fixtures only. It validates that expected decisions, risk flags, missing fields, needs-check fields, reasons, approvals, and signal bundles can be represented by the DecisionEngine result model.
 
 It is not wired into current runtime behavior and does not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior.
+
+The read-only adapter and comparison report are also dry-run/report-only. They normalize existing load decision fields into `DecisionResult` and compare the adapter output against current fields using synthetic fixtures. They do not evaluate whether a decision is correct and do not write cases, events, Telegram messages, or storage records.
