@@ -154,6 +154,20 @@ Memory should support:
 - driver behavior
 - lane behavior
 - feedback learning
+
+Current SQLite memory structure:
+
+~~~text
+sqlite_memory.py                 # backward-compatible facade
+sqlite_memory_io.py              # JSONL loading and JSON serialization
+sqlite_memory_connection.py      # database path and connection setup
+sqlite_memory_schema.py          # table and index creation / cleanup
+sqlite_memory_repository.py      # case, event, and child inserts
+sqlite_memory_summary.py         # table counts and summary printing
+sqlite_memory_rebuild.py         # rebuild orchestration from JSONL
+~~~
+
+Memory modules should not contain Telegram formatting, dispatcher UI behavior, or decision-engine hard rules.
 - event replay
 - case reports
 - future probabilistic scoring

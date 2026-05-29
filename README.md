@@ -943,6 +943,9 @@ Completed foundation refactors:
 - `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state modules.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
 - `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
+- `driver_preference_rules.py` is now an orchestration file around `get_driver_preference_status()`.
+- `broker_memory_rules.py` is now an orchestration file around `get_broker_memory_status()`.
+- `sqlite_memory.py` is now a backward-compatible facade around focused SQLite memory modules.
 
 Current modular notes parser structure:
 
@@ -970,6 +973,34 @@ driver_lane_preference_groups.py
 driver_lane_preference_queries.py
 ~~~
 
+Current driver preference structure:
+
+~~~text
+driver_preference_rules.py
+driver_preference_core.py
+driver_preference_queries.py
+~~~
+
+Current broker memory structure:
+
+~~~text
+broker_memory_rules.py
+broker_memory_core.py
+broker_memory_queries.py
+~~~
+
+Current SQLite memory structure:
+
+~~~text
+sqlite_memory.py
+sqlite_memory_io.py
+sqlite_memory_connection.py
+sqlite_memory_schema.py
+sqlite_memory_repository.py
+sqlite_memory_summary.py
+sqlite_memory_rebuild.py
+~~~
+
 Current testing baseline:
 
 ~~~powershell
@@ -977,7 +1008,7 @@ py -m compileall app scripts main.py test_sheet_connection.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 455 tests.
+Recent full test discovery passed with 507 tests.
 
 See also:
 

@@ -39,11 +39,11 @@ The next risk is architectural growth without stable boundaries.
 
 ### Weak areas
 
-- Some modules do too many things.
-- `market_snapshot.py` is overloaded.
-- `dispatch_case.py` contains too much case-building and event-building logic.
-- SQLite is currently mostly rebuild/export memory, not yet primary operational memory.
-- Tests are not strong enough yet.
+- Some modules still need layer-boundary review.
+- `market_snapshot.py` still needs final boundary cleanup.
+- `reload_chain.py` still needs architecture review before scaling reload intelligence.
+- SQLite is now split into focused memory modules, but it is still mostly rebuild/export memory rather than primary operational memory.
+- Tests are much stronger now, but every new module still needs focused test coverage from the beginning.
 - README is too long for external presentation.
 
 ## Core principle
@@ -178,21 +178,42 @@ Keep behavior the same while making the code easier to maintain.
 
 ### Phase 5 — SQLite repository layer
 
-Current problem:
+Status: completed for the current local SQLite facade split.
 
-SQLite is rebuilt from JSONL.
+Completed modules:
+
+~~~text
+sqlite_memory.py
+sqlite_memory_io.py
+sqlite_memory_connection.py
+sqlite_memory_schema.py
+sqlite_memory_repository.py
+sqlite_memory_summary.py
+sqlite_memory_rebuild.py
+~~~
+
+Completed tests:
+
+~~~text
+test_sqlite_memory_io.py
+test_sqlite_memory_connection.py
+test_sqlite_memory_schema.py
+test_sqlite_memory_repository.py
+test_sqlite_memory_summary.py
+test_sqlite_memory_rebuild.py
+~~~
+
+Current state:
+
+- `sqlite_memory.py` is now a backward-compatible facade.
+- SQLite IO, connection, schema, repository, summary, and rebuild responsibilities are separated.
+- JSONL remains the append-only audit source for now.
+- SQLite remains local operational memory and reporting memory.
 
 Target future:
 
-- SQLite/Postgres becomes operational memory.
+- SQLite/Postgres becomes primary operational memory when the live workflow is ready.
 - JSONL remains append-only audit log / backup.
-
-Target modules:
-
-- `case_repository.py`
-- `event_repository.py`
-- `feedback_repository.py`
-- `broker_memory_repository.py`
 - `driver_memory_repository.py`
 
 ## Definition of done for this sprint

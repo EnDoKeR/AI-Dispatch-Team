@@ -137,14 +137,55 @@ test_driver_lane_preference_groups.py
 test_driver_lane_preference_queries.py
 ~~~
 
-### 1.6 Next candidates for hardening
+### 1.6 Completed: Driver preference, broker memory, and SQLite memory refactors
+
+Completed memory/refactor modules:
+
+~~~text
+driver_preference_core.py
+driver_preference_queries.py
+driver_preference_rules.py
+
+broker_memory_core.py
+broker_memory_queries.py
+broker_memory_rules.py
+
+sqlite_memory_io.py
+sqlite_memory_connection.py
+sqlite_memory_schema.py
+sqlite_memory_repository.py
+sqlite_memory_summary.py
+sqlite_memory_rebuild.py
+sqlite_memory.py
+~~~
+
+Completed tests:
+
+~~~text
+test_driver_preference_core.py
+test_driver_preference_queries.py
+test_broker_memory_core.py
+test_broker_memory_queries.py
+test_sqlite_memory_io.py
+test_sqlite_memory_connection.py
+test_sqlite_memory_schema.py
+test_sqlite_memory_repository.py
+test_sqlite_memory_summary.py
+test_sqlite_memory_rebuild.py
+~~~
+
+Current state:
+
+- `driver_preference_rules.py` is orchestration-only.
+- `broker_memory_rules.py` is orchestration-only.
+- `sqlite_memory.py` is a backward-compatible facade with `__all__`.
+- Recent full test discovery passed with 507 tests.
+
+### 1.7 Next candidates for hardening
 
 Candidate files:
 
 ~~~text
-sqlite_memory.py
-driver_preference_rules.py
-broker_memory_rules.py
 reload_chain.py
 market_snapshot.py
 telegram_notifier.py
@@ -155,10 +196,9 @@ Recommended order:
 
 1. Documentation update.
 2. Architecture/import audit.
-3. `driver_preference_rules.py` or `broker_memory_rules.py`.
-4. `sqlite_memory.py` repository split.
-5. `market_snapshot.py` final cleanup.
-6. `telegram_notifier.py` final cleanup.
+3. Review remaining large files.
+4. Choose next target based on layer-boundary risk.
+5. Avoid new product features until the next target is selected.
 
 ---
 
@@ -251,7 +291,7 @@ Next steps:
 
 ## Phase 5 - SQLite Dispatch Memory
 
-Status: in progress.
+Status: local SQLite facade split completed; operational memory evolution remains in progress.
 
 Goal:
 
@@ -261,17 +301,15 @@ Completed:
 
 - SQLite memory database exists.
 - Memory report exists.
-- Dispatch cases, events, feedback, and Telegram alerts can be summarized.
+- Dispatch cases, events, feedback, Telegram alerts, and ratecons can be summarized.
+- `sqlite_memory.py` was split into focused IO, connection, schema, repository, summary, and rebuild modules.
+- `sqlite_memory.py` now remains as a backward-compatible facade.
 
 Next steps:
 
-- Split `sqlite_memory.py` into repository modules.
-- Add case repository.
-- Add event repository.
-- Add feedback repository.
-- Add Telegram alert repository.
-- Add ratecon repository.
 - Keep JSONL as append-only audit/backup.
+- Continue using SQLite as local operational memory.
+- Add richer repository/query modules only when real workflows require them.
 - Evaluate Postgres later if local SQLite becomes limiting.
 
 ---
@@ -286,11 +324,10 @@ Convert dispatcher feedback into useful decision context.
 
 Completed:
 
-- Broker memory rules exist.
-- Driver preference rules exist.
-- Driver lane preference rules exist.
+- Broker memory rules exist and were split into core/queries/orchestrator modules.
+- Driver preference rules exist and were split into core/queries/orchestrator modules.
+- Driver lane preference rules exist and were split into core/groups/queries/orchestrator modules.
 - Sample-size protection exists.
-- Lane preference core/groups/queries were split.
 
 Rules:
 
@@ -302,11 +339,10 @@ Rules:
 
 Next steps:
 
-- Strengthen driver preference tests.
-- Strengthen broker memory tests.
 - Add memory-vs-hard-block tests.
 - Add lane memory replay examples.
 - Add reports that show why memory did or did not affect a decision.
+- Keep memory informational/review-only until enough evidence exists.
 
 ---
 

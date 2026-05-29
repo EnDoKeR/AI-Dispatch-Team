@@ -196,3 +196,32 @@ Priority order:
 8. live DAT/API integration
 
 Do not build autonomous booking before replay can explain whether the AI was right or wrong.
+
+---
+
+## 11. Central storage split rule
+
+Central storage files must not become large mixed-responsibility modules.
+
+Default pattern for SQLite/local memory:
+
+~~~text
+*_io.py
+*_connection.py
+*_schema.py
+*_repository.py
+*_summary.py
+*_rebuild.py
+facade.py
+~~~
+
+The facade may keep backward-compatible imports and `__all__`, but it should not contain large local business logic.
+
+Every storage helper module needs a matching test file.
+
+Example:
+
+~~~text
+app/market_intelligence/sqlite_memory_repository.py
+tests/test_sqlite_memory_repository.py
+~~~
