@@ -197,3 +197,9 @@ app/market_intelligence/decision_risk_flags.py
 ```
 
 The first helper should expose stable names and metadata only. It should not change current load decisions.
+
+## Implementation Status
+
+`app/market_intelligence/decision_engine/risk_flags.py` now provides pure risk flag constants and helper functions for normalization, deduplication, category lookup, action lookup, and metadata lookup.
+
+This helper is not wired into runtime decision flow yet. It does not change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior, Telegram behavior, DispatchCase behavior, market snapshot behavior, or parser behavior.
