@@ -481,15 +481,42 @@ Manual dry-run command:
 py scripts/run_case_event_normalizer_report.py
 ```
 
+## Event Report Wrapper Support
+
+Completed report-layer support:
+
+```text
+app/market_intelligence/case_event_report.py
+scripts/run_case_event_report.py --wrapped
+```
+
+Current behavior:
+
+- `case_event_report.py` still accepts legacy event dictionaries;
+- legacy report behavior remains backward-compatible;
+- wrapper records shaped as `{legacy_payload, normalized_payload, warnings}` are accepted;
+- wrapper records prefer `normalized_payload` for event type, group, case ID, timestamp, and source;
+- wrapper warnings are summarized as `warnings_count` and `warnings_by_type`;
+- mixed legacy + wrapper input is supported;
+- output remains JSON-serializable and read-only.
+
+Manual dry-run command:
+
+```powershell
+py scripts/run_case_event_report.py --wrapped
+```
+
+This command uses synthetic wrapper fixtures only. It does not read runtime event data or write events.
+
 ## Current Recommendation
 
 Next safe implementation target:
 
 ```text
-event report support for wrapper output
+DecisionEngine comparison + timeline preview combined report
 ```
 
-This should let reporting helpers consume normalized wrapper records more directly while still avoiding runtime event writes.
+This can remain report-only and use the now-compatible event reporting foundation without writing runtime events.
 
 ## Migration Plan Closeout
 
@@ -509,6 +536,8 @@ Completed implementation:
 - synthetic/current-style wrapper fixtures
 - normalized wrapper report helper
 - manual dry-run CLI
+- event report support for wrapper records
+- wrapped event report CLI mode
 - README command reference
 
 Still not allowed:

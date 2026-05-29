@@ -1483,3 +1483,23 @@ Not recommended next:
 - reload-chain DispatchCase wiring
 - synthetic 100-200 load dataset
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
+## Event Report Wrapper Support Status
+
+Completed:
+
+- `case_event_report.py` accepts both legacy event dicts and normalized wrapper records.
+- Wrapper report input prefers `normalized_payload` for event type, event group, case ID, timestamp, and source.
+- Wrapper warnings are summarized in `warnings_count` and `warnings_by_type`.
+- `scripts/run_case_event_report.py --wrapped` demonstrates the report over synthetic wrapper fixtures.
+
+Current status:
+
+- report-only
+- legacy event reports remain backward-compatible
+- no runtime event writes
+- no `case_event_builder.py` changes
+- no DispatchCase build/match/update changes
+- no DecisionResult event writes
+
+The next target should be selected separately now that event reports can read both legacy and normalized wrapper shapes.

@@ -742,6 +742,35 @@ Current non-scope:
 
 The next safe step is a compatibility audit of existing `case_event_builder.py` payloads against the new taxonomy and base payload shape.
 
+## Event Report Wrapper Support
+
+`app/market_intelligence/case_event_report.py` now accepts both:
+
+- current legacy event dictionaries;
+- normalized wrapper records with `legacy_payload`, `normalized_payload`, and `warnings`.
+
+Current scope:
+
+- read-only reporting only;
+- legacy events remain supported;
+- wrapper records prefer normalized payload fields for report grouping;
+- wrapper warnings are summarized;
+- the `--wrapped` CLI mode uses synthetic wrapper fixtures only.
+
+Current non-scope:
+
+- no runtime event writing;
+- no changes to `case_event_builder.py`;
+- no DispatchCase build/match/update changes;
+- no DecisionResult event writes;
+- no runtime storage reads.
+
+Manual dry-run command:
+
+```powershell
+py scripts/run_case_event_report.py --wrapped
+```
+
 ## Current Recommended Next Target
 
 Recommended next implementation target after this policy:

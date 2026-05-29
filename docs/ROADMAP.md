@@ -474,8 +474,8 @@ Recommended order:
 43. Report-only DecisionResult timeline preview is complete.
 44. case_event_builder migration plan is complete.
 45. Normalized event wrapper helper, fixtures, report helper, and CLI are complete.
-46. Next recommended backend target: event report support for wrapper output.
-47. Recommended follow-up: DecisionEngine comparison + timeline preview combined report.
+46. Event report support for normalized wrapper output is complete.
+47. Next backend target should be selected from report-only combined DecisionEngine/timeline reporting or current built-event normalization reporting.
 48. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
@@ -635,13 +635,13 @@ case_event_builder migration plan
 
 The plan selects a wrapper-first path. Existing `case_event_builder.py` remains the runtime source and the current event envelope stays stable.
 
-Next backend target:
+Completed backend target:
 
 ```text
 event report support for wrapper output
 ```
 
-The normalized wrapper helper is complete and remains report-only. The next target should let event reports consume wrapper output without writing events or changing runtime DispatchCase behavior.
+The normalized wrapper helper and event report support are complete and remain report-only. `case_event_report.py` can now consume both legacy event dictionaries and normalized wrapper records. `py scripts/run_case_event_report.py --wrapped` demonstrates the wrapper path with synthetic fixtures only. Runtime DispatchCase behavior and `case_event_builder.py` remain unchanged.
 
 ---
 
