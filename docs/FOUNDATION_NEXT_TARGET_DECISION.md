@@ -542,3 +542,59 @@ Not recommended next:
 - first PDF text extraction audit: too early before pasted-text dry-run proves the boundary
 - private RateCon field inventory preparation: useful later, but should wait until the pasted-text adapter gives us a manual dry-run path
 - reload-chain DispatchCase policy audit: still important, but not part of parser preparation
+
+## Pasted-text Parser Closeout
+
+Completed pasted-text parser preparation:
+
+- synthetic pasted-text RateCon fixtures
+- conservative pasted-text parser adapter
+- pasted-text scenario runner
+- pasted-text parser dry-run CLI
+- pasted-text scenario CLI
+
+Current commands:
+
+```powershell
+py scripts/run_pasted_text_parser_dry_run.py
+py scripts/run_pasted_text_parser_dry_run.py --text "Broker: Synthetic Broker..."
+py scripts/run_pasted_text_scenarios.py
+```
+
+Options evaluated:
+
+1. expand synthetic pasted-text scenarios
+2. private RateCon field inventory plan
+3. first PDF text extraction audit
+4. parser confidence refinement
+5. pause parser and do reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+Private RateCon field inventory plan
+```
+
+Why:
+
+- pasted-text dry-run is stable enough to show how parser output flows into intake summaries
+- before touching real files, the project should define how a human will inventory private RateCon fields safely
+- this can stay docs/local-process only
+- it prepares eventual private review without parser/OCR/PDF work
+
+What it should include:
+
+- private local-only review template
+- fields to record manually from each private RateCon
+- expected missing/needs-check notes
+- confidence notes
+- rules for anonymizing any public fixture derived from private review
+- explicit reminder not to commit private documents or extracted private records
+
+Not recommended next:
+
+- PDF text extraction audit: still too early
+- OCR: not yet
+- live Telegram upload: not yet
+- Gmail/email/Google Sheets: not yet
+- reload-chain DispatchCase policy audit: important but separate from intake/parser preparation

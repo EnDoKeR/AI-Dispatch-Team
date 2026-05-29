@@ -447,9 +447,10 @@ Recommended order:
 18. Parser confidence policy/helper is complete.
 19. Synthetic parser scenario runner and CLI are complete.
 20. Manual pasted-text parser adapter design is complete.
-21. Next recommended parser target: manual pasted-text parser adapter foundation, pure/dry-run only.
-22. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-23. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+21. Manual pasted-text parser adapter, dry-run CLI, scenario runner, and scenario CLI are complete.
+22. Next recommended parser target: private RateCon field inventory plan, docs/local-process only.
+23. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+24. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
