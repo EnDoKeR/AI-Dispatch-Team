@@ -234,3 +234,17 @@ The future interface should return a structured result while preserving the exis
 Do not create a new broad DecisionEngine module yet.
 
 Next design step should define the future output contract, input signal map, and risk flag taxonomy before implementation.
+
+## Dry-run Foundation Status
+
+The first pure DecisionEngine foundation now exists in:
+
+- `decision_engine/risk_flags.py`
+- `decision_engine/result.py`
+- `decision_engine/approval_modes.py`
+- `decision_engine/signals.py`
+- `decision_engine/scenario_runner.py`
+
+The scenario runner uses synthetic fixtures only. It validates that expected decisions, risk flags, missing fields, needs-check fields, reasons, approvals, and signal bundles can be represented by the DecisionEngine result model.
+
+It is not wired into current runtime behavior and does not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior.

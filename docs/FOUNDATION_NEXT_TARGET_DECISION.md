@@ -811,3 +811,27 @@ Not recommended next:
 - synthetic 100-200 load dataset: too early before DecisionEngine dry-run scenarios
 - reload-chain DispatchCase policy audit: important but separate from core DecisionEngine result flow
 - accounting/factoring model: should wait until DispatchCase/Event Timeline gap audit
+
+## DecisionEngine Dry-run Scenario Status
+
+Completed:
+
+- synthetic DecisionEngine scenario fixtures
+- pure scenario runner
+- manual scenario CLI
+
+Command:
+
+```powershell
+py scripts/run_decision_engine_scenarios.py
+```
+
+Current status:
+
+- synthetic-only
+- no real load evaluation
+- no runtime wiring
+- no `MarketLoad.apply_search_request(...)` wrapper yet
+- no Telegram/DispatchCase/market snapshot behavior change
+
+Next target should be decided separately after reviewing dry-run output and risk.

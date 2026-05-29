@@ -461,8 +461,10 @@ Recommended order:
 32. Pure DecisionResult helper is complete.
 33. Pure approval mode helper is complete.
 34. Pure DecisionEngine signal bundle helper is complete.
-35. Next recommended DecisionEngine target: dry-run scenario runner.
-36. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+35. Synthetic DecisionEngine scenarios are complete.
+36. DecisionEngine dry-run scenario runner and CLI are complete.
+37. Next recommended DecisionEngine target: decide between a MarketLoad adapter and DispatchCase/Event Timeline gap audit.
+38. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -500,13 +502,21 @@ Expected outcome:
 - safer replay and testing
 - better preparation for parallel agents and future interfaces
 
-Immediate next audit:
+Current dry-run command:
 
-```text
-DecisionEngine dry-run scenario runner
+```powershell
+py scripts/run_decision_engine_scenarios.py
 ```
 
-The next implementation should remain pure and side-effect-free. It should combine synthetic signal bundles, risk flags, approval modes, and DecisionResult expectations without wiring into current `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior.
+This validates synthetic DecisionEngine scenario expectations against the pure signal/result/risk-flag helpers only.
+
+Immediate next decision:
+
+```text
+MarketLoad DecisionResult adapter vs DispatchCase/Event Timeline gap audit
+```
+
+The next implementation, if selected, should remain narrow and preserve existing `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior exactly. If runtime adapter risk is too high, do the DispatchCase/Event Timeline gap audit first.
 
 Second recommended DecisionEngine target:
 

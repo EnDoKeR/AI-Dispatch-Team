@@ -1134,9 +1134,12 @@ py scripts/run_intake_scenarios.py
 py scripts/run_parser_scenarios.py
 py scripts/run_pasted_text_parser_dry_run.py
 py scripts/run_pasted_text_scenarios.py
+py scripts/run_decision_engine_scenarios.py
 ~~~
 
 This is dry-run only. It normalizes pasted JSON, one explicit JSON file, or manually pasted text into intake summaries, can optionally save JSON dry-run records to a gitignored local JSON repository, uses synthetic fixtures for intake/parser scenarios, and defines the internal parser output contract. It does not parse PDFs, run OCR, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`; synthetic parser-shaped examples live in `tests/fixtures/parser_expected_outputs.py`; synthetic pasted-text examples live in `tests/fixtures/pasted_text_ratecon_examples.py`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+
+DecisionEngine dry-run scenarios are synthetic-only. They validate the new result/signal/risk-flag foundation shape and do not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior.
 
 Intake docs:
 
@@ -1180,7 +1183,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 983 tests.
+Recent full test discovery passed with 1036 tests.
 
 See also:
 
