@@ -213,6 +213,16 @@ Future interfaces:
 
 Interfaces must not own core business logic.
 
+Current market model boundary:
+
+~~~text
+market_models.py                          # MarketLoad facade/model and match orchestration
+market_load_serializer.py                 # MarketLoad dictionary payload
+market_driver_profile_model.py            # compatibility DriverProfile model
+market_*_rules.py                         # focused decision-rule helpers
+market_*_helpers.py                       # focused metric/target/contact helpers
+~~~
+
 Current market snapshot boundary:
 
 ~~~text

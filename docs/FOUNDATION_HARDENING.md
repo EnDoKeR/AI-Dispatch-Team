@@ -40,6 +40,7 @@ The next risk is architectural growth without stable boundaries.
 ### Weak areas
 
 - Some modules still need layer-boundary review.
+- `market_models.py` has been reduced further with serializer and driver-profile model helpers.
 - `market_snapshot.py` has been split into focused builder/report/dispatcher/helper modules.
 - `telegram_notifier.py` has been split into focused sender/selection/formatter/state modules.
 - `reload_chain.py` has been split into focused identity/location/rules/scoring helper modules.
@@ -314,6 +315,33 @@ Current state:
 - Reload-chain candidate dedupe, limit, and sent-history filtering live in `telegram_chain_selection.py`.
 - Message formatting remains in formatter modules.
 
+### Phase 8 - Market model follow-up refactor
+
+Status: completed for the current Foundation Hardening scope.
+
+Completed modules:
+
+~~~text
+market_models.py
+market_load_serializer.py
+market_driver_profile_model.py
+~~~
+
+Completed tests:
+
+~~~text
+test_market_load_serializer.py
+test_market_driver_profile_model.py
+test_market_models.py
+~~~
+
+Current state:
+
+- `market_models.py` remains the compatibility home for `MarketLoad`.
+- `MarketLoad.to_dict()` now delegates to `market_load_serializer.py`.
+- The compatibility `DriverProfile` model now lives in `market_driver_profile_model.py`.
+- Existing market rule helpers remain focused modules.
+
 ## Definition of done for this sprint
 
 This foundation sprint is successful when:
@@ -341,7 +369,8 @@ Start with:
 5. SQLite repository layer
 6. reload chain refactor
 7. Telegram notifier refactor
+8. market model follow-up refactor
 
 Next safe candidates:
 
-1. `market_models.py`
+1. Run a fresh architecture/file-size audit before choosing another target.

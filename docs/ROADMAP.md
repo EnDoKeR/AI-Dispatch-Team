@@ -39,6 +39,8 @@ Completed helper modules include:
 
 ~~~text
 market_basic_metrics.py
+market_load_serializer.py
+market_driver_profile_model.py
 market_contact_extractor.py
 market_target_helpers.py
 market_tracking_requirements.py
@@ -57,6 +59,7 @@ Current direction:
 
 - `market_models.py` should not become overloaded again.
 - New market logic should be added in focused helper modules with tests.
+- `MarketLoad` compatibility methods should delegate to focused helpers where practical.
 
 ### 1.3 Completed: Telegram notifier hardening
 
@@ -200,7 +203,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 539 tests.
+- Recent full test discovery passed with 544 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -251,10 +254,10 @@ Current state:
 
 ### 1.9 Next candidates for hardening
 
-Candidate files:
+Candidate approach:
 
 ~~~text
-market_models.py
+Run a fresh architecture/file-size audit before choosing another target.
 ~~~
 
 Recommended order:

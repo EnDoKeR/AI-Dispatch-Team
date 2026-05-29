@@ -939,7 +939,7 @@ Completed foundation refactors:
 
 - `DispatchCase` logic was split into focused case modules.
 - `market_snapshot.py` is now a runner/orchestrator around focused snapshot modules.
-- `market_models.py` was reduced by moving decision helpers into focused market modules.
+- `market_models.py` was reduced by moving decision helpers, serialization, and driver-profile model helpers into focused market modules.
 - `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state/transport/selection modules.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
 - `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
@@ -1002,6 +1002,27 @@ sqlite_memory_summary.py
 sqlite_memory_rebuild.py
 ~~~
 
+Current market model structure:
+
+~~~text
+market_models.py
+market_load_serializer.py
+market_driver_profile_model.py
+market_basic_metrics.py
+market_contact_extractor.py
+market_target_helpers.py
+market_tracking_requirements.py
+market_broker_memory.py
+market_document_triggers.py
+market_payment_risk_rules.py
+market_quality_rules.py
+market_od_permit_rules.py
+market_weight_rules.py
+market_local_load_rules.py
+market_conestoga_rules.py
+market_direction_matcher.py
+~~~
+
 Current market snapshot structure:
 
 ~~~text
@@ -1050,7 +1071,7 @@ py -m compileall app scripts main.py test_sheet_connection.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 539 tests.
+Recent full test discovery passed with 544 tests.
 
 See also:
 
