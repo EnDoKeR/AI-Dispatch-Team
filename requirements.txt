@@ -1,0 +1,5 @@
+# Core Foundation Hardening currently uses the Python standard library.
+#
+# Optional legacy/manual workflows may require packages such as pypdf,
+# gspread, google-auth, or geopy, but they are intentionally not project-wide
+# requirements until those workflows are accepted as active integrations.

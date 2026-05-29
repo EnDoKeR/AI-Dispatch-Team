@@ -657,6 +657,8 @@ Do not commit `.env`.
 
 The project currently uses mostly Python standard library.
 
+See `README_SETUP.md` for the current dependency policy and optional legacy/manual integration notes.
+
 If dependencies are added later, install them with:
 
 ```powershell
