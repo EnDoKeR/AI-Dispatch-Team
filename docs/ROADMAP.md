@@ -446,9 +446,10 @@ Recommended order:
 17. Synthetic parser expected outputs are complete.
 18. Parser confidence policy/helper is complete.
 19. Synthetic parser scenario runner and CLI are complete.
-20. Next recommended parser target: manual pasted-text parser adapter design.
-21. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-22. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+20. Manual pasted-text parser adapter design is complete.
+21. Next recommended parser target: manual pasted-text parser adapter foundation, pure/dry-run only.
+22. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+23. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

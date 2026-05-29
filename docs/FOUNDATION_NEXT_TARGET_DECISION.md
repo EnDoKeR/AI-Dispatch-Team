@@ -473,3 +473,72 @@ Not recommended next:
 - first PDF text extraction audit: still too close to file/document handling before synthetic parser reporting exists
 - private RateCon parser interface CLI: should wait until pasted-text adapter design is accepted
 - reload-chain DispatchCase policy audit: important, but separate from parser preparation
+
+## Next Parser Target Decision
+
+Completed since the previous parser decision:
+
+- synthetic parser scenario runner helper
+- synthetic parser scenario CLI
+- parser scenario README/docs sync
+- manual pasted-text parser adapter design
+
+Options evaluated:
+
+1. manual pasted-text parser adapter foundation
+2. parser scenario expansion
+3. private RateCon field inventory preparation
+4. first PDF text extraction audit
+5. pause parser and do reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+Manual pasted-text parser adapter foundation
+```
+
+Why:
+
+- pasted text avoids PDF/file/OCR risk
+- the adapter can be pure and test-first
+- existing parser expected-output fixtures define the target shape
+- existing parser scenario runner can verify normalized output behavior
+- it creates business value by letting synthetic or manually pasted text be dry-run before private documents are touched
+
+Required constraints:
+
+- synthetic text fixtures first
+- no private RateCon text in tests
+- no file reading
+- no PDF parsing
+- no OCR
+- no Telegram upload/sending
+- no Gmail/email
+- no Google Sheets
+- no DispatchCase writes
+- no DAT/API
+- no Google Maps
+- no scheduler/background processing
+
+Suggested first implementation:
+
+```text
+app/market_intelligence/intake/pasted_text_parser_adapter.py
+tests/test_pasted_text_parser_adapter.py
+```
+
+The first adapter should be conservative. It should return structured parser output with confidence values and blanks for unknown fields rather than pretending uncertain text is reliable.
+
+Secondary target:
+
+```text
+Parser scenario expansion
+```
+
+Add more synthetic text/parser-output scenarios only after the adapter shape is accepted.
+
+Not recommended next:
+
+- first PDF text extraction audit: too early before pasted-text dry-run proves the boundary
+- private RateCon field inventory preparation: useful later, but should wait until the pasted-text adapter gives us a manual dry-run path
+- reload-chain DispatchCase policy audit: still important, but not part of parser preparation
