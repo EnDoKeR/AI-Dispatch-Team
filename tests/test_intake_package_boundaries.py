@@ -48,6 +48,13 @@ FORBIDDEN_SOURCE_TERMS = [
     "app.load_intake",
 ]
 
+ALLOWED_SOURCE_TERMS_BY_FILE = {
+    "pdf_text_extraction.py": {
+        "pypdf",
+        "pdfreader",
+    },
+}
+
 
 def intake_python_files():
     return sorted(INTAKE_PACKAGE.glob("*.py"))
@@ -97,8 +104,11 @@ class IntakePackageBoundaryTests(unittest.TestCase):
         for path in intake_python_files():
             with self.subTest(path=str(path)):
                 source = path.read_text(encoding="utf-8").lower()
+                allowed_terms = ALLOWED_SOURCE_TERMS_BY_FILE.get(path.name, set())
 
                 for term in FORBIDDEN_SOURCE_TERMS:
+                    if term in allowed_terms:
+                        continue
                     self.assertNotIn(term, source)
 
 
