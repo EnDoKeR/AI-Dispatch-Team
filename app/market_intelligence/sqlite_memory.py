@@ -1,23 +1,11 @@
-import sqlite3
-from pathlib import Path
-
+from app.market_intelligence.sqlite_memory_connection import (
+    SQLITE_DB_FILE,
+    connect_db,
+)
 from app.market_intelligence.sqlite_memory_io import (
     json_text,
     load_jsonl,
 )
-
-
-SQLITE_DB_FILE = Path("data/dispatch_memory.db")
-
-
-def connect_db(db_path=SQLITE_DB_FILE):
-    db_path = Path(db_path)
-    db_path.parent.mkdir(parents=True, exist_ok=True)
-
-    connection = sqlite3.connect(db_path)
-    connection.row_factory = sqlite3.Row
-
-    return connection
 
 
 def create_tables(connection):
