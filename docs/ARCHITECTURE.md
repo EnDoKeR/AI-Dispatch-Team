@@ -262,6 +262,7 @@ reload_watch_action_planner.py             # side-effect-free reload-watch actio
 telegram_watch_formatter.py                # structured reload-watch plan/payload to text only
 reload_watch_record.py                     # JSON-ready reload-watch state records only
 reload_watch_repository.py                 # JSON file repository for reload-watch records only
+reload_watch_service.py                    # manual-call reload-watch orchestration only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -275,6 +276,8 @@ reload_watch_repository.py                 # JSON file repository for reload-wat
 `reload_watch_record.py` builds and updates JSON-ready reload-watch records. It does not read or write files, SQLite, DispatchCase events, or Telegram state.
 
 `reload_watch_repository.py` reads and writes reload-watch records as a JSON list. It does not decide watch behavior, send Telegram messages, call planners/formatters, or write DispatchCase events.
+
+`reload_watch_service.py` coordinates starting a watch and handling one watch event at a time. It may use the planner, record helper, and repository, but it must not format/send Telegram messages, run loops, or write DispatchCase events.
 
 It must not:
 

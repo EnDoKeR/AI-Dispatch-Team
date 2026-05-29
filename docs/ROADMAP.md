@@ -205,7 +205,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 676 tests.
+- Recent full test discovery passed with 687 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -294,6 +294,7 @@ reload_watch_action_planner.py
 telegram_watch_formatter.py
 reload_watch_record.py
 reload_watch_repository.py
+reload_watch_service.py
 ~~~
 
 Completed tests:
@@ -305,6 +306,7 @@ test_reload_watch_action_planner.py
 test_telegram_watch_formatter.py
 test_reload_watch_record.py
 test_reload_watch_repository.py
+test_reload_watch_service.py
 test_reload_watch_boundaries.py
 ~~~
 
@@ -316,10 +318,11 @@ Current state:
 - `telegram_watch_formatter.py` formats structured reload-watch plans into Telegram text only.
 - `reload_watch_record.py` builds and updates JSON-ready reload-watch state records only.
 - `reload_watch_repository.py` reads, writes, upserts, and filters reload-watch records in one JSON file only.
+- `reload_watch_service.py` coordinates manual start/event handling with planner, record update, and repository upsert.
 - `test_reload_watch_boundaries.py` protects reload-watch module boundaries before sender, buttons, scheduler, or DispatchCase wiring exists.
 - It answers whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
-- This foundation includes a small JSON repository, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
+- This foundation includes a small JSON repository and manual-call service, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
 
 ### 1.11 Next candidates for hardening
 
