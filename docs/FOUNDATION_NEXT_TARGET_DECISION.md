@@ -1134,6 +1134,77 @@ Not recommended next:
 - Telegram UX implementation
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
 
+## Event Timeline Foundation Closeout
+
+Completed:
+
+- event type taxonomy helper: `app/market_intelligence/case_event_types.py`
+- base JSON-ready event payload helper: `app/market_intelligence/case_event_payload.py`
+- read-only event report helper: `app/market_intelligence/case_event_report.py`
+- synthetic event report CLI: `scripts/run_case_event_report.py`
+- synthetic event fixtures: `tests/fixtures/case_event_records.py`
+
+Command:
+
+```powershell
+py scripts/run_case_event_report.py
+```
+
+Current status:
+
+- pure helpers/reporting only
+- no runtime DispatchCase behavior change
+- no case creation/matching/update change
+- no `case_event_builder.py` migration
+- no DecisionResult case/event writes
+- no Telegram behavior change
+- no storage reads/writes
+
+Options evaluated:
+
+1. report-only DecisionResult timeline preview
+2. compare current events against event taxonomy
+3. DispatchCase event builder compatibility audit
+4. intake-to-case link audit
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+DispatchCase event builder compatibility audit
+```
+
+Why:
+
+- the taxonomy and base payload helper now exist
+- current runtime events are still produced by `case_event_builder.py`
+- before any builder migration or DecisionResult timeline preview, we should confirm current event payloads map cleanly to the taxonomy
+- this can be audit/test-only and should not change runtime behavior
+
+Recommended second target:
+
+```text
+report-only DecisionResult timeline preview
+```
+
+Why:
+
+- useful after current event builder compatibility is understood
+- can show a future `AI_DECISION_CREATED` payload shape with nested DecisionResult without writing it
+- should remain dry-run/report-only
+
+Not recommended next:
+
+- modifying `build_cases_and_events(...)`
+- replacing `case_event_builder.py`
+- writing DecisionResult events
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- synthetic 100-200 load dataset
+- Telegram UX runtime work
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
 Recommended second target:
 
 ```text

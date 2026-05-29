@@ -469,9 +469,10 @@ Recommended order:
 38. Telegram UX future interface plan is documented.
 39. DispatchCase/Event Timeline gap audit and ownership policy are complete.
 40. DecisionEngine comparison report helper, fixtures, and CLI are complete.
-41. Next recommended backend target: DispatchCase/Event Timeline event type constants/helper.
-42. Recommended follow-up: report-only DecisionResult timeline preview after event types exist.
-43. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+41. Event Timeline foundation helpers and synthetic report CLI are complete.
+42. Next recommended backend target: DispatchCase event builder compatibility audit.
+43. Recommended follow-up: report-only DecisionResult timeline preview after builder compatibility is understood.
+44. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -557,13 +558,27 @@ DispatchCase timeline event type constants/helper
 
 This should be pure constants/helper work only if the next timeline implementation needs stable event names before behavior changes.
 
-Next backend target:
+Completed backend target:
 
 ```text
 DispatchCase/Event Timeline event type constants/helper
 ```
 
-This should define stable event type names and validation helpers only. It should not write events, change existing DispatchCase behavior, wire DecisionResult into cases, or alter Telegram/outbox flow.
+This defines stable event type names, a JSON-ready base event payload helper, a read-only event report helper, and a synthetic report CLI. It does not write events, change existing DispatchCase behavior, wire DecisionResult into cases, or alter Telegram/outbox flow.
+
+Command:
+
+```powershell
+py scripts/run_case_event_report.py
+```
+
+Next backend target:
+
+```text
+DispatchCase event builder compatibility audit
+```
+
+This should compare existing `case_event_builder.py` payloads against the new taxonomy/payload foundation without changing runtime behavior.
 
 Recommended follow-up:
 

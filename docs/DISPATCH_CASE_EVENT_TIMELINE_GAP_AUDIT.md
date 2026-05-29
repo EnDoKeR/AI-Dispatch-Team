@@ -714,28 +714,56 @@ Current non-scope:
 
 This helper is a future payload foundation only. Existing event builders remain the runtime source for current case events.
 
+## Event Timeline Report Foundation
+
+The Event Timeline foundation now includes:
+
+- `app/market_intelligence/case_event_types.py`
+- `app/market_intelligence/case_event_payload.py`
+- `app/market_intelligence/case_event_report.py`
+- `scripts/run_case_event_report.py`
+- synthetic fixtures in `tests/fixtures/case_event_records.py`
+
+Current scope:
+
+- stable event type vocabulary
+- JSON-ready base event payload helper
+- read-only event list summary helper
+- synthetic event report CLI
+
+Current non-scope:
+
+- no runtime DispatchCase behavior changes
+- no changes to `case_event_builder.py`
+- no new event writes
+- no DecisionResult timeline events
+- no storage reads/writes
+- no Telegram behavior changes
+
+The next safe step is a compatibility audit of existing `case_event_builder.py` payloads against the new taxonomy and base payload shape.
+
 ## Current Recommended Next Target
 
 Recommended next implementation target after this policy:
 
 ```text
-DecisionEngine comparison report
+DispatchCase event builder compatibility audit
 ```
 
 Why:
 
-- it can remain report-only
-- it can compare current MarketLoad/decision-history fields with normalized DecisionResult output
-- it does not require new case writes
-- it validates the read-only adapter before any timeline integration
+- the taxonomy/payload/report helpers are now in place
+- existing `case_event_builder.py` remains the runtime source for current events
+- a compatibility audit can compare current builder payloads against the new vocabulary without changing behavior
+- this should happen before any DecisionResult timeline preview or case-writing change
 
 Alternative next target:
 
 ```text
-DispatchCase timeline event type constants/helper
+report-only DecisionResult timeline preview
 ```
 
-Use this only if the next implementation needs a stable event vocabulary before report work.
+Use this only after builder compatibility is understood and keep it dry-run/report-only.
 
 Not next:
 
