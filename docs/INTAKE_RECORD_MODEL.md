@@ -233,6 +233,15 @@ tests/test_intake_parser_contract.py
 
 `normalize_parser_output(...)` accepts dict/object parser output, applies optional source metadata, and returns a JSON-ready intake record through `build_intake_record(...)`.
 
+Parser contract scenarios exist in:
+
+```text
+tests/fixtures/parser_contract_outputs.py
+tests/test_parser_contract_scenarios.py
+```
+
+They use fake parser outputs only and prove that future parser outputs normalize into intake records and dry-run summaries.
+
 This is a contract only. Future parser implementations may read PDF text, OCR text, email body text, Telegram upload content, or manual JSON, but their output must be structured fields. The parser layer must not make dispatch decisions, send Telegram, write Google Sheets, create DispatchCases, write event logs, or import legacy `app/load_intake`.
 
 ## Record Status

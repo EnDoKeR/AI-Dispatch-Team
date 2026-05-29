@@ -125,6 +125,15 @@ Future parsers may later consume PDF text, OCR text, email body text, Telegram u
 
 The parser boundary must not decide MATCH/BLOCK/REVIEW, send Telegram, write Google Sheets, create DispatchCases, write event logs, or perform storage.
 
+Parser contract scenarios:
+
+```text
+tests/fixtures/parser_contract_outputs.py
+tests/test_parser_contract_scenarios.py
+```
+
+These scenarios are synthetic only. They do not implement parsing and do not use real RateCons.
+
 The manual dry-run CLI can now accept a pasted JSON object:
 
 ```powershell
