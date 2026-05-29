@@ -120,3 +120,63 @@ def build_pasted_text_scenario_report(scenarios):
         "confidence_summary": confidence_summary,
         "parser_warning_summary": parser_warning_summary,
     }
+
+
+def field_list_text(field_names):
+    if not field_names:
+        return "none"
+
+    return ", ".join(field_names)
+
+
+def count_summary_lines(counts):
+    if not counts:
+        return ["- none"]
+
+    return [
+        f"- {key}: {counts[key]}"
+        for key in sorted(counts)
+    ]
+
+
+def format_pasted_text_scenario_report(report):
+    report = report or {}
+    lines = [
+        "PASTED TEXT SCENARIO DRY RUN",
+        f"Total scenarios: {report.get('total_scenarios', 0)}",
+        f"Passed: {report.get('passed', 0)}",
+        f"Failed: {report.get('failed', 0)}",
+        "",
+        "Scenario results:",
+    ]
+
+    for result in report.get("scenario_results", []):
+        outcome = "PASS" if result.get("passed") else "FAIL"
+        scenario_name = result.get("scenario_name", "")
+        label = result.get("scenario_id", "")
+        if scenario_name:
+            label = f"{label} ({scenario_name})"
+        lines.extend(
+            [
+                f"- {label}: {outcome}",
+                f"  Status: {result.get('status', '')}",
+                "  Missing fields: "
+                + field_list_text(result.get("missing_fields", [])),
+                "  Needs-check fields: "
+                + field_list_text(result.get("needs_check_fields", [])),
+                "  Parser warnings: "
+                + field_list_text(result.get("parser_warnings", [])),
+            ]
+        )
+
+    lines.extend(["", "Missing field summary:"])
+    lines.extend(count_summary_lines(report.get("missing_field_summary", {})))
+    lines.append("Needs-check summary:")
+    lines.extend(count_summary_lines(report.get("needs_check_summary", {})))
+    lines.append("Confidence summary:")
+    lines.extend(count_summary_lines(report.get("confidence_summary", {})))
+    lines.append("Parser warning summary:")
+    lines.extend(count_summary_lines(report.get("parser_warning_summary", {})))
+    lines.append("DRY RUN ONLY - synthetic pasted-text scenarios only")
+
+    return "\n".join(lines)

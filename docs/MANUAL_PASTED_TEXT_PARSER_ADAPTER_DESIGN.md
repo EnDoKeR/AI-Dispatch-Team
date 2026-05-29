@@ -237,6 +237,21 @@ py scripts/run_pasted_text_parser_dry_run.py
 
 The CLI supports built-in sample mode or `--text "..."`. It prints extracted fields, field confidence, missing fields, needs-check fields, and final intake status. It does not read files or save records.
 
+Synthetic pasted-text scenario CLI status:
+
+```text
+scripts/run_pasted_text_scenarios.py
+tests/test_pasted_text_scenario_cli.py
+```
+
+Command:
+
+```powershell
+py scripts/run_pasted_text_scenarios.py
+```
+
+This command runs all synthetic pasted-text examples and prints total/pass/fail status, missing-field summary, needs-check summary, confidence summary, and parser-warning summary. It does not read private files.
+
 ## Stop Conditions
 
 Stop and redesign if:
