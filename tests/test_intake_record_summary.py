@@ -138,6 +138,66 @@ class TestIntakeRecordSummary(unittest.TestCase):
         self.assertIn("INTAKE RECORD DRY RUN", text)
         self.assertIn("DRY RUN ONLY - no parser/storage/integration used", text)
 
+    def test_cli_accepts_valid_json_string(self):
+        from scripts import run_intake_record_dry_run
+
+        payload = json.dumps(clean_source())
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = run_intake_record_dry_run.main(["--json", payload])
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Status: READY_FOR_REVIEW", text)
+        self.assertIn("Broker: Acme Logistics", text)
+        self.assertIn("Reference ID: REF-123", text)
+
+    def test_cli_json_missing_fields_are_reported(self):
+        from scripts import run_intake_record_dry_run
+
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = run_intake_record_dry_run.main(
+                ["--json", '{"broker_name": "Acme Logistics"}']
+            )
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Status: MISSING_FIELDS", text)
+        self.assertIn("broker_mc", text)
+        self.assertIn("rate", text)
+
+    def test_cli_invalid_json_exits_safely(self):
+        from scripts import run_intake_record_dry_run
+
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = run_intake_record_dry_run.main(["--json", "{bad json"])
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 1)
+        self.assertIn("Invalid JSON input", text)
+        self.assertIn("DRY RUN ONLY - no parser/storage/integration used", text)
+
+    def test_cli_rejects_json_list_for_first_version(self):
+        from scripts import run_intake_record_dry_run
+
+        output = io.StringIO()
+
+        with redirect_stdout(output):
+            result = run_intake_record_dry_run.main(["--json", "[]"])
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 1)
+        self.assertIn("JSON input must be an object", text)
+
     def test_accepts_already_built_intake_record(self):
         record = build_intake_record(clean_source(), intake_id="INTAKE-1")
         summary = build_intake_record_summary(record)
@@ -166,6 +226,8 @@ class TestIntakeRecordSummary(unittest.TestCase):
             "googlemaps",
             "load_intake",
             "open(",
+            "read_text(",
+            "read_bytes(",
         ]
 
         for text in forbidden:

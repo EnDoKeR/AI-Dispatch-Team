@@ -1107,6 +1107,26 @@ This synthetic scenario validates market context, exit classification, chain sco
 
 Reload-watch boundary tests protect these modules from importing sender, scheduler, Telegram, or DispatchCase layers before those are explicitly wired later.
 
+Current intake / RateCon dry-run foundation:
+
+~~~text
+intake_record.py
+intake_record_summary.py
+intake_scenario_runner.py
+scripts/run_intake_record_dry_run.py
+scripts/run_intake_scenarios.py
+~~~
+
+Manual intake dry-run commands:
+
+~~~powershell
+py scripts/run_intake_record_dry_run.py
+py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
+py scripts/run_intake_scenarios.py
+~~~
+
+This is dry-run only. It normalizes pasted JSON into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, read files, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+
 Current Telegram notifier structure:
 
 ~~~text
@@ -1143,7 +1163,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 729 tests.
+Recent full test discovery passed with 834 tests.
 
 See also:
 

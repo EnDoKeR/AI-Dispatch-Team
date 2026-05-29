@@ -113,6 +113,14 @@ scripts/run_intake_record_dry_run.py
 
 These helpers provide record normalization and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
 
+The manual dry-run CLI can now accept a pasted JSON object:
+
+```powershell
+py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
+```
+
+This is command-line JSON input only. It does not read JSON files, parse PDFs, store intake records, or connect to any live integration.
+
 Synthetic dry-run fixtures now exist in:
 
 ```text
@@ -140,15 +148,15 @@ docs/RATECON_FIXTURE_SAFETY.md
 
 Real RateCons should stay local under `data/private_ratecons/`, which is gitignored.
 
-Next intake target decision:
+Current intake target status:
 
 ```text
-Manual intake dry-run CLI with JSON input
+Manual intake dry-run CLI with JSON input - complete
 ```
 
-This should accept pasted/command-line JSON only and continue to avoid PDF parsing, file reads, storage, Telegram, Gmail/email, Google Sheets, and DispatchCase writes.
+It accepts pasted/command-line JSON only and continues to avoid PDF parsing, file reads, storage, Telegram, Gmail/email, Google Sheets, and DispatchCase writes.
 
-The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
+The next safe decision point is whether to support local JSON file input for dry-run testing. PDF parsing remains out of scope.
 
 ## Mandatory Fields
 

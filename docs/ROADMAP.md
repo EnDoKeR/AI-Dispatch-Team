@@ -216,7 +216,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 729 tests.
+- Recent full test discovery passed with 834 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -422,7 +422,7 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Add manual intake dry-run CLI JSON input support.
+2. Manual intake dry-run CLI JSON input support is complete.
 3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 

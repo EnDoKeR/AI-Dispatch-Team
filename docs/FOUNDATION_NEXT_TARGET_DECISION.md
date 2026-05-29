@@ -189,7 +189,7 @@ Candidate: reload-chain DispatchCase policy audit.
 
 ## Decision
 
-Recommended next mini-block:
+Completed mini-block:
 
 ```text
 Manual intake dry-run CLI with JSON input
@@ -205,6 +205,8 @@ Scope should be:
 - no storage
 - no parser
 - no Telegram/Gmail/Google Sheets/DispatchCase integration
+
+The CLI accepts command-line JSON strings only. JSON file input remains a separate design decision and is not implemented yet.
 
 Recommended second target:
 
