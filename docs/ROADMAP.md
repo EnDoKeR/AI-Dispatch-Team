@@ -406,6 +406,7 @@ Current audit notes:
 
 ~~~text
 docs/ARCHITECTURE_AUDIT.md
+docs/ARCHITECTURE_PACKAGE_LAYOUT.md
 docs/LEGACY_CANDIDATES.md
 docs/LOAD_INTAKE_BOUNDARY_REVIEW.md
 docs/RATECON_INTAKE_WORKFLOW.md
@@ -434,9 +435,11 @@ Recommended order:
 8. Intake record status helper is complete.
 9. Optional CLI save behavior for intake dry-run records is complete.
 10. Intake repository report CLI, parser contract scenarios, and private RateCon testing plan are complete.
-11. Next recommended intake target: private RateCon parser audit before any parser implementation.
-12. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-13. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+11. Architecture package layout proposal is documented.
+12. Next structural target: update development rules, then migrate intake package with compatibility wrappers.
+13. Private RateCon parser audit should wait until package structure is stable.
+14. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+15. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
