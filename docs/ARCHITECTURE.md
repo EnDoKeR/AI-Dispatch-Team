@@ -253,6 +253,22 @@ They must not:
 
 Until explicitly wired later, these helpers calculate current snapshot context only.
 
+Current reload watch boundary:
+
+~~~text
+reload_watch_state.py                      # reload-watch state transition decisions only
+~~~
+
+`reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
+
+It must not:
+
+- send Telegram messages
+- run a scheduler
+- handle Telegram buttons
+- start an automatic watch loop
+- call Google Maps or live DAT/API
+
 Current reload chain boundary:
 
 ~~~text

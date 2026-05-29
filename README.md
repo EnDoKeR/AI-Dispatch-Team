@@ -941,7 +941,7 @@ Completed foundation refactors:
 - `market_snapshot.py` is now a runner/orchestrator around focused snapshot modules.
 - `market_models.py` was reduced by moving decision helpers, serialization, and driver-profile model helpers into focused market modules.
 - `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state/transport/selection modules.
-- Market context foundation helpers now calculate current snapshot baseline, city/state exit context, exit labels, and two-load chain context.
+- Market context foundation helpers now calculate current snapshot baseline, city/state exit context, exit labels, two-load chain context, and reload-watch state decisions.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
 - `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
 - `driver_preference_rules.py` is now an orchestration file around `get_driver_preference_status()`.
@@ -1046,7 +1046,15 @@ market_exit_classifier.py
 chain_scoring.py
 ~~~
 
-These helpers provide context only. They do not yet change Telegram behavior, dispatch decisions, reload-watch lifecycle, load selection, Google Maps, RateCon parsing, or live DAT/API behavior.
+These helpers provide context only. They do not yet change Telegram behavior, dispatch decisions, load selection, scheduler behavior, Telegram buttons, Google Maps, RateCon parsing, or live DAT/API behavior.
+
+Current reload watch state foundation structure:
+
+~~~text
+reload_watch_state.py
+~~~
+
+This helper provides state decisions only. It does not send Telegram messages, handle buttons, run a scheduler, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
 Current Telegram notifier structure:
 
@@ -1083,7 +1091,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 610 tests.
+Recent full test discovery passed with 621 tests.
 
 See also:
 

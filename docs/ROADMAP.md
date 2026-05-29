@@ -205,7 +205,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 610 tests.
+- Recent full test discovery passed with 621 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -280,10 +280,31 @@ Current state:
 - `market_zone_snapshot.py` calculates delivery city/state and state exit-market context.
 - `market_exit_classifier.py` converts baseline + zone context into explainable exit labels only.
 - `chain_scoring.py` scores a two-load inbound + exit chain as context only.
-- These helpers do not change Telegram behavior, dispatch decisions, reload-watch lifecycle, or load selection until explicitly wired later.
+- These helpers do not change Telegram behavior, dispatch decisions, load selection, scheduler behavior, Telegram buttons, or live automation until explicitly wired later.
 - Current market/zone statuses are context labels, not hard business decisions.
 
-### 1.10 Next candidates for hardening
+### 1.10 Completed: Reload watch state foundation
+
+Completed modules:
+
+~~~text
+reload_watch_state.py
+~~~
+
+Completed tests:
+
+~~~text
+test_reload_watch_state.py
+~~~
+
+Current state:
+
+- `reload_watch_state.py` models state-only reload-watch transitions.
+- It answers whether a watch should continue, stop, send a normal status, or allow a critical alert.
+- Muted watches suppress normal status updates but still allow critical alerts.
+- This foundation does not implement scheduler/background automation, Telegram buttons, Telegram messages, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
+
+### 1.11 Next candidates for hardening
 
 Candidate approach:
 
@@ -301,7 +322,7 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 
 Recommended order:
 
-1. Reload watch state foundation.
+1. Continue reload-watch design only in small blocks.
 2. Architecture/import audit.
 3. Review remaining large files.
 4. Choose next target based on layer-boundary risk.

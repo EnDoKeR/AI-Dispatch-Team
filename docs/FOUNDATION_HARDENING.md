@@ -371,7 +371,30 @@ Current state:
 - `market_zone_snapshot.py` calculates delivery city/state and state exit-market context.
 - `market_exit_classifier.py` returns context labels such as `LOW_EXIT_CONFIDENCE`, `CLEAN_EXIT_AVAILABLE`, and `STRONG_PAY_RELOAD_WATCH_RECOMMENDED`.
 - `chain_scoring.py` evaluates only a two-load inbound + exit chain.
-- These modules are foundation/context helpers only. They do not change Telegram behavior, dispatch decisions, reload-watch lifecycle, load selection, or live automation.
+- These modules are foundation/context helpers only. They do not change Telegram behavior, dispatch decisions, load selection, scheduler behavior, Telegram buttons, or live automation.
+
+### Phase 10 - Reload watch state foundation
+
+Status: completed for the current Foundation Hardening scope.
+
+Completed modules:
+
+~~~text
+reload_watch_state.py
+~~~
+
+Completed tests:
+
+~~~text
+test_reload_watch_state.py
+~~~
+
+Current state:
+
+- `reload_watch_state.py` models reload-watch state transitions and alert decisions without side effects.
+- It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
+- Muted watches suppress normal status updates but still allow critical alerts.
+- This foundation does not implement scheduler/background automation, Telegram buttons, Telegram messages, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
 
 ## Definition of done for this sprint
 
@@ -402,8 +425,9 @@ Start with:
 7. Telegram notifier refactor
 8. market model follow-up refactor
 9. market context foundation
+10. reload watch state foundation
 
 Next safe candidates:
 
-1. Reload watch state foundation.
+1. Continue reload-watch design only in small blocks.
 2. Run a fresh architecture/file-size audit before choosing another target.
