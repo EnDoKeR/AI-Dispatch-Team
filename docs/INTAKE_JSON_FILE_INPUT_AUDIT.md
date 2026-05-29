@@ -77,16 +77,18 @@ data/private_intake_records/
 
 ## Decision
 
-Approved next implementation target:
+Completed prerequisite:
 
 ```text
 Intake sample JSON fixture foundation
 ```
 
-Then implement:
+The synthetic sample records now exist under `tests/fixtures/intake_sample_records/`.
+
+Approved next implementation target:
 
 ```text
 Intake dry-run CLI JSON file input
 ```
 
-only after the synthetic sample files exist and remain clearly fake.
+The first implementation should read one explicit local JSON object only.

@@ -1,0 +1,17 @@
+{
+  "source_type": "synthetic_ratecon_json",
+  "source_file_name": "synthetic_clean_ratecon.json",
+  "broker_name": "Synthetic Sample Broker A",
+  "broker_mc": "SYNTH-MC-1001",
+  "rate": 3200,
+  "pickup_location": "Dallas, TX",
+  "pickup_date": "2026-05-30",
+  "pickup_time": "08:00",
+  "delivery_location": "Denver, CO",
+  "delivery_date": "2026-05-31",
+  "delivery_time": "09:00",
+  "commodity": "Steel coils",
+  "weight": 42000,
+  "reference_id": "SYNTH-SAMPLE-001",
+  "equipment": "Conestoga"
+}

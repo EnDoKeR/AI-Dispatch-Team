@@ -1,0 +1,18 @@
+{
+  "source_type": "synthetic_ratecon_json",
+  "source_file_name": "synthetic_special_requirements_needs_check.json",
+  "broker_name": "Synthetic Sample Broker E",
+  "rate": 3400,
+  "pickup_location": "Mobile, AL",
+  "pickup_date": "2026-06-13",
+  "delivery_location": "Columbus, OH",
+  "delivery_date": "2026-06-14",
+  "commodity": "Steel plate",
+  "weight": 45000,
+  "reference_id": "SYNTH-SAMPLE-005",
+  "equipment": "Flatbed",
+  "special_requirements": [
+    "TARPS",
+    "APPOINTMENT_REQUIRED"
+  ]
+}

@@ -216,7 +216,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 834 tests.
+- Recent full test discovery passed with 842 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -424,8 +424,8 @@ Recommended order:
 
 1. Keep reload-watch paused before live wiring.
 2. Manual intake dry-run CLI JSON input support is complete.
-3. Add synthetic sample JSON fixtures for intake dry-run file-input preparation.
-4. Add explicit `--json-file` support only after fixtures exist.
+3. Synthetic sample JSON fixtures for intake dry-run file-input preparation are complete.
+4. Add explicit `--json-file` support for one local JSON object only.
 5. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
 6. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 

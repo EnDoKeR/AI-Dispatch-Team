@@ -1,0 +1,14 @@
+{
+  "source_type": "synthetic_ratecon_json",
+  "source_file_name": "synthetic_missing_broker_mc.json",
+  "broker_name": "Synthetic Sample Broker B",
+  "rate": 2800,
+  "pickup_location": "Laredo, TX",
+  "pickup_date": "2026-06-01",
+  "delivery_location": "Atlanta, GA",
+  "delivery_date": "2026-06-02",
+  "commodity": "Pipe",
+  "weight": 39000,
+  "reference_id": "SYNTH-SAMPLE-002",
+  "equipment": "Flatbed"
+}

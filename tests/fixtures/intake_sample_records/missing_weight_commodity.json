@@ -1,0 +1,13 @@
+{
+  "source_type": "synthetic_ratecon_json",
+  "source_file_name": "synthetic_missing_weight_commodity.json",
+  "broker_name": "Synthetic Sample Broker C",
+  "broker_mc": "SYNTH-MC-1003",
+  "rate": 2950,
+  "pickup_location": "Houston, TX",
+  "pickup_date": "2026-06-03",
+  "delivery_location": "Memphis, TN",
+  "delivery_date": "2026-06-04",
+  "reference_id": "SYNTH-SAMPLE-003",
+  "equipment": "Flatbed"
+}

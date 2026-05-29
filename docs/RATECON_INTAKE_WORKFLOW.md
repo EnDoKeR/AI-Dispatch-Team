@@ -130,6 +130,15 @@ tests/test_synthetic_intake_records.py
 
 They contain fake RateCon-like records only. They do not contain real broker, customer, driver, contact, or RateCon data.
 
+Synthetic JSON sample records now exist in:
+
+```text
+tests/fixtures/intake_sample_records/
+tests/test_intake_sample_json_fixtures.py
+```
+
+These files are plain fake JSON objects for future `--json-file` dry-run testing. They are not read by the CLI yet.
+
 Synthetic scenario runner:
 
 ```text
@@ -164,7 +173,7 @@ JSON file input policy is documented in:
 docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 ```
 
-The approved path is synthetic sample JSON fixtures first, then explicit `--json-file` support for one local JSON object only.
+The synthetic sample JSON fixtures now exist. The next approved path is explicit `--json-file` support for one local JSON object only.
 
 ## Mandatory Fields
 

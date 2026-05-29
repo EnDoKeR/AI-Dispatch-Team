@@ -1,0 +1,13 @@
+{
+  "source_type": "synthetic_ratecon_json",
+  "source_file_name": "synthetic_missing_pickup_delivery_dates.json",
+  "broker_name": "Synthetic Sample Broker D",
+  "broker_mc": "SYNTH-MC-1004",
+  "rate": 3100,
+  "pickup_location": "Phoenix, AZ",
+  "delivery_location": "Dallas, TX",
+  "commodity": "Machinery",
+  "weight": 36000,
+  "reference_id": "SYNTH-SAMPLE-004",
+  "equipment": "Conestoga"
+}

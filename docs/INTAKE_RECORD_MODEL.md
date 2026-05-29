@@ -253,6 +253,15 @@ tests/test_synthetic_intake_records.py
 
 The fixtures cover clean records, missing broker fields, missing dates, missing weight, missing commodity, missing reference id, special requirements, weak confidence fields, and missing rate. They are fake data only.
 
+Plain synthetic JSON sample records also exist for future CLI file-input dry-runs:
+
+```text
+tests/fixtures/intake_sample_records/
+tests/test_intake_sample_json_fixtures.py
+```
+
+They are fake JSON objects only. The CLI does not read them yet.
+
 The fixtures are exercised by:
 
 ```text

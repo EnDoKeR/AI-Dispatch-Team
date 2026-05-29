@@ -1125,7 +1125,7 @@ py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistic
 py scripts/run_intake_scenarios.py
 ~~~
 
-This is dry-run only. It normalizes pasted JSON into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, read files, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+This is dry-run only. It normalizes pasted JSON into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, read files, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
 Current Telegram notifier structure:
 
@@ -1163,7 +1163,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 834 tests.
+Recent full test discovery passed with 842 tests.
 
 See also:
 
