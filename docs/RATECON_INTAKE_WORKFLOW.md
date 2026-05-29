@@ -106,18 +106,20 @@ The first implementation should not:
 Current dry-run foundation:
 
 ```text
-app/market_intelligence/intake_record.py
-app/market_intelligence/intake_parser_contract.py
-app/market_intelligence/intake_record_summary.py
+app/market_intelligence/intake/record.py
+app/market_intelligence/intake/parser_contract.py
+app/market_intelligence/intake/summary.py
 scripts/run_intake_record_dry_run.py
 ```
 
 These helpers provide record normalization, parser-output contract normalization, and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
 
+Old root-level intake module paths remain compatibility wrappers for existing imports.
+
 Parser contract foundation:
 
 ```text
-app/market_intelligence/intake_parser_contract.py
+app/market_intelligence/intake/parser_contract.py
 tests/test_intake_parser_contract.py
 ```
 
@@ -177,7 +179,7 @@ These files are plain fake JSON objects used by tests and available for `--json-
 Synthetic scenario runner:
 
 ```text
-app/market_intelligence/intake_scenario_runner.py
+app/market_intelligence/intake/scenario_runner.py
 scripts/run_intake_scenarios.py
 tests/test_intake_scenario_runner.py
 ```
@@ -221,7 +223,7 @@ The approved first storage layer is a small gitignored JSON list at `data/intake
 Implemented repository foundation:
 
 ```text
-app/market_intelligence/intake_record_repository.py
+app/market_intelligence/intake/repository.py
 tests/test_intake_record_repository.py
 ```
 

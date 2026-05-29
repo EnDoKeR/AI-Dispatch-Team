@@ -1110,13 +1110,15 @@ Reload-watch boundary tests protect these modules from importing sender, schedul
 Current intake / RateCon dry-run foundation:
 
 ~~~text
-intake_record.py
-intake_parser_contract.py
-intake_record_summary.py
-intake_scenario_runner.py
+app/market_intelligence/intake/record.py
+app/market_intelligence/intake/parser_contract.py
+app/market_intelligence/intake/summary.py
+app/market_intelligence/intake/scenario_runner.py
 scripts/run_intake_record_dry_run.py
 scripts/run_intake_scenarios.py
 ~~~
+
+Legacy intake import paths remain as compatibility wrappers for existing tests and scripts.
 
 Manual intake dry-run commands:
 
@@ -1173,7 +1175,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 904 tests.
+Recent full test discovery passed with 908 tests.
 
 See also:
 

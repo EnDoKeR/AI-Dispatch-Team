@@ -216,7 +216,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 881 tests.
+- Recent full test discovery passed with 908 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -436,10 +436,12 @@ Recommended order:
 9. Optional CLI save behavior for intake dry-run records is complete.
 10. Intake repository report CLI, parser contract scenarios, and private RateCon testing plan are complete.
 11. Architecture package layout proposal is documented.
-12. Next structural target: update development rules, then migrate intake package with compatibility wrappers.
-13. Private RateCon parser audit should wait until package structure is stable.
-14. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-15. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+12. Development structure rules are updated.
+13. Intake package migration is complete with compatibility wrappers.
+14. Next structural target: add intake package boundary tests.
+15. Private RateCon parser audit should wait until package structure is fully closed out.
+16. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+17. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

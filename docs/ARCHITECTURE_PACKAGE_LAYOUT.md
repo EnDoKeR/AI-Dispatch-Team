@@ -36,20 +36,20 @@ Does not belong here:
 - Gmail/email integration
 - load scoring or dispatch decisions
 
-Current files that may move here first:
+Current package files:
 
-- `intake_record.py`
-- `intake_parser_contract.py`
-- `intake_record_summary.py`
-- `intake_record_repository.py`
-- `intake_record_status.py`
-- `intake_record_report.py`
-- `intake_scenario_runner.py`
+- `intake/record.py`
+- `intake/parser_contract.py`
+- `intake/summary.py`
+- `intake/repository.py`
+- `intake/status.py`
+- `intake/report.py`
+- `intake/scenario_runner.py`
 
 Migration priority:
 
 ```text
-Safest first migration target.
+Migrated first with compatibility wrappers at the old import paths.
 ```
 
 ### `app/market_intelligence/telegram/`
@@ -289,7 +289,7 @@ All package migrations must follow this pattern:
 
 ## First Migration Target
 
-The first migration target should be:
+The first migration target was:
 
 ```text
 app/market_intelligence/intake/
@@ -301,6 +301,13 @@ Reasons:
 - modules are mostly pure and dry-run only
 - fewer live call paths than Telegram, DispatchCase, reload-watch, or memory
 - old import wrappers can preserve compatibility
+
+Migration status:
+
+- intake foundation modules now live in `app/market_intelligence/intake/`
+- old root-level intake module paths remain thin wrappers
+- scripts and existing tests continue to use old import paths safely until a later import cleanup
+- Telegram, DispatchCase, reload-watch, chains, memory, and market-context packages are not migrated yet
 
 ## Packages Not To Migrate Yet
 

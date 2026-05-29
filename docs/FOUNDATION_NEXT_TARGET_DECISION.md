@@ -125,6 +125,34 @@ Do not build next:
 - reload-chain metadata
 - synthetic 100-200 load dataset
 
+## Architecture Structure Update
+
+Current structural state:
+
+```text
+app/market_intelligence/intake/
+```
+
+The intake foundation modules now live in a dedicated package:
+
+- `record.py`
+- `parser_contract.py`
+- `summary.py`
+- `repository.py`
+- `status.py`
+- `report.py`
+- `scenario_runner.py`
+
+Old root-level intake module paths remain thin compatibility wrappers so existing scripts and tests keep working during the package migration phase.
+
+Next structural target:
+
+```text
+Intake package boundary tests
+```
+
+This should protect the new package from Telegram, DispatchCase, parser/OCR, Gmail/email, Google Sheets, scheduler, DAT/API, Google Maps, and legacy `app/load_intake` imports before any private RateCon parser audit begins.
+
 ## Decision
 
 Implemented:

@@ -203,7 +203,7 @@ Before implementation, add focused tests for:
 Implemented first helper:
 
 ```text
-app/market_intelligence/intake_record.py
+app/market_intelligence/intake/record.py
 ```
 
 Focused tests:
@@ -227,7 +227,7 @@ Current helper remains pure. It does not parse PDFs, read/write files, send Tele
 Implemented parser boundary helper:
 
 ```text
-app/market_intelligence/intake_parser_contract.py
+app/market_intelligence/intake/parser_contract.py
 tests/test_intake_parser_contract.py
 ```
 
@@ -249,7 +249,7 @@ This is a contract only. Future parser implementations may read PDF text, OCR te
 Implemented pure status helper:
 
 ```text
-app/market_intelligence/intake_record_status.py
+app/market_intelligence/intake/status.py
 tests/test_intake_record_status.py
 ```
 
@@ -266,7 +266,7 @@ This status is intake-review context only. It is not a dispatch MATCH/BLOCK/REVI
 Implemented dry-run summary layer:
 
 ```text
-app/market_intelligence/intake_record_summary.py
+app/market_intelligence/intake/summary.py
 scripts/run_intake_record_dry_run.py
 tests/test_intake_record_summary.py
 ```
@@ -305,9 +305,23 @@ They are fake JSON objects only and can be used with the dry-run CLI `--json-fil
 The fixtures are exercised by:
 
 ```text
-app/market_intelligence/intake_scenario_runner.py
+app/market_intelligence/intake/scenario_runner.py
 scripts/run_intake_scenarios.py
 tests/test_intake_scenario_runner.py
 ```
 
 This runner is dry-run only and uses synthetic data only.
+
+Compatibility note:
+
+```text
+app/market_intelligence/intake_record.py
+app/market_intelligence/intake_parser_contract.py
+app/market_intelligence/intake_record_summary.py
+app/market_intelligence/intake_record_repository.py
+app/market_intelligence/intake_record_status.py
+app/market_intelligence/intake_record_report.py
+app/market_intelligence/intake_scenario_runner.py
+```
+
+These old import paths are thin wrappers around the package modules so existing scripts/tests remain stable.
