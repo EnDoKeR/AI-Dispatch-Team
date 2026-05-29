@@ -16,6 +16,18 @@ from app.market_intelligence.broker_memory_queries import (
 )
 
 
+__all__ = [
+    "classify_broker_from_counts",
+    "connect_db",
+    "format_broker_memory_status",
+    "get_broker_case_counts",
+    "get_broker_feedback_counts",
+    "get_broker_memory_status",
+    "is_valid_mc",
+    "normalize_mc",
+]
+
+
 def get_broker_memory_status(broker_mc, db_path=SQLITE_DB_FILE):
     broker_mc = normalize_mc(broker_mc)
 
