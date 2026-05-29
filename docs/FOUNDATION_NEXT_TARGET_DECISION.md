@@ -145,7 +145,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 Recommended next target:
 
 ```text
-Manual intake dry-run summary helper/CLI
+Synthetic intake scenario records foundation
 ```
 
 Only after confirmation.

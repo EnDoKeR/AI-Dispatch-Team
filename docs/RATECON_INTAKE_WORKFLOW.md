@@ -103,6 +103,16 @@ The first implementation should not:
 - call OCR services
 - expand the existing PDF parser
 
+Current dry-run foundation:
+
+```text
+app/market_intelligence/intake_record.py
+app/market_intelligence/intake_record_summary.py
+scripts/run_intake_record_dry_run.py
+```
+
+These helpers provide record normalization and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
+
 The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
 
 ## Mandatory Fields

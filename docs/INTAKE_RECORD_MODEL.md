@@ -221,3 +221,17 @@ Expected helper responsibilities:
 - keep output JSON-serializable
 
 Current helper remains pure. It does not parse PDFs, read/write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, import legacy `app/load_intake`, or make dispatch decisions.
+
+## Manual Dry-Run Summary
+
+Implemented dry-run summary layer:
+
+```text
+app/market_intelligence/intake_record_summary.py
+scripts/run_intake_record_dry_run.py
+tests/test_intake_record_summary.py
+```
+
+The summary layer normalizes source data through `build_intake_record(...)`, returns structured status/missing/needs-check data, and formats a human-readable dry-run summary.
+
+It is still manual and local only. It does not parse PDFs, read or write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, or import legacy `app/load_intake`.
