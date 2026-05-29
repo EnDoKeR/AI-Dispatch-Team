@@ -1058,6 +1058,8 @@ reload_watch_action_planner.py
 
 These helpers provide state decisions, structured event payloads, and side-effect-free action plans only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
+Reload-watch Telegram text formatting is isolated in `telegram_watch_formatter.py`. It formats structured plans and payloads only; it does not send messages or decide whether a message should be sent.
+
 Current Telegram notifier structure:
 
 ~~~text
@@ -1070,6 +1072,7 @@ telegram_opportunity_formatter.py
 telegram_review_once_formatter.py
 telegram_search_health_formatter.py
 telegram_chain_formatter.py
+telegram_watch_formatter.py
 telegram_broker_block.py
 telegram_sent_state.py
 telegram_text_helpers.py
@@ -1093,7 +1096,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 638 tests.
+Recent full test discovery passed with 648 tests.
 
 See also:
 

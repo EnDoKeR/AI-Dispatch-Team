@@ -259,6 +259,7 @@ Current reload watch boundary:
 reload_watch_state.py                      # reload-watch state transition decisions only
 reload_watch_event_builder.py              # structured reload-watch event payloads only
 reload_watch_action_planner.py             # side-effect-free reload-watch action plans only
+telegram_watch_formatter.py                # structured reload-watch plan/payload to text only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -266,6 +267,8 @@ reload_watch_action_planner.py             # side-effect-free reload-watch actio
 `reload_watch_event_builder.py` builds structured payloads for future reload-watch events. It does not write DispatchCase events, parse Telegram text, or persist anything.
 
 `reload_watch_action_planner.py` combines state decisions and structured event payloads into explicit action plans. It does not send messages, write events, or decide Telegram text.
+
+`telegram_watch_formatter.py` formats structured reload-watch action plans into Telegram text. It does not decide whether to send, import Telegram senders, parse Telegram text, or attach buttons.
 
 It must not:
 
@@ -293,6 +296,7 @@ telegram_sender.py                         # .env loading and Telegram HTTP send
 telegram_load_selection.py                 # load dedupe/limit/sent-history filtering
 telegram_chain_selection.py                # reload-chain dedupe/limit/sent-history filtering
 telegram_*_formatter.py                    # message formatting only
+telegram_watch_formatter.py                # reload-watch message formatting only
 telegram_sent_state.py                     # sent-alert text-file state
 ~~~
 
