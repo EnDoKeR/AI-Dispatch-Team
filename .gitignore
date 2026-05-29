@@ -53,6 +53,8 @@ data/sent_reload_chain_alerts.txt
 # Rate confirmations / private documents
 data/ratecons/
 data/ratecons/**
+data/private_ratecons/
+data/private_ratecons/**
 
 # Simulation runtime data
 data/simulation/current_simulated_loads.json

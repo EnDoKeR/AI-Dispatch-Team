@@ -132,6 +132,14 @@ tests/test_intake_scenario_runner.py
 
 The runner processes the synthetic fixtures through the intake record and dry-run summary helpers, then reports scenario pass/fail status, missing-field counts, and needs-check counts. It does not parse PDFs, read real documents, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events.
 
+Private real-document safety is documented in:
+
+```text
+docs/RATECON_FIXTURE_SAFETY.md
+```
+
+Real RateCons should stay local under `data/private_ratecons/`, which is gitignored.
+
 The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
 
 ## Mandatory Fields

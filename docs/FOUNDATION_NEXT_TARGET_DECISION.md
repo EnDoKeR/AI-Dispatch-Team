@@ -145,7 +145,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 Recommended next target:
 
 ```text
-Private RateCon fixture safety / gitignore foundation
+Choose next intake implementation target
 ```
 
 Only after confirmation.
