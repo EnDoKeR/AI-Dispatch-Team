@@ -227,6 +227,33 @@ Before any wrapper/helper implementation:
 - no runtime writer imports are introduced;
 - full unittest discovery remains green.
 
+## Event Builder Migration Safety Rules
+
+Future event builder migration must follow these rules:
+
+1. Never remove existing event fields without compatibility tests.
+2. Never rename `event_type` values without a taxonomy update and migration note.
+3. Any normalized payload must coexist with old fields before it replaces anything.
+4. Runtime event builders must not import Telegram sender/notifier modules.
+5. Runtime event builders must not call external APIs.
+6. DecisionResult can only be embedded after a report-only preview and an explicit wiring block.
+7. Search/reporting events must not become load-level events accidentally.
+8. `MARKET_SNAPSHOT` and `SEARCH_HEALTH_CHECK` remain reporting-only until a SearchSession entity exists.
+9. Reload-watch remains dry-run/manual until a separate accepted wiring block.
+10. Builder migration must include focused tests, old-shape preservation tests, normalized-view tests, full unittest discovery, and docs updates.
+
+Minimum test coverage for any builder migration:
+
+- existing runtime event envelope keys remain present;
+- existing payload field names remain present;
+- `event_type` is known in `case_event_types.py`;
+- event group is correct;
+- normalized view is JSON-serializable;
+- legacy event is JSON-serializable;
+- input event is not mutated;
+- DispatchCase builder tests remain green;
+- reporting-only outbox policy remains protected.
+
 ## Current Recommendation
 
 Next safe implementation target:

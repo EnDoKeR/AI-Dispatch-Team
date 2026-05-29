@@ -369,3 +369,31 @@ Update README when:
 - project direction changes
 
 Detailed architecture, policies, migration plans, safety rules, and long decisions belong in `docs/`, not README.
+
+---
+
+## 17. Event builder migration rule
+
+DispatchCase/Event Timeline migration must preserve current runtime event contracts until an explicit accepted migration block changes them.
+
+Rules:
+
+- never remove existing event fields without compatibility tests
+- never rename event types without updating `case_event_types.py` and documenting the migration
+- normalized payloads must coexist with old fields before they replace anything
+- runtime event builders must not import Telegram sender/notifier modules
+- runtime event builders must not call external APIs
+- DecisionResult can only be embedded after report-only preview and explicit wiring approval
+- search/reporting events must not become load-level events accidentally
+- `MARKET_SNAPSHOT` and `SEARCH_HEALTH_CHECK` remain reporting-only until a SearchSession entity exists
+- reload-watch remains dry-run/manual until a separate accepted wiring block
+
+Every event builder migration must include:
+
+- focused tests
+- old shape preservation tests
+- normalized view tests
+- full unittest discovery
+- docs update
+
+Do not replace `case_event_builder.py` as a shortcut. Prefer wrappers and report-only compatibility views first.
