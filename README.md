@@ -1077,6 +1077,7 @@ See also:
 
 - `docs/ARCHITECTURE.md`
 - `docs/FOUNDATION_HARDENING.md`
+- `docs/LEGACY_CANDIDATES.md`
 - `docs/DEVELOPMENT_RULES.md`
 - `docs/ROADMAP.md`
 - `docs/TESTING.md`

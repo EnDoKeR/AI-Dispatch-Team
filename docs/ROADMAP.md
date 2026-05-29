@@ -260,6 +260,12 @@ Candidate approach:
 Run a fresh architecture/file-size audit before choosing another target.
 ~~~
 
+Current audit notes:
+
+~~~text
+docs/LEGACY_CANDIDATES.md
+~~~
+
 Recommended order:
 
 1. Documentation update.
