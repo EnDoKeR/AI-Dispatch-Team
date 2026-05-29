@@ -142,10 +142,91 @@ tests/test_intake_record.py
 
 The helper is pure and does not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, DAT/API, Google Maps, scheduler, or legacy `app/load_intake` behavior.
 
-Recommended next target:
+## Intake Foundation Status
 
 ```text
-Choose next intake implementation target
+JSON-ready intake record helper - complete
+Manual intake dry-run summary helper/CLI - complete
+Synthetic intake fixtures - complete
+Synthetic intake scenario runner - complete
+Private RateCon fixture safety - complete
 ```
 
-Only after confirmation.
+## Next Target Evaluation
+
+Candidate: manual intake dry-run CLI with JSON input.
+
+- Recommended next.
+- Safe because it can accept typed/pasted JSON data without parsing PDFs.
+- Useful because future parsers, Telegram upload handlers, and email intake can all target the same record shape.
+- Should not read real PDF files or write storage.
+
+Candidate: simple JSON repository for intake records.
+
+- Good second target.
+- Should wait until manual JSON input is proven useful.
+- Would be local JSON persistence only, not SQLite/DispatchCase.
+
+Candidate: parser interface contract only.
+
+- Useful after JSON input CLI.
+- Should define input/output interface without implementing PDF parsing.
+
+Candidate: Telegram upload design audit.
+
+- Not next.
+- Should wait until manual JSON dry-run and parser interface contract are stable.
+
+Candidate: RateCon parser audit.
+
+- Not next.
+- Should wait until manual JSON dry-run and parser interface contract are stable.
+
+Candidate: reload-chain DispatchCase policy audit.
+
+- Still important.
+- Keep separate from intake work and do before reload-chain metadata wiring.
+
+## Decision
+
+Recommended next mini-block:
+
+```text
+Manual intake dry-run CLI with JSON input
+```
+
+Scope should be:
+
+- accept JSON from a command-line string only
+- normalize through `build_intake_record(...)`
+- summarize through `build_intake_record_summary(...)`
+- print dry-run output
+- no file input
+- no storage
+- no parser
+- no Telegram/Gmail/Google Sheets/DispatchCase integration
+
+Recommended second target:
+
+```text
+Parser interface contract
+```
+
+Only after the JSON-input CLI is accepted.
+
+## Still Not Next
+
+Do not build next:
+
+- live PDF parsing
+- OCR
+- Telegram upload handling
+- Gmail/email ingestion
+- Google Sheets export
+- DispatchCase writes
+- event logger writes
+- DAT/API
+- Google Maps
+- scheduler/background processing
+- reload-chain metadata
+- synthetic 100-200 load dataset

@@ -140,6 +140,14 @@ docs/RATECON_FIXTURE_SAFETY.md
 
 Real RateCons should stay local under `data/private_ratecons/`, which is gitignored.
 
+Next intake target decision:
+
+```text
+Manual intake dry-run CLI with JSON input
+```
+
+This should accept pasted/command-line JSON only and continue to avoid PDF parsing, file reads, storage, Telegram, Gmail/email, Google Sheets, and DispatchCase writes.
+
 The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
 
 ## Mandatory Fields

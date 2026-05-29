@@ -422,7 +422,7 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Choose the next intake implementation target now that dry-run summary, synthetic scenarios, and fixture safety are in place.
+2. Add manual intake dry-run CLI JSON input support.
 3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -747,5 +747,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: choose next intake implementation target.
+4. Recommended next target: manual intake dry-run CLI with JSON input.
 5. Avoid new large files by default.
