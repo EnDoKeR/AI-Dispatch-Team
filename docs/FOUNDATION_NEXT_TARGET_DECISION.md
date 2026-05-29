@@ -1340,6 +1340,57 @@ Not recommended next:
 - synthetic 100-200 load dataset
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
 
+## Case Event Builder Migration Plan Closeout
+
+Completed:
+
+- migration strategy doc: `docs/CASE_EVENT_BUILDER_MIGRATION_PLAN.md`
+- event builder migration safety rules in `docs/DEVELOPMENT_RULES.md`
+- normalized wrapper design audit
+- DecisionResult event wiring prerequisites
+
+Recommended next target:
+
+```text
+normalized event wrapper helper, report-only
+```
+
+Why:
+
+- the migration plan selected wrapper-first as the safest path
+- the helper can preserve the legacy event dict while producing a normalized/base-payload-compatible view
+- it can stay report-only and avoid DispatchCase runtime changes
+- it prepares event reports to understand both current and future shapes
+
+Suggested scope:
+
+```text
+app/market_intelligence/case_event_normalizer.py
+tests/test_case_event_normalizer.py
+```
+
+Recommended second target:
+
+```text
+event report support for wrapper output
+```
+
+Why:
+
+- once wrapper output exists, reports can summarize both legacy and normalized payload views
+- should still avoid runtime event writes
+
+Not recommended next:
+
+- `case_event_builder.py` replacement
+- runtime DecisionResult writes
+- DispatchCase build/update behavior changes
+- SearchSession implementation
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- synthetic 100-200 load dataset
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
 Recommended second target:
 
 ```text

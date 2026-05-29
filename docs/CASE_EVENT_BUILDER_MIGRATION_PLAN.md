@@ -459,3 +459,55 @@ normalized event wrapper helper, report-only
 ```
 
 This should accept existing event dicts and return a normalized report view while leaving runtime event builders untouched.
+
+## Migration Plan Closeout
+
+Completed planning:
+
+- current builder runtime contract documented
+- migration strategies evaluated
+- full replacement rejected for now
+- wrapper-first strategy selected
+- migration safety rules documented
+- normalized wrapper return shape proposed
+- DecisionResult event wiring prerequisites documented
+
+Recommended next implementation target:
+
+```text
+normalized event wrapper helper, report-only
+```
+
+Suggested first helper:
+
+```text
+app/market_intelligence/case_event_normalizer.py
+```
+
+Suggested first tests:
+
+```text
+tests/test_case_event_normalizer.py
+```
+
+Initial scope:
+
+- accept existing event dict
+- return `legacy_payload`
+- return `normalized_payload`
+- attach `event_group`
+- move identity fields into `related_ids`
+- place current `payload` under normalized `details`
+- add warnings for missing case ID, timestamp, source, or unknown event type
+- avoid mutation
+- stay JSON-serializable
+- stay report-only
+
+Still not allowed:
+
+- no runtime event writing
+- no DispatchCase build/match/update changes
+- no replacement of `case_event_builder.py`
+- no DecisionResult event writes
+- no Telegram behavior changes
+- no storage reads/writes

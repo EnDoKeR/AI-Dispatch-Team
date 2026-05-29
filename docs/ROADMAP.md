@@ -472,9 +472,10 @@ Recommended order:
 41. Event Timeline foundation helpers and synthetic report CLI are complete.
 42. DispatchCase event builder compatibility audit/reporting is complete.
 43. Report-only DecisionResult timeline preview is complete.
-44. Next recommended backend target: case_event_builder migration plan, docs-only first.
-45. Recommended follow-up: event payload wrapper around existing builder, no runtime wiring.
-46. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+44. case_event_builder migration plan is complete.
+45. Next recommended backend target: normalized event wrapper helper, report-only.
+46. Recommended follow-up: event report support for wrapper output.
+47. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -624,6 +625,22 @@ case_event_builder migration plan
 ```
 
 This should be docs-only. It should decide how to preserve the existing runtime event envelope while preparing any future wrapper or nested DecisionResult extension.
+
+Completed migration-plan target:
+
+```text
+case_event_builder migration plan
+```
+
+The plan selects a wrapper-first path. Existing `case_event_builder.py` remains the runtime source and the current event envelope stays stable.
+
+Next backend target:
+
+```text
+normalized event wrapper helper, report-only
+```
+
+This should accept existing event dicts and return `{legacy_payload, normalized_payload, warnings}` without writing events or changing runtime DispatchCase behavior.
 
 ---
 
