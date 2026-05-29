@@ -1067,11 +1067,11 @@ reload_chain_scoring.py
 Current testing baseline:
 
 ~~~powershell
-py -m compileall app scripts main.py test_sheet_connection.py
+py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 545 tests.
+Recent full test discovery passed with 547 tests.
 
 See also:
 

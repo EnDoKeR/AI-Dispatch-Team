@@ -32,11 +32,11 @@ docs/DEVELOPMENT_RULES.md
 Latest verified baseline:
 
 ```powershell
-py -m compileall app scripts main.py test_sheet_connection.py
+py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ```
 
-Recent full test discovery passed with 545 tests.
+Recent full test discovery passed with 547 tests.
 
 ---
 
@@ -102,7 +102,7 @@ MANUAL INTEGRATION / MOVE CANDIDATE
 Files:
 
 ```text
-test_sheet_connection.py
+scripts/manual_test_sheet_connection.py
 scripts/append_document_test_load.py
 scripts/import_ratecon.py
 app/load_intake/sheet_writer.py
@@ -113,7 +113,7 @@ Why this is flagged:
 - These files import `gspread`.
 - They use Google service-account credentials.
 - They can write to a real Google Sheet.
-- `test_sheet_connection.py` is named like a test but behaves like a manual integration script.
+- `scripts/manual_test_sheet_connection.py` is a manual integration script and should not be treated as a unit test.
 - These files should not run as unit tests.
 
 Do not do yet:
@@ -124,10 +124,10 @@ Do not do yet:
 
 Safe next steps:
 
-1. Move `test_sheet_connection.py` to `scripts/manual_test_sheet_connection.py`.
-2. Keep the standard compile command updated after the move.
-3. Add a clear `if __name__ == "__main__":` entry point if missing.
-4. Read spreadsheet IDs and credentials paths from environment/config where practical.
+1. Keep the standard compile command pointed at `app scripts main.py`.
+2. Keep a clear `if __name__ == "__main__":` entry point.
+3. Read spreadsheet IDs and credentials paths from environment/config where practical.
+4. Do not run this script as part of automated tests.
 
 ---
 
@@ -230,10 +230,9 @@ Safe next steps:
 Use small documentation and safety blocks:
 
 1. Document legacy candidates. Completed by this file.
-2. Move `test_sheet_connection.py` to a manual script path.
-3. Add import tests for remaining `app/load_intake` modules.
-4. Decide whether `app/load_intake/parser.py` should become a pure ratecon intake parser.
-5. Clean `.gitignore`.
-6. Plan encoding cleanup with tests.
+2. Add import tests for remaining `app/load_intake` modules.
+3. Decide whether `app/load_intake/parser.py` should become a pure ratecon intake parser.
+4. Clean `.gitignore`.
+5. Plan encoding cleanup with tests.
 
 Do not add DAT/API, dashboard, auto-booking, Observer, or live automation as part of this cleanup.

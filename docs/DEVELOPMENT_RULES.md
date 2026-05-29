@@ -64,7 +64,7 @@ Before moving risky logic:
 Standard checks:
 
 ~~~powershell
-py -m compileall app scripts main.py test_sheet_connection.py
+py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 git --no-pager diff --check
 git status

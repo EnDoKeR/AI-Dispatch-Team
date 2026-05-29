@@ -41,7 +41,7 @@ cd C:\Projects\AI-Dispatch-Team
 Compile check:
 
 ```powershell
-py -m compileall app scripts main.py test_sheet_connection.py
+py -m compileall app scripts main.py
 ```
 
 Build DispatchCases:
