@@ -420,10 +420,283 @@ Needed before metadata/case wiring:
 
 ## Recommended Next Policy Work
 
-Next mini-block:
+Policy proposal mini-block:
 
 ```text
 DispatchCase/Event ownership policy proposal
 ```
 
 It should define stable ownership categories before any new runtime case-writing behavior is added.
+
+## Event Ownership Policy Proposal
+
+This section proposes ownership rules for future case/event work. It is documentation only and does not change runtime behavior.
+
+### Ownership Principle
+
+Every record or event should have one clear owner:
+
+- load-level DispatchCase
+- future search/session entity
+- document/intake evidence record
+- reporting-only output
+- repository/storage record
+
+If ownership is unclear, keep the record reporting-only until a separate policy is accepted.
+
+## 1. Load-level DispatchCase Events
+
+Load-level events belong on one specific freight opportunity/load case.
+
+Current load-level event types:
+
+- `AI_DECISION_CREATED`
+- `TELEGRAM_ALERT_SENT`
+- `DISPATCHER_FEEDBACK_ADDED`
+- `RATECON_RECEIVED`
+- `LOAD_APPEARED` when matched to an existing case
+
+Future load-level event types may include:
+
+- `LOAD_UPDATED`
+- `LOAD_REMOVED`
+- `BROKER_CALLED`
+- `SENT_TO_DRIVER`
+- `DRIVER_REJECTED`
+- `BOOKED`
+- `COVERED`
+- `PICKUP_CONFIRMED`
+- `DELIVERY_CONFIRMED`
+
+Rules:
+
+- event must have a credible load identity
+- prefer reference ID or load ID
+- lane-only matching must be conservative
+- case status changes must be explicit and tested
+- final outcomes must not be downgraded by later working events
+
+Before adding any load-level event:
+
+- add focused event builder tests
+- add case builder/matcher tests
+- add status transition tests if the event can affect status
+- prove `LOAD_OPPORTUNITY` and `REVIEW_ONCE` behavior remains unchanged
+
+## 2. Future Search/session-level Events
+
+Search/session-level events describe driver/search state, not one load.
+
+Future candidate entity:
+
+```text
+DispatchSearchSession
+```
+
+Future event types may include:
+
+- `MARKET_SNAPSHOT_SENT`
+- `SEARCH_HEALTH_CHECK_SENT`
+- `NO_CLEAN_MATCHES_FOUND`
+- `SEARCH_SETTINGS_CHANGED`
+- `SEARCH_STARTED`
+- `SEARCH_STOPPED`
+- `SEARCH_PAUSED`
+- `SEARCH_RESUMED`
+- `RELOAD_WATCH_STATUS_SENT` if treated as search/watch-level later
+
+Current policy:
+
+- no `DispatchSearchSession` exists
+- market summaries remain outbox/reporting-only
+- search health checks remain outbox/reporting-only
+
+Before adding search/session-level events:
+
+- define session IDs
+- define whether sessions are per driver, per active search request, or per search window
+- define storage location
+- add tests proving market/search records do not create load-level cases
+- add replay/report policy
+
+## 3. Reporting-only Records
+
+Reporting-only records are useful for audit and debugging but should not create cases/events.
+
+Current reporting-only records:
+
+- `MARKET_SNAPSHOT` outbox records
+- `SEARCH_HEALTH_CHECK` outbox records
+- dry-run scenario outputs
+- reload-watch manual/dry-run records
+- intake dry-run summaries
+- parser scenario reports
+- DecisionEngine scenario reports
+- DecisionEngine adapter dry-run output
+
+Rules:
+
+- keep them out of load-level case creation
+- do not infer cases from empty load fields
+- do not attach them by accidental lane text
+- preserve them in their own report/repository layer
+
+Future change requires:
+
+- explicit owner entity
+- accepted matching policy
+- tests proving current load-level behavior remains unchanged
+
+## 4. Intake / Document Evidence
+
+Intake and document records are evidence first.
+
+Current policy:
+
+- `IntakeRecord` stays separate until linked
+- parser output should not create a case automatically
+- `RATECON_RECEIVED` currently comes only from dispatcher feedback with `document_path`
+
+Future document event types may include:
+
+- `INTAKE_RECORD_CREATED`
+- `INTAKE_RECORD_LINKED`
+- `RATECON_PARSED`
+- `DOCUMENT_FIELDS_IMPORTED`
+- `DOCUMENT_NEEDS_CHECK`
+- `DOCUMENT_APPROVED`
+
+Rules:
+
+- parser extracts evidence only
+- parser must not decide `MATCH` / `REVIEW_ONCE` / `BLOCK`
+- intake records should link to a case only after matching confidence is tested
+- missing/needs-check fields should remain review context, not dispatch decisions
+- real documents and private data must stay out of Git
+
+Before linking intake to cases:
+
+- define link confidence rules
+- test reference ID, broker MC, lane, rate, and date matching
+- test unlinked records stay repository-only
+- test linked records do not create duplicate cases
+
+## 5. DecisionEngine Evidence
+
+DecisionEngine output should be evidence on a case only when a load-level case exists.
+
+Current policy:
+
+- DecisionResult adapter is report/dry-run only
+- current `MarketLoad` decision behavior remains source-of-truth for runtime
+
+Future storage policy:
+
+- `AI_DECISION_CREATED` may include a nested `decision_result` payload
+- current flat `decision`, `category`, `score`, and `reasons` fields should remain for compatibility
+- report-only comparison should come before runtime event writes
+
+Before storing DecisionResult on cases:
+
+- test old event payload fields remain stable
+- test nested DecisionResult is JSON-ready
+- test no Telegram/DispatchCase behavior changes from adapter use
+- test comparison report output against existing decision records
+
+## 6. Reload-watch Ownership
+
+Reload-watch currently has:
+
+- state helper
+- event payload builder
+- action planner
+- Telegram preview formatter
+- JSON record/repository
+- manual service
+- manual start/event/report CLI
+- synthetic market/reload-watch scenario runner
+
+Current policy:
+
+- dry-run/manual only
+- no live Telegram sending
+- no DispatchCase writes
+
+Future ownership options:
+
+- parent load case event
+- exit load case event
+- future watch-level entity
+- future search/session-level event
+- reporting-only alert stream
+
+Do not wire reload-watch until ownership is explicitly chosen and tested.
+
+## 7. Reload-chain Ownership
+
+Reload-chain alerts are not currently load-level DispatchCase inputs.
+
+Potential future owners:
+
+- parent/inbound load case
+- exit load case
+- chain-specific case/entity
+- report-only chain context
+
+Open question:
+
+- A chain contains at least two loads, so attaching all context to one load-level case may distort the timeline.
+
+Before reload-chain metadata or events:
+
+- audit reload-chain DispatchCase policy separately
+- decide whether chain context belongs to parent, exit, or chain entity
+- protect existing `LOAD_OPPORTUNITY` and `REVIEW_ONCE` behavior
+
+## Required Tests Before Behavior Changes
+
+Any future case/event behavior change should add focused tests for:
+
+- no accidental case creation from reporting-only records
+- `LOAD_OPPORTUNITY` unchanged
+- `REVIEW_ONCE` unchanged
+- failed outbox records ignored
+- market summary/search health exclusions protected
+- event payload shape stable
+- case ID stability
+- case matching rules
+- final outcome downgrade protection
+- duplicate event protection
+- JSON serializability
+- no forbidden adapter imports in core helpers
+
+## Current Recommended Next Target
+
+Recommended next implementation target after this policy:
+
+```text
+DecisionEngine comparison report
+```
+
+Why:
+
+- it can remain report-only
+- it can compare current MarketLoad/decision-history fields with normalized DecisionResult output
+- it does not require new case writes
+- it validates the read-only adapter before any timeline integration
+
+Alternative next target:
+
+```text
+DispatchCase timeline event type constants/helper
+```
+
+Use this only if the next implementation needs a stable event vocabulary before report work.
+
+Not next:
+
+- runtime DecisionResult case writes
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- reload-watch live case events
+- Telegram UX runtime work
