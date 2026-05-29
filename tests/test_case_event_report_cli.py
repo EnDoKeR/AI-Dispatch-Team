@@ -28,10 +28,12 @@ class CaseEventReportCliTest(unittest.TestCase):
 
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn("CASE EVENT TIMELINE REPORT DRY-RUN", result.stdout)
+        self.assertIn("Input mode: legacy event fixtures", result.stdout)
         self.assertIn("Total events: 7", result.stdout)
         self.assertIn("AI_DECISION_CREATED: 1", result.stdout)
         self.assertIn("load_level: 4", result.stdout)
         self.assertIn("reload_watch: 1", result.stdout)
+        self.assertIn("Wrapper warnings: 0", result.stdout)
 
     def test_cli_prints_unknown_event_types(self):
         result = subprocess.run(
@@ -53,10 +55,38 @@ class CaseEventReportCliTest(unittest.TestCase):
 
         self.assertIn("DRY RUN ONLY - synthetic event report only", result.stdout)
 
+    def test_wrapped_mode_prints_wrapper_warning_summary(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--wrapped"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("Input mode: normalized wrapper fixtures", result.stdout)
+        self.assertIn("Total events: 8", result.stdout)
+        self.assertIn("Wrapper warnings: 3", result.stdout)
+        self.assertIn("missing_case_id: 2", result.stdout)
+        self.assertIn("unknown_event_type: 1", result.stdout)
+
+    def test_wrapped_mode_uses_synthetic_fixtures_only(self):
+        result = subprocess.run(
+            [sys.executable, str(SCRIPT_PATH), "--wrapped"],
+            capture_output=True,
+            text=True,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn("normalized wrapper fixtures", result.stdout)
+        self.assertIn("FUTURE_CUSTOM_EVENT", result.stdout)
+
     def test_cli_does_not_read_runtime_data(self):
         source = inspect.getsource(report_cli).lower()
 
         self.assertIn("synthetic_case_event_records", source)
+        self.assertIn("normalized_event_wrapper_cases", source)
         self.assertNotIn("data/", source)
         self.assertNotIn("dispatch_cases.jsonl", source)
         self.assertNotIn("open(", source)
