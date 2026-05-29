@@ -210,7 +210,7 @@ Safe next steps:
 Candidate status:
 
 ```text
-LOW-RISK CLEANUP CANDIDATE
+COMPLETED LOW-RISK CLEANUP
 ```
 
 Why this is flagged:
@@ -220,9 +220,8 @@ Why this is flagged:
 
 Safe next steps:
 
-1. Normalize `.gitignore` into grouped sections.
-2. Preserve all sensitive/runtime exclusions.
-3. Run `git status --ignored` or targeted checks before and after cleanup.
+1. Keep future runtime/private data exclusions grouped in `.gitignore`.
+2. Run `git status --ignored` or targeted checks before adding new runtime paths.
 
 ---
 
@@ -231,9 +230,9 @@ Safe next steps:
 Use small documentation and safety blocks:
 
 1. Document legacy candidates. Completed by this file.
-2. Add import tests for remaining `app/load_intake` modules.
+2. Add import tests for remaining `app/load_intake` modules. Completed.
 3. Decide whether `app/load_intake/parser.py` should become a pure ratecon intake parser.
-4. Clean `.gitignore`.
+4. Clean `.gitignore`. Completed.
 5. Plan encoding cleanup with tests.
 
 Do not add DAT/API, dashboard, auto-booking, Observer, or live automation as part of this cleanup.
