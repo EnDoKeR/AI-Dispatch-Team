@@ -2052,3 +2052,90 @@ Not recommended next:
 - accounting/factoring implementation;
 - synthetic 100-200 load dataset;
 - reload-chain metadata/case wiring.
+
+## Private PDF Text Extraction Dry-run Closeout
+
+Completed:
+
+- PDF extraction strategy audit: `docs/PDF_EXTRACTION_STRATEGY_AUDIT.md`;
+- local-only extraction helper: `app/market_intelligence/intake/pdf_text_extraction.py`;
+- private PDF extraction inventory CLI: `scripts/run_private_ratecon_pdf_extraction_inventory.py`;
+- PDF-to-RateCon dry-run helper: `app/market_intelligence/intake/ratecon_pdf_dry_run.py`;
+- limited private PDF dry-run CLI: `scripts/run_private_ratecon_pdf_dry_run.py`;
+- README and manual protocol command references.
+
+Current commands:
+
+```powershell
+py scripts/run_private_ratecon_pdf_extraction_inventory.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 1
+```
+
+Current status:
+
+- local/private/dry-run only;
+- first extractor is `pypdf`, already available locally;
+- no OCR;
+- no raw extracted text printed by the CLIs;
+- no extracted text saved;
+- no tracked fixtures from private documents;
+- no DispatchCase creation/linking/events;
+- no Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, reload-chain metadata, or synthetic 100-200 dataset work.
+
+Options evaluated:
+
+1. user runs private PDF dry-run locally and shares only safe summaries
+2. anonymized synthetic RateCon scenario expansion from observed issues
+3. parser field extraction improvements based on anonymized patterns
+4. PDF extraction dependency refinement
+5. OCR strategy audit later
+
+Recommended next target:
+
+```text
+user runs private PDF dry-run locally and shares only safe summaries
+```
+
+Conditions:
+
+- start with `--limit 1`;
+- share only anonymized labels, extraction status, character count, missing/needs-check fields, low-confidence field names, and result category;
+- do not share raw extracted text, private filenames, broker/customer/contact details, addresses, MCs, reference numbers, or document snippets;
+- do not commit local dry-run outputs.
+
+Recommended fallback target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed issues
+```
+
+Use this if the safe summaries reveal parser gaps that can be represented with fake data.
+
+Recommended later target:
+
+```text
+PDF extraction dependency refinement
+```
+
+Only consider `pdfplumber` or PyMuPDF after the first local summaries show `pypdf` is insufficient and after a separate dependency decision block.
+
+Recommended later audit:
+
+```text
+OCR strategy audit
+```
+
+OCR remains out of scope until text-layer PDF extraction has been evaluated safely.
+
+Not recommended next:
+
+- parser field extraction improvements using private text directly;
+- committing extracted text or private-derived fixtures;
+- OCR implementation;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase creation/linking/events;
+- DAT/API or Google Maps;
+- accounting/factoring implementation;
+- synthetic 100-200 load dataset;
+- reload-chain metadata/case wiring.

@@ -482,11 +482,16 @@ Recommended order:
 51. Private RateCon field inventory plan, safe template, manual text dry-run protocol, and readiness checklist are complete.
 52. Manual RateCon text dry-run helper, CLI, protocol sync, and result checklist are complete.
 53. Private RateCon local batch readiness workflow is complete.
-54. Recommended next target: user manually runs 1-3 private text dry-runs locally and shares only safe summaries.
-55. Recommended fallback: anonymized RateCon synthetic scenario expansion.
-56. Recommended later audit: PDF extraction strategy audit, before any pdfplumber/PyMuPDF helper.
-57. Recommended later policy target: reload-chain DispatchCase policy audit.
-58. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+54. Local-only private PDF extraction strategy audit is complete.
+55. Local-only PDF text extraction helper is complete.
+56. Private PDF extraction inventory CLI is complete.
+57. Local-only PDF-to-dry-run helper is complete.
+58. Limited private PDF dry-run CLI is complete.
+59. Recommended next target: user runs private PDF dry-run locally with `--limit 1` and shares only safe summaries.
+60. Recommended fallback: anonymized RateCon synthetic scenario expansion from observed issues.
+61. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
+62. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
+63. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1022,10 +1027,10 @@ Future capabilities:
 
 ## Current next step
 
-After the private local batch readiness workflow:
+After local private PDF dry-run support:
 
-1. User runs 1-3 private manual text dry-runs locally.
+1. User runs `py scripts/run_private_ratecon_pdf_dry_run.py --limit 1` locally.
 2. User records only safe summary fields/categories.
-3. User shares no private text, filenames, broker/customer/contact details, addresses, MCs, or reference numbers.
+3. User shares no raw extracted text, filenames, broker/customer/contact details, addresses, MCs, reference numbers, or document snippets.
 4. If issues are found, expand anonymized synthetic scenarios with fake data only.
-5. Do not start PDF extraction implementation; run a PDF extraction strategy audit first when ready.
+5. Do not start OCR or dependency expansion without a separate strategy/audit block.

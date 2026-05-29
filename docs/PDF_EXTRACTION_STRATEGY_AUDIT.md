@@ -149,3 +149,60 @@ app/market_intelligence/intake/pdf_text_extraction.py
 ```
 
 It should be tested with mocked extractor behavior or temp fake files only. Tests must not use private PDFs or private text.
+
+## Dry-run Support Status
+
+Implemented local-only support:
+
+```text
+app/market_intelligence/intake/pdf_text_extraction.py
+app/market_intelligence/intake/ratecon_pdf_dry_run.py
+scripts/run_private_ratecon_pdf_extraction_inventory.py
+scripts/run_private_ratecon_pdf_dry_run.py
+```
+
+Current commands:
+
+```powershell
+py scripts/run_private_ratecon_pdf_extraction_inventory.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 1
+```
+
+Current guarantees:
+
+- extraction is local-only;
+- CLIs use anonymized labels;
+- CLIs do not print raw extracted text;
+- extracted text is not saved;
+- dry-run outputs are not written to tracked files;
+- no cases are created or linked;
+- no DispatchCase events are written;
+- OCR remains out of scope.
+
+Recommended next step:
+
+```text
+user runs private PDF dry-run locally with --limit 1 and shares only safe summaries
+```
+
+Safe summary fields:
+
+- anonymized label;
+- extraction status;
+- character count;
+- page count;
+- missing fields;
+- needs-check fields;
+- low-confidence field names;
+- result category;
+- generic warnings.
+
+Do not share:
+
+- raw extracted text;
+- full private filenames;
+- broker/customer/driver/company/contact names;
+- MCs, phone numbers, emails, addresses, reference numbers, or appointment details;
+- document snippets.
+
+If the first summaries show poor text-layer extraction, the next safe step is a dependency refinement audit for `pdfplumber` or PyMuPDF. OCR should remain a later, separate strategy audit.
