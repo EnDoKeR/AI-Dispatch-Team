@@ -4,6 +4,7 @@ import unittest
 from app.market_intelligence import telegram_load_metadata
 from app.market_intelligence.telegram_load_metadata import (
     build_load_opportunity_metadata,
+    build_review_once_metadata,
 )
 
 
@@ -128,6 +129,109 @@ class TestTelegramLoadMetadata(unittest.TestCase):
 
     def test_metadata_keys_match_outbox_logger_fields(self):
         metadata = build_load_opportunity_metadata(FakeLoad(), FakeSearchRequest())
+
+        self.assertEqual(
+            set(metadata.keys()),
+            {
+                "message_type",
+                "category",
+                "driver_name",
+                "pickup",
+                "delivery",
+                "rate",
+                "broker",
+                "broker_mc",
+                "reference_id",
+            },
+        )
+
+    def test_builds_full_review_once_metadata(self):
+        metadata = build_review_once_metadata(
+            FakeLoad(),
+            FakeSearchRequest(),
+        )
+
+        self.assertEqual(
+            metadata,
+            {
+                "message_type": "REVIEW_ONCE",
+                "category": "REVIEW ONCE",
+                "driver_name": "Alex",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": 2200,
+                "broker": "Primary Broker",
+                "broker_mc": "123456",
+                "reference_id": "REF-123",
+            },
+        )
+
+    def test_review_once_message_type_and_default_category(self):
+        metadata = build_review_once_metadata(FakeLoad(), FakeSearchRequest())
+
+        self.assertEqual(metadata["message_type"], "REVIEW_ONCE")
+        self.assertEqual(metadata["category"], "REVIEW ONCE")
+
+    def test_review_once_driver_name_fallback_works(self):
+        metadata = build_review_once_metadata(
+            FakeLoad(driver_name="Load Driver"),
+            FakeSearchRequest(driver_name=""),
+        )
+
+        self.assertEqual(metadata["driver_name"], "Load Driver")
+
+    def test_review_once_broker_fallback_works(self):
+        metadata = build_review_once_metadata(
+            FakeLoad(broker_name="", broker="Legacy Broker"),
+            FakeSearchRequest(),
+        )
+
+        self.assertEqual(metadata["broker"], "Legacy Broker")
+
+    def test_review_once_missing_reference_id_becomes_no_id(self):
+        metadata = build_review_once_metadata(
+            FakeLoad(reference_id=""),
+            FakeSearchRequest(),
+        )
+
+        self.assertEqual(metadata["reference_id"], "NO ID")
+
+    def test_review_once_missing_fields_are_safe_defaults(self):
+        metadata = build_review_once_metadata(object())
+
+        self.assertEqual(metadata["message_type"], "REVIEW_ONCE")
+        self.assertEqual(metadata["category"], "REVIEW ONCE")
+        self.assertEqual(metadata["driver_name"], "")
+        self.assertEqual(metadata["pickup"], "")
+        self.assertEqual(metadata["delivery"], "")
+        self.assertEqual(metadata["rate"], "")
+        self.assertEqual(metadata["broker"], "")
+        self.assertEqual(metadata["broker_mc"], "")
+        self.assertEqual(metadata["reference_id"], "NO ID")
+
+    def test_review_once_custom_category_preserves_message_type(self):
+        metadata = build_review_once_metadata(
+            FakeLoad(),
+            FakeSearchRequest(),
+            category="RATE CHECK",
+        )
+
+        self.assertEqual(metadata["message_type"], "REVIEW_ONCE")
+        self.assertEqual(metadata["category"], "RATE CHECK")
+
+    def test_review_once_helper_does_not_mutate_load_or_search_request(self):
+        load = FakeLoad()
+        search_request = FakeSearchRequest()
+        load_before = dict(load.__dict__)
+        search_request_before = dict(search_request.__dict__)
+
+        build_review_once_metadata(load, search_request)
+
+        self.assertEqual(load.__dict__, load_before)
+        self.assertEqual(search_request.__dict__, search_request_before)
+
+    def test_review_once_metadata_keys_match_outbox_logger_fields(self):
+        metadata = build_review_once_metadata(FakeLoad(), FakeSearchRequest())
 
         self.assertEqual(
             set(metadata.keys()),

@@ -165,9 +165,10 @@ Recommended path:
 5. Add sender tests proving metadata is forwarded on success and failures. Completed.
 6. Add small metadata builder helpers outside formatter modules, one message family at a time. Load opportunity helper completed.
 7. Wire metadata first for top opportunity alerts. Completed.
-8. Wire review-once, market summary/search health, and reload-chain only in separate future blocks.
-9. Keep reload-chain DispatchCase role separate until it has an accepted design.
-10. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+8. Add review-once metadata helper. Completed.
+9. Wire review-once, market summary/search health, and reload-chain only in separate future blocks.
+10. Keep reload-chain DispatchCase role separate until it has an accepted design.
+11. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -203,6 +204,10 @@ telegram_load_metadata.py
 
 It is wired into `send_top_opportunities_to_telegram(...)` only.
 
+`build_review_once_metadata(...)` builds structured metadata for review-once alerts.
+
+It is not wired into `telegram_notifier.py` yet.
+
 Other `telegram_notifier.py` message families are not wired yet.
 
 ## Do not change yet
@@ -223,13 +228,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram review-once metadata foundation
+Telegram review-once metadata wiring
 ```
 
 Scope should be limited to:
 
-- a focused metadata helper for review-once alerts
-- tests for the metadata helper
+- review-once sender path only
+- `telegram_notifier.py`
+- focused notifier tests around review-once metadata
 - possibly a small docs note
 
 Do not wire market summary, search health, reload-chain, or reload-watch metadata in the same block.

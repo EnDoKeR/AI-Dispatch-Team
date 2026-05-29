@@ -30,10 +30,11 @@ def reference_id_value(load):
     return "NO ID"
 
 
-def build_load_opportunity_metadata(
+def build_load_alert_metadata(
     load,
     search_request=None,
-    category="LOAD OPPORTUNITY",
+    message_type="",
+    category="",
 ):
     driver_name = first_non_empty(
         safe_attr(search_request, "driver_name", ""),
@@ -45,7 +46,7 @@ def build_load_opportunity_metadata(
     )
 
     return {
-        "message_type": "LOAD_OPPORTUNITY",
+        "message_type": message_type,
         "category": category,
         "driver_name": driver_name,
         "pickup": safe_attr(load, "pickup", ""),
@@ -55,3 +56,29 @@ def build_load_opportunity_metadata(
         "broker_mc": safe_attr(load, "broker_mc", ""),
         "reference_id": reference_id_value(load),
     }
+
+
+def build_load_opportunity_metadata(
+    load,
+    search_request=None,
+    category="LOAD OPPORTUNITY",
+):
+    return build_load_alert_metadata(
+        load=load,
+        search_request=search_request,
+        message_type="LOAD_OPPORTUNITY",
+        category=category,
+    )
+
+
+def build_review_once_metadata(
+    load,
+    search_request=None,
+    category="REVIEW ONCE",
+):
+    return build_load_alert_metadata(
+        load=load,
+        search_request=search_request,
+        message_type="REVIEW_ONCE",
+        category=category,
+    )
