@@ -153,6 +153,45 @@ Intake package boundary tests
 
 These tests protect the new package from Telegram, DispatchCase, parser/OCR, Gmail/email, Google Sheets, scheduler, DAT/API, Google Maps, and legacy `app/load_intake` imports before any private RateCon parser audit begins.
 
+## Architecture Structure Closeout
+
+Completed structure work:
+
+- package layout proposal is documented
+- development structure rules are updated
+- intake foundation modules live under `app/market_intelligence/intake/`
+- old intake import paths remain compatibility wrappers
+- intake package import compatibility tests exist
+- intake package boundary tests exist
+
+Recommended next target:
+
+```text
+Private RateCon parser audit
+```
+
+Why this is next:
+
+- intake now has a stable package boundary and parser-output contract
+- parser risk should be reviewed before any text/PDF parsing behavior exists
+- no real documents need to be committed or processed for the audit
+- the audit can define field extraction risk, confidence handling, missing-field expectations, and future test scenarios
+
+Secondary candidate:
+
+```text
+Reload-chain DispatchCase policy audit
+```
+
+This remains important before reload-chain metadata wiring, but it is less urgent than confirming the RateCon/parser boundary now that the intake package has been isolated.
+
+Not recommended next:
+
+- intake parser manual text dry-run adapter: should wait for the parser audit
+- synthetic intake scenario expansion: useful later, but current fixtures are enough for the next audit
+- reload-watch package migration: reload-watch is stable and should stay paused before live wiring
+- Telegram package migration: too broad while metadata and outbox behavior are still being stabilized
+
 ## Decision
 
 Implemented:
