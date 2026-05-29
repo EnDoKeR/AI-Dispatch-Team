@@ -728,3 +728,86 @@ Do not implement in the next DecisionEngine helper block:
 - parser/PDF/OCR behavior
 - accounting/factoring behavior
 - changes to existing `MATCH` / `REVIEW_ONCE` / `BLOCK` decisions
+
+## Pure DecisionEngine Foundation Closeout
+
+Completed pure DecisionEngine foundation:
+
+- `app/market_intelligence/decision_engine/risk_flags.py`
+  - stable risk flag constants
+  - normalization
+  - deduplication
+  - category/action/metadata lookup
+- `app/market_intelligence/decision_engine/result.py`
+  - JSON-ready DecisionResult builder
+  - safe defaults
+  - risk flag normalization
+  - confidence and decision normalization
+  - source signal normalization
+- `app/market_intelligence/decision_engine/approval_modes.py`
+  - conservative approval mode helper
+  - no autonomous booking, financial, legal, or factoring commitments
+- `app/market_intelligence/decision_engine/signals.py`
+  - JSON-ready DecisionEngine signal bundle helper
+  - load, notes, driver, broker, market, dispatch memory, intake, and approval signal groups
+
+Current status:
+
+- pure helpers only
+- no runtime wiring
+- no `MarketLoad.apply_search_request(...)` change
+- no Telegram behavior change
+- no DispatchCase behavior change
+- no market snapshot behavior change
+
+Options evaluated:
+
+1. DecisionEngine dry-run scenario runner
+2. adapter around existing `MarketLoad` decision logic
+3. DispatchCase/Event Timeline gap audit
+4. synthetic load decision scenario dataset planning
+5. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+DecisionEngine dry-run scenario runner
+```
+
+Why:
+
+- pure helpers are stable enough to exercise together
+- a dry-run runner can use synthetic signal bundles and expected DecisionResults without touching current runtime behavior
+- it will prove the shape of signal bundle -> DecisionResult before any adapter wraps existing `MarketLoad` logic
+- it can stay fully synthetic and side-effect-free
+
+Suggested scope:
+
+```text
+app/market_intelligence/decision_engine/scenario_runner.py
+tests/test_decision_engine_scenario_runner.py
+```
+
+The runner should not evaluate real loads yet. It should process synthetic scenarios that already provide expected decisions/flags/reasons.
+
+Recommended second target:
+
+```text
+Adapter around existing MarketLoad decision logic
+```
+
+Only after the dry-run runner is accepted, add a small adapter that reads current `MarketLoad` decision fields and returns a DecisionResult. It should preserve current behavior exactly.
+
+Recommended major audit after that:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+This remains important before new case-writing behavior, intake-to-case linking, accounting/factoring documents, or replay/missed-opportunity expansion.
+
+Not recommended next:
+
+- synthetic 100-200 load dataset: too early before DecisionEngine dry-run scenarios
+- reload-chain DispatchCase policy audit: important but separate from core DecisionEngine result flow
+- accounting/factoring model: should wait until DispatchCase/Event Timeline gap audit

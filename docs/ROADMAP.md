@@ -457,8 +457,12 @@ Recommended order:
 28. DecisionEngine architecture audit is complete.
 29. DecisionEngine result contract and input signal map are documented.
 30. DecisionEngine risk flag taxonomy is documented.
-31. Next recommended DecisionEngine target: pure risk flag constants/helper.
-32. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+31. Pure DecisionEngine risk flag helper is complete.
+32. Pure DecisionResult helper is complete.
+33. Pure approval mode helper is complete.
+34. Pure DecisionEngine signal bundle helper is complete.
+35. Next recommended DecisionEngine target: dry-run scenario runner.
+36. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -499,18 +503,18 @@ Expected outcome:
 Immediate next audit:
 
 ```text
-Decision risk flag constants/helper
+DecisionEngine dry-run scenario runner
 ```
 
-The first implementation after the audit should be pure and side-effect-free. It should expose stable risk flag names, categories, usual action levels, and lookup/validation helpers only. It must not change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
+The next implementation should remain pure and side-effect-free. It should combine synthetic signal bundles, risk flags, approval modes, and DecisionResult expectations without wiring into current `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior.
 
 Second recommended DecisionEngine target:
 
 ```text
-DecisionEngine result model/helper
+Adapter around existing MarketLoad decision logic
 ```
 
-This should normalize decision result fields without wrapping current `MarketLoad` behavior yet.
+This should happen only after dry-run scenarios are accepted. The adapter must preserve current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior exactly.
 
 Next major audit after pure DecisionEngine helpers:
 
