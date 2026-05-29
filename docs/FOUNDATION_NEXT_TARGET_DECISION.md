@@ -1411,3 +1411,75 @@ Not recommended next:
 - Telegram UX implementation
 - synthetic 100-200 load dataset
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, or accounting/factoring implementation
+
+## Normalized Event Wrapper Closeout
+
+Completed:
+
+- pure wrapper helper: `app/market_intelligence/case_event_normalizer.py`
+- synthetic/current-style wrapper fixtures: `tests/fixtures/normalized_event_wrapper_cases.py`
+- wrapper report helper: `app/market_intelligence/case_event_normalizer_report.py`
+- manual dry-run CLI: `scripts/run_case_event_normalizer_report.py`
+
+Command:
+
+```powershell
+py scripts/run_case_event_normalizer_report.py
+```
+
+Current status:
+
+- report-only
+- synthetic fixtures only for the CLI
+- preserves the existing event dict as `legacy_payload`
+- builds a base-payload-compatible `normalized_payload`
+- reports warnings for missing identity/source fields and unknown event types
+- does not write events
+- does not change `case_event_builder.py`
+- does not change DispatchCase build/match/update behavior
+- does not wire DecisionResult into runtime events
+
+Options evaluated:
+
+1. event report support for wrapper output
+2. DecisionEngine comparison + timeline preview combined report
+3. current built-events normalization report
+4. DispatchCase builder migration dry-run
+5. intake-to-case link audit
+6. reload-chain DispatchCase policy audit
+7. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+event report support for wrapper output
+```
+
+Why:
+
+- the normalized wrapper shape is stable and report-only
+- event reports can now learn to summarize normalized wrapper records without changing runtime writers
+- this keeps old event envelopes intact while preparing future reporting tools for both legacy and normalized views
+
+Recommended second target:
+
+```text
+DecisionEngine comparison + timeline preview combined report
+```
+
+Why:
+
+- useful after reports understand wrapper output
+- can remain synthetic/report-only
+- should still avoid event writes and DispatchCase runtime changes
+
+Not recommended next:
+
+- replacing `case_event_builder.py`
+- storing normalized payloads on runtime events
+- writing DecisionResult events
+- DispatchCase build/match/update behavior changes
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- synthetic 100-200 load dataset
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation

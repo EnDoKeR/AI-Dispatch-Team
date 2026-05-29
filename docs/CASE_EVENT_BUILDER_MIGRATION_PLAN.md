@@ -450,15 +450,46 @@ Explicitly not allowed without separate accepted design:
 - attaching DecisionResult to search/session-level records before SearchSession exists;
 - writing DecisionResult for reload-chain or reload-watch before ownership policy is accepted.
 
+## Normalized Event Wrapper Implementation
+
+Completed report-only implementation:
+
+```text
+app/market_intelligence/case_event_normalizer.py
+app/market_intelligence/case_event_normalizer_report.py
+scripts/run_case_event_normalizer_report.py
+tests/fixtures/normalized_event_wrapper_cases.py
+```
+
+Current behavior:
+
+- accepts existing event dictionaries;
+- returns `legacy_payload`, `normalized_payload`, and `warnings`;
+- preserves the original event envelope as a copied legacy payload;
+- builds a base-payload-compatible normalized view;
+- maps event types through the taxonomy;
+- puts current `payload` data under normalized `details.legacy_event_payload`;
+- moves current identity context into `related_ids`;
+- warns on missing case ID, timestamp, source, or unknown event type;
+- remains JSON-serializable and report-only.
+
+The wrapper is not wired into runtime event writing. `case_event_builder.py` remains the current runtime event source.
+
+Manual dry-run command:
+
+```powershell
+py scripts/run_case_event_normalizer_report.py
+```
+
 ## Current Recommendation
 
 Next safe implementation target:
 
 ```text
-normalized event wrapper helper, report-only
+event report support for wrapper output
 ```
 
-This should accept existing event dicts and return a normalized report view while leaving runtime event builders untouched.
+This should let reporting helpers consume normalized wrapper records more directly while still avoiding runtime event writes.
 
 ## Migration Plan Closeout
 
@@ -472,36 +503,13 @@ Completed planning:
 - normalized wrapper return shape proposed
 - DecisionResult event wiring prerequisites documented
 
-Recommended next implementation target:
+Completed implementation:
 
-```text
-normalized event wrapper helper, report-only
-```
-
-Suggested first helper:
-
-```text
-app/market_intelligence/case_event_normalizer.py
-```
-
-Suggested first tests:
-
-```text
-tests/test_case_event_normalizer.py
-```
-
-Initial scope:
-
-- accept existing event dict
-- return `legacy_payload`
-- return `normalized_payload`
-- attach `event_group`
-- move identity fields into `related_ids`
-- place current `payload` under normalized `details`
-- add warnings for missing case ID, timestamp, source, or unknown event type
-- avoid mutation
-- stay JSON-serializable
-- stay report-only
+- normalized wrapper helper
+- synthetic/current-style wrapper fixtures
+- normalized wrapper report helper
+- manual dry-run CLI
+- README command reference
 
 Still not allowed:
 
