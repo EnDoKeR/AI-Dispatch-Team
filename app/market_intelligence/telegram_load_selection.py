@@ -1,6 +1,6 @@
 from app.market_intelligence.telegram_duplicate_keys import (
-    load_duplicate_key,
     remove_duplicates,
+    sent_history_matches_load,
 )
 
 
@@ -13,12 +13,11 @@ def select_new_loads(loads, search_request, sent_history, limit):
     for load in unique_loads:
         selected_loads.append(load)
 
-        key = load_duplicate_key(
+        if sent_history_matches_load(
+            sent_history,
             load,
             driver_name=search_request.driver_name,
-        )
-
-        if key in sent_history:
+        ):
             already_sent_loads.append(load)
             continue
 

@@ -105,9 +105,8 @@ class TestTelegramChainFormatter(unittest.TestCase):
         )
 
         self.assertIn("alex", key)
-        self.assertIn("dallas, tx", key.lower())
-        self.assertIn("denver, co", key.lower())
-        self.assertIn("houston, tx", key.lower())
+        self.assertIn("ref:first-123", key.lower())
+        self.assertIn("ref:reload-456", key.lower())
 
     def test_chain_sent_state_saves_and_reads_key(self):
         with tempfile.TemporaryDirectory() as temp_dir:
