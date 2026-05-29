@@ -160,11 +160,12 @@ def build_cases_and_events(
                 matched_case_id = case_id
                 break
 
+        if not matched_case_id:
             matched_case_id = build_case_id(
-                    driver_name=feedback.get("driver_name", ""),
-                    load_id=feedback.get("load_id", ""),
-                    reference_id=feedback.get("reference_id", ""),
-                    broker_mc=feedback.get("broker_mc", ""),
+                driver_name=feedback.get("driver_name", ""),
+                load_id=feedback.get("load_id", ""),
+                reference_id=feedback.get("reference_id", ""),
+                broker_mc=feedback.get("broker_mc", ""),
             )
 
             cases_by_id[matched_case_id] = build_case_from_feedback(

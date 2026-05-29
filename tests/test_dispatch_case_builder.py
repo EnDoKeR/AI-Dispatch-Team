@@ -198,6 +198,108 @@ class TestDispatchCaseBuilder(unittest.TestCase):
 
         self.assertEqual(events[0]["event_type"], "TELEGRAM_ALERT_SENT")
 
+    def test_build_cases_and_events_creates_case_from_feedback_only(self):
+        feedback_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:10:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-FEEDBACK-ONLY",
+                "reference_id": "REF-FEEDBACK-ONLY",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "broker_name": "Feedback Broker",
+                "broker_mc": "777777",
+                "dispatcher_feedback": "booked",
+                "dispatcher_note": "Booked from manual feedback.",
+                "source": "manual_feedback",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=feedback_records,
+            telegram_outbox_records=[],
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(len(events), 1)
+
+        case = cases[0]
+        self.assertEqual(case["driver_name"], "Alex")
+        self.assertEqual(case["load_id"], "LOAD-FEEDBACK-ONLY")
+        self.assertEqual(case["reference_id"], "REF-FEEDBACK-ONLY")
+        self.assertEqual(case["broker_name"], "Feedback Broker")
+        self.assertEqual(case["broker_mc"], "777777")
+        self.assertEqual(case["status"], "BOOKED")
+        self.assertEqual(case["final_outcome"], "BOOKED")
+        self.assertEqual(case["events_count"], 1)
+        self.assertEqual(len(case["dispatcher_feedback"]), 1)
+        self.assertEqual(events[0]["event_type"], "DISPATCHER_FEEDBACK_ADDED")
+
+    def test_feedback_matching_checks_all_cases_before_creating_fallback(self):
+        decision_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:00:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-FIRST",
+                "reference_id": "REF-FIRST",
+                "pickup": "Dallas, TX",
+                "delivery": "Austin, TX",
+                "broker_name": "First Broker",
+                "broker_mc": "111111",
+                "decision": "MATCH",
+                "category": "LOAD OPPORTUNITY",
+            },
+            {
+                "timestamp_utc": "2026-05-28T10:01:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-SECOND",
+                "reference_id": "REF-SECOND",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "broker_name": "Second Broker",
+                "broker_mc": "222222",
+                "decision": "MATCH",
+                "category": "LOAD OPPORTUNITY",
+            },
+        ]
+
+        feedback_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:10:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-SECOND",
+                "reference_id": "",
+                "broker_mc": "222222",
+                "dispatcher_feedback": "called_broker",
+                "dispatcher_note": "Called broker for second case.",
+                "source": "manual_feedback",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=decision_records,
+            feedback_records=feedback_records,
+            telegram_outbox_records=[],
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(len(cases), 2)
+        self.assertEqual(len(events), 3)
+
+        second_case = next(
+            case for case in cases
+            if case["load_id"] == "LOAD-SECOND"
+        )
+
+        self.assertEqual(second_case["reference_id"], "REF-SECOND")
+        self.assertEqual(second_case["broker_name"], "Second Broker")
+        self.assertEqual(second_case["ai_decision"]["decision"], "MATCH")
+        self.assertEqual(len(second_case["dispatcher_feedback"]), 1)
+        self.assertEqual(second_case["dispatcher_feedback"][0]["feedback"], "called_broker")
+        self.assertEqual(second_case["events_count"], 2)
+
 
 if __name__ == "__main__":
     unittest.main()
