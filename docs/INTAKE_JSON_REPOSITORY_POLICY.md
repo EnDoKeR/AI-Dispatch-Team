@@ -167,8 +167,16 @@ Status helper status:
 Intake record status helper foundation - complete
 ```
 
+CLI save status:
+
+```text
+Intake repository dry-run CLI optional save - complete
+```
+
+The CLI writes to this repository only when `--save` is provided. `--records-file` can point to a temp/private local path for dry-run testing.
+
 Next safe target:
 
 ```text
-Intake repository dry-run CLI optional save
+Intake foundation follow-up target selection
 ```

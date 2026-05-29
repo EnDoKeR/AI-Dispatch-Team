@@ -293,10 +293,16 @@ Intake status helper status:
 Intake record status helper foundation - complete
 ```
 
+CLI save status:
+
+```text
+Intake repository dry-run CLI optional save - complete
+```
+
 Next safe target:
 
 ```text
-Intake repository dry-run CLI optional save
+Intake foundation follow-up target selection
 ```
 
 ## Still Not Next

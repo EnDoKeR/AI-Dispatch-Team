@@ -139,6 +139,14 @@ py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample
 
 This is dry-run input only. It does not parse PDFs, store intake records, or connect to any live integration. JSON lists/batches are intentionally rejected in the first version.
 
+The CLI can optionally save the normalized intake record to the local JSON repository:
+
+```powershell
+py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json --save --records-file data\intake_records.json
+```
+
+Without `--save`, no repository file is written.
+
 Synthetic dry-run fixtures now exist in:
 
 ```text
@@ -209,6 +217,8 @@ tests/test_intake_record_repository.py
 ```
 
 It can load/save/upsert/get/filter JSON-ready intake records, but it does not parse source files or decide dispatch behavior.
+
+The dry-run CLI can now save to this repository only when `--save` is passed. It stores the normalized intake record plus intake status, not PDFs or source document contents.
 
 ## Mandatory Fields
 
