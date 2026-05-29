@@ -41,6 +41,7 @@ The next risk is architectural growth without stable boundaries.
 
 - Some modules still need layer-boundary review.
 - `market_snapshot.py` has been split into focused builder/report/dispatcher/helper modules.
+- `telegram_notifier.py` has been split into focused sender/selection/formatter/state modules.
 - `reload_chain.py` has been split into focused identity/location/rules/scoring helper modules.
 - SQLite is now split into focused memory modules, but it is still mostly rebuild/export memory rather than primary operational memory.
 - Tests are much stronger now, but every new module still needs focused test coverage from the beginning.
@@ -267,6 +268,52 @@ Current state:
 - First-load and reload-load qualification checks live in `reload_chain_rules.py`.
 - Total chain score calculation lives in `reload_chain_scoring.py`.
 
+### Phase 7 - Telegram notifier refactor
+
+Status: completed for the current Foundation Hardening scope.
+
+Completed modules:
+
+~~~text
+telegram_notifier.py
+telegram_sender.py
+telegram_load_selection.py
+telegram_chain_selection.py
+telegram_market_summary_formatter.py
+telegram_opportunity_formatter.py
+telegram_review_once_formatter.py
+telegram_search_health_formatter.py
+telegram_chain_formatter.py
+telegram_broker_block.py
+telegram_sent_state.py
+telegram_text_helpers.py
+telegram_duplicate_keys.py
+~~~
+
+Completed tests:
+
+~~~text
+test_telegram_sender.py
+test_telegram_load_selection.py
+test_telegram_chain_selection.py
+test_telegram_market_summary_formatter.py
+test_telegram_opportunity_formatter.py
+test_telegram_review_once_formatter.py
+test_telegram_search_health_formatter.py
+test_telegram_chain_formatter.py
+test_telegram_broker_block.py
+test_telegram_duplicate_keys.py
+test_telegram_text_helpers.py
+~~~
+
+Current state:
+
+- `telegram_notifier.py` is now send orchestration by message type.
+- `.env` loading and Telegram HTTP sending live in `telegram_sender.py`.
+- Top/review-once load dedupe, limit, and sent-history filtering live in `telegram_load_selection.py`.
+- Reload-chain candidate dedupe, limit, and sent-history filtering live in `telegram_chain_selection.py`.
+- Message formatting remains in formatter modules.
+
 ## Definition of done for this sprint
 
 This foundation sprint is successful when:
@@ -293,8 +340,8 @@ Start with:
 4. market snapshot refactor
 5. SQLite repository layer
 6. reload chain refactor
+7. Telegram notifier refactor
 
 Next safe candidates:
 
-1. `telegram_notifier.py`
-2. `market_models.py`
+1. `market_models.py`

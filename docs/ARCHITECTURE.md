@@ -232,6 +232,17 @@ reload_chain_rules.py                      # first-load and reload qualification
 reload_chain_scoring.py                    # total chain score calculation
 ~~~
 
+Current Telegram notifier boundary:
+
+~~~text
+telegram_notifier.py                       # send orchestration by message type
+telegram_sender.py                         # .env loading and Telegram HTTP send
+telegram_load_selection.py                 # load dedupe/limit/sent-history filtering
+telegram_chain_selection.py                # reload-chain dedupe/limit/sent-history filtering
+telegram_*_formatter.py                    # message formatting only
+telegram_sent_state.py                     # sent-alert text-file state
+~~~
+
 Telegram formatting should not decide whether a load is good.
 
 Dashboard views should not mutate decisions directly.

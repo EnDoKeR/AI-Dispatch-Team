@@ -940,7 +940,7 @@ Completed foundation refactors:
 - `DispatchCase` logic was split into focused case modules.
 - `market_snapshot.py` is now a runner/orchestrator around focused snapshot modules.
 - `market_models.py` was reduced by moving decision helpers into focused market modules.
-- `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state modules.
+- `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state/transport/selection modules.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
 - `driver_lane_preference_rules.py` is now an orchestration file around `get_driver_lane_preference_status()`.
 - `driver_preference_rules.py` is now an orchestration file around `get_driver_preference_status()`.
@@ -1015,6 +1015,24 @@ market_snapshot_stats.py
 market_snapshot_telegram_dispatcher.py
 ~~~
 
+Current Telegram notifier structure:
+
+~~~text
+telegram_notifier.py
+telegram_sender.py
+telegram_load_selection.py
+telegram_chain_selection.py
+telegram_market_summary_formatter.py
+telegram_opportunity_formatter.py
+telegram_review_once_formatter.py
+telegram_search_health_formatter.py
+telegram_chain_formatter.py
+telegram_broker_block.py
+telegram_sent_state.py
+telegram_text_helpers.py
+telegram_duplicate_keys.py
+~~~
+
 Current reload chain structure:
 
 ~~~text
@@ -1032,7 +1050,7 @@ py -m compileall app scripts main.py test_sheet_connection.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 526 tests.
+Recent full test discovery passed with 539 tests.
 
 See also:
 

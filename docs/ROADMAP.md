@@ -60,9 +60,13 @@ Current direction:
 
 ### 1.3 Completed: Telegram notifier hardening
 
-Completed formatter/state modules include:
+Completed formatter/state/transport/selection modules include:
 
 ~~~text
+telegram_notifier.py
+telegram_sender.py
+telegram_load_selection.py
+telegram_chain_selection.py
 telegram_market_summary_formatter.py
 telegram_opportunity_formatter.py
 telegram_review_once_formatter.py
@@ -72,6 +76,22 @@ telegram_broker_block.py
 telegram_sent_state.py
 telegram_text_helpers.py
 telegram_duplicate_keys.py
+~~~
+
+Completed tests:
+
+~~~text
+test_telegram_sender.py
+test_telegram_load_selection.py
+test_telegram_chain_selection.py
+test_telegram_market_summary_formatter.py
+test_telegram_opportunity_formatter.py
+test_telegram_review_once_formatter.py
+test_telegram_search_health_formatter.py
+test_telegram_chain_formatter.py
+test_telegram_broker_block.py
+test_telegram_duplicate_keys.py
+test_telegram_text_helpers.py
 ~~~
 
 Current direction:
@@ -180,7 +200,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 526 tests.
+- Recent full test discovery passed with 539 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -234,7 +254,6 @@ Current state:
 Candidate files:
 
 ~~~text
-telegram_notifier.py
 market_models.py
 ~~~
 
