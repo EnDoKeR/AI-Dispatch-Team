@@ -1,0 +1,238 @@
+# Case Event Builder Migration Plan
+
+This document defines a safe migration strategy for `case_event_builder.py`.
+
+This is a plan only. It does not change runtime behavior, replace event builders, write new events, or wire DecisionResult into DispatchCase.
+
+## Current Runtime Source
+
+The current runtime source for DispatchCase event payloads is:
+
+```text
+app/market_intelligence/case_event_builder.py
+```
+
+It builds event dictionaries through:
+
+```text
+app/market_intelligence/event_logger.py::build_dispatch_event(...)
+```
+
+Current runtime event envelope:
+
+```python
+{
+    "event_id": "...",
+    "case_id": "...",
+    "event_type": "...",
+    "timestamp_utc": "...",
+    "driver_name": "...",
+    "load_id": "...",
+    "reference_id": "...",
+    "source": "...",
+    "payload": {...},
+}
+```
+
+This envelope is the current compatibility contract. It must remain stable until an explicit accepted migration block changes it with focused tests.
+
+## Existing Foundations
+
+The newer timeline foundation already exists:
+
+- `case_event_types.py`: stable event type taxonomy and group lookup.
+- `case_event_payload.py`: JSON-ready base payload helper for future normalized views.
+- `case_event_report.py`: read-only report helper for event lists.
+- `case_event_builder_report.py`: read-only shape report helper for current builder outputs.
+- `decision_engine/timeline_preview.py`: report-only future `AI_DECISION_CREATED` preview with nested DecisionResult.
+
+These helpers are not runtime sources today.
+
+## Migration Goals
+
+Future migration should:
+
+1. preserve all current runtime event fields;
+2. keep current event type names stable;
+3. expose a normalized/base-payload-compatible view for reporting first;
+4. avoid changing DispatchCase build/match/update behavior;
+5. avoid writing DecisionResult into runtime events until a separate wiring block is accepted;
+6. keep reports able to compare old envelope and normalized view;
+7. keep current tests and compatibility reports green at every step.
+
+## Strategy A: Keep Current Builder And Add Optional Normalized Payload
+
+Description:
+
+- Keep current `case_event_builder.py` output as the runtime event.
+- Add optional normalized payload data alongside existing fields later, such as:
+
+```python
+{
+    "event_id": "...",
+    "case_id": "...",
+    "event_type": "AI_DECISION_CREATED",
+    "timestamp_utc": "...",
+    "driver_name": "...",
+    "load_id": "...",
+    "reference_id": "...",
+    "source": "decision_logger",
+    "payload": {...},
+    "normalized_payload": {
+        "event_type": "AI_DECISION_CREATED",
+        "event_group": "load_level",
+        "case_id": "...",
+        "timestamp_utc": "...",
+        "source": "decision_logger",
+        "details": {...},
+        "related_ids": {...},
+    },
+}
+```
+
+Pros:
+
+- low disruption;
+- current consumers still read old fields;
+- reports can compare old and normalized views.
+
+Cons:
+
+- increases event size;
+- creates two representations of similar facts;
+- requires clear ownership rules for which representation is authoritative.
+
+Current recommendation:
+
+- Useful later, but not the first implementation step.
+
+## Strategy B: Wrapper Around Builder Output
+
+Description:
+
+- Leave `case_event_builder.py` unchanged.
+- Add a separate wrapper/helper that accepts an existing event dict and returns a normalized report view.
+- Runtime continues using old event dicts.
+- Reports can consume:
+
+```python
+{
+    "legacy_payload": {...},
+    "normalized_payload": {...},
+}
+```
+
+Pros:
+
+- safest first implementation;
+- no runtime event shape change;
+- easy to test against current synthetic/current-style event samples;
+- aligns with the accepted dry-run/report-first approach.
+
+Cons:
+
+- normalized view is not yet stored on runtime events;
+- downstream tools must explicitly call the wrapper.
+
+Current recommendation:
+
+- Preferred first implementation target after this plan.
+
+## Strategy C: Gradually Migrate Individual Event Types
+
+Description:
+
+- Pick one event type, such as `AI_DECISION_CREATED`, and add normalized data or wrapper support first.
+- Repeat for `TELEGRAM_ALERT_SENT`, `DISPATCHER_FEEDBACK_ADDED`, `RATECON_RECEIVED`, and simulation events.
+
+Pros:
+
+- reduces blast radius;
+- allows one event type to be validated before expanding.
+
+Cons:
+
+- can create uneven behavior if some event types are migrated and others are not;
+- requires careful docs and tests for each event type.
+
+Current recommendation:
+
+- Good later strategy after the wrapper shape is accepted.
+
+## Strategy D: Replace Builder Entirely
+
+Description:
+
+- Rewrite `case_event_builder.py` to use `case_event_payload.py` as the primary runtime source.
+
+Pros:
+
+- one normalized event shape.
+
+Cons:
+
+- high regression risk;
+- likely breaks current event consumers;
+- may change event IDs, payload keys, dedupe behavior, and reporting assumptions;
+- not necessary for current foundation phase.
+
+Current recommendation:
+
+- Reject for now.
+
+## Recommended Migration Path
+
+Recommended sequence:
+
+1. Keep `case_event_builder.py` unchanged.
+2. Add a report-only normalized wrapper around existing event dicts.
+3. Add tests comparing:
+   - current event envelope,
+   - normalized/base payload view,
+   - taxonomy group,
+   - JSON serializability.
+4. Use wrapper output in reports only.
+5. Add a DecisionResult timeline preview comparison only in dry-run/report mode.
+6. Later, design an explicit runtime wiring block if normalized payloads should be stored.
+7. Only much later consider per-event migration or stored normalized payloads.
+
+## What Must Not Change Yet
+
+Do not change:
+
+- `case_event_builder.py` runtime output;
+- `event_logger.build_dispatch_event(...)`;
+- `dispatch_case.build_cases_and_events(...)`;
+- DispatchCase case creation/matching/update behavior;
+- event type strings;
+- event ID generation;
+- dedupe key behavior;
+- Telegram sender/notifier/formatter behavior;
+- MarketLoad decision behavior;
+- load selection;
+- market snapshot behavior.
+
+## Required Tests Before Any Code Migration
+
+Before any wrapper/helper implementation:
+
+- current builder output shape is preserved;
+- all current builder event types are known in taxonomy;
+- current builder payloads remain JSON-serializable;
+- normalized wrapper does not mutate input events;
+- wrapper output is JSON-serializable;
+- wrapper handles unknown event types safely;
+- wrapper keeps legacy payload intact;
+- reports can read wrapper output;
+- no runtime writer imports are introduced;
+- full unittest discovery remains green.
+
+## Current Recommendation
+
+Next safe implementation target:
+
+```text
+normalized event wrapper helper, report-only
+```
+
+This should accept existing event dicts and return a normalized report view while leaving runtime event builders untouched.
