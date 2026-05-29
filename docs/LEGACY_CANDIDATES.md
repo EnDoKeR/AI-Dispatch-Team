@@ -36,7 +36,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ```
 
-Recent full test discovery passed with 547 tests.
+Recent full test discovery passed with 550 tests.
 
 ---
 
@@ -75,6 +75,8 @@ Recent safety work already done:
 - `app/load_intake/parser.py` now imports `MarketLoad` safely as `Load`.
 - `app/load_intake/mileage.py` no longer fails to import when `geopy` is not installed.
 - `tests/test_load_intake_parser_import.py` protects parser import compatibility.
+- `tests/test_load_intake_imports.py` protects import compatibility for the current `app/load_intake` modules.
+- `app/load_intake/sheet_writer.py` now reads Google Sheet settings from environment variables and does not import `gspread` until a write is requested.
 
 Do not do yet:
 
@@ -84,10 +86,9 @@ Do not do yet:
 
 Safe next steps:
 
-1. Add import tests for each `app/load_intake` module.
-2. Identify which scripts still depend on `app/load_intake`.
-3. Decide whether the ratecon parser should become a clean intake-only parser.
-4. Keep decision logic in the decision layer, not in raw intake.
+1. Identify which scripts still depend on `app/load_intake`.
+2. Decide whether the ratecon parser should become a clean intake-only parser.
+3. Keep decision logic in the decision layer, not in raw intake.
 
 ---
 

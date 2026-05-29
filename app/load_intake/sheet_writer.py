@@ -1,17 +1,36 @@
-import gspread
-from google.oauth2.service_account import Credentials
+import os
+
 
 SCOPES = [
     "https://www.googleapis.com/auth/spreadsheets",
     "https://www.googleapis.com/auth/drive",
 ]
 
-CREDS_FILE = "data/credentials/google_credentials.json"
-SPREADSHEET_ID = "10b3JvejGgRFz2nVtmVbea-DWIryi9rQHeYBqxftycug"
-SHEET_NAME = "Sheet1"
+DEFAULT_CREDS_FILE = "data/credentials/google_credentials.json"
+DEFAULT_SHEET_NAME = "Sheet1"
 
 
-def append_load(load):
+def load_settings():
+    return {
+        "credentials_file": os.environ.get(
+            "GOOGLE_CREDENTIALS_FILE",
+            DEFAULT_CREDS_FILE,
+        ),
+        "spreadsheet_id": os.environ.get("GOOGLE_SPREADSHEET_ID", ""),
+        "sheet_name": os.environ.get("GOOGLE_SHEET_NAME", DEFAULT_SHEET_NAME),
+    }
+
+
+def append_load(load, settings=None):
+    settings = settings or load_settings()
+
+    if not settings["spreadsheet_id"]:
+        print("GOOGLE_SPREADSHEET_ID is missing.")
+        return False
+
+    import gspread
+    from google.oauth2.service_account import Credentials
+
     row = [
         "TEST-RATECON",
         load.booked_at,
@@ -54,15 +73,16 @@ def append_load(load):
     row = [str(value) for value in row]
 
     credentials = Credentials.from_service_account_file(
-        CREDS_FILE,
+        settings["credentials_file"],
         scopes=SCOPES,
     )
 
     client = gspread.authorize(credentials)
 
-    spreadsheet = client.open_by_key(SPREADSHEET_ID)
-    worksheet = spreadsheet.worksheet(SHEET_NAME)
+    spreadsheet = client.open_by_key(settings["spreadsheet_id"])
+    worksheet = spreadsheet.worksheet(settings["sheet_name"])
 
     worksheet.insert_row(row, 2)
 
-    print("Load written to Google Sheet вњ…")
+    print("Load written to Google Sheet.")
+    return True
