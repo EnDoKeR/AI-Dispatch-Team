@@ -1077,6 +1077,63 @@ Current status:
 
 The comparison report is now enough to show adapter coverage before deciding whether timeline/event vocabulary or further report-only previews should come next.
 
+## Post-Comparison Backend Target Decision
+
+Options evaluated:
+
+1. DispatchCase/Event Timeline event type constants/helper
+2. report-only DecisionResult timeline preview
+3. adapter coverage expansion
+4. risk flag mapping from notes/parser/intake
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+DispatchCase/Event Timeline event type constants/helper
+```
+
+Why:
+
+- the DispatchCase/Event Timeline ownership policy is now documented
+- the DecisionEngine comparison report is stable and report-only
+- before any DecisionResult, intake, reload-watch, or reload-chain case writes, the project needs a stable event vocabulary
+- this can be pure constants/helper work with tests and no runtime behavior change
+- it reduces the chance that future case-writing blocks invent overlapping event names
+
+Suggested scope:
+
+```text
+app/market_intelligence/case_event_types.py
+tests/test_case_event_types.py
+```
+
+The helper should only define and validate stable event type names. It should not write events, change `case_event_builder.py`, migrate existing DispatchCase behavior, send Telegram, or alter outbox handling.
+
+Recommended second target:
+
+```text
+report-only DecisionResult timeline preview
+```
+
+Why:
+
+- useful after event types exist
+- can show what a future DecisionResult timeline event might look like without writing it
+- should remain dry-run/report-only until explicit DispatchCase write policy is accepted
+
+Not recommended next:
+
+- runtime DecisionResult case writes
+- intake-to-DispatchCase linking
+- reload-chain DispatchCase wiring
+- reload-chain metadata
+- synthetic 100-200 load dataset
+- risk flag mapping expansion
+- Telegram UX implementation
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
 Recommended second target:
 
 ```text
