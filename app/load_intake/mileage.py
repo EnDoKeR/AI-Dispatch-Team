@@ -1,8 +1,14 @@
-from geopy.distance import geodesic
+try:
+    from geopy.distance import geodesic
+except ModuleNotFoundError:
+    geodesic = None
 
 
 def get_miles(origin, destination):
     try:
+        if geodesic is None:
+            return ""
+
         mock_coordinates = {
             "Blytheville, AR 72315": (35.9273, -89.9189),
             "DADE CITY, FL 33525": (28.3647, -82.1959),

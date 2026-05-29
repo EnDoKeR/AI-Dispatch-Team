@@ -3,7 +3,7 @@ import re
 
 from pypdf import PdfReader
 
-from app.market_intelligence.market_models import Load
+from app.market_intelligence.market_models import MarketLoad as Load
 from app.load_intake.mileage import get_miles
 from app.load_intake.zone_engine import evaluate_zone
 from app.load_intake.broker_engine import get_broker_data
