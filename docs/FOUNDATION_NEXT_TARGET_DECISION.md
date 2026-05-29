@@ -835,3 +835,71 @@ Current status:
 - no Telegram/DispatchCase/market snapshot behavior change
 
 Next target should be decided separately after reviewing dry-run output and risk.
+
+## DecisionEngine Scenario Dry-run Closeout
+
+Completed:
+
+- synthetic DecisionEngine scenarios
+- pure dry-run scenario runner
+- manual scenario CLI
+- README/docs sync
+
+Current command:
+
+```powershell
+py scripts/run_decision_engine_scenarios.py
+```
+
+Options evaluated:
+
+1. adapter around existing `MarketLoad` decision fields
+2. DispatchCase/Event Timeline gap audit
+3. expand synthetic DecisionEngine scenarios
+4. risk flag mapping from notes/parser/intake
+5. pause DecisionEngine and do reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+DecisionResult adapter around existing MarketLoad decision fields
+```
+
+Why:
+
+- the pure signal/result/risk-flag foundation is now stable
+- the dry-run runner proves the result shape without touching runtime
+- an adapter can be read-only and not wired into live flow
+- it can preserve existing `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior exactly by reading current `MarketLoad` fields after existing logic has run
+- it prepares future scenario comparisons without changing Telegram, DispatchCase, or market snapshot behavior
+
+Suggested scope:
+
+```text
+app/market_intelligence/decision_engine/market_load_adapter.py
+tests/test_decision_engine_market_load_adapter.py
+```
+
+Strict rules:
+
+- do not call `MarketLoad.apply_search_request(...)`
+- do not mutate load or search request
+- do not change current decision behavior
+- do not send Telegram
+- do not write DispatchCase
+- do not write storage
+- do not call external services
+
+Recommended second target:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+Do this before any new case-writing behavior, intake-to-case linking, accounting/factoring document events, or replay/missed-opportunity expansion.
+
+Not recommended next:
+
+- expand synthetic DecisionEngine scenarios: useful later, but current set is enough for adapter foundation
+- risk flag mapping from notes/parser/intake: should wait until adapter confirms current field compatibility
+- reload-chain DispatchCase policy audit: still important, but separate from core DecisionEngine adapter work

@@ -463,7 +463,7 @@ Recommended order:
 34. Pure DecisionEngine signal bundle helper is complete.
 35. Synthetic DecisionEngine scenarios are complete.
 36. DecisionEngine dry-run scenario runner and CLI are complete.
-37. Next recommended DecisionEngine target: decide between a MarketLoad adapter and DispatchCase/Event Timeline gap audit.
+37. Next recommended DecisionEngine target: read-only MarketLoad DecisionResult adapter.
 38. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
@@ -513,10 +513,18 @@ This validates synthetic DecisionEngine scenario expectations against the pure s
 Immediate next decision:
 
 ```text
-MarketLoad DecisionResult adapter vs DispatchCase/Event Timeline gap audit
+Read-only MarketLoad DecisionResult adapter
 ```
 
-The next implementation, if selected, should remain narrow and preserve existing `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior exactly. If runtime adapter risk is too high, do the DispatchCase/Event Timeline gap audit first.
+The adapter should read existing `MarketLoad` decision fields after current logic has run and produce a DecisionResult. It must not call `apply_search_request(...)`, mutate loads, send Telegram, write DispatchCases, write storage, or change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
+
+Second recommended target:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+Do this before any new case-writing behavior, intake-to-case linking, accounting/factoring document events, or replay/missed-opportunity expansion.
 
 Second recommended DecisionEngine target:
 
