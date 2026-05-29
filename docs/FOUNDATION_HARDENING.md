@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Add market summary metadata helper only; do not wire it until DispatchCase `MARKET_SNAPSHOT` policy is decided.
+1. Audit DispatchCase `MARKET_SNAPSHOT` policy before wiring market summary metadata.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.

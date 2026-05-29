@@ -168,9 +168,10 @@ Recommended path:
 8. Add review-once metadata helper. Completed.
 9. Wire review-once metadata. Completed.
 10. Audit market summary metadata shape before wiring. Completed.
-11. Wire market summary/search health and reload-chain only in separate future blocks.
-12. Keep reload-chain DispatchCase role separate until it has an accepted design.
-13. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+11. Add market summary metadata helper. Completed.
+12. Wire market summary/search health and reload-chain only in separate future blocks.
+13. Keep reload-chain DispatchCase role separate until it has an accepted design.
+14. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -212,6 +213,14 @@ It is wired into `send_review_once_to_telegram(...)`.
 
 Market summary, search health, and reload-chain message families are not wired yet.
 
+```text
+telegram_summary_metadata.py
+```
+
+`build_market_summary_metadata(...)` builds structured metadata for market snapshot alerts.
+
+It is not wired into `send_market_summary_to_telegram(...)` yet.
+
 ## Market summary metadata audit
 
 Current market summary send path:
@@ -224,7 +233,7 @@ send_market_summary_to_telegram(...)
   -> log_outgoing_telegram_message(...)
 ```
 
-Market summary metadata is not wired yet.
+Market summary metadata is not wired yet, but helper construction exists in `telegram_summary_metadata.py`.
 
 `telegram_outbox_logger.py` currently infers `MARKET_SNAPSHOT` from the message header and parses:
 
@@ -305,15 +314,15 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram market summary metadata helper foundation
+DispatchCase MARKET_SNAPSHOT policy audit
 ```
 
 Scope should be limited to:
 
-- build the helper only
-- keep load-specific core keys intentionally empty
-- do not wire the helper into `send_market_summary_to_telegram(...)`
-- do not change DispatchCase behavior
+- decide whether successful `MARKET_SNAPSHOT` outbox records should create load cases, driver/search-level events, or stay outbox-only
+- keep `send_market_summary_to_telegram(...)` unchanged
+- do not wire market summary metadata yet
+- do not change formatter text
 - possibly a small docs note
 
 Before wiring market summary metadata, run a separate DispatchCase policy mini-block for `MARKET_SNAPSHOT` handling.
