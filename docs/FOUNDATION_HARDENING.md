@@ -382,6 +382,7 @@ Completed modules:
 ~~~text
 reload_watch_state.py
 reload_watch_event_builder.py
+reload_watch_action_planner.py
 ~~~
 
 Completed tests:
@@ -389,12 +390,14 @@ Completed tests:
 ~~~text
 test_reload_watch_state.py
 test_reload_watch_event_builder.py
+test_reload_watch_action_planner.py
 ~~~
 
 Current state:
 
 - `reload_watch_state.py` models reload-watch state transitions and alert decisions without side effects.
 - `reload_watch_event_builder.py` builds structured reload-watch event payloads without side effects.
+- `reload_watch_action_planner.py` returns side-effect-free next-action plans from state decisions and event payloads.
 - It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
 - This foundation does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.

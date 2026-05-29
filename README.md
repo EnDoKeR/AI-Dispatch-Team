@@ -1053,9 +1053,10 @@ Current reload watch state foundation structure:
 ~~~text
 reload_watch_state.py
 reload_watch_event_builder.py
+reload_watch_action_planner.py
 ~~~
 
-These helpers provide state decisions and structured event payloads only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
+These helpers provide state decisions, structured event payloads, and side-effect-free action plans only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
 Current Telegram notifier structure:
 
@@ -1092,7 +1093,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 629 tests.
+Recent full test discovery passed with 638 tests.
 
 See also:
 

@@ -205,7 +205,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 629 tests.
+- Recent full test discovery passed with 638 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
@@ -290,6 +290,7 @@ Completed modules:
 ~~~text
 reload_watch_state.py
 reload_watch_event_builder.py
+reload_watch_action_planner.py
 ~~~
 
 Completed tests:
@@ -297,12 +298,14 @@ Completed tests:
 ~~~text
 test_reload_watch_state.py
 test_reload_watch_event_builder.py
+test_reload_watch_action_planner.py
 ~~~
 
 Current state:
 
 - `reload_watch_state.py` models state-only reload-watch transitions.
 - `reload_watch_event_builder.py` builds structured reload-watch event payloads so future code does not need Telegram text parsing.
+- `reload_watch_action_planner.py` combines the state decision and event payload into a side-effect-free next-action plan.
 - It answers whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
 - This foundation does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
