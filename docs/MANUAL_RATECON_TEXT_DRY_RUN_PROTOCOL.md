@@ -74,12 +74,24 @@ Not allowed:
 
 ## Step-by-step Protocol
 
+### 0. Run Local Batch Inventory
+
+Before opening documents manually, run:
+
+```powershell
+py scripts/private_ratecon_inventory.py
+```
+
+Use the anonymized labels in the output, such as `RATECON_001`, for local notes and discussion.
+
+The inventory command does not read document contents. It counts files and prints anonymized labels only.
+
 ### 1. Select Local Private Documents
 
 Choose 3-5 documents from:
 
 ```text
-data/private_ratecons/
+data/private_ratecons/originals/
 ```
 
 Prefer variety:
@@ -89,6 +101,8 @@ Prefer variety:
 - one appointment window example;
 - one accessorial or linehaul split example;
 - one contact-heavy or hard-to-read example if available.
+
+Use labels such as `RATECON_001`, not real filenames, in any shared notes.
 
 ### 2. Confirm Privacy Boundary
 
@@ -190,6 +204,51 @@ Check:
 - mismatch reasons;
 - approval required;
 - no runtime link/create action.
+
+## Local Batch Protocol
+
+For each of the first 3-5 private documents:
+
+1. Run `py scripts/private_ratecon_inventory.py`.
+2. Pick one anonymized label, such as `RATECON_001`.
+3. Open the matching PDF manually on the local machine.
+4. Copy text manually from the PDF viewer or manually type a small text sample.
+5. Run:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py --stdin
+```
+
+6. Paste the copied text into terminal stdin.
+7. Review output locally.
+8. Record only safe result categories and field-level yes/no/partial notes.
+9. Do not save private text or command output to a tracked file.
+10. Repeat for 3-5 documents.
+
+Use these result categories:
+
+```text
+PASS_FOR_DRY_RUN
+NEEDS_FIELD_FIX
+NEEDS_PARSER_FIX
+BAD_TEXT_EXTRACTION
+NOT_READY_FOR_PDF
+```
+
+Do not record real broker names, MCs, phone numbers, emails, addresses, pickup/delivery appointment details, reference numbers, or copied private text in tracked files.
+
+Safe result notes should look like:
+
+```text
+anonymized_label: RATECON_001
+result_category: NEEDS_PARSER_FIX
+broker_name_extracted: yes
+broker_mc_extracted: no
+rate_extracted: partial
+missing_fields: broker_mc
+needs_check_fields: broker_mc
+safe_next_action: create synthetic scenario for missing broker MC layout
+```
 
 ## Expected Result Format
 
