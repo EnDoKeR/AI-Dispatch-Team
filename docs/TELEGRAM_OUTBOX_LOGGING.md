@@ -107,6 +107,16 @@ If metadata exists, logger should prefer metadata.
 
 If metadata is missing, logger should fall back to text parsing for backward compatibility.
 
+Current sender status:
+
+```text
+telegram_sender.send_telegram_message(..., metadata=None)
+```
+
+The sender can now pass metadata through to the outbox logger on success and failure paths.
+
+Notifier call sites are not wired yet, so current live send paths still rely on text parsing unless a caller explicitly passes metadata.
+
 ---
 
 ## Do Not Do Yet
@@ -121,7 +131,7 @@ If metadata is missing, logger should fall back to text parsing for backward com
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Update one sender path at a time to pass metadata.
+2. Build focused metadata helpers one message family at a time.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 

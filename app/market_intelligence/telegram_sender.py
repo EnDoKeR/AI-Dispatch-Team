@@ -10,6 +10,26 @@ from app.market_intelligence.telegram_outbox_logger import (
 ENV_FILE = ".env"
 
 
+def log_telegram_outbox(
+    text,
+    success,
+    telegram_response=None,
+    error_text="",
+    metadata=None,
+):
+    log_kwargs = {
+        "text": text,
+        "success": success,
+        "telegram_response": telegram_response,
+        "error_text": error_text,
+    }
+
+    if metadata is not None:
+        log_kwargs["metadata"] = metadata
+
+    log_outgoing_telegram_message(**log_kwargs)
+
+
 def load_env():
     values = {}
 
@@ -36,7 +56,7 @@ def load_env():
     return values
 
 
-def send_telegram_message(text, reply_markup=None):
+def send_telegram_message(text, reply_markup=None, metadata=None):
     env = load_env()
 
     token = env.get("TELEGRAM_BOT_TOKEN")
@@ -45,11 +65,12 @@ def send_telegram_message(text, reply_markup=None):
     if not token:
         print("TELEGRAM_BOT_TOKEN is missing in .env")
 
-        log_outgoing_telegram_message(
+        log_telegram_outbox(
             text=text,
             success=False,
             telegram_response=None,
             error_text="TELEGRAM_BOT_TOKEN is missing in .env",
+            metadata=metadata,
         )
 
         return False
@@ -57,11 +78,12 @@ def send_telegram_message(text, reply_markup=None):
     if not chat_id:
         print("TELEGRAM_CHAT_ID is missing in .env")
 
-        log_outgoing_telegram_message(
+        log_telegram_outbox(
             text=text,
             success=False,
             telegram_response=None,
             error_text="TELEGRAM_CHAT_ID is missing in .env",
+            metadata=metadata,
         )
 
         return False
@@ -94,11 +116,12 @@ def send_telegram_message(text, reply_markup=None):
         print("Telegram send failed:")
         print(error)
 
-        log_outgoing_telegram_message(
+        log_telegram_outbox(
             text=text,
             success=False,
             telegram_response=None,
             error_text=str(error),
+            metadata=metadata,
         )
 
         return False
@@ -106,11 +129,12 @@ def send_telegram_message(text, reply_markup=None):
     if result.get("ok"):
         print("Telegram message sent РІСљвЂ¦")
 
-        log_outgoing_telegram_message(
+        log_telegram_outbox(
             text=text,
             success=True,
             telegram_response=result,
             error_text="",
+            metadata=metadata,
         )
 
         return True
@@ -118,11 +142,12 @@ def send_telegram_message(text, reply_markup=None):
     print("Telegram API returned error:")
     print(result)
 
-    log_outgoing_telegram_message(
+    log_telegram_outbox(
         text=text,
         success=False,
         telegram_response=result,
         error_text=str(result),
+        metadata=metadata,
     )
 
     return False

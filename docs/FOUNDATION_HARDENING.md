@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Add Telegram sender metadata passthrough as a small compatibility foundation.
+1. Build Telegram load alert metadata helper/wiring in a small test-first block.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.

@@ -405,7 +405,7 @@ docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Add Telegram sender metadata passthrough as a small compatibility foundation.
+2. Build Telegram load alert metadata helper/wiring in a small test-first block.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -730,5 +730,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram sender metadata passthrough foundation.
+4. Recommended next target: Telegram load alert metadata foundation.
 5. Avoid new large files by default.

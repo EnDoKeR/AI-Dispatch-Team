@@ -156,13 +156,13 @@ Risks to avoid:
 
 ## Safest future path
 
-Recommended path, not implemented in this audit:
+Recommended path:
 
 1. Keep `telegram_outbox_logger.py` text parser fallback.
-2. Add optional `metadata=None` to `send_telegram_message(...)`.
-3. Pass `metadata` through every logger call in `telegram_sender.py`, including failure paths.
+2. Add optional `metadata=None` to `send_telegram_message(...)`. Completed.
+3. Pass `metadata` through every logger call in `telegram_sender.py`, including failure paths. Completed.
 4. Keep current `reply_markup` behavior unchanged.
-5. Add sender tests proving metadata is forwarded on success and failures.
+5. Add sender tests proving metadata is forwarded on success and failures. Completed.
 6. Add small metadata builder helpers outside formatter modules, one message family at a time.
 7. Wire metadata first for top opportunity alerts, then review-once, then market summary/search health, then reload-chain only after its DispatchCase role is designed.
 8. Keep old text parser tests until every live path passes metadata and historical records remain readable.
@@ -209,13 +209,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram sender metadata passthrough foundation
+Telegram load alert metadata foundation
 ```
 
 Scope should be limited to:
 
-- `telegram_sender.py`
-- `tests/test_telegram_sender.py`
+- a focused metadata helper for load opportunity alerts
+- tests for the metadata helper
+- optional wiring for top opportunity sender only after helper tests pass
 - possibly a small docs note
 
-It should add an optional `metadata=None` parameter and pass it to `log_outgoing_telegram_message(...)` on all existing logger calls, without changing any notifier call sites yet.
+Notifier call sites are not wired yet.

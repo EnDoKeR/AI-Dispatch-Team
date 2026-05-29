@@ -82,6 +82,24 @@ class TestTelegramSender(unittest.TestCase):
             error_text="TELEGRAM_BOT_TOKEN is missing in .env",
         )
 
+    def test_send_telegram_message_logs_missing_token_with_metadata(self):
+        env_file = self.write_env_file(["TELEGRAM_CHAT_ID=chat-456"])
+        metadata = {"message_type": "LOAD_OPPORTUNITY", "driver_name": "Alex"}
+
+        with patch("app.market_intelligence.telegram_sender.ENV_FILE", env_file):
+            with patch(
+                "app.market_intelligence.telegram_sender.log_outgoing_telegram_message"
+            ) as log_message:
+                self.assertFalse(self.send_quietly("Hello", metadata=metadata))
+
+        log_message.assert_called_once_with(
+            text="Hello",
+            success=False,
+            telegram_response=None,
+            error_text="TELEGRAM_BOT_TOKEN is missing in .env",
+            metadata=metadata,
+        )
+
     def test_send_telegram_message_logs_missing_chat_id(self):
         env_file = self.write_env_file(["TELEGRAM_BOT_TOKEN=token-123"])
 
@@ -96,6 +114,24 @@ class TestTelegramSender(unittest.TestCase):
             success=False,
             telegram_response=None,
             error_text="TELEGRAM_CHAT_ID is missing in .env",
+        )
+
+    def test_send_telegram_message_logs_missing_chat_id_with_metadata(self):
+        env_file = self.write_env_file(["TELEGRAM_BOT_TOKEN=token-123"])
+        metadata = {"message_type": "REVIEW_ONCE", "driver_name": "Alex"}
+
+        with patch("app.market_intelligence.telegram_sender.ENV_FILE", env_file):
+            with patch(
+                "app.market_intelligence.telegram_sender.log_outgoing_telegram_message"
+            ) as log_message:
+                self.assertFalse(self.send_quietly("Hello", metadata=metadata))
+
+        log_message.assert_called_once_with(
+            text="Hello",
+            success=False,
+            telegram_response=None,
+            error_text="TELEGRAM_CHAT_ID is missing in .env",
+            metadata=metadata,
         )
 
     def test_send_telegram_message_sends_request_and_logs_success(self):
@@ -147,6 +183,57 @@ class TestTelegramSender(unittest.TestCase):
             error_text="",
         )
 
+    def test_send_telegram_message_sends_request_and_logs_success_with_metadata(self):
+        env_file = self.write_env_file(
+            [
+                "TELEGRAM_BOT_TOKEN=token-123",
+                "TELEGRAM_CHAT_ID=chat-456",
+            ]
+        )
+        captured = {}
+        metadata = {
+            "message_type": "LOAD_OPPORTUNITY",
+            "driver_name": "Alex",
+            "pickup": "Dallas, TX",
+            "delivery": "Houston, TX",
+        }
+        original_metadata = dict(metadata)
+
+        def fake_urlopen(request, timeout):
+            captured["request"] = request
+            captured["timeout"] = timeout
+            return FakeResponse({"ok": True, "result": {"message_id": 99}})
+
+        with patch("app.market_intelligence.telegram_sender.ENV_FILE", env_file):
+            with patch(
+                "app.market_intelligence.telegram_sender.urllib.request.urlopen",
+                side_effect=fake_urlopen,
+            ):
+                with patch(
+                    "app.market_intelligence.telegram_sender.log_outgoing_telegram_message"
+                ) as log_message:
+                    self.assertTrue(
+                        self.send_quietly(
+                            "Hello",
+                            reply_markup={"inline_keyboard": []},
+                            metadata=metadata,
+                        )
+                    )
+
+        parsed_data = urllib.parse.parse_qs(captured["request"].data.decode("utf-8"))
+        self.assertEqual(
+            json.loads(parsed_data["reply_markup"][0]),
+            {"inline_keyboard": []},
+        )
+        self.assertEqual(metadata, original_metadata)
+        log_message.assert_called_once_with(
+            text="Hello",
+            success=True,
+            telegram_response={"ok": True, "result": {"message_id": 99}},
+            error_text="",
+            metadata=metadata,
+        )
+
     def test_send_telegram_message_logs_api_error(self):
         env_file = self.write_env_file(
             [
@@ -173,6 +260,34 @@ class TestTelegramSender(unittest.TestCase):
             error_text=str(response),
         )
 
+    def test_send_telegram_message_logs_api_error_with_metadata(self):
+        env_file = self.write_env_file(
+            [
+                "TELEGRAM_BOT_TOKEN=token-123",
+                "TELEGRAM_CHAT_ID=chat-456",
+            ]
+        )
+        response = {"ok": False, "description": "Bad Request"}
+        metadata = {"message_type": "SEARCH_HEALTH_CHECK", "driver_name": "Alex"}
+
+        with patch("app.market_intelligence.telegram_sender.ENV_FILE", env_file):
+            with patch(
+                "app.market_intelligence.telegram_sender.urllib.request.urlopen",
+                return_value=FakeResponse(response),
+            ):
+                with patch(
+                    "app.market_intelligence.telegram_sender.log_outgoing_telegram_message"
+                ) as log_message:
+                    self.assertFalse(self.send_quietly("Hello", metadata=metadata))
+
+        log_message.assert_called_once_with(
+            text="Hello",
+            success=False,
+            telegram_response=response,
+            error_text=str(response),
+            metadata=metadata,
+        )
+
     def test_send_telegram_message_logs_transport_exception(self):
         env_file = self.write_env_file(
             [
@@ -196,6 +311,33 @@ class TestTelegramSender(unittest.TestCase):
             success=False,
             telegram_response=None,
             error_text="network down",
+        )
+
+    def test_send_telegram_message_logs_transport_exception_with_metadata(self):
+        env_file = self.write_env_file(
+            [
+                "TELEGRAM_BOT_TOKEN=token-123",
+                "TELEGRAM_CHAT_ID=chat-456",
+            ]
+        )
+        metadata = {"message_type": "MARKET_SNAPSHOT", "driver_name": "Alex"}
+
+        with patch("app.market_intelligence.telegram_sender.ENV_FILE", env_file):
+            with patch(
+                "app.market_intelligence.telegram_sender.urllib.request.urlopen",
+                side_effect=RuntimeError("network down"),
+            ):
+                with patch(
+                    "app.market_intelligence.telegram_sender.log_outgoing_telegram_message"
+                ) as log_message:
+                    self.assertFalse(self.send_quietly("Hello", metadata=metadata))
+
+        log_message.assert_called_once_with(
+            text="Hello",
+            success=False,
+            telegram_response=None,
+            error_text="network down",
+            metadata=metadata,
         )
 
 
