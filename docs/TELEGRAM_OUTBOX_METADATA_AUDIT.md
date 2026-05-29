@@ -176,9 +176,10 @@ Recommended path:
 14. Wire market summary metadata. Completed.
 15. Audit DispatchCase `SEARCH_HEALTH_CHECK` policy. Completed.
 16. Exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase handling. Completed.
-17. Wire search health and reload-chain only in separate future blocks.
-18. Keep reload-chain DispatchCase role separate until it has an accepted design.
-19. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+17. Add search health metadata helper. Completed.
+18. Wire search health and reload-chain only in separate future blocks.
+19. Keep reload-chain DispatchCase role separate until it has an accepted design.
+20. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -227,6 +228,14 @@ telegram_summary_metadata.py
 `build_market_summary_metadata(...)` builds structured metadata for market snapshot alerts.
 
 It is wired into `send_market_summary_to_telegram(...)`.
+
+```text
+telegram_search_health_metadata.py
+```
+
+`build_search_health_metadata(...)` builds structured metadata for search health alerts.
+
+It is not wired into `send_search_health_check_to_telegram(...)` yet.
 
 ## Market summary metadata audit
 
@@ -331,15 +340,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram search health metadata helper foundation
+Telegram search health metadata wiring
 ```
 
 Scope should be limited to:
 
-- build the helper only
+- wire the existing helper only into `send_search_health_check_to_telegram(...)`
 - keep load-specific core keys intentionally empty
-- do not wire the helper into `send_search_health_check_to_telegram(...)`
-- do not change outbox schema or DispatchCase behavior
+- do not change formatter text, sender behavior, outbox schema, or DispatchCase behavior
 - possibly a small docs note
 
 Do not wire reload-chain or reload-watch metadata in the same block.
