@@ -5,6 +5,7 @@ from app.market_intelligence.telegram_duplicate_keys import (
     search_health_key,
 )
 from app.market_intelligence.telegram_load_selection import select_new_loads
+from app.market_intelligence.telegram_load_metadata import build_load_opportunity_metadata
 from app.market_intelligence.telegram_sent_state import (
     get_sent_health_alerts,
     get_sent_loads,
@@ -112,6 +113,7 @@ def send_top_opportunities_to_telegram(loads, search_request, limit=3):
                 "load",
                 reference_id=getattr(load, "reference_id", ""),
             ),
+            metadata=build_load_opportunity_metadata(load, search_request),
         )
 
         if success:

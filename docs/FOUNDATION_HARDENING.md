@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Wire Telegram load opportunity metadata into the top-opportunity sender path in a small test-first block.
+1. Add review-once metadata helper/wiring in small test-first blocks.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.
