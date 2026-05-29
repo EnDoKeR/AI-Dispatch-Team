@@ -424,6 +424,7 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
 docs/DISPATCH_CASE_MARKET_SNAPSHOT_POLICY.md
 docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
+docs/DISPATCH_CASE_EVENT_TIMELINE_GAP_AUDIT.md
 ~~~
 
 Recommended order:
@@ -466,8 +467,9 @@ Recommended order:
 36. DecisionEngine dry-run scenario runner and CLI are complete.
 37. Read-only MarketLoad DecisionResult adapter and dry-run CLI are complete.
 38. Telegram UX future interface plan is documented.
-39. Next recommended target: DispatchCase/Event Timeline gap audit.
-40. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+39. DispatchCase/Event Timeline gap audit and ownership policy are complete.
+40. Next recommended target: DecisionEngine comparison report.
+41. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -521,21 +523,29 @@ Read-only MarketLoad DecisionResult adapter
 
 The adapter reads existing `MarketLoad` decision fields after current logic has run and produces a DecisionResult. It does not call `apply_search_request(...)`, mutate loads, send Telegram, write DispatchCases, write storage, or change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
 
-Immediate next target:
+Completed backend audit:
 
 ```text
 DispatchCase/Event Timeline gap audit
 ```
 
-Do this before any new case-writing behavior, intake-to-case linking, accounting/factoring document events, or replay/missed-opportunity expansion.
+This audit defines current load-level, future search/session-level, reporting-only, intake/document, DecisionEngine, reload-watch, and reload-chain ownership boundaries before new case-writing behavior.
 
-Possible follow-up DecisionEngine target:
+Immediate next target:
 
 ```text
 DecisionEngine comparison report
 ```
 
-This should remain report-only and compare current MarketLoad fields against normalized DecisionResult output before any runtime wiring.
+This should remain report-only and compare current MarketLoad fields against normalized DecisionResult output before any runtime wiring, case writes, Telegram behavior changes, or load-selection changes.
+
+Possible follow-up target:
+
+```text
+DispatchCase timeline event type constants/helper
+```
+
+This should be pure constants/helper work only if the next timeline implementation needs stable event names before behavior changes.
 
 ---
 

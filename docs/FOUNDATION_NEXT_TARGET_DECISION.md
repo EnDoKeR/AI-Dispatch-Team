@@ -997,3 +997,75 @@ This does not change the next backend recommendation:
 ```text
 DispatchCase/Event Timeline gap audit
 ```
+
+## DispatchCase/Event Timeline Audit Closeout
+
+Completed:
+
+```text
+docs/DISPATCH_CASE_EVENT_TIMELINE_GAP_AUDIT.md
+```
+
+What was decided:
+
+- `LOAD_OPPORTUNITY` and `REVIEW_ONCE` remain load-level case inputs.
+- `MARKET_SNAPSHOT` and `SEARCH_HEALTH_CHECK` remain outbox/reporting-only until a search/session entity exists.
+- reload-watch remains dry-run/manual only.
+- intake records remain separate evidence records until explicit linking policy exists.
+- DecisionResult remains report/dry-run only until a timeline storage policy is accepted.
+- reload-chain DispatchCase ownership still needs a separate audit before metadata/case wiring.
+
+Options evaluated:
+
+1. DecisionEngine comparison report: current MarketLoad fields vs DecisionResult
+2. DispatchCase timeline event type constants/helper
+3. Intake-to-DispatchCase link audit
+4. reload-chain DispatchCase policy audit
+5. synthetic load decision dataset planning
+6. Telegram UX implementation later
+
+Recommended next target:
+
+```text
+DecisionEngine comparison report
+```
+
+Why:
+
+- it can stay report-only
+- it uses the accepted read-only MarketLoad adapter
+- it validates current decision fields against normalized DecisionResult output
+- it does not write DispatchCases or events
+- it does not change Telegram, market snapshot, load selection, or runtime decision behavior
+- it provides useful evidence before any future DecisionResult timeline storage
+
+Suggested scope:
+
+```text
+app/market_intelligence/decision_engine/comparison_report.py
+scripts/run_decision_engine_comparison_report.py
+tests/test_decision_engine_comparison_report.py
+```
+
+The report should use synthetic/fake records first or existing decision history only in explicit manual mode. It must not mutate cases, write events, send Telegram, or call external services.
+
+Recommended second target:
+
+```text
+DispatchCase timeline event type constants/helper
+```
+
+Why:
+
+- useful if upcoming timeline work needs a stable event vocabulary
+- should be pure constants/helper only
+- should preserve existing event payloads and behavior
+
+Not recommended next:
+
+- runtime DecisionResult case writes
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- Telegram UX implementation
+- synthetic 100-200 load dataset
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, or accounting/factoring implementation
