@@ -1833,3 +1833,74 @@ Not recommended next:
 - reading private RateCon files in tests;
 - reload-chain DispatchCase wiring;
 - synthetic 100-200 load dataset.
+
+## Private RateCon Inventory Planning Closeout
+
+Completed:
+
+- field inventory plan: `docs/PRIVATE_RATECON_FIELD_INVENTORY_PLAN.md`;
+- blank safe template: `docs/templates/PRIVATE_RATECON_FIELD_INVENTORY_TEMPLATE.md`;
+- manual text dry-run protocol: `docs/MANUAL_RATECON_TEXT_DRY_RUN_PROTOCOL.md`;
+- readiness checklist: `docs/RATECON_TEST_READINESS_CHECKLIST.md`.
+
+Current status:
+
+- docs/local-process only;
+- no private RateCons read;
+- no private text committed;
+- no parser behavior changes;
+- no PDF/OCR;
+- no intake repository behavior changes;
+- no DispatchCase creation/linking/events;
+- no Telegram, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, replay, or reload-chain changes.
+
+Options evaluated:
+
+1. manual real RateCon text dry-run protocol execution support
+2. anonymized RateCon synthetic scenario expansion
+3. PDF extraction strategy audit
+4. private RateCon parser audit refresh
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+manual real RateCon text dry-run protocol execution support
+```
+
+Conditions:
+
+- readiness checklist must pass;
+- user must select 3-5 private documents locally;
+- no private files or private text may be committed;
+- execution support must stay manual/local/dry-run;
+- no PDF/OCR or file extraction should be added.
+
+Recommended fallback target:
+
+```text
+anonymized RateCon synthetic scenario expansion
+```
+
+Use this if the readiness checklist does not pass or if private sample review should wait.
+
+Recommended later target:
+
+```text
+PDF extraction strategy audit
+```
+
+This should remain audit/design first and should happen only after manual text dry-runs produce clear lessons.
+
+Not recommended next:
+
+- PDF extraction implementation;
+- OCR;
+- private file processing in tests;
+- committing private text;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase linking/event writes;
+- synthetic 100-200 load dataset;
+- reload-chain metadata/case wiring.

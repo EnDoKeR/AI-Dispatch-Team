@@ -479,10 +479,11 @@ Recommended order:
 48. Current built-events normalization report is complete.
 49. Intake-to-case link audit is complete.
 50. IntakeCaseLinkCandidate helper, synthetic fixtures, report helper, and CLI are complete.
-51. Recommended next target: private RateCon field inventory plan, docs/local-process only.
-52. Recommended follow-up: manual real RateCon text dry-run protocol, design-only first.
-53. Recommended later audit: reload-chain DispatchCase policy audit.
-54. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+51. Private RateCon field inventory plan, safe template, manual text dry-run protocol, and readiness checklist are complete.
+52. Recommended next target: manual real RateCon text dry-run protocol execution support, only if readiness checklist passes.
+53. Recommended fallback: anonymized RateCon synthetic scenario expansion.
+54. Recommended later audit: reload-chain DispatchCase policy audit.
+55. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -691,13 +692,30 @@ Command:
 py scripts/run_intake_case_link_candidate_report.py
 ```
 
-Next backend target:
+Completed backend target:
 
 ```text
 private RateCon field inventory plan
 ```
 
-This should stay docs/local-process only and define how the first private RateCon samples will be manually inventoried before any parser, PDF extraction, OCR, or live integration work.
+This stays docs/local-process only and defines how the first private RateCon samples will be manually inventoried before any parser, PDF extraction, OCR, or live integration work.
+
+Completed documents:
+
+```text
+docs/PRIVATE_RATECON_FIELD_INVENTORY_PLAN.md
+docs/templates/PRIVATE_RATECON_FIELD_INVENTORY_TEMPLATE.md
+docs/MANUAL_RATECON_TEXT_DRY_RUN_PROTOCOL.md
+docs/RATECON_TEST_READINESS_CHECKLIST.md
+```
+
+Next backend target:
+
+```text
+manual real RateCon text dry-run protocol execution support
+```
+
+This should proceed only if the readiness checklist passes. It should stay manual/local/dry-run and must not read private files automatically, commit private text, add PDF/OCR extraction, or write DispatchCase records/events.
 
 Completed backend audit:
 
