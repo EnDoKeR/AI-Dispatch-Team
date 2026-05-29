@@ -9,6 +9,7 @@ from pathlib import Path
 
 from app.market_intelligence import intake_record_summary
 from app.market_intelligence.intake_record import build_intake_record
+from app.market_intelligence.intake_record_repository import load_intake_records
 from app.market_intelligence.intake_record_summary import (
     build_intake_record_summary,
     format_intake_record_summary,
@@ -292,6 +293,145 @@ class TestIntakeRecordSummary(unittest.TestCase):
         self.assertEqual(result, 0)
         self.assertIn("Synthetic Sample Broker A", text)
         self.assertIn("SYNTH-SAMPLE-001", text)
+
+    def test_cli_no_save_behavior_does_not_create_records_file(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            records_file = Path(temp_dir) / "intake_records.json"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    [
+                        "--json",
+                        json.dumps(clean_source()),
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+
+            text = output.getvalue()
+
+            self.assertEqual(result, 0)
+            self.assertFalse(records_file.exists())
+            self.assertNotIn("Saved intake record", text)
+
+    def test_cli_save_with_json_string(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            records_file = Path(temp_dir) / "intake_records.json"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    [
+                        "--json",
+                        json.dumps(clean_source()),
+                        "--save",
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+
+            records = load_intake_records(records_file)
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Saved intake record: DRY-RUN-INTAKE-1", text)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["intake_id"], "DRY-RUN-INTAKE-1")
+        self.assertEqual(records[0]["status"], "READY_FOR_REVIEW")
+
+    def test_cli_save_with_json_file(self):
+        from scripts import run_intake_record_dry_run
+
+        fixture_path = Path(
+            "tests/fixtures/intake_sample_records/missing_broker_mc.json"
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            records_file = Path(temp_dir) / "intake_records.json"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    [
+                        "--json-file",
+                        str(fixture_path),
+                        "--save",
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+
+            records = load_intake_records(records_file)
+
+        text = output.getvalue()
+
+        self.assertEqual(result, 0)
+        self.assertIn("Saved intake record: DRY-RUN-INTAKE-1", text)
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["status"], "MISSING_FIELDS")
+        self.assertIn("broker_mc", records[0]["missing_fields"])
+
+    def test_cli_save_upserts_same_intake_id(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            records_file = Path(temp_dir) / "intake_records.json"
+
+            with redirect_stdout(io.StringIO()):
+                run_intake_record_dry_run.main(
+                    [
+                        "--json",
+                        json.dumps(clean_source()),
+                        "--save",
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+                run_intake_record_dry_run.main(
+                    [
+                        "--json",
+                        json.dumps({**clean_source(), "rate": 3600}),
+                        "--save",
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+
+            records = load_intake_records(records_file)
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0]["intake_id"], "DRY-RUN-INTAKE-1")
+        self.assertEqual(records[0]["rate"], 3600)
+
+    def test_cli_save_does_not_break_invalid_json_error(self):
+        from scripts import run_intake_record_dry_run
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            records_file = Path(temp_dir) / "intake_records.json"
+            output = io.StringIO()
+
+            with redirect_stdout(output):
+                result = run_intake_record_dry_run.main(
+                    [
+                        "--json",
+                        "{bad json",
+                        "--save",
+                        "--records-file",
+                        str(records_file),
+                    ]
+                )
+
+            text = output.getvalue()
+
+            self.assertEqual(result, 1)
+            self.assertIn("Invalid JSON input", text)
+            self.assertFalse(records_file.exists())
 
     def test_accepts_already_built_intake_record(self):
         record = build_intake_record(clean_source(), intake_id="INTAKE-1")

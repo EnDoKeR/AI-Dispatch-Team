@@ -10,6 +10,10 @@ from app.market_intelligence.intake_record_summary import (
     build_intake_record_summary,
     format_intake_record_summary,
 )
+from app.market_intelligence.intake_record_repository import (
+    INTAKE_RECORDS_FILE,
+    upsert_intake_record,
+)
 
 
 SAMPLE_SOURCE = {
@@ -49,6 +53,16 @@ def parse_args(args=None):
         "--json-file",
         dest="json_file",
         help="Local JSON file containing one intake record object.",
+    )
+    parser.add_argument(
+        "--save",
+        action="store_true",
+        help="Save the normalized intake record to the local JSON repository.",
+    )
+    parser.add_argument(
+        "--records-file",
+        default=INTAKE_RECORDS_FILE,
+        help="JSON repository path for --save.",
     )
 
     return parser.parse_args(args)
@@ -97,6 +111,20 @@ def source_from_args(args):
     return SAMPLE_SOURCE, 0
 
 
+def saved_record_from_summary(summary):
+    record = dict(summary["intake_record"])
+    record["status"] = summary["status"]
+
+    return record
+
+
+def save_summary_record(summary, records_file):
+    return upsert_intake_record(
+        saved_record_from_summary(summary),
+        records_file,
+    )
+
+
 def main(args=None):
     if args is None:
         args = []
@@ -114,6 +142,11 @@ def main(args=None):
     )
 
     print(format_intake_record_summary(summary))
+
+    if parsed_args.save:
+        saved_record = save_summary_record(summary, parsed_args.records_file)
+        print(f"Saved intake record: {saved_record['intake_id'] or 'NO ID'}")
+        print(f"Records file: {parsed_args.records_file}")
 
     return 0
 
