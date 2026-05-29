@@ -330,3 +330,34 @@ Current non-scope:
 - no Gmail/email or Google Sheets;
 - no DispatchCase creation/linking/events;
 - no `linked_dispatch_case_id` updates.
+
+## Local PDF Dry-run Mode
+
+Limited local PDF dry-run support exists for private files under:
+
+```text
+data/private_ratecons/originals/
+```
+
+Run a small first batch only:
+
+```powershell
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 1
+```
+
+The command:
+
+- scans local private PDFs;
+- processes only the first limited batch;
+- uses anonymized labels such as `RATECON_001`;
+- extracts text locally and passes it through the same RateCon dry-run pipeline;
+- prints safe summaries only;
+- prints extraction status, character count, missing fields, needs-check fields, low-confidence field names, and result category;
+- does not print raw extracted text;
+- does not save extracted text;
+- does not create or link DispatchCases;
+- does not write events.
+
+Use `--limit 1` first. Increase only after confirming that summaries are safe and useful.
+
+Do not paste command output into tracked files if it contains private values. Safe shareable notes should use only field-level yes/no/partial results, missing/needs-check field names, result categories, and anonymized labels.
