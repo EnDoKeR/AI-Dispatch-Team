@@ -315,7 +315,7 @@ Current state:
 - Top/review-once load dedupe, limit, and sent-history filtering live in `telegram_load_selection.py`.
 - Reload-chain candidate dedupe, limit, and sent-history filtering live in `telegram_chain_selection.py`.
 - Message formatting remains in formatter modules.
-- Search health metadata now has a focused helper with intentionally empty load-specific fields, but it is not wired into live sending yet.
+- Search health metadata now has a focused helper with intentionally empty load-specific fields and is wired into the search-health sender path.
 
 ### Phase 8 - Market model follow-up refactor
 
@@ -510,5 +510,5 @@ Start with:
 
 Next safe candidates:
 
-1. Wire the tested search health metadata helper into the search-health sender path only.
+1. Pause metadata wiring before reload-chain metadata and choose the next Foundation Hardening target.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.

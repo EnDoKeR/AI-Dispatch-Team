@@ -10,6 +10,7 @@ from app.market_intelligence.telegram_load_metadata import (
     build_review_once_metadata,
 )
 from app.market_intelligence.telegram_summary_metadata import build_market_summary_metadata
+from app.market_intelligence.telegram_search_health_metadata import build_search_health_metadata
 from app.market_intelligence.telegram_sent_state import (
     get_sent_health_alerts,
     get_sent_loads,
@@ -217,7 +218,16 @@ def send_search_health_check_to_telegram(
         monitored_minutes=monitored_minutes,
     )
 
-    success = send_telegram_message(message)
+    success = send_telegram_message(
+        message,
+        metadata=build_search_health_metadata(
+            search_request=search_request,
+            loads=loads,
+            top_opportunities=top_opportunities,
+            review_once_loads=review_once_loads,
+            monitored_minutes=monitored_minutes,
+        ),
+    )
 
     if success:
         save_sent_health_alert(search_request)

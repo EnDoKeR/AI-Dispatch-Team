@@ -112,7 +112,7 @@ Current direction:
 - Market summary `MARKET_SNAPSHOT` alerts now pass structured metadata through the market summary sender path.
 - `SEARCH_HEALTH_CHECK` policy was audited; recommended policy is outbox/reporting-only until a search-level entity exists.
 - DispatchCase now excludes `SEARCH_HEALTH_CHECK` from load-level case creation/matching, so search health records remain outbox/reporting-only.
-- `telegram_search_health_metadata.py` builds structured search health metadata with intentionally empty load-specific core fields, but it is not wired into the sender path yet.
+- `telegram_search_health_metadata.py` builds structured search health metadata with intentionally empty load-specific core fields and is wired into the search-health sender path.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
@@ -417,7 +417,7 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Wire search health metadata into the search-health sender path only.
+2. Pause metadata wiring before reload-chain metadata and choose the next Foundation Hardening target.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -742,5 +742,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram search health metadata wiring.
+4. Recommended next target: fresh Foundation Hardening target selection before any reload-chain metadata work.
 5. Avoid new large files by default.

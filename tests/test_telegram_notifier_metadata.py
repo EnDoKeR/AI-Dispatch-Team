@@ -331,8 +331,10 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
             },
         )
 
-    def test_search_health_and_chain_paths_do_not_pass_metadata_yet(self):
+    def test_search_health_sender_passes_search_health_metadata(self):
         search_request = FakeSearchRequest()
+        loads = [FakeLoad(), FakeLoad()]
+        review_once_loads = [FakeLoad()]
 
         with patch(
             "app.market_intelligence.telegram_notifier.get_sent_health_alerts",
@@ -345,7 +347,7 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
                 with patch(
                     "app.market_intelligence.telegram_notifier.format_search_health_message",
                     return_value="HEALTH MESSAGE",
-                ):
+                ) as format_message:
                     with patch(
                         "app.market_intelligence.telegram_notifier.send_telegram_message",
                         return_value=True,
@@ -356,12 +358,51 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
                             with patch("builtins.print"):
                                 send_search_health_check_to_telegram(
                                     search_request,
-                                    loads=[],
+                                    loads=loads,
                                     top_opportunities=[],
-                                    review_once_loads=[],
+                                    review_once_loads=review_once_loads,
+                                    monitored_minutes=45,
                                 )
 
-        self.assertNotIn("metadata", send_message.call_args.kwargs)
+        format_message.assert_called_once_with(
+            search_request,
+            loads,
+            [],
+            review_once_loads,
+            monitored_minutes=45,
+        )
+        send_message.assert_called_once_with(
+            "HEALTH MESSAGE",
+            metadata={
+                "message_type": "SEARCH_HEALTH_CHECK",
+                "category": "SEARCH HEALTH CHECK",
+                "driver_name": "Alex",
+                "pickup": "",
+                "delivery": "",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+                "reference_id": "",
+                "search_area": "Dallas, TX",
+                "current_location": "Dallas, TX",
+                "available_time": "Now",
+                "equipment": "Flatbed",
+                "target_direction": "TX",
+                "monitored_minutes": 45,
+                "total_loads": 2,
+                "qualified_loads": 0,
+                "clean_matches": 0,
+                "top_opportunities": 0,
+                "review_once_count": 1,
+                "blocked_count": 0,
+                "health_status": "",
+                "action_status": "",
+                "reason": "",
+            },
+        )
+
+    def test_reload_chain_path_does_not_pass_metadata_yet(self):
+        search_request = FakeSearchRequest()
 
         candidate = {
             "first_load": FakeLoad(),
