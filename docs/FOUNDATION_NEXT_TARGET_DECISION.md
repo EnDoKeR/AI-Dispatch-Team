@@ -280,6 +280,18 @@ Policy summary:
 - upsert by `intake_id` when available
 - tests must use temp files only
 
+Implementation status:
+
+```text
+Intake JSON repository foundation - complete
+```
+
+Next safe target:
+
+```text
+Intake record status helper foundation
+```
+
 ## Still Not Next
 
 Do not build next:

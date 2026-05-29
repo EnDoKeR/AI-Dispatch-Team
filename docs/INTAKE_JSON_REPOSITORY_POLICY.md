@@ -131,10 +131,23 @@ The repository must not:
 
 ## Decision
 
-Approved next mini-block:
+Completed mini-block:
 
 ```text
 Intake JSON repository foundation
 ```
 
-Keep it small and boring. It is local JSON storage only, not parser/storage service orchestration and not a live integration.
+Implemented in:
+
+```text
+app/market_intelligence/intake_record_repository.py
+tests/test_intake_record_repository.py
+```
+
+Runtime file:
+
+```text
+data/intake_records.json
+```
+
+The runtime file is gitignored. The repository is local JSON storage only, not parser/storage service orchestration and not a live integration.

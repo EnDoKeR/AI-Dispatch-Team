@@ -201,6 +201,15 @@ docs/INTAKE_JSON_REPOSITORY_POLICY.md
 
 The approved first storage layer is a small gitignored JSON list at `data/intake_records.json`. It should store only JSON-ready intake records, not PDFs or private document content.
 
+Implemented repository foundation:
+
+```text
+app/market_intelligence/intake_record_repository.py
+tests/test_intake_record_repository.py
+```
+
+It can load/save/upsert/get/filter JSON-ready intake records, but it does not parse source files or decide dispatch behavior.
+
 ## Mandatory Fields
 
 The record can exist without all mandatory fields, but missing mandatory fields must be flagged.
