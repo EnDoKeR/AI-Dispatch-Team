@@ -399,12 +399,13 @@ docs/ARCHITECTURE_AUDIT.md
 docs/LEGACY_CANDIDATES.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
+docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
 ~~~
 
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Audit Telegram outbox structured metadata before changing formatter/parser behavior.
+2. Add Telegram sender metadata passthrough as a small compatibility foundation.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -729,5 +730,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram outbox structured metadata audit.
+4. Recommended next target: Telegram sender metadata passthrough foundation.
 5. Avoid new large files by default.

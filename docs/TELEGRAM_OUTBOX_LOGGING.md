@@ -124,3 +124,9 @@ If metadata is missing, logger should fall back to text parsing for backward com
 2. Update one sender path at a time to pass metadata.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
+
+See also:
+
+```text
+docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
+```

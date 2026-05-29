@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Run a focused Telegram outbox structured-metadata audit before changing formatter/parser behavior.
+1. Add Telegram sender metadata passthrough as a small compatibility foundation.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.
