@@ -454,8 +454,11 @@ Recommended order:
 25. Main system flow is documented in `FLOW.md`.
 26. Setup/dependency policy is documented in `README_SETUP.md`.
 27. Development rules now explicitly separate core domain logic from adapters/interfaces.
-28. Next recommended architecture target: DecisionEngine architecture audit.
-29. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+28. DecisionEngine architecture audit is complete.
+29. DecisionEngine result contract and input signal map are documented.
+30. DecisionEngine risk flag taxonomy is documented.
+31. Next recommended DecisionEngine target: pure risk flag constants/helper.
+32. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -496,12 +499,20 @@ Expected outcome:
 Immediate next audit:
 
 ```text
-DecisionEngine architecture audit
+Decision risk flag constants/helper
 ```
 
-The audit should check whether decision/risk logic is explainable, interface-independent, and separated from Telegram formatting/sending, storage, parser behavior, and future accounting/factoring responsibilities.
+The first implementation after the audit should be pure and side-effect-free. It should expose stable risk flag names, categories, usual action levels, and lookup/validation helpers only. It must not change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
 
-Second recommended audit:
+Second recommended DecisionEngine target:
+
+```text
+DecisionEngine result model/helper
+```
+
+This should normalize decision result fields without wrapping current `MarketLoad` behavior yet.
+
+Next major audit after pure DecisionEngine helpers:
 
 ```text
 DispatchCase/Event Timeline gap audit

@@ -660,3 +660,71 @@ Do not implement during the next audit:
 - PDF/OCR parser behavior
 - real factoring submission
 - autonomous booking or financial/legal commitments
+
+## DecisionEngine Architecture Audit Closeout
+
+Completed DecisionEngine audit/design foundation:
+
+- `docs/DECISION_ENGINE_AUDIT.md` inventories where current decision/risk/recommendation logic lives.
+- `docs/DECISION_ENGINE_CONTRACT.md` proposes the future DecisionEngine output shape and boundary rules.
+- `docs/DECISION_ENGINE_CONTRACT.md` also maps future input signal groups.
+- `docs/DECISION_ENGINE_RISK_FLAGS.md` defines a first risk flag taxonomy.
+
+Options evaluated:
+
+1. pure DecisionEngine result model/helper
+2. risk flag constants module
+3. DecisionEngine adapter around current `MarketLoad` decision logic
+4. DecisionEngine dry-run scenario runner
+5. postpone and do DispatchCase/Event Timeline gap audit
+
+Recommended next target:
+
+```text
+Decision risk flag constants/helper
+```
+
+Why:
+
+- the taxonomy is documented but not yet protected by code
+- constants/helper can be pure and side-effect-free
+- it does not change `MarketLoad.apply_search_request(...)`
+- it does not change Telegram, DispatchCase, storage, or live behavior
+- it creates a stable vocabulary for future DecisionEngine results and tests
+
+Suggested scope:
+
+```text
+app/market_intelligence/decision_risk_flags.py
+tests/test_decision_risk_flags.py
+```
+
+The helper should expose flag names, categories, usual action levels, and lookup/validation helpers only. It should not apply flags to loads yet.
+
+Recommended second target:
+
+```text
+DecisionEngine result model/helper
+```
+
+Why:
+
+- after stable flags exist, a pure result builder can normalize `decision`, `category`, reasons, flags, missing fields, confidence, approval, and recommended next action
+- it can be tested without wrapping current `MarketLoad` behavior yet
+- it prepares the future adapter around existing decision logic
+
+Not recommended next:
+
+- adapter around current `MarketLoad` decision logic: useful, but should wait until risk flags and result shape have pure helpers
+- DecisionEngine scenario runner: should wait until a result helper exists
+- DispatchCase/Event Timeline gap audit: still important, but can follow the first two pure DecisionEngine helpers unless a product decision requires timeline policy first
+
+Do not implement in the next DecisionEngine helper block:
+
+- live Telegram behavior
+- DispatchCase writes
+- file moves/package migration
+- external APIs
+- parser/PDF/OCR behavior
+- accounting/factoring behavior
+- changes to existing `MATCH` / `REVIEW_ONCE` / `BLOCK` decisions
