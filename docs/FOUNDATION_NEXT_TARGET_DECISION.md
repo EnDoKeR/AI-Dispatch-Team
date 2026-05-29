@@ -1904,3 +1904,82 @@ Not recommended next:
 - DispatchCase linking/event writes;
 - synthetic 100-200 load dataset;
 - reload-chain metadata/case wiring.
+
+## Manual RateCon Text Dry-run Execution Support Closeout
+
+Completed:
+
+- protocol sync: `docs/MANUAL_RATECON_TEXT_DRY_RUN_PROTOCOL.md`;
+- pure pipeline helper: `app/market_intelligence/intake/ratecon_text_dry_run.py`;
+- manual CLI: `scripts/run_manual_ratecon_text_dry_run.py`;
+- result checklist: `docs/MANUAL_RATECON_DRY_RUN_RESULT_CHECKLIST.md`;
+- README command reference.
+
+Current command:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py --text "Broker: FAKE BROKER LLC ..."
+```
+
+Current status:
+
+- local/manual/dry-run only;
+- supports fake sample mode, `--text`, and safe terminal stdin;
+- no file input mode;
+- no private text saved by default;
+- no private RateCon files read;
+- no PDF/OCR;
+- no Telegram upload;
+- no Gmail/email or Google Sheets;
+- no DispatchCase creation/linking/events;
+- no `linked_dispatch_case_id` updates.
+
+Options evaluated:
+
+1. first private manual text dry-run with user-provided local text
+2. anonymized synthetic RateCon scenario expansion
+3. PDF extraction strategy audit
+4. pdfplumber/PyMuPDF dependency audit
+5. private PDF test harness design
+6. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+first private manual text dry-run protocol execution
+```
+
+Conditions:
+
+- readiness checklist must pass;
+- user provides/uses local pasted text manually;
+- no private files or private text are committed;
+- any results shared back into docs/tests must be anonymized.
+
+Recommended fallback target:
+
+```text
+anonymized RateCon synthetic scenario expansion
+```
+
+Use this if private dry-run execution should wait or if the first manual dry-run reveals parser gaps that can be represented synthetically.
+
+Recommended later target:
+
+```text
+PDF extraction strategy audit
+```
+
+This should remain audit/design only until manual pasted-text dry-runs are understood.
+
+Not recommended next:
+
+- PDF extraction implementation;
+- OCR;
+- private file processing in tests;
+- committing private text or extracted private values;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase linking/event writes;
+- synthetic 100-200 load dataset;
+- reload-chain metadata/case wiring.

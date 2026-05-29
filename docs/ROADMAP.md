@@ -480,10 +480,11 @@ Recommended order:
 49. Intake-to-case link audit is complete.
 50. IntakeCaseLinkCandidate helper, synthetic fixtures, report helper, and CLI are complete.
 51. Private RateCon field inventory plan, safe template, manual text dry-run protocol, and readiness checklist are complete.
-52. Recommended next target: manual real RateCon text dry-run protocol execution support, only if readiness checklist passes.
-53. Recommended fallback: anonymized RateCon synthetic scenario expansion.
-54. Recommended later audit: reload-chain DispatchCase policy audit.
-55. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+52. Manual RateCon text dry-run helper, CLI, protocol sync, and result checklist are complete.
+53. Recommended next target: first private manual text dry-run protocol execution, only if readiness checklist passes.
+54. Recommended fallback: anonymized RateCon synthetic scenario expansion.
+55. Recommended later audit: reload-chain DispatchCase policy audit.
+56. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -709,13 +710,27 @@ docs/MANUAL_RATECON_TEXT_DRY_RUN_PROTOCOL.md
 docs/RATECON_TEST_READINESS_CHECKLIST.md
 ```
 
-Next backend target:
+Completed backend target:
 
 ```text
 manual real RateCon text dry-run protocol execution support
 ```
 
-This should proceed only if the readiness checklist passes. It should stay manual/local/dry-run and must not read private files automatically, commit private text, add PDF/OCR extraction, or write DispatchCase records/events.
+This stays manual/local/dry-run and does not read private files automatically, commit private text, add PDF/OCR extraction, or write DispatchCase records/events.
+
+Command:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py --text "Broker: FAKE BROKER LLC ..."
+```
+
+Next backend target:
+
+```text
+first private manual text dry-run protocol execution
+```
+
+This should proceed only if the readiness checklist passes and should not commit private text or generated private values.
 
 Completed backend audit:
 

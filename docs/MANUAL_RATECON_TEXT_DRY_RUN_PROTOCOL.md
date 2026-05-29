@@ -116,7 +116,30 @@ If asking for help in chat, paste only selected anonymized snippets or manually 
 
 ### 4. Run Pasted-text Dry-run
 
+For full pipeline execution with sample fake text:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py
+```
+
 For short local text:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py --text "Broker: FAKE BROKER LLC ..."
+```
+
+For terminal stdin:
+
+```powershell
+@"
+Broker: FAKE BROKER LLC
+Reference: FAKE-REF-001
+"@ | py scripts/run_manual_ratecon_text_dry_run.py --stdin
+```
+
+The stdin example is for terminal-pasted text only. Do not save command output to a tracked file if it contains private values.
+
+The lower-level parser-only command still exists:
 
 ```powershell
 py scripts/run_pasted_text_parser_dry_run.py --text "Broker: FAKE BROKER LLC ..."
@@ -218,3 +241,33 @@ After the first few private local checks:
 3. update parser difficulty notes;
 4. decide whether a PDF extraction strategy audit is ready;
 5. keep runtime linking/event writes out of scope until separately approved.
+
+## Execution Support Status
+
+Manual text dry-run execution support now exists.
+
+Current command:
+
+```powershell
+py scripts/run_manual_ratecon_text_dry_run.py --text "Broker: FAKE BROKER LLC ..."
+```
+
+Current scope:
+
+- sample fake text mode;
+- manual `--text` mode;
+- safe terminal `--stdin` mode;
+- parser output;
+- IntakeRecord summary;
+- optional synthetic/sample link candidate preview;
+- printed local output only.
+
+Current non-scope:
+
+- no private file reading;
+- no private text saving;
+- no PDF/OCR;
+- no Telegram upload;
+- no Gmail/email or Google Sheets;
+- no DispatchCase creation/linking/events;
+- no `linked_dispatch_case_id` updates.
