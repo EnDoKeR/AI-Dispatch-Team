@@ -598,3 +598,65 @@ Not recommended next:
 - live Telegram upload: not yet
 - Gmail/email/Google Sheets: not yet
 - reload-chain DispatchCase policy audit: important but separate from intake/parser preparation
+
+## Product Alignment Closeout
+
+Completed product-alignment foundation:
+
+- `docs/PRODUCT_STRATEGY.md` reframes the project as a Dispatch Operating Intelligence System for small and mid-size carriers.
+- `FLOW.md` describes the intended flow from intake to DispatchCase, DecisionEngine, adapters, Event Timeline, documents, and future accounting/replay layers.
+- `README_SETUP.md` documents the current dependency position: core foundation work uses the Python standard library, while `pypdf`, `gspread`, Google auth, and `geopy` remain optional/manual or legacy dependencies.
+- `docs/DEVELOPMENT_RULES.md` now separates core domain logic from adapters and requires new modules to identify their responsibility category.
+
+Options evaluated:
+
+1. requirements/setup cleanup
+2. DecisionEngine architecture audit
+3. DispatchCase/Event Timeline gap audit
+4. accounting/factoring document model audit
+5. pasted-text parser adapter continuation
+6. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+DecisionEngine architecture audit
+```
+
+Why:
+
+- product direction now depends on the DecisionEngine being core and interface-independent
+- current work has already hardened intake, metadata, reload-watch dry-runs, and parser boundaries
+- before accounting/factoring, replay, or missed-opportunity logic is added, decision/risk logic should be audited for Telegram coupling, mixed responsibilities, and explainability gaps
+- this can be audit-only first, with no runtime behavior change
+
+Recommended second target:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+Why:
+
+- DispatchCase is the operational backbone of the product
+- intake records, future documents, dispatcher feedback, and accounting/factoring packets need a reliable timeline policy
+- this audit should happen before any new case-writing behavior is added
+
+Not recommended next:
+
+- requirements/setup cleanup: basic setup policy is now documented, and no required third-party dependencies need to be added
+- accounting/factoring document model audit: valuable, but should follow DecisionEngine and DispatchCase/Event Timeline audits
+- pasted-text parser continuation: stable enough to pause while core architecture is reviewed
+- reload-chain DispatchCase policy audit: still important, but less urgent than the general DispatchCase/Event Timeline gap audit
+
+Do not implement during the next audit:
+
+- live Telegram behavior
+- Telegram buttons
+- DAT/API
+- Google Maps
+- Gmail/email integration
+- Google Sheets integration
+- PDF/OCR parser behavior
+- real factoring submission
+- autonomous booking or financial/legal commitments

@@ -450,7 +450,12 @@ Recommended order:
 21. Manual pasted-text parser adapter, dry-run CLI, scenario runner, and scenario CLI are complete.
 22. Next recommended parser target: private RateCon field inventory plan, docs/local-process only.
 23. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-24. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+24. Product strategy alignment is documented in `docs/PRODUCT_STRATEGY.md`.
+25. Main system flow is documented in `FLOW.md`.
+26. Setup/dependency policy is documented in `README_SETUP.md`.
+27. Development rules now explicitly separate core domain logic from adapters/interfaces.
+28. Next recommended architecture target: DecisionEngine architecture audit.
+29. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -487,6 +492,22 @@ Expected outcome:
 - fewer cross-layer dependencies
 - safer replay and testing
 - better preparation for parallel agents and future interfaces
+
+Immediate next audit:
+
+```text
+DecisionEngine architecture audit
+```
+
+The audit should check whether decision/risk logic is explainable, interface-independent, and separated from Telegram formatting/sending, storage, parser behavior, and future accounting/factoring responsibilities.
+
+Second recommended audit:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+This should define what evidence belongs on a load-level DispatchCase, what belongs to a future search/session entity, and what should remain reporting-only until a policy exists.
 
 ---
 
