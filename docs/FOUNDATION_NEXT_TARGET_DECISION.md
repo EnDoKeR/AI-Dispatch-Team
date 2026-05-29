@@ -147,6 +147,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 ```text
 JSON-ready intake record helper - complete
 Parser interface contract - complete
+Intake record status helper - complete
 Manual intake dry-run summary helper/CLI - complete
 Synthetic intake fixtures - complete
 Synthetic intake scenario runner - complete
@@ -286,10 +287,16 @@ Implementation status:
 Intake JSON repository foundation - complete
 ```
 
+Intake status helper status:
+
+```text
+Intake record status helper foundation - complete
+```
+
 Next safe target:
 
 ```text
-Intake record status helper foundation
+Intake repository dry-run CLI optional save
 ```
 
 ## Still Not Next

@@ -70,7 +70,16 @@ NEEDS_CHECK
 
 Status is a classification of the intake record, not a dispatch decision.
 
-The repository should not decide status. It may filter records by an existing `status` field if present. A separate pure status helper can classify records before a CLI/service saves them.
+The repository should not decide status. It may filter records by an existing `status` field if present.
+
+Implemented status helper:
+
+```text
+app/market_intelligence/intake_record_status.py
+tests/test_intake_record_status.py
+```
+
+The helper classifies records as `MISSING_FIELDS`, `NEEDS_CHECK`, or `READY_FOR_REVIEW` from existing `missing_fields` / `needs_check_fields`. It does not make dispatch decisions.
 
 ## Source File Names
 
@@ -151,3 +160,15 @@ data/intake_records.json
 ```
 
 The runtime file is gitignored. The repository is local JSON storage only, not parser/storage service orchestration and not a live integration.
+
+Status helper status:
+
+```text
+Intake record status helper foundation - complete
+```
+
+Next safe target:
+
+```text
+Intake repository dry-run CLI optional save
+```

@@ -1,4 +1,8 @@
 from app.market_intelligence.intake_record import build_intake_record
+from app.market_intelligence.intake_record_status import (
+    classify_intake_record_status,
+    intake_record_ready_for_review,
+)
 
 
 SUMMARY_IMPORT_FIELDS = [
@@ -53,13 +57,7 @@ def build_imported_fields(record):
 
 
 def status_for_record(record):
-    if record["missing_fields"]:
-        return "MISSING_FIELDS"
-
-    if record["needs_check_fields"]:
-        return "NEEDS_CHECK"
-
-    return "READY_FOR_REVIEW"
+    return classify_intake_record_status(record)
 
 
 def build_human_summary_lines(record, status):
@@ -114,7 +112,7 @@ def build_intake_record_summary(source=None, received_at_utc="", intake_id=""):
         "imported_fields": build_imported_fields(record),
         "missing_fields": list(record["missing_fields"]),
         "needs_check_fields": list(record["needs_check_fields"]),
-        "ready_for_review": status != "MISSING_FIELDS",
+        "ready_for_review": intake_record_ready_for_review(record),
         "ready_for_dispatch_case_linking": False,
         "human_summary_lines": build_human_summary_lines(record, status),
         "intake_record": record,

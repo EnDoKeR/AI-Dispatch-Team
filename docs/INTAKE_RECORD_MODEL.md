@@ -235,6 +235,23 @@ tests/test_intake_parser_contract.py
 
 This is a contract only. Future parser implementations may read PDF text, OCR text, email body text, Telegram upload content, or manual JSON, but their output must be structured fields. The parser layer must not make dispatch decisions, send Telegram, write Google Sheets, create DispatchCases, write event logs, or import legacy `app/load_intake`.
 
+## Record Status
+
+Implemented pure status helper:
+
+```text
+app/market_intelligence/intake_record_status.py
+tests/test_intake_record_status.py
+```
+
+It classifies normalized records from `missing_fields` and `needs_check_fields` only:
+
+- `MISSING_FIELDS`
+- `NEEDS_CHECK`
+- `READY_FOR_REVIEW`
+
+This status is intake-review context only. It is not a dispatch MATCH/BLOCK/REVIEW decision.
+
 ## Manual Dry-Run Summary
 
 Implemented dry-run summary layer:
