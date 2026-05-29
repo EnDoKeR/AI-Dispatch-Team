@@ -537,3 +537,7 @@ A safe first DecisionEngine wrapper can start with:
 ```
 
 This keeps the first implementation small while preserving the target architecture.
+
+Implementation status:
+
+`app/market_intelligence/decision_engine/signals.py` now provides a pure JSON-ready signal bundle helper for these groups. It does not extract facts, mutate inputs, decide `MATCH` / `REVIEW_ONCE` / `BLOCK`, or wire into runtime flow.
