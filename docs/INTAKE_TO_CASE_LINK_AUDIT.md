@@ -430,3 +430,186 @@ Recommended future actions:
 | broker/lane/reference conflict | `KEEP_UNLINKED` or `NEEDS_REVIEW` |
 
 No action in this table is runtime behavior today.
+
+## IntakeCaseLinkCandidate Model Design
+
+This section proposes a future JSON-ready link candidate shape. It is not implemented.
+
+The candidate should describe evidence and recommendation only. It must not mutate the IntakeRecord, mutate a DispatchCase, create events, write files, send Telegram, or make a final business decision.
+
+### Proposed Structure
+
+```python
+{
+    "intake_id": "",
+    "candidate_case_id": "",
+    "match_score": 0,
+    "match_reasons": [],
+    "mismatch_reasons": [],
+    "missing_fields": [],
+    "needs_check_fields": [],
+    "confidence": "UNKNOWN",
+    "recommended_action": "NEEDS_REVIEW",
+    "approval_required": True,
+    "evidence": {},
+}
+```
+
+Recommended actions:
+
+```text
+LINK_EXISTING
+CREATE_CASE_REVIEW
+KEEP_UNLINKED
+NEEDS_REVIEW
+```
+
+Recommended confidence values:
+
+```text
+HIGH
+MEDIUM
+LOW
+UNKNOWN
+```
+
+### Field Semantics
+
+`intake_id`
+
+Stable ID from the IntakeRecord. Required for any candidate.
+
+`candidate_case_id`
+
+Existing DispatchCase ID if a possible match is found. Empty when no candidate case is selected.
+
+`match_score`
+
+Future numeric score used for sorting/review, not for automatic approval. Suggested range: 0 to 100.
+
+`match_reasons`
+
+Human-readable and machine-readable reasons supporting the candidate, such as exact reference match, broker MC match, lane match, rate match, or date match.
+
+`mismatch_reasons`
+
+Conflicts or uncertainty, such as broker MC mismatch, lane mismatch, missing reference ID, duplicate reference, low confidence field, or ambiguous multi-stop evidence.
+
+`missing_fields`
+
+Direct copy or subset from IntakeRecord `missing_fields`. Candidate generation must not hide missing fields.
+
+`needs_check_fields`
+
+Direct copy or subset from IntakeRecord `needs_check_fields`. Candidate generation must not hide needs-check fields.
+
+`confidence`
+
+Overall candidate confidence derived from evidence quality later. It is not a dispatch decision.
+
+`recommended_action`
+
+Review recommendation only. It does not link, create, or update any runtime object.
+
+`approval_required`
+
+Should default to `True` for all link/create actions in the first implementation.
+
+`evidence`
+
+Structured evidence used to explain the recommendation. This should include normalized comparisons, source record fields, candidate case fields, and field confidence.
+
+### Future Score Calculation
+
+Do not implement scoring until a separate helper block.
+
+Suggested scoring direction:
+
+| Evidence | Effect |
+| --- | --- |
+| exact `reference_id` or `load_id` match | strong positive |
+| broker MC match | strong positive |
+| pickup/delivery match | strong positive |
+| pickup/delivery date match | medium positive |
+| rate match | medium positive |
+| broker name match without MC | weak positive |
+| missing reference/load ID | strong negative |
+| broker MC conflict | strong negative |
+| lane conflict | strong negative |
+| low confidence critical field | negative and review required |
+| duplicate candidate cases | negative and review required |
+| multi-stop ambiguity | negative and review required |
+
+The score should help rank candidates, but the first implementation should still require approval for persisted links or case creation.
+
+### Evidence To Store In Candidate Output
+
+Recommended future evidence fields:
+
+```python
+{
+    "intake": {
+        "reference_id": "",
+        "broker_name": "",
+        "broker_mc": "",
+        "pickup_location": "",
+        "delivery_location": "",
+        "pickup_date": "",
+        "delivery_date": "",
+        "rate": "",
+        "equipment": "",
+        "field_confidence": {},
+        "source_type": "",
+        "source_file_name": "",
+    },
+    "candidate_case": {
+        "case_id": "",
+        "load_id": "",
+        "reference_id": "",
+        "broker_name": "",
+        "broker_mc": "",
+        "pickup": "",
+        "delivery": "",
+        "rate": "",
+    },
+    "comparison": {
+        "reference_match": False,
+        "broker_match": False,
+        "lane_match": False,
+        "rate_match": False,
+        "date_match": False,
+    },
+}
+```
+
+Evidence should be compact, JSON-serializable, and safe for reports. It should not include private RateCon text, private file contents, raw PDF bytes, or contact-heavy document blobs.
+
+### Why This Is Not Runtime Yet
+
+This model depends on policy and tests that do not exist yet:
+
+- match scoring;
+- field normalization;
+- duplicate candidate handling;
+- manual approval workflow;
+- event/timeline behavior;
+- safe handling of private document metadata;
+- behavior when no matching case exists.
+
+Until those are implemented, IntakeRecords must remain separate structured evidence.
+
+### Future Tests Needed Before Implementation
+
+Before adding a helper, add focused tests for:
+
+1. exact reference and broker MC candidate;
+2. exact reference with broker conflict;
+3. no reference ID keeps record unlinked;
+4. low confidence reference ID requires review;
+5. missing mandatory fields are preserved in candidate;
+6. needs-check fields force review recommendation;
+7. duplicate case candidates are reported without choosing silently;
+8. candidate output is JSON-serializable;
+9. candidate generation does not mutate IntakeRecord or DispatchCase input;
+10. candidate generation does not write events or update `linked_dispatch_case_id`;
+11. no parser/PDF/OCR/Telegram/Gmail/Google Sheets/DispatchCase writer imports.
