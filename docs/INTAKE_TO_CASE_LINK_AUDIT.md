@@ -225,3 +225,208 @@ Before any code links intake records to cases, add focused tests for:
 IntakeRecord is structured evidence. DispatchCase is load-level operational state and timeline.
 
 Current foundation is strong enough to design a link candidate layer, but not to link or create cases yet. The next design step should define conservative link/create/keep-unlinked policy before any helper or runtime behavior is implemented.
+
+## Link Policy Proposal
+
+This section defines a future conservative policy. It is not implemented.
+
+### Core Policy
+
+Parser/intake must not automatically create DispatchCases.
+
+An IntakeRecord may later produce a link candidate only. The candidate may recommend:
+
+- link to an existing case;
+- create a case for review;
+- keep unlinked;
+- require manual review.
+
+Any actual link/create behavior must wait for a separate accepted implementation block and focused tests.
+
+### When Should IntakeRecord Link To An Existing Case?
+
+Future link candidate generation may recommend linking to an existing DispatchCase when enough identity evidence agrees.
+
+Strong evidence:
+
+- exact `reference_id` match to an existing case;
+- exact `load_id` match if a load ID is available later;
+- broker MC agrees when present on both sides;
+- pickup and delivery agree;
+- rate agrees or is within an explicitly accepted tolerance;
+- pickup/delivery dates do not conflict;
+- no critical missing fields;
+- no low-confidence critical fields.
+
+Recommended conservative link requirement:
+
+```text
+reference_id or load_id
++ pickup/delivery
++ broker/broker_mc when available
++ no critical conflict
++ human approval before persisted link
+```
+
+### When Should IntakeRecord Create A New Case?
+
+Future case creation from intake should be rare and approval-gated.
+
+Recommended policy:
+
+- IntakeRecord can recommend `CREATE_CASE_REVIEW`;
+- it must not create the case automatically;
+- human approval is required;
+- record must have enough core identity and load facts.
+
+Minimum facts before create-review recommendation:
+
+- `reference_id`;
+- `broker_name` or `broker_mc`;
+- pickup location;
+- delivery location;
+- pickup date;
+- delivery date;
+- rate;
+- equipment.
+
+Even with all fields present, a new case should remain review-first until the user accepts an explicit case creation workflow.
+
+### When Should IntakeRecord Stay Unlinked?
+
+Keep unlinked when:
+
+- no reference ID or load ID exists;
+- broker identity is missing or conflicting;
+- pickup/delivery are missing;
+- pickup/delivery dates are missing;
+- parser confidence for critical identity/lane fields is low;
+- multiple stops make lane identity ambiguous;
+- the record appears duplicate but the target case is unclear;
+- the record came from dry-run/sample data;
+- source document is private and has not been reviewed;
+- any mismatch indicates the record may belong to a different load.
+
+### Required Fields For Safe Link/Create
+
+Recommended safe-link fields:
+
+```text
+reference_id or load_id
+broker_mc when available
+broker_name when broker_mc is missing
+pickup_location
+delivery_location
+pickup_date
+delivery_date
+rate when available
+```
+
+Recommended safe-create fields:
+
+```text
+reference_id
+broker_name or broker_mc
+rate
+pickup_location
+delivery_location
+pickup_date
+delivery_date
+equipment
+```
+
+Weight and commodity are mandatory for dispatch review in the intake record model. Missing weight or commodity should not silently block candidate generation, but should prevent automatic case creation and keep the candidate in review.
+
+### Missing Fields And Needs-check Fields
+
+Policy:
+
+- any `missing_fields` value should prevent auto-link and auto-create;
+- missing identity fields should strongly push `KEEP_UNLINKED` or `NEEDS_REVIEW`;
+- missing dispatch fields can still allow a candidate if identity is strong, but approval is required;
+- `needs_check_fields` should force `NEEDS_REVIEW`;
+- candidate output should preserve the exact missing/needs-check field names.
+
+### Low-confidence Parser Fields
+
+Policy:
+
+- low confidence identity fields should prevent auto-link;
+- low confidence lane fields should force review;
+- low confidence rate/date/equipment fields should force review;
+- high confidence fields may support evidence, but should not by themselves approve a link.
+
+Critical confidence fields:
+
+```text
+reference_id
+broker_mc
+broker_name
+pickup_location
+delivery_location
+pickup_date
+delivery_date
+rate
+equipment
+```
+
+### Duplicate And Reference Matching
+
+Reference matching should be conservative.
+
+Recommended future duplicate/link rules:
+
+1. exact normalized `reference_id` match is strongest;
+2. exact `load_id` match is strongest if available;
+3. if `reference_id` is `"NO ID"`, blank, or missing, do not auto-link;
+4. if multiple cases share the same reference, require manual review;
+5. if reference matches but lane/broker conflicts, require manual review;
+6. if no reference exists, lane + broker + date can produce only a review candidate.
+
+### Driver, Broker, And Lane Matching
+
+Driver matching:
+
+- IntakeRecord does not currently include `driver_name`.
+- Driver should not be required for intake evidence unless the source explicitly includes it later.
+- Do not infer driver from Telegram chat or file source.
+
+Broker matching:
+
+- broker MC is stronger than broker name;
+- broker name alone is weak evidence;
+- broker name conflict with broker MC match should require review;
+- broker MC conflict should block auto-link.
+
+Lane matching:
+
+- pickup and delivery should normalize before comparison later;
+- date agreement should matter once case/date fields exist;
+- multi-stop records should require review.
+
+### Manual Approval
+
+Manual approval is required before:
+
+- setting `linked_dispatch_case_id`;
+- creating a new DispatchCase from intake;
+- writing `INTAKE_LINK_APPROVED`;
+- writing `CASE_CREATED_FROM_INTAKE`;
+- changing any existing case field from intake evidence.
+
+Dry-run reports may show recommendations, but must not mutate intake records or cases.
+
+### Policy Summary
+
+Recommended future actions:
+
+| Situation | Recommended action |
+| --- | --- |
+| exact reference/load match, no conflicts | `LINK_EXISTING` candidate, approval required |
+| strong identity but missing dispatch fields | `NEEDS_REVIEW` |
+| complete record but no matching case | `CREATE_CASE_REVIEW`, approval required |
+| missing identity | `KEEP_UNLINKED` or `NEEDS_REVIEW` |
+| low confidence critical fields | `NEEDS_REVIEW` |
+| broker/lane/reference conflict | `KEEP_UNLINKED` or `NEEDS_REVIEW` |
+
+No action in this table is runtime behavior today.
