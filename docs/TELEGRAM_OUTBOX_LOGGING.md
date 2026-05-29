@@ -141,7 +141,7 @@ Market summary, search health, and reload-chain sender paths still use text pars
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Audit market summary metadata shape before wiring it.
+2. Add market summary metadata helper only; do not wire it until DispatchCase `MARKET_SNAPSHOT` policy is decided.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 
