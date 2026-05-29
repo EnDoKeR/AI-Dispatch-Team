@@ -18,6 +18,36 @@ pasted text -> parser-output dry run -> IntakeRecord -> summary -> link candidat
 
 This should validate shape and review workflow only. It should not validate production parser accuracy yet.
 
+## Execution Pipeline
+
+The manual text dry-run pipeline should stay local and side-effect free:
+
+1. User manually copies text locally from a private RateCon.
+2. Text is passed through a CLI argument or safe stdin.
+3. Pasted-text parser adapter extracts only obvious fields.
+4. Parser output normalizes through the parser contract.
+5. IntakeRecord is built.
+6. Intake summary shows `missing_fields`, `needs_check_fields`, and confidence.
+7. Optional case-like evidence can build an IntakeCaseLinkCandidate.
+8. Output is printed locally only.
+9. No private text is saved by default.
+10. No case is created or linked.
+
+The pipeline should expose review evidence only. It should not mutate runtime repositories, DispatchCases, event logs, Telegram state, or private source documents.
+
+## Input And Save Modes
+
+Supported or planned modes:
+
+| Mode | Input | Safety rule |
+| --- | --- | --- |
+| sample mode | built-in fake RateCon-like text | synthetic only |
+| text mode | `--text "..."` | local pasted text, not saved |
+| stdin mode | `--stdin` if implemented safely | reads terminal stdin only, not a file path |
+| save mode | disabled by default | no private text saved by default |
+
+File input is intentionally not part of this protocol. Do not add a `--file`, `--pdf`, or private folder scan mode for this dry-run.
+
 ## Scope
 
 Allowed later under this protocol:
