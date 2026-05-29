@@ -385,6 +385,7 @@ reload_watch_event_builder.py
 reload_watch_action_planner.py
 telegram_watch_formatter.py
 reload_watch_record.py
+reload_watch_repository.py
 ~~~
 
 Completed tests:
@@ -395,6 +396,7 @@ test_reload_watch_event_builder.py
 test_reload_watch_action_planner.py
 test_telegram_watch_formatter.py
 test_reload_watch_record.py
+test_reload_watch_repository.py
 test_reload_watch_boundaries.py
 ~~~
 
@@ -405,10 +407,11 @@ Current state:
 - `reload_watch_action_planner.py` returns side-effect-free next-action plans from state decisions and event payloads.
 - `telegram_watch_formatter.py` formats structured reload-watch action plans into Telegram text without sending anything.
 - `reload_watch_record.py` builds and updates JSON-ready reload-watch records without actual persistence I/O.
-- `test_reload_watch_boundaries.py` protects reload-watch module boundaries before future persistence, sender, buttons, scheduler, or DispatchCase wiring.
+- `reload_watch_repository.py` persists reload-watch records as a JSON list only.
+- `test_reload_watch_boundaries.py` protects reload-watch module boundaries before future sender, buttons, scheduler, or DispatchCase wiring.
 - It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
 - Muted watches suppress normal status updates but still allow critical alerts.
-- This foundation does not implement actual persistence I/O, scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
+- This foundation includes a small JSON repository, but does not implement scheduler/background automation, Telegram buttons, Telegram messages, DispatchCase writes, SQLite, Google Maps, RateCon parsing, DAT/API, or an actual reload-watch loop.
 
 ## Definition of done for this sprint
 

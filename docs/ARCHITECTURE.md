@@ -261,6 +261,7 @@ reload_watch_event_builder.py              # structured reload-watch event paylo
 reload_watch_action_planner.py             # side-effect-free reload-watch action plans only
 telegram_watch_formatter.py                # structured reload-watch plan/payload to text only
 reload_watch_record.py                     # JSON-ready reload-watch state records only
+reload_watch_repository.py                 # JSON file repository for reload-watch records only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -272,6 +273,8 @@ reload_watch_record.py                     # JSON-ready reload-watch state recor
 `telegram_watch_formatter.py` formats structured reload-watch action plans into Telegram text. It does not decide whether to send, import Telegram senders, parse Telegram text, or attach buttons.
 
 `reload_watch_record.py` builds and updates JSON-ready reload-watch records. It does not read or write files, SQLite, DispatchCase events, or Telegram state.
+
+`reload_watch_repository.py` reads and writes reload-watch records as a JSON list. It does not decide watch behavior, send Telegram messages, call planners/formatters, or write DispatchCase events.
 
 It must not:
 
@@ -286,13 +289,14 @@ It must not:
 Future reload-watch integration should stay separated:
 
 ~~~text
-reload_watch_persistence.py                # future watch state storage only
+reload_watch_repository.py                 # JSON record storage only
+future_sqlite_reload_watch_repository.py   # optional future SQLite storage only
 telegram_watch_sender.py                   # future send/wiring only, if needed
 telegram_watch_buttons.py                  # future button callbacks only
 reload_watch_case_events.py                # future DispatchCase event wiring only
 ~~~
 
-Boundary tests protect the current foundation modules from importing sender, persistence, scheduler, or DispatchCase layers early.
+Boundary tests protect the current foundation modules from importing sender, scheduler, Telegram, or DispatchCase layers early.
 
 Current reload chain boundary:
 

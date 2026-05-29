@@ -40,6 +40,7 @@ data/imported_loads.csv
 data/imported_loads.txt
 data/telegram_outbox.jsonl
 data/telegram_feedback_state.json
+data/reload_watch_records.json
 
 # Telegram sent locks
 data/sent_market_summary.txt
