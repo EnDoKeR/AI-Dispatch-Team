@@ -117,6 +117,14 @@ The sender can now pass metadata through to the outbox logger on success and fai
 
 Notifier call sites are not wired yet, so current live send paths still rely on text parsing unless a caller explicitly passes metadata.
 
+Current load metadata helper:
+
+```text
+telegram_load_metadata.py
+```
+
+This helper builds metadata for normal load opportunity alerts only. It is not wired into live notifier paths yet.
+
 ---
 
 ## Do Not Do Yet
@@ -131,7 +139,7 @@ Notifier call sites are not wired yet, so current live send paths still rely on 
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Build focused metadata helpers one message family at a time.
+2. Wire normal load opportunity metadata first.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 
