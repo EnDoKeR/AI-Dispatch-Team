@@ -155,7 +155,6 @@ tests/fixtures/intake_sample_records/
 tests/test_intake_sample_json_fixtures.py
 ```
 
-These files are plain fake JSON objects for future `--json-file` dry-run testing. They are not read by the CLI yet.
 These files are plain fake JSON objects used by tests and available for `--json-file` dry-run testing.
 
 Synthetic scenario runner:
@@ -193,6 +192,14 @@ docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 ```
 
 The synthetic sample JSON fixtures and explicit `--json-file` support now exist for one local JSON object only.
+
+Local intake repository policy is documented in:
+
+```text
+docs/INTAKE_JSON_REPOSITORY_POLICY.md
+```
+
+The approved first storage layer is a small gitignored JSON list at `data/intake_records.json`. It should store only JSON-ready intake records, not PDFs or private document content.
 
 ## Mandatory Fields
 

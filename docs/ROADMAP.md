@@ -413,6 +413,7 @@ docs/INTAKE_RECORD_MODEL.md
 docs/FOUNDATION_NEXT_TARGET_DECISION.md
 docs/RATECON_FIXTURE_SAFETY.md
 docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
+docs/INTAKE_JSON_REPOSITORY_POLICY.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
 docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
@@ -427,8 +428,10 @@ Recommended order:
 3. Synthetic sample JSON fixtures for intake dry-run file-input preparation are complete.
 4. Explicit `--json-file` support for one local JSON object is complete.
 5. Parser interface contract foundation is complete.
-6. Audit intake JSON repository policy before adding storage, or audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-7. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+6. Intake JSON repository policy audit is complete.
+7. Add the intake JSON repository foundation before optional CLI save behavior.
+8. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+9. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

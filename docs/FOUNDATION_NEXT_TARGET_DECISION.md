@@ -256,6 +256,30 @@ Intake JSON repository policy audit
 
 This should decide whether local JSON persistence is needed before any storage helper is implemented.
 
+## Intake JSON Repository Policy
+
+Completed audit:
+
+```text
+docs/INTAKE_JSON_REPOSITORY_POLICY.md
+```
+
+Recommended implementation:
+
+```text
+app/market_intelligence/intake_record_repository.py
+tests/test_intake_record_repository.py
+```
+
+Policy summary:
+
+- use a gitignored JSON list file at `data/intake_records.json`
+- store JSON-ready intake records only
+- do not store PDFs, OCR text, email bodies, Telegram file bytes, or DispatchCase events
+- repository should not decide status or generate IDs
+- upsert by `intake_id` when available
+- tests must use temp files only
+
 ## Still Not Next
 
 Do not build next:
