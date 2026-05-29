@@ -1061,12 +1061,14 @@ reload_watch_service.py
 reload_watch_report.py
 reload_watch_manual_cli.py
 reload_watch_start_cli.py
+market_reload_watch_scenario_runner.py
 scripts/report_reload_watch.py
 scripts/run_reload_watch_event.py
 scripts/start_reload_watch.py
+scripts/run_market_reload_watch_scenario.py
 ~~~
 
-These helpers provide state decisions, structured event payloads, side-effect-free action plans, Telegram text formatting, JSON-ready state records, a small JSON-file repository, a manual-call service, a dry-run report, manual start CLI, and manual event CLI only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, write JSONL/SQLite, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
+These helpers provide state decisions, structured event payloads, side-effect-free action plans, Telegram text formatting, JSON-ready state records, a small JSON-file repository, a manual-call service, a dry-run report, manual start CLI, manual event CLI, and synthetic scenario runner only. They do not send Telegram messages, handle buttons, run a scheduler, write DispatchCase events, write JSONL/SQLite, call Google Maps, parse RateCons, connect DAT/API, or start an automatic reload-watch loop.
 
 Reload-watch Telegram text formatting is isolated in `telegram_watch_formatter.py`. It formats structured plans and payloads only; it does not send messages or decide whether a message should be sent.
 
@@ -1093,6 +1095,15 @@ py scripts/report_reload_watch.py --file-path $watchFile
 ~~~
 
 This workflow is manual dry-run only. It writes only to the file path you provide and sends no Telegram messages.
+
+Market + reload-watch scenario dry-run:
+
+~~~powershell
+$scenarioFile = "$env:TEMP\market_reload_watch_scenario_records.json"
+py scripts/run_market_reload_watch_scenario.py --file-path $scenarioFile
+~~~
+
+This synthetic scenario validates market context, exit classification, chain scoring, watch start, clean-exit event simulation, and Telegram preview-only output without live automation.
 
 Reload-watch boundary tests protect these modules from importing sender, scheduler, Telegram, or DispatchCase layers before those are explicitly wired later.
 
@@ -1132,7 +1143,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 719 tests.
+Recent full test discovery passed with 729 tests.
 
 See also:
 

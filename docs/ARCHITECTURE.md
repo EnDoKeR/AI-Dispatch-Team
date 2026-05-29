@@ -266,9 +266,11 @@ reload_watch_service.py                    # manual-call reload-watch orchestrat
 reload_watch_report.py                     # dry-run report data/formatting only
 reload_watch_manual_cli.py                 # manual event CLI helper only
 reload_watch_start_cli.py                  # manual start CLI helper only
+market_reload_watch_scenario_runner.py     # synthetic market + reload-watch dry-run runner only
 scripts/report_reload_watch.py             # manual CLI report only
 scripts/run_reload_watch_event.py          # manual one-event CLI only
 scripts/start_reload_watch.py              # manual watch-start CLI only
+scripts/run_market_reload_watch_scenario.py # synthetic scenario CLI only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -302,6 +304,15 @@ py scripts/report_reload_watch.py --file-path $watchFile
 ~~~
 
 This workflow validates start -> report -> event -> preview-only -> report without Telegram sending or live automation.
+
+`market_reload_watch_scenario_runner.py` and `scripts/run_market_reload_watch_scenario.py` provide a synthetic scenario that combines market baseline, zone snapshot, exit classification, two-load chain scoring, watch start, event simulation, and Telegram preview-only output. They must not read live markets, send Telegram messages, run loops, or write DispatchCase events.
+
+Scenario dry-run:
+
+~~~powershell
+$scenarioFile = "$env:TEMP\market_reload_watch_scenario_records.json"
+py scripts/run_market_reload_watch_scenario.py --file-path $scenarioFile
+~~~
 
 It must not:
 

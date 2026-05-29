@@ -390,9 +390,11 @@ reload_watch_service.py
 reload_watch_report.py
 reload_watch_manual_cli.py
 reload_watch_start_cli.py
+market_reload_watch_scenario_runner.py
 scripts/report_reload_watch.py
 scripts/run_reload_watch_event.py
 scripts/start_reload_watch.py
+scripts/run_market_reload_watch_scenario.py
 ~~~
 
 Completed tests:
@@ -409,6 +411,7 @@ test_reload_watch_report.py
 test_reload_watch_manual_cli.py
 test_reload_watch_start_cli.py
 test_reload_watch_boundaries.py
+test_market_reload_watch_scenario_runner.py
 ~~~
 
 Current state:
@@ -423,6 +426,7 @@ Current state:
 - `reload_watch_report.py` and `scripts/report_reload_watch.py` provide manual dry-run visibility into reload-watch records.
 - `reload_watch_manual_cli.py` and `scripts/run_reload_watch_event.py` provide manual one-event dry-run testing for existing watch records.
 - `reload_watch_start_cli.py` and `scripts/start_reload_watch.py` provide manual dry-run watch creation from minimal parent-load fields.
+- `market_reload_watch_scenario_runner.py` and `scripts/run_market_reload_watch_scenario.py` provide a synthetic scenario dry-run across market context, exit classification, chain scoring, reload-watch service, and Telegram preview-only formatting.
 - `test_reload_watch_dry_run_workflow.py` protects the manual start -> report -> event preview -> report workflow with a temp file.
 - `test_reload_watch_boundaries.py` protects reload-watch module boundaries before future sender, buttons, scheduler, or DispatchCase wiring.
 - It can decide whether a watch should continue, stop, send a normal status, or allow a critical alert.
@@ -440,6 +444,13 @@ py scripts/report_reload_watch.py --file-path $watchFile
 ~~~
 
 Use this workflow to inspect reload-watch behavior before any live Telegram/scheduler wiring.
+
+Synthetic scenario dry-run:
+
+~~~powershell
+$scenarioFile = "$env:TEMP\market_reload_watch_scenario_records.json"
+py scripts/run_market_reload_watch_scenario.py --file-path $scenarioFile
+~~~
 
 ## Definition of done for this sprint
 
