@@ -40,6 +40,7 @@ def get_active_search_request_files():
 
     return sorted(files)
 
+
 def process_search_request(request_file):
     search_request = load_search_request(request_file)
     search_request = apply_driver_profile_to_search_request(search_request)
