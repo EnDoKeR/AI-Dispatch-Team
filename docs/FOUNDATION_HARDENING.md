@@ -40,7 +40,7 @@ The next risk is architectural growth without stable boundaries.
 ### Weak areas
 
 - Some modules still need layer-boundary review.
-- `market_snapshot.py` still needs final boundary cleanup.
+- `market_snapshot.py` has been split into focused builder/report/dispatcher/helper modules.
 - `reload_chain.py` still needs architecture review before scaling reload intelligence.
 - SQLite is now split into focused memory modules, but it is still mostly rebuild/export memory rather than primary operational memory.
 - Tests are much stronger now, but every new module still needs focused test coverage from the beginning.
@@ -159,18 +159,41 @@ But move logic into smaller modules.
 
 ### Phase 4 — Market snapshot refactor
 
-Current problem:
+Status: completed for the current Foundation Hardening scope.
 
-`market_snapshot.py` does too much.
+Completed modules:
 
-Target split:
+~~~text
+market_snapshot.py
+market_snapshot_builder.py
+market_snapshot_console_report.py
+market_snapshot_explanation.py
+market_snapshot_opportunities.py
+market_snapshot_route_fallback.py
+market_snapshot_stats.py
+market_snapshot_telegram_dispatcher.py
+~~~
 
-- `market_snapshot.py` as orchestrator only
-- `market_summary_builder.py`
-- `load_ranker.py`
-- `review_once_selector.py`
-- `telegram_dispatcher.py`
-- `search_health_checker.py`
+Completed tests:
+
+~~~text
+test_market_snapshot_builder.py
+test_market_snapshot_console_report.py
+test_market_snapshot_explanation.py
+test_market_snapshot_opportunities.py
+test_market_snapshot_route_fallback.py
+test_market_snapshot_stats.py
+test_market_snapshot_telegram_dispatcher.py
+~~~
+
+Current state:
+
+- `market_snapshot.py` is now runner/orchestrator logic.
+- Market snapshot calculation context is built in `market_snapshot_builder.py`.
+- Console report formatting is in `market_snapshot_console_report.py`.
+- Telegram delivery is in `market_snapshot_telegram_dispatcher.py`.
+- Stats, opportunities, explanation, and route fallback are in focused helper modules.
+- Direct `telegram_notifier.py` imports were removed from `market_snapshot.py`.
 
 Goal:
 

@@ -938,7 +938,7 @@ The project is currently in the Foundation Hardening phase.
 Completed foundation refactors:
 
 - `DispatchCase` logic was split into focused case modules.
-- `market_snapshot.py` was partially split into focused snapshot/helper modules.
+- `market_snapshot.py` is now a runner/orchestrator around focused snapshot modules.
 - `market_models.py` was reduced by moving decision helpers into focused market modules.
 - `telegram_notifier.py` was reduced into send/orchestration logic with separate formatter/state modules.
 - `notes_parser.py` is now an orchestration file around `parse_notes()`.
@@ -1001,6 +1001,19 @@ sqlite_memory_summary.py
 sqlite_memory_rebuild.py
 ~~~
 
+Current market snapshot structure:
+
+~~~text
+market_snapshot.py
+market_snapshot_builder.py
+market_snapshot_console_report.py
+market_snapshot_explanation.py
+market_snapshot_opportunities.py
+market_snapshot_route_fallback.py
+market_snapshot_stats.py
+market_snapshot_telegram_dispatcher.py
+~~~
+
 Current testing baseline:
 
 ~~~powershell
@@ -1008,7 +1021,7 @@ py -m compileall app scripts main.py test_sheet_connection.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 507 tests.
+Recent full test discovery passed with 511 tests.
 
 See also:
 

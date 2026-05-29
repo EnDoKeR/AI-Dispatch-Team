@@ -213,6 +213,15 @@ Future interfaces:
 
 Interfaces must not own core business logic.
 
+Current market snapshot boundary:
+
+~~~text
+market_snapshot.py                         # runner/orchestrator
+market_snapshot_builder.py                 # snapshot context calculation
+market_snapshot_console_report.py          # console report formatting
+market_snapshot_telegram_dispatcher.py     # Telegram delivery orchestration
+~~~
+
 Telegram formatting should not decide whether a load is good.
 
 Dashboard views should not mutate decisions directly.

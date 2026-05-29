@@ -179,15 +179,38 @@ Current state:
 - `driver_preference_rules.py` is orchestration-only.
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
-- Recent full test discovery passed with 507 tests.
+- `market_snapshot.py` is runner/orchestrator-only for the current scope.
+- Recent full test discovery passed with 511 tests.
 
-### 1.7 Next candidates for hardening
+### 1.7 Completed: Market snapshot refactor
+
+Completed modules:
+
+~~~text
+market_snapshot.py
+market_snapshot_builder.py
+market_snapshot_console_report.py
+market_snapshot_explanation.py
+market_snapshot_opportunities.py
+market_snapshot_route_fallback.py
+market_snapshot_stats.py
+market_snapshot_telegram_dispatcher.py
+~~~
+
+Current state:
+
+- `market_snapshot.py` now coordinates the workflow.
+- Snapshot context building is isolated in `market_snapshot_builder.py`.
+- Console report output is isolated in `market_snapshot_console_report.py`.
+- Telegram delivery is isolated in `market_snapshot_telegram_dispatcher.py`.
+- Direct `telegram_notifier.py` imports were removed from `market_snapshot.py`.
+
+### 1.8 Next candidates for hardening
 
 Candidate files:
 
 ~~~text
 reload_chain.py
-market_snapshot.py
 telegram_notifier.py
 market_models.py
 ~~~
