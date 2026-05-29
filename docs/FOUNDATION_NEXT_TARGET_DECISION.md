@@ -1628,3 +1628,71 @@ Not recommended next:
 - reload-chain DispatchCase policy audit: important, but separate from the current event-reporting lane;
 - synthetic 100-200 load dataset: still too early;
 - runtime event writes, DecisionResult event writes, DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, or live automation.
+
+## Current Built-events Normalization Report Closeout
+
+Completed:
+
+- design doc: `docs/CURRENT_BUILT_EVENTS_NORMALIZATION_REPORT.md`
+- synthetic/current-style event samples: `tests/fixtures/current_built_event_samples.py`
+- report helper: `app/market_intelligence/case_event_built_report.py`
+- manual CLI: `scripts/run_current_built_events_normalization_report.py`
+- README command reference
+
+Current command:
+
+```powershell
+py scripts/run_current_built_events_normalization_report.py
+```
+
+Current status:
+
+- report-only
+- synthetic/current-style event samples only
+- no runtime JSONL reads
+- no event writes
+- no `case_event_builder.py` changes
+- no DispatchCase build/match/update behavior changes
+- no DecisionResult event writes
+- no Telegram, MarketLoad, market snapshot, or load selection behavior changes
+
+Options evaluated:
+
+1. DispatchCase builder migration dry-run
+2. event payload wrapper around existing builder, unused by runtime
+3. intake-to-case link audit
+4. reload-chain DispatchCase policy audit
+5. synthetic 100-200 load dataset planning
+6. private RateCon field inventory plan
+
+Recommended next target:
+
+```text
+intake-to-case link audit
+```
+
+Why:
+
+- the event-reporting bridge is stable enough for audit/design work around evidence linkage;
+- intake records, parser output, documents, and RateCon dry-run data still do not create cases;
+- before any intake evidence can link to DispatchCase, ownership and linking rules should be documented;
+- this can stay audit-only and avoid runtime behavior changes.
+
+Recommended second target:
+
+```text
+reload-chain DispatchCase policy audit
+```
+
+Why:
+
+- reload-chain metadata/case ownership still needs a separate policy before any wiring;
+- it should remain audit-only first.
+
+Not recommended next:
+
+- DispatchCase builder migration dry-run: still too early before intake/document ownership is settled;
+- event payload wrapper around existing builder in runtime: report-only wrapper already exists, runtime use should wait;
+- synthetic 100-200 load dataset: still too early;
+- private RateCon field inventory plan: useful, but intake-to-case ownership should be clarified first;
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, live automation, or runtime event writes.

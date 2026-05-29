@@ -476,9 +476,10 @@ Recommended order:
 45. Normalized event wrapper helper, fixtures, report helper, and CLI are complete.
 46. Event report support for normalized wrapper output is complete.
 47. DecisionEngine comparison + timeline preview combined report is complete.
-48. Recommended next backend target: current built-events normalization report.
-49. Recommended follow-up: intake-to-case link audit, audit/design only.
-50. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+48. Current built-events normalization report is complete.
+49. Recommended next backend target: intake-to-case link audit, audit/design only.
+50. Recommended follow-up: reload-chain DispatchCase policy audit.
+51. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -659,13 +660,27 @@ Command:
 py scripts/run_decision_engine_timeline_report.py
 ```
 
-Next backend target:
+Completed backend target:
 
 ```text
 current built-events normalization report
 ```
 
-This should inspect generated current-style synthetic builder events through the normalizer/report path without changing `case_event_builder.py`, writing events, or reading runtime JSONL data.
+This inspects current-style synthetic event samples through the normalizer/report path without changing `case_event_builder.py`, writing events, or reading runtime JSONL data.
+
+Command:
+
+```powershell
+py scripts/run_current_built_events_normalization_report.py
+```
+
+Next backend target:
+
+```text
+intake-to-case link audit
+```
+
+This should remain audit/design only. It should define how future IntakeRecord, parser output, RateCon/document evidence, and DispatchCase linking should work before any case writes are added.
 
 ---
 

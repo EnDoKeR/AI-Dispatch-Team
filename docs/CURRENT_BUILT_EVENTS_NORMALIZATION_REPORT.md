@@ -165,3 +165,39 @@ Focused tests should cover:
 10. report output is JSON-serializable;
 11. inputs are not mutated;
 12. no forbidden imports.
+
+## Implementation Status
+
+Completed report-only implementation:
+
+```text
+tests/fixtures/current_built_event_samples.py
+app/market_intelligence/case_event_built_report.py
+scripts/run_current_built_events_normalization_report.py
+```
+
+Manual command:
+
+```powershell
+py scripts/run_current_built_events_normalization_report.py
+```
+
+Current status:
+
+- synthetic/current-style event samples only;
+- no runtime JSONL reads;
+- no event writes;
+- no `case_event_builder.py` changes;
+- no DispatchCase build/match/update behavior changes;
+- no Telegram behavior changes;
+- no DecisionResult event wiring.
+
+The report now demonstrates:
+
+```text
+current-style built event samples
+-> normalized wrapper records
+-> known/unknown event and warning summaries
+```
+
+This is enough to inspect shape compatibility before any future builder migration or runtime event payload changes.
