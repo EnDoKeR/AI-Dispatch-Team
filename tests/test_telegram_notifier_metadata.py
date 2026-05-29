@@ -251,8 +251,21 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
         self.assertEqual(second_metadata["broker_mc"], "777888")
         self.assertEqual(second_metadata["reference_id"], "REV-456")
 
-    def test_market_summary_health_and_chain_paths_do_not_pass_metadata_yet(self):
+    def test_market_summary_sender_passes_market_snapshot_metadata(self):
         search_request = FakeSearchRequest()
+        stats = {"market_activity": "LOW"}
+        recommendation = {
+            "best_bucket": "400-700",
+            "market_activity": "MEDIUM",
+            "driver_fit": "GOOD",
+            "action_status": "MONITOR",
+            "total_good_loads": 4,
+            "total_qualified_loads": 7,
+            "total_clean_matches": 3,
+            "total_review_once": 2,
+            "total_blocked": 5,
+        }
+        top_opportunities = [FakeLoad()]
 
         with patch(
             "app.market_intelligence.telegram_notifier.get_sent_summaries",
@@ -265,7 +278,7 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
                 with patch(
                     "app.market_intelligence.telegram_notifier.format_market_summary_message",
                     return_value="SUMMARY MESSAGE",
-                ):
+                ) as format_message:
                     with patch(
                         "app.market_intelligence.telegram_notifier.send_telegram_message",
                         return_value=True,
@@ -275,13 +288,51 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
                         ):
                             with patch("builtins.print"):
                                 send_market_summary_to_telegram(
-                                    stats={"0-450": {}},
-                                    recommendation={"best_bucket": "0-450"},
-                                    top_opportunities=[],
+                                    stats=stats,
+                                    recommendation=recommendation,
+                                    top_opportunities=top_opportunities,
                                     search_request=search_request,
+                                    search_location="Dallas Market",
                                 )
 
-        self.assertNotIn("metadata", send_message.call_args.kwargs)
+        format_message.assert_called_once_with(
+            stats,
+            recommendation,
+            top_opportunities,
+            search_request,
+            "Dallas Market",
+        )
+        send_message.assert_called_once_with(
+            "SUMMARY MESSAGE",
+            metadata={
+                "message_type": "MARKET_SNAPSHOT",
+                "category": "MARKET SNAPSHOT",
+                "driver_name": "Alex",
+                "pickup": "",
+                "delivery": "",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+                "reference_id": "",
+                "search_area": "Dallas, TX",
+                "current_location": "Dallas, TX",
+                "available_time": "Now",
+                "equipment": "Flatbed",
+                "target_direction": "TX",
+                "market_activity": "MEDIUM",
+                "driver_fit": "GOOD",
+                "action_status": "MONITOR",
+                "best_bucket": "400-700",
+                "good_loads": 4,
+                "qualified_loads": 7,
+                "clean_match_count": 3,
+                "review_once_count": 2,
+                "blocked_count": 5,
+            },
+        )
+
+    def test_search_health_and_chain_paths_do_not_pass_metadata_yet(self):
+        search_request = FakeSearchRequest()
 
         with patch(
             "app.market_intelligence.telegram_notifier.get_sent_health_alerts",

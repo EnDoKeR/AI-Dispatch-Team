@@ -154,9 +154,9 @@ That future model should be separate from load-level DispatchCase.
 
 `telegram_summary_metadata.py` now builds market summary metadata with intentionally empty load-specific core fields.
 
-That helper is not wired into `send_market_summary_to_telegram(...)` yet.
+That helper is wired into `send_market_summary_to_telegram(...)`.
 
-Because load-level DispatchCase exclusion is now protected, market summary metadata wiring can be considered in a later mini-block.
+Because load-level DispatchCase exclusion is protected, market summary metadata can be used without creating load-level DispatchCases.
 
 ## Behavior Tests
 
@@ -190,14 +190,13 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram market summary metadata wiring
+Telegram search health metadata audit
 ```
 
 Scope should be:
 
-- test-first
-- wire `build_market_summary_metadata(...)` into `send_market_summary_to_telegram(...)` only
-- keep formatter text unchanged
+- audit/design only
+- decide search health metadata shape and DispatchCase role
 - do not change Telegram/outbox schema
 
-Do not wire search health, reload-chain, or reload-watch metadata in the same block.
+Do not wire search health, reload-chain, or reload-watch metadata in the audit block.

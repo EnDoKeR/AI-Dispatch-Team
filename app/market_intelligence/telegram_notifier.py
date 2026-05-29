@@ -9,6 +9,7 @@ from app.market_intelligence.telegram_load_metadata import (
     build_load_opportunity_metadata,
     build_review_once_metadata,
 )
+from app.market_intelligence.telegram_summary_metadata import build_market_summary_metadata
 from app.market_intelligence.telegram_sent_state import (
     get_sent_health_alerts,
     get_sent_loads,
@@ -67,7 +68,15 @@ def send_market_summary_to_telegram(
         search_location,
     )
 
-    success = send_telegram_message(message)
+    success = send_telegram_message(
+        message,
+        metadata=build_market_summary_metadata(
+            stats=stats,
+            recommendation=recommendation,
+            top_opportunities=top_opportunities,
+            search_request=search_request,
+        ),
+    )
 
 
     if success:

@@ -113,9 +113,10 @@ It creates or updates cases only for these outbox message types:
 ```text
 LOAD_OPPORTUNITY
 REVIEW_ONCE
-MARKET_SNAPSHOT
 SEARCH_HEALTH_CHECK
 ```
+
+`MARKET_SNAPSHOT` is logged for outbox/reporting, but it is excluded from load-level DispatchCase creation and matching until a search-level entity exists.
 
 `RELOAD_CHAIN` is currently logged but not used to create DispatchCases.
 
@@ -171,9 +172,10 @@ Recommended path:
 11. Add market summary metadata helper. Completed.
 12. Audit DispatchCase `MARKET_SNAPSHOT` policy. Completed.
 13. Exclude `MARKET_SNAPSHOT` from load-level DispatchCase handling. Completed.
-14. Wire market summary/search health and reload-chain only in separate future blocks.
-15. Keep reload-chain DispatchCase role separate until it has an accepted design.
-16. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+14. Wire market summary metadata. Completed.
+15. Wire search health and reload-chain only in separate future blocks.
+16. Keep reload-chain DispatchCase role separate until it has an accepted design.
+17. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -213,7 +215,7 @@ It is wired into `send_top_opportunities_to_telegram(...)` only.
 
 It is wired into `send_review_once_to_telegram(...)`.
 
-Market summary, search health, and reload-chain message families are not wired yet.
+Search health and reload-chain message families are not wired yet.
 
 ```text
 telegram_summary_metadata.py
@@ -221,7 +223,7 @@ telegram_summary_metadata.py
 
 `build_market_summary_metadata(...)` builds structured metadata for market snapshot alerts.
 
-It is not wired into `send_market_summary_to_telegram(...)` yet.
+It is wired into `send_market_summary_to_telegram(...)`.
 
 ## Market summary metadata audit
 
@@ -235,7 +237,7 @@ send_market_summary_to_telegram(...)
   -> log_outgoing_telegram_message(...)
 ```
 
-Market summary metadata is not wired yet, but helper construction exists in `telegram_summary_metadata.py`.
+Market summary metadata is wired through `send_market_summary_to_telegram(...)`.
 
 `telegram_outbox_logger.py` currently infers `MARKET_SNAPSHOT` from the message header and parses:
 
@@ -326,15 +328,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram market summary metadata wiring
+Telegram search health metadata audit
 ```
 
 Scope should be limited to:
 
-- test-first notifier wiring
-- wire `build_market_summary_metadata(...)` into `send_market_summary_to_telegram(...)` only
-- keep market summary formatter text unchanged
+- audit current search health outbox needs and DispatchCase role
+- do not wire search health metadata yet
 - do not change outbox schema or DispatchCase behavior
 - possibly a small docs note
 
-Do not wire search health, reload-chain, or reload-watch metadata in the same block.
+Do not wire reload-chain or reload-watch metadata in the same block.

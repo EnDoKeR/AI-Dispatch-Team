@@ -115,7 +115,7 @@ telegram_sender.send_telegram_message(..., metadata=None)
 
 The sender can now pass metadata through to the outbox logger on success and failure paths.
 
-Only the top-opportunity `LOAD_OPPORTUNITY` notifier path is wired so far. Other live send paths still rely on text parsing unless a caller explicitly passes metadata.
+The top-opportunity `LOAD_OPPORTUNITY`, review-once `REVIEW_ONCE`, and market summary `MARKET_SNAPSHOT` notifier paths are wired. Other live send paths still rely on text parsing unless a caller explicitly passes metadata.
 
 Current load metadata helper:
 
@@ -125,7 +125,15 @@ telegram_load_metadata.py
 
 This helper builds metadata for normal load opportunity and review-once alerts. Normal load opportunity metadata is wired into the top-opportunity `LOAD_OPPORTUNITY` sender path, and review-once metadata is wired into the review-once sender path.
 
-Market summary, search health, and reload-chain sender paths still use text parsing fallback.
+Current market summary metadata helper:
+
+```text
+telegram_summary_metadata.py
+```
+
+Market summary metadata is wired into the market summary sender path. It intentionally keeps load-specific core fields empty, and DispatchCase excludes `MARKET_SNAPSHOT` from load-level case creation/matching.
+
+Search health and reload-chain sender paths still use text parsing fallback.
 
 ---
 
@@ -141,7 +149,7 @@ Market summary, search health, and reload-chain sender paths still use text pars
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Wire market summary metadata in a focused notifier-only block.
+2. Audit search health metadata shape before wiring it.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 
