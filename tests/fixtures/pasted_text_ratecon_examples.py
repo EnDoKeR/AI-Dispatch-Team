@@ -237,14 +237,14 @@ Special Requirements: ACCESSORIALS_PRESENT, RATE_NEEDS_REVIEW
             ],
             "field_confidence": {
                 "rate": "UNKNOWN",
-                "special_requirements": "MEDIUM",
+                "special_requirements": "HIGH",
             },
         },
         "expected_missing_fields": ["rate"],
         "expected_needs_check_fields": [],
         "expected_confidence": {
             "rate": "UNKNOWN",
-            "special_requirements": "MEDIUM",
+            "special_requirements": "HIGH",
         },
         "expected_special_requirements": [
             "ACCESSORIALS_PRESENT",

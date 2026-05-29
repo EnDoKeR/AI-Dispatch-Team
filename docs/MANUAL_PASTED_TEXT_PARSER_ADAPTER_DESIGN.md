@@ -204,6 +204,15 @@ parse_pasted_text_to_parser_output(text, source_type="manual_pasted_text")
 
 The first implementation should stay intentionally conservative. It should return blanks and low/unknown confidence rather than overfitting to one document style.
 
+Implementation status:
+
+```text
+app/market_intelligence/intake/pasted_text_parser_adapter.py
+tests/test_pasted_text_parser_adapter.py
+```
+
+The adapter extracts only obvious label/value fields from synthetic or manually pasted text. It does not parse PDFs, read files, process private RateCons, run OCR, or call integrations.
+
 ## Stop Conditions
 
 Stop and redesign if:
