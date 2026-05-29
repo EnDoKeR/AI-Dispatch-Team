@@ -510,5 +510,5 @@ Start with:
 
 Next safe candidates:
 
-1. Choose the next implementation target now that intake boundaries and record shape are documented.
+1. Build the JSON-ready intake record helper only after confirmation.
 2. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.

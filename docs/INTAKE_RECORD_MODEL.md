@@ -206,6 +206,12 @@ Next safe implementation target after this proposal:
 JSON-ready intake record helper
 ```
 
+The target decision is tracked in:
+
+```text
+docs/FOUNDATION_NEXT_TARGET_DECISION.md
+```
+
 Expected helper responsibilities:
 
 - build a normalized record from dict/object input
