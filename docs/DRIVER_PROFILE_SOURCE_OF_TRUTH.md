@@ -113,6 +113,19 @@ TestCAFlatbed
 
 At the time of this audit, all current legacy profiles have matching primary profiles and aligned core fields.
 
+Compatibility is protected by:
+
+```text
+tests/test_driver_profile_sources.py
+tests/test_search_request_driver_profile_compatibility.py
+```
+
+The compatibility tests confirm:
+
+- `SearchRequest` starts with legacy `equipment` and `max_weight` aligned to primary profiles.
+- `apply_driver_profile_to_search_request()` adds primary business fields for tarp, OD, permit, document, and tracking rules.
+- Applying the primary profile does not overwrite active search filters such as target direction, target city, radius, RPM, or notes.
+
 ---
 
 ## Do Not Do Yet
@@ -129,4 +142,4 @@ At the time of this audit, all current legacy profiles have matching primary pro
 1. Keep new driver business fields in `data/driver_profiles.json`.
 2. Keep legacy files aligned until `SearchRequest` is migrated.
 3. Add a compatibility adapter only in a separate mini-block.
-4. Add tests proving `SearchRequest` and `apply_driver_profile_to_search_request()` agree before changing loader behavior.
+4. Use the compatibility tests before changing loader behavior.
