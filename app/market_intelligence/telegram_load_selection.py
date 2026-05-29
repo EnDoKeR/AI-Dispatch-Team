@@ -6,12 +6,13 @@ from app.market_intelligence.telegram_duplicate_keys import (
 
 def select_new_loads(loads, search_request, sent_history, limit):
     unique_loads = remove_duplicates(loads, search_request)
-    selected_loads = unique_loads[:limit]
-
+    selected_loads = []
     already_sent_loads = []
     loads_to_send = []
 
-    for load in selected_loads:
+    for load in unique_loads:
+        selected_loads.append(load)
+
         key = load_duplicate_key(
             load,
             driver_name=search_request.driver_name,
@@ -22,6 +23,9 @@ def select_new_loads(loads, search_request, sent_history, limit):
             continue
 
         loads_to_send.append(load)
+
+        if len(loads_to_send) >= limit:
+            break
 
     return {
         "selected_loads": selected_loads,
