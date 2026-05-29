@@ -216,4 +216,10 @@ Next safe target:
 Intake structured record model proposal
 ```
 
-That should define the JSON-ready record shape before any helper, storage, parser, or integration work.
+That record model now lives in:
+
+```text
+docs/INTAKE_RECORD_MODEL.md
+```
+
+It defines the JSON-ready record shape before any helper, storage, parser, or integration work.

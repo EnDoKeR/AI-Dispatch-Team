@@ -409,6 +409,7 @@ docs/ARCHITECTURE_AUDIT.md
 docs/LEGACY_CANDIDATES.md
 docs/LOAD_INTAKE_BOUNDARY_REVIEW.md
 docs/RATECON_INTAKE_WORKFLOW.md
+docs/INTAKE_RECORD_MODEL.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
 docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
@@ -419,7 +420,7 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Define the JSON-ready intake record model before changing parser behavior.
+2. Choose the next implementation target now that intake boundaries and record shape are documented.
 3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -744,5 +745,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: intake structured record model proposal.
+4. Recommended next target: choose next implementation target.
 5. Avoid new large files by default.

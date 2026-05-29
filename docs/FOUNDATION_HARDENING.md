@@ -510,5 +510,5 @@ Start with:
 
 Next safe candidates:
 
-1. Define the JSON-ready intake record model before changing parser behavior.
+1. Choose the next implementation target now that intake boundaries and record shape are documented.
 2. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
