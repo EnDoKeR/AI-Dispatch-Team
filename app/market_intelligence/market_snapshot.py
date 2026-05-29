@@ -15,6 +15,7 @@ from app.market_intelligence.market_snapshot_opportunities import (
     get_top_opportunities,
 )
 from app.market_intelligence.market_snapshot_route_fallback import prepare_route_fallback
+from app.market_intelligence.market_snapshot_builder import apply_search_request
 from app.market_intelligence.market_snapshot_console_report import print_driver_report
 from app.market_intelligence.market_snapshot_telegram_dispatcher import (
     send_market_snapshot_to_telegram,
@@ -35,14 +36,6 @@ def get_active_search_request_files():
         files.append(path.name)
 
     return sorted(files)
-
-
-def apply_search_request(loads, search_request):
-    for load in loads:
-        load.apply_search_request(search_request)
-
-    return loads
-
 
 def process_search_request(request_file):
     search_request = load_search_request(request_file)
