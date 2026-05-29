@@ -1205,6 +1205,73 @@ Not recommended next:
 - Telegram UX runtime work
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
 
+## Case Event Builder Compatibility Closeout
+
+Completed:
+
+- compatibility audit doc: `docs/DISPATCH_CASE_EVENT_BUILDER_COMPATIBILITY.md`
+- focused builder taxonomy compatibility tests
+- read-only shape report helper: `app/market_intelligence/case_event_builder_report.py`
+- synthetic builder output fixtures: `tests/fixtures/case_event_builder_outputs.py`
+- manual compatibility CLI: `scripts/run_case_event_builder_compatibility.py`
+
+Command:
+
+```powershell
+py scripts/run_case_event_builder_compatibility.py
+```
+
+Current findings:
+
+- current builder-emitted event types are recognized by the taxonomy
+- load-level and load-board simulation groups map correctly
+- current builder payloads remain JSON-serializable
+- current runtime event envelope is intentionally not the same as the base payload helper
+- current builder output is still the runtime source of DispatchCase events
+
+Options evaluated:
+
+1. report-only DecisionResult timeline preview
+2. case_event_builder migration plan
+3. event payload wrapper around existing builder, no runtime wiring
+4. DispatchCase timeline report over current built events
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+report-only DecisionResult timeline preview
+```
+
+Why:
+
+- the builder compatibility audit did not find taxonomy blockers
+- the current event envelope should remain unchanged
+- a preview can show a future `AI_DECISION_CREATED` payload shape with nested DecisionResult without writing it
+- it keeps DecisionResult timeline work dry-run/report-only before any runtime case event writes
+
+Recommended second target:
+
+```text
+case_event_builder migration plan
+```
+
+Why:
+
+- useful before any actual builder wrapper/migration
+- should stay docs-only unless a later block explicitly accepts code changes
+
+Not recommended next:
+
+- replacing `case_event_builder.py`
+- writing nested DecisionResult into runtime events
+- modifying DispatchCase build/update flow
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- synthetic 100-200 load dataset
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
 Recommended second target:
 
 ```text

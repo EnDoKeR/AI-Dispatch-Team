@@ -470,9 +470,10 @@ Recommended order:
 39. DispatchCase/Event Timeline gap audit and ownership policy are complete.
 40. DecisionEngine comparison report helper, fixtures, and CLI are complete.
 41. Event Timeline foundation helpers and synthetic report CLI are complete.
-42. Next recommended backend target: DispatchCase event builder compatibility audit.
-43. Recommended follow-up: report-only DecisionResult timeline preview after builder compatibility is understood.
-44. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+42. DispatchCase event builder compatibility audit/reporting is complete.
+43. Next recommended backend target: report-only DecisionResult timeline preview.
+44. Recommended follow-up: case_event_builder migration plan, docs-only first.
+45. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -572,13 +573,26 @@ Command:
 py scripts/run_case_event_report.py
 ```
 
-Next backend target:
+Completed backend target:
 
 ```text
 DispatchCase event builder compatibility audit
 ```
 
-This should compare existing `case_event_builder.py` payloads against the new taxonomy/payload foundation without changing runtime behavior.
+This compares existing `case_event_builder.py` payloads against the new taxonomy/payload foundation without changing runtime behavior.
+
+Command:
+
+```powershell
+py scripts/run_case_event_builder_compatibility.py
+```
+
+Findings:
+
+- current builder-emitted event types are known to the taxonomy
+- load-level and load-board simulation groups map correctly
+- builder payloads remain JSON-serializable
+- runtime builder envelope is intentionally stable and not migrated yet
 
 Recommended follow-up:
 
@@ -586,7 +600,7 @@ Recommended follow-up:
 report-only DecisionResult timeline preview
 ```
 
-This can come after event types exist and should stay dry-run/report-only.
+This should stay dry-run/report-only and show a future `AI_DECISION_CREATED` payload shape without writing it to DispatchCase events.
 
 ---
 

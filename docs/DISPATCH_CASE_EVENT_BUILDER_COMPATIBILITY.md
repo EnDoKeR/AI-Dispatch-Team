@@ -304,6 +304,36 @@ Before any migration, add tests that prove:
 
 ## Recommended Next Step
 
-Add focused compatibility tests and a read-only payload shape report helper.
+Completed compatibility foundation:
+
+- focused event type compatibility tests
+- read-only builder shape report helper
+- synthetic builder compatibility CLI
+
+Command:
+
+```powershell
+py scripts/run_case_event_builder_compatibility.py
+```
+
+Current findings:
+
+- all current builder-emitted event types are known in `case_event_types.py`
+- load-level builder events map to `load_level`
+- simulation builder events map to `load_board_simulation`
+- current builder payloads remain JSON-serializable
+- current builder envelope intentionally differs from the future base payload helper
+
+Recommended next step:
+
+```text
+report-only DecisionResult timeline preview
+```
+
+Why:
+
+- current builder compatibility is clean enough for a dry-run preview
+- the preview can show how a future `AI_DECISION_CREATED` payload might include nested DecisionResult data
+- it should not write events or modify `case_event_builder.py`
 
 Do not migrate event builders yet.
