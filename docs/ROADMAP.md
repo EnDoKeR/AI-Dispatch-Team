@@ -105,7 +105,7 @@ Current direction:
 - `telegram_chain_selection.py` now scans unique reload-chain candidates before applying the unsent alert limit, so already-sent top chains do not hide later unsent good chains.
 - Normal `LOAD_OPPORTUNITY` alerts now pass structured outbox metadata through the top-opportunity sender path.
 - `REVIEW_ONCE` alerts now pass structured outbox metadata through the review-once sender path.
-- Market summary metadata was audited; helper-only work is safe next, but wiring should wait for a separate DispatchCase `MARKET_SNAPSHOT` policy decision.
+- Market summary metadata was audited, protected by DispatchCase policy, and wired into the market summary sender path.
 - `telegram_summary_metadata.py` builds market summary metadata with intentionally empty load-specific core fields and is wired into the market summary sender path.
 - `MARKET_SNAPSHOT` policy was audited; recommended policy is outbox/reporting-only until a search-level entity exists.
 - DispatchCase now excludes `MARKET_SNAPSHOT` from load-level case creation/matching, so market summary records remain outbox/reporting-only.
@@ -417,9 +417,10 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Pause metadata wiring before reload-chain metadata and choose the next Foundation Hardening target.
+2. Clean up the stale `test_sheet_connection.py` compileall command reference so validation output is easier to trust.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
-4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+4. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -742,5 +743,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: fresh Foundation Hardening target selection before any reload-chain metadata work.
+4. Recommended next target: compileall warning cleanup.
 5. Avoid new large files by default.

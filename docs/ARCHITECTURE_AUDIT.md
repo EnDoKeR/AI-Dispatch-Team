@@ -105,15 +105,47 @@ Do not wire new metadata behavior until the audit defines a small compatibility 
 
 `app/load_intake/` remains a legacy/prototype candidate. It should not be deleted or merged into `market_intelligence` until a separate RateCon/intake design exists.
 
+### 5. Non-chain Telegram metadata foundation is complete enough
+
+Structured sender metadata is now wired for:
+
+- `LOAD_OPPORTUNITY`
+- `REVIEW_ONCE`
+- `MARKET_SNAPSHOT`
+- `SEARCH_HEALTH_CHECK`
+
+The old text parser fallback remains in place for compatibility with historical records and any sender path that does not pass metadata.
+
+Reload-chain alerts still rely on text parsing for live metadata. That should wait because reload-chain needs a separate DispatchCase/search-level policy before metadata can be safely interpreted downstream.
+
+### 6. Compileall warning is noise, not a runtime failure
+
+The recurring command:
+
+```text
+py -m compileall app scripts main.py test_sheet_connection.py
+```
+
+returns success, but prints `Can't list 'test_sheet_connection.py'` because the old root script has already been moved to `scripts/manual_test_sheet_connection.py`.
+
+This is a good small cleanup candidate: update the standard command references and user workflow so the warning stops distracting from real failures.
+
 ## Recommended next targets
 
-1. `Telegram outbox structured metadata audit`
-   - Safe as an audit-only block.
-   - Important because DispatchCase matching should eventually rely on structured metadata, not Telegram text parsing.
+1. `Compileall warning cleanup`
+   - Safe because the old root `test_sheet_connection.py` no longer exists.
+   - Important because a noisy standard command can hide real validation problems.
+   - Should update docs/user checklists only unless a test proves code needs changing.
 
 2. `Legacy intake boundary review`
    - Safe if kept audit-only.
    - Important because `app/load_intake/` still mixes intake, scoring, and manual integrations.
+
+3. `Reload-chain DispatchCase policy audit`
+   - Important before any reload-chain metadata wiring.
+   - Should stay audit-only first because reload-chain is not a simple single-load alert.
+
+Do not start the synthetic 100-200 load dataset yet. It will be more useful after the remaining boundary/policy issues are quieter.
 
 ## Do not touch yet
 

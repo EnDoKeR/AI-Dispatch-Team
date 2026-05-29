@@ -510,5 +510,6 @@ Start with:
 
 Next safe candidates:
 
-1. Pause metadata wiring before reload-chain metadata and choose the next Foundation Hardening target.
+1. Clean up the stale `test_sheet_connection.py` compileall command reference so the standard validation output is quiet.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.
+3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.

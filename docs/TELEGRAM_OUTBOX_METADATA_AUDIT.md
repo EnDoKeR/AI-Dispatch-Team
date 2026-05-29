@@ -220,7 +220,7 @@ It is wired into `send_top_opportunities_to_telegram(...)` only.
 
 It is wired into `send_review_once_to_telegram(...)`.
 
-Search health and reload-chain message families are not wired yet.
+Reload-chain is the only current Telegram alert family still relying on text parsing for live sender metadata.
 
 ```text
 telegram_summary_metadata.py
@@ -260,14 +260,14 @@ Market summary metadata is wired through `send_market_summary_to_telegram(...)`.
 - `rate` from the first `Rate:` line, usually the best clean match if present
 - `broker`, `broker_mc`, and `reference_id` as empty unless the summary text happens to include matching fields
 
-Current DispatchCase behavior:
+Original DispatchCase risk:
 
-- `dispatch_case.py` includes `MARKET_SNAPSHOT` in successful outbox records that can create or update DispatchCases.
-- `outbox_matches_case(...)` can match a market summary to an existing load case if parsed lane fields match driver, pickup, and delivery.
-- If no existing case matches, `build_case_from_outbox(...)` can create an outbox-only case from the market summary record.
+- `dispatch_case.py` previously included `MARKET_SNAPSHOT` in successful outbox records that could create or update DispatchCases.
+- `outbox_matches_case(...)` could match a market summary to an existing load case if parsed lane fields matched driver, pickup, and delivery.
+- If no existing case matched, `build_case_from_outbox(...)` could create an outbox-only case from the market summary record.
 - There is no dedicated driver/search-level market snapshot case model yet.
 
-This means wiring structured market summary metadata can change DispatchCase behavior even if Telegram text is unchanged. If metadata intentionally leaves load-specific fields empty, it can prevent accidental best-load lane matching, but `MARKET_SNAPSHOT` would still be eligible for outbox-only case creation unless DispatchCase policy changes first.
+This meant wiring structured market summary metadata could change DispatchCase behavior even if Telegram text was unchanged. The accepted policy now keeps `MARKET_SNAPSHOT` outbox/reporting-only until a search-level entity exists.
 
 Recommended market summary core metadata shape:
 
@@ -310,8 +310,8 @@ Compatibility recommendation:
 
 - Keep existing outbox core keys stable.
 - For market summaries, keep load-specific core keys intentionally empty unless the project explicitly chooses to connect the summary to a specific best-load case.
-- Extra context fields should be considered future-only until outbox reports, SQLite memory, and DispatchCase handling are ready to preserve or consume them.
-- Do not wire market summary metadata until a separate DispatchCase policy block decides whether `MARKET_SNAPSHOT` should create load cases, create driver/search-level events, or stay outbox-only.
+- Extra context fields should be considered future-context metadata until outbox reports, SQLite memory, and search-level handling are ready to preserve or consume them.
+- `MARKET_SNAPSHOT` metadata is wired, and DispatchCase now excludes it from load-level case matching/creation.
 
 Policy decision:
 
@@ -341,14 +341,15 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Pause before reload-chain metadata and choose the next Foundation Hardening target
+Compileall warning cleanup
 ```
 
 Scope should be limited to:
 
-- do not wire reload-chain metadata until it has a separate accepted design
+- remove or update stale `test_sheet_connection.py` command references only
+- keep runtime behavior unchanged
 - keep old text parser fallback and outbox schema stable
 - keep `LOAD_OPPORTUNITY`, `REVIEW_ONCE`, `MARKET_SNAPSHOT`, and `SEARCH_HEALTH_CHECK` metadata tests green
-- avoid reload-watch live wiring, scheduler, buttons, DAT/API, Google Maps, and RateCon expansion
+- avoid reload-chain metadata, reload-watch live wiring, scheduler, buttons, DAT/API, Google Maps, and RateCon expansion
 
 Do not wire reload-chain or reload-watch metadata in the same block.
