@@ -36,7 +36,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ```
 
-Recent full test discovery passed with 583 tests.
+Recent full test discovery passed with 594 tests.
 
 ---
 
