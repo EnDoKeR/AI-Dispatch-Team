@@ -43,6 +43,7 @@ def apply_search_request(loads, search_request):
 
     return loads
 
+
 def process_search_request(request_file):
     search_request = load_search_request(request_file)
     search_request = apply_driver_profile_to_search_request(search_request)
