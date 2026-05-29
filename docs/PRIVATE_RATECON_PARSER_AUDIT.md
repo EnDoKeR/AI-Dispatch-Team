@@ -163,6 +163,29 @@ Examples:
 
 Future confidence data should fit under `field_confidence` in the intake record.
 
+Accepted confidence levels:
+
+- `HIGH`
+- `MEDIUM`
+- `LOW`
+- `UNKNOWN`
+
+Convention:
+
+- unknown or invalid confidence values normalize to `UNKNOWN`
+- if a caller asks for expected fields, missing confidence entries should be represented as `UNKNOWN`
+- if no expected field list is provided, absent confidence keys can stay absent
+- low confidence fields can be reported for future human review, but this helper does not automatically change dispatch decisions
+
+The focused helper for this policy lives in:
+
+```text
+app/market_intelligence/intake/parser_confidence.py
+tests/test_parser_confidence.py
+```
+
+It is pure and does not implement document parsing.
+
 ## Expected Layout Problems
 
 Common RateCon parser risks:

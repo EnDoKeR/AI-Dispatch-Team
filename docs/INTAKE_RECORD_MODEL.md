@@ -244,6 +244,15 @@ They use fake parser outputs only and prove that future parser outputs normalize
 
 This is a contract only. Future parser implementations may read PDF text, OCR text, email body text, Telegram upload content, or manual JSON, but their output must be structured fields. The parser layer must not make dispatch decisions, send Telegram, write Google Sheets, create DispatchCases, write event logs, or import legacy `app/load_intake`.
 
+Parser confidence policy is represented by:
+
+```text
+app/market_intelligence/intake/parser_confidence.py
+tests/test_parser_confidence.py
+```
+
+Accepted levels are `HIGH`, `MEDIUM`, `LOW`, and `UNKNOWN`. Missing or invalid confidence values normalize to `UNKNOWN`. This is extraction confidence only and does not decide dispatch behavior.
+
 ## Record Status
 
 Implemented pure status helper:
