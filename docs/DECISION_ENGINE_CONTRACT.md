@@ -238,6 +238,12 @@ The first implementation must wrap existing behavior rather than replacing it.
 
 Current `MarketLoad` fields and existing tests should remain valid until a migration is explicitly accepted.
 
+## Implementation Status
+
+`app/market_intelligence/decision_engine/result.py` now provides a pure JSON-ready DecisionResult helper matching this contract.
+
+It normalizes decision values, confidence, list fields, source signals, approval defaults, and risk flags. It is not wired into current runtime flow yet and does not change existing `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
+
 ## Input Signal Map
 
 The future DecisionEngine should consume structured signal groups. It should not parse Telegram text or raw PDFs directly.
