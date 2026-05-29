@@ -1134,6 +1134,7 @@ py scripts/run_intake_scenarios.py
 py scripts/run_parser_scenarios.py
 py scripts/run_pasted_text_parser_dry_run.py
 py scripts/run_manual_ratecon_text_dry_run.py --text "Broker: FAKE BROKER LLC ..."
+py scripts/private_ratecon_inventory.py
 py scripts/run_pasted_text_scenarios.py
 py scripts/run_decision_engine_scenarios.py
 py scripts/run_decision_engine_adapter_dry_run.py

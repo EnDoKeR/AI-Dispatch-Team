@@ -132,6 +132,29 @@ Try to collect 10-15 documents covering these categories. One document may satis
 8. Add parser difficulty notes.
 9. Convert only structural lessons into synthetic/anonymized fixtures later.
 
+## Local Inventory Command
+
+Use the local-only inventory command to count private files and assign anonymized labels:
+
+```powershell
+py scripts/private_ratecon_inventory.py
+```
+
+The command scans:
+
+```text
+data/private_ratecons/originals/
+```
+
+It prints:
+
+- total file count;
+- extension counts;
+- anonymized labels such as `RATECON_001`;
+- privacy warning.
+
+It does not read document contents, extract text, write files, create fixtures, create DispatchCases, or print private filenames by default.
+
 ## How To Use Inventory Results Later
 
 The inventory can inform future work:
