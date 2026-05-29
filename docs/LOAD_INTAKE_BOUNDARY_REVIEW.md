@@ -142,7 +142,13 @@ Next safe target:
 RateCon / document intake workflow design
 ```
 
-That should remain design-only and define:
+That design now lives in:
+
+```text
+docs/RATECON_INTAKE_WORKFLOW.md
+```
+
+It should remain design-only and define:
 
 - future document receipt flow
 - mandatory fields
