@@ -47,6 +47,12 @@ When parser/dry-run tooling is ready, first real testing should use a small loca
 
 Do not start with 100+ real documents.
 
+Detailed private testing plan:
+
+```text
+docs/PRIVATE_RATECON_TESTING_PLAN.md
+```
+
 The first private batch should cover:
 
 - clean standard RateCon
