@@ -257,9 +257,12 @@ Current reload watch boundary:
 
 ~~~text
 reload_watch_state.py                      # reload-watch state transition decisions only
+reload_watch_event_builder.py              # structured reload-watch event payloads only
 ~~~
 
 `reload_watch_state.py` is state foundation only. It decides whether a watch should continue, stop, send a normal status, or allow a critical alert.
+
+`reload_watch_event_builder.py` builds structured payloads for future reload-watch events. It does not write DispatchCase events, parse Telegram text, or persist anything.
 
 It must not:
 
