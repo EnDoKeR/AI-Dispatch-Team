@@ -208,13 +208,27 @@ Scope should be:
 
 The CLI accepts command-line JSON strings only. JSON file input remains a separate design decision and is not implemented yet.
 
-Recommended second target:
+Recommended next target:
 
 ```text
-Parser interface contract
+Intake sample JSON fixture foundation
 ```
 
-Only after the JSON-input CLI is accepted.
+This should add synthetic JSON examples only. It should not implement file input yet.
+
+Recommended follow-up target:
+
+```text
+Intake dry-run CLI JSON file input
+```
+
+This is approved only for explicit local JSON object files after synthetic sample fixtures exist.
+
+Design reference:
+
+```text
+docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
+```
 
 ## Still Not Next
 

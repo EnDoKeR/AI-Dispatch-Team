@@ -158,6 +158,14 @@ It accepts pasted/command-line JSON only and continues to avoid PDF parsing, fil
 
 The next safe decision point is whether to support local JSON file input for dry-run testing. PDF parsing remains out of scope.
 
+JSON file input policy is documented in:
+
+```text
+docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
+```
+
+The approved path is synthetic sample JSON fixtures first, then explicit `--json-file` support for one local JSON object only.
+
 ## Mandatory Fields
 
 The record can exist without all mandatory fields, but missing mandatory fields must be flagged.

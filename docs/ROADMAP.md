@@ -412,6 +412,7 @@ docs/RATECON_INTAKE_WORKFLOW.md
 docs/INTAKE_RECORD_MODEL.md
 docs/FOUNDATION_NEXT_TARGET_DECISION.md
 docs/RATECON_FIXTURE_SAFETY.md
+docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
 docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
@@ -423,8 +424,10 @@ Recommended order:
 
 1. Keep reload-watch paused before live wiring.
 2. Manual intake dry-run CLI JSON input support is complete.
-3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+3. Add synthetic sample JSON fixtures for intake dry-run file-input preparation.
+4. Add explicit `--json-file` support only after fixtures exist.
+5. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+6. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
