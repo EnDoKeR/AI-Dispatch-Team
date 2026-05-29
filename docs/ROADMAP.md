@@ -478,10 +478,11 @@ Recommended order:
 47. DecisionEngine comparison + timeline preview combined report is complete.
 48. Current built-events normalization report is complete.
 49. Intake-to-case link audit is complete.
-50. Recommended next backend target: IntakeCaseLinkCandidate pure helper, report-only/no case writes.
-51. Recommended follow-up: intake-to-case dry-run report after the helper exists.
-52. Recommended later audit: reload-chain DispatchCase policy audit.
-53. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+50. IntakeCaseLinkCandidate helper, synthetic fixtures, report helper, and CLI are complete.
+51. Recommended next target: private RateCon field inventory plan, docs/local-process only.
+52. Recommended follow-up: manual real RateCon text dry-run protocol, design-only first.
+53. Recommended later audit: reload-chain DispatchCase policy audit.
+54. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -676,13 +677,27 @@ Command:
 py scripts/run_current_built_events_normalization_report.py
 ```
 
-Next backend target:
+Completed backend target:
 
 ```text
 IntakeCaseLinkCandidate pure helper
 ```
 
-This should remain pure and report-only. It should build a JSON-ready candidate recommendation from IntakeRecord and optional case-like evidence without creating cases, linking records, writing events, reading private RateCons, or changing runtime behavior.
+This remains pure and report-only. It builds JSON-ready candidate recommendations from IntakeRecord and optional case-like evidence without creating cases, linking records, writing events, reading private RateCons, or changing runtime behavior.
+
+Command:
+
+```powershell
+py scripts/run_intake_case_link_candidate_report.py
+```
+
+Next backend target:
+
+```text
+private RateCon field inventory plan
+```
+
+This should stay docs/local-process only and define how the first private RateCon samples will be manually inventoried before any parser, PDF extraction, OCR, or live integration work.
 
 Completed backend audit:
 

@@ -1766,3 +1766,70 @@ Not recommended next:
 - Gmail/email or Google Sheets integration;
 - reload-chain DispatchCase wiring;
 - synthetic 100-200 load dataset.
+
+## IntakeCaseLinkCandidate Helper Closeout
+
+Completed:
+
+- pure helper: `app/market_intelligence/intake/case_link_candidate.py`;
+- synthetic fixtures: `tests/fixtures/intake_case_link_candidates.py`;
+- report helper: `app/market_intelligence/intake/case_link_candidate_report.py`;
+- manual CLI: `scripts/run_intake_case_link_candidate_report.py`;
+- README command reference.
+
+Current command:
+
+```powershell
+py scripts/run_intake_case_link_candidate_report.py
+```
+
+Current status:
+
+- report-only/dry-run only;
+- synthetic fixtures only for the CLI;
+- no DispatchCase creation;
+- no runtime linking;
+- no `linked_dispatch_case_id` writes;
+- no event writes;
+- no `case_event_builder.py` changes;
+- no Telegram, parser, private RateCon, PDF/OCR, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, replay, or reload-chain metadata changes.
+
+Options evaluated:
+
+1. intake-to-case dry-run report refinement
+2. private RateCon field inventory plan
+3. manual real RateCon text dry-run protocol
+4. PDF extraction strategy audit
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+private RateCon field inventory plan
+```
+
+Why:
+
+- candidate helper/reporting is stable enough to support review planning;
+- before any real parser or PDF extraction work, the project should define a local-only human inventory process;
+- it can clarify which fields should be captured from the first private samples without committing documents or extracted private text;
+- it keeps case linking, event writes, parser behavior, Gmail/email, Google Sheets, Telegram upload, DAT/API, Google Maps, accounting/factoring, and replay out of scope.
+
+Recommended second target:
+
+```text
+manual real RateCon text dry-run protocol
+```
+
+This should be a design/protocol step only and should not process private files, add OCR/PDF parsing, or commit private text.
+
+Not recommended next:
+
+- intake-to-case runtime linking;
+- automatic case creation;
+- `RATECON_PARSED` event writes;
+- PDF extraction implementation;
+- reading private RateCon files in tests;
+- reload-chain DispatchCase wiring;
+- synthetic 100-200 load dataset.

@@ -798,3 +798,62 @@ Not recommended next:
 - Gmail/email or Google Sheets integration;
 - reload-chain DispatchCase wiring;
 - synthetic 100-200 load dataset.
+
+## IntakeCaseLinkCandidate Helper Status
+
+The pure candidate helper and synthetic report lane are now complete.
+
+Implemented files:
+
+```text
+app/market_intelligence/intake/case_link_candidate.py
+app/market_intelligence/intake/case_link_candidate_report.py
+scripts/run_intake_case_link_candidate_report.py
+tests/fixtures/intake_case_link_candidates.py
+```
+
+Current behavior:
+
+- builds JSON-ready link candidates from IntakeRecord-like and case-like evidence;
+- preserves `missing_fields`;
+- preserves `needs_check_fields`;
+- preserves field confidence evidence;
+- recommends `LINK_EXISTING`, `CREATE_CASE_REVIEW`, `KEEP_UNLINKED`, or `NEEDS_REVIEW`;
+- keeps `approval_required=True`;
+- summarizes synthetic candidate scenarios in a dry-run CLI.
+
+Current non-behavior:
+
+- no DispatchCase creation;
+- no runtime linking;
+- no `linked_dispatch_case_id` writes;
+- no DispatchCase event writes;
+- no changes to `case_event_builder.py`;
+- no parser behavior changes;
+- no PDF/OCR, private RateCon reads, Telegram, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, replay, or reload-chain metadata work.
+
+Manual dry-run command:
+
+```powershell
+py scripts/run_intake_case_link_candidate_report.py
+```
+
+Recommended next target:
+
+```text
+private RateCon field inventory plan
+```
+
+Why:
+
+- the candidate/report shape is stable enough for dry-run review;
+- before parser/file extraction work, the project should define how private RateCon fields will be manually inventoried;
+- this can stay docs/local-process only and preserve the no-private-files-in-Git rule.
+
+Recommended second target:
+
+```text
+manual real RateCon text dry-run protocol
+```
+
+This should be a protocol/design step first. It should not read files, parse PDFs, run OCR, or commit private text.
