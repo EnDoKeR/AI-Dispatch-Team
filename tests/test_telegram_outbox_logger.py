@@ -133,6 +133,73 @@ class TestTelegramOutboxLogger(unittest.TestCase):
         self.assertEqual(record["telegram_message_id"], 99)
         self.assertEqual(record["error_text"], "")
 
+    def test_log_outgoing_telegram_message_prefers_metadata_over_text_parsing(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outbox_file = Path(temp_dir) / "telegram_outbox.jsonl"
+
+            with patch.object(
+                telegram_outbox_logger,
+                "TELEGRAM_OUTBOX_FILE",
+                outbox_file,
+            ):
+                record = log_outgoing_telegram_message(
+                    text="text shape can change without breaking metadata",
+                    success=True,
+                    telegram_response={"result": {"message_id": 100}},
+                    metadata={
+                        "message_type": "LOAD_OPPORTUNITY",
+                        "category": "LOAD OPPORTUNITY",
+                        "driver_name": "Alex",
+                        "pickup": "Dallas, TX",
+                        "delivery": "Houston, TX",
+                        "rate": 2200,
+                        "broker": "Structured Broker",
+                        "broker_mc": "222333",
+                        "reference_id": "REF-META",
+                    },
+                )
+
+        self.assertEqual(record["message_type"], "LOAD_OPPORTUNITY")
+        self.assertEqual(record["category"], "LOAD OPPORTUNITY")
+        self.assertEqual(record["driver_name"], "Alex")
+        self.assertEqual(record["pickup"], "Dallas, TX")
+        self.assertEqual(record["delivery"], "Houston, TX")
+        self.assertEqual(record["rate"], 2200)
+        self.assertEqual(record["broker"], "Structured Broker")
+        self.assertEqual(record["broker_mc"], "222333")
+        self.assertEqual(record["reference_id"], "REF-META")
+        self.assertEqual(record["telegram_message_id"], 100)
+        self.assertEqual(record["text"], "text shape can change without breaking metadata")
+
+    def test_log_outgoing_telegram_message_falls_back_to_text_for_missing_metadata(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            outbox_file = Path(temp_dir) / "telegram_outbox.jsonl"
+
+            with patch.object(
+                telegram_outbox_logger,
+                "TELEGRAM_OUTBOX_FILE",
+                outbox_file,
+            ):
+                record = log_outgoing_telegram_message(
+                    text=opportunity_message(),
+                    success=True,
+                    telegram_response=None,
+                    metadata={
+                        "driver_name": "Structured Alex",
+                        "rate": 2300,
+                    },
+                )
+
+        self.assertEqual(record["message_type"], "LOAD_OPPORTUNITY")
+        self.assertEqual(record["category"], "LOAD OPPORTUNITY")
+        self.assertEqual(record["driver_name"], "Structured Alex")
+        self.assertEqual(record["pickup"], "Dallas, TX")
+        self.assertEqual(record["delivery"], "Houston, TX")
+        self.assertEqual(record["rate"], 2300)
+        self.assertEqual(record["broker"], "Test Broker")
+        self.assertEqual(record["broker_mc"], "123456")
+        self.assertEqual(record["reference_id"], "REF-123")
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -147,11 +147,27 @@ def extract_telegram_message_id(telegram_response):
     return result.get("message_id", "")
 
 
+def metadata_value(metadata, key, fallback=""):
+    if not isinstance(metadata, dict):
+        return fallback
+
+    if key not in metadata:
+        return fallback
+
+    value = metadata.get(key)
+
+    if value is None:
+        return ""
+
+    return value
+
+
 def log_outgoing_telegram_message(
     text,
     success,
     telegram_response=None,
     error_text="",
+    metadata=None,
 ):
     text = str(text or "")
 
@@ -159,15 +175,27 @@ def log_outgoing_telegram_message(
 
     record = {
         "timestamp_utc": utc_now_iso(),
-        "message_type": infer_message_type(text),
-        "category": parse_category(text),
-        "driver_name": parse_driver_name(text),
-        "pickup": pickup,
-        "delivery": delivery,
-        "rate": parse_rate(text),
-        "broker": parse_broker(text),
-        "broker_mc": parse_mc(text),
-        "reference_id": parse_reference_id(text),
+        "message_type": metadata_value(
+            metadata,
+            "message_type",
+            infer_message_type(text),
+        ),
+        "category": metadata_value(metadata, "category", parse_category(text)),
+        "driver_name": metadata_value(
+            metadata,
+            "driver_name",
+            parse_driver_name(text),
+        ),
+        "pickup": metadata_value(metadata, "pickup", pickup),
+        "delivery": metadata_value(metadata, "delivery", delivery),
+        "rate": metadata_value(metadata, "rate", parse_rate(text)),
+        "broker": metadata_value(metadata, "broker", parse_broker(text)),
+        "broker_mc": metadata_value(metadata, "broker_mc", parse_mc(text)),
+        "reference_id": metadata_value(
+            metadata,
+            "reference_id",
+            parse_reference_id(text),
+        ),
         "send_success": bool(success),
         "telegram_message_id": extract_telegram_message_id(telegram_response),
         "error_text": error_text,

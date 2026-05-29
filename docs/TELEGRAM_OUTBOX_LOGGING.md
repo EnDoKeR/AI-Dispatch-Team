@@ -24,7 +24,10 @@ Current storage:
 data/telegram_outbox.jsonl
 ```
 
-The logger currently extracts structured fields from Telegram message text:
+The logger can now accept optional structured metadata and fall back to
+Telegram message text parsing when metadata is missing.
+
+Outbox records include:
 
 ```text
 message_type
@@ -42,7 +45,7 @@ error_text
 text
 ```
 
-This is useful, but fragile.
+Text parsing is useful, but fragile.
 
 If Telegram message text changes, outbox parsing can change too. That can affect DispatchCase matching, event timelines, SQLite memory, broker memory reports, and replay.
 
@@ -64,21 +67,23 @@ The tests cover:
 - lane extraction
 - Telegram response message id extraction
 - JSONL outbox write shape
+- optional metadata override behavior
+- text parser fallback when metadata is partial
 
 These tests intentionally preserve current mojibake separator behavior until controlled encoding cleanup is done.
 
 ---
 
-## Future Direction
+## Metadata Path
 
-The safer future shape is:
+The safer shape is:
 
 ```text
 formatter -> text only
 sender/logger -> structured metadata
 ```
 
-Future call shape may look like:
+Current supported call shape:
 
 ```text
 log_outgoing_telegram_message(
@@ -115,8 +120,7 @@ If metadata is missing, logger should fall back to text parsing for backward com
 
 ## Safe Next Steps
 
-1. Add optional metadata support to `log_outgoing_telegram_message()`.
-2. Keep existing text parser fallback.
-3. Update one sender path at a time to pass metadata.
-4. Keep DispatchCase matching tests green after each sender path.
-5. Clean message encoding one formatter family at a time after metadata is stable.
+1. Keep existing text parser fallback.
+2. Update one sender path at a time to pass metadata.
+3. Keep DispatchCase matching tests green after each sender path.
+4. Clean message encoding one formatter family at a time after metadata is stable.
