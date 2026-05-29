@@ -1139,11 +1139,12 @@ py scripts/run_decision_engine_adapter_dry_run.py
 py scripts/run_decision_engine_comparison_report.py
 py scripts/run_case_event_report.py
 py scripts/run_case_event_builder_compatibility.py
+py scripts/run_decision_result_timeline_preview.py
 ~~~
 
 This is dry-run only. It normalizes pasted JSON, one explicit JSON file, or manually pasted text into intake summaries, can optionally save JSON dry-run records to a gitignored local JSON repository, uses synthetic fixtures for intake/parser scenarios, and defines the internal parser output contract. It does not parse PDFs, run OCR, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`; synthetic parser-shaped examples live in `tests/fixtures/parser_expected_outputs.py`; synthetic pasted-text examples live in `tests/fixtures/pasted_text_ratecon_examples.py`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
-DecisionEngine dry-run scenarios are synthetic-only. They validate the new result/signal/risk-flag foundation shape and do not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior. The adapter dry-run command previews read-only normalization of existing load decision fields into `DecisionResult`; the comparison report checks that the adapter reflects current fields. The case event report command summarizes synthetic event records only, and the builder compatibility command compares synthetic current-style builder outputs against the event taxonomy/base payload foundation. These commands are not wired into runtime flow.
+DecisionEngine dry-run scenarios are synthetic-only. They validate the new result/signal/risk-flag foundation shape and do not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior. The adapter dry-run command previews read-only normalization of existing load decision fields into `DecisionResult`; the comparison report checks that the adapter reflects current fields. The case event report command summarizes synthetic event records only, the builder compatibility command compares synthetic current-style builder outputs against the event taxonomy/base payload foundation, and the timeline preview command shows future `AI_DECISION_CREATED` payloads with nested DecisionResult data. These commands are not wired into runtime flow.
 
 Telegram UX planning is documented in `docs/TELEGRAM_UX_PLAN.md`. Current Telegram behavior remains simple and unchanged; future menu/cards/settings/digest work should wait until backend event ownership is stable.
 
