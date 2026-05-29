@@ -1503,3 +1503,61 @@ Current status:
 - no DecisionResult event writes
 
 The next target should be selected separately now that event reports can read both legacy and normalized wrapper shapes.
+
+## Event Report Wrapper Support Closeout
+
+Completed:
+
+- event report wrapper-input audit
+- `case_event_report.py` support for legacy + wrapper records
+- wrapper warning summaries in event reports
+- `scripts/run_case_event_report.py --wrapped`
+- docs and roadmap sync
+
+Current command:
+
+```powershell
+py scripts/run_case_event_report.py --wrapped
+```
+
+Options evaluated:
+
+1. DecisionEngine comparison + timeline preview combined report
+2. current built-events normalization report
+3. DispatchCase builder migration dry-run
+4. intake-to-case link audit
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+DecisionEngine comparison + timeline preview combined report
+```
+
+Why:
+
+- DecisionEngine comparison report is already report-only;
+- DecisionResult timeline preview is already report-only;
+- event reports can now read wrapper-style normalized records;
+- a combined report can show how existing load decisions, normalized DecisionResult, and future timeline preview payloads line up before any runtime wiring;
+- it avoids changing `case_event_builder.py`, DispatchCase runtime behavior, Telegram, MarketLoad decisions, or event writing.
+
+Recommended second target:
+
+```text
+current built-events normalization report
+```
+
+Why:
+
+- useful after the combined report if we want a focused view of current generated builder-style events through the wrapper;
+- should stay synthetic/report-only unless a later block explicitly allows reading real runtime event data.
+
+Not recommended next:
+
+- DispatchCase builder migration dry-run: wait until reporting views are stronger;
+- intake-to-case link audit: important, but less urgent than finishing the report-only DecisionEngine/timeline bridge;
+- reload-chain DispatchCase policy audit: still needed before reload-chain metadata/case wiring, but not part of this event wrapper lane;
+- synthetic 100-200 load dataset: too early before report-only backend views are complete;
+- runtime event writes, DecisionResult event writes, DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, replay/missed-opportunity, or live automation.
