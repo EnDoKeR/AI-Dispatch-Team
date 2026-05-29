@@ -15,7 +15,10 @@ from app.market_intelligence.market_snapshot_opportunities import (
     get_top_opportunities,
 )
 from app.market_intelligence.market_snapshot_route_fallback import prepare_route_fallback
-from app.market_intelligence.market_snapshot_builder import apply_search_request
+from app.market_intelligence.market_snapshot_builder import (
+    apply_search_request,
+    build_market_snapshot_context,
+)
 from app.market_intelligence.market_snapshot_console_report import print_driver_report
 from app.market_intelligence.market_snapshot_telegram_dispatcher import (
     send_market_snapshot_to_telegram,
@@ -45,37 +48,27 @@ def process_search_request(request_file):
 
     loads = load_market_loads()
 
-    search_request = prepare_route_fallback(
-        loads,
-        search_request,
+    context = build_market_snapshot_context(
+        loads=loads,
+        search_request=search_request,
+        search_location=search_location,
+        prepare_route_fallback_func=prepare_route_fallback,
+        apply_search_request_func=apply_search_request,
+        bucket_stats_func=bucket_stats,
+        fit_stats_func=fit_stats,
+        market_recommendation_func=market_recommendation,
+        build_market_explanation_func=build_market_explanation,
+        get_top_opportunities_func=get_top_opportunities,
+        get_review_once_loads_func=get_review_once_loads,
+        build_chain_candidates_func=build_chain_candidates,
     )
 
-    loads = apply_search_request(
-        loads,
-        search_request,
-    )
-
-    stats = bucket_stats(loads)
-    fit = fit_stats(loads)
-
-    recommendation = market_recommendation(
-        stats,
-        fit,
-    )
-
-    explanation = build_market_explanation(
-        stats,
-        recommendation,
-    )
-
-    top_opportunities = get_top_opportunities(loads)
-    review_once_loads = get_review_once_loads(loads)
-
-    chain_candidates = build_chain_candidates(
-        loads,
-        search_request,
-        limit=5,
-    )
+    search_request = context["search_request"]
+    loads = context["loads"]
+    stats = context["stats"]
+    recommendation = context["recommendation"]
+    top_opportunities = context["top_opportunities"]
+    review_once_loads = context["review_once_loads"]
 
     decision_log_result = log_decisions(
         search_request=search_request,
