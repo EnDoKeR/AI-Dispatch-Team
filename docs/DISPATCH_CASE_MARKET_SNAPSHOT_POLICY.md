@@ -2,17 +2,20 @@
 
 Date: 2026-05-29
 
+Status:
+
+```text
+Implemented for load-level DispatchCase flow.
+```
+
 Scope:
 
-- audit/design only
-- no runtime behavior changes
 - no Telegram formatter/sender/notifier changes
 - no outbox JSONL schema changes
-- no DispatchCase code changes in this block
 - no reload-watch live wiring
 - no scheduler, buttons, DAT/API, Google Maps, or RateCon work
 
-## Current Behavior
+## Previous Behavior
 
 Successful Telegram outbox records are processed by:
 
@@ -20,7 +23,7 @@ Successful Telegram outbox records are processed by:
 dispatch_case.build_cases_and_events(...)
 ```
 
-The current allowed outbox message types are:
+Previously allowed outbox message types were:
 
 ```text
 LOAD_OPPORTUNITY
@@ -29,14 +32,34 @@ MARKET_SNAPSHOT
 SEARCH_HEALTH_CHECK
 ```
 
-For every successful allowed outbox record, DispatchCase currently:
+For every successful allowed outbox record, DispatchCase previously:
 
 1. Tries to match an existing case with `outbox_matches_case(...)`.
 2. If no case matches, creates a new case with `build_case_from_outbox(...)`.
 3. Applies the outbox alert to the case with `apply_outbox_to_case(...)`.
 4. Emits a `TELEGRAM_ALERT_SENT` event.
 
-This means `MARKET_SNAPSHOT` is currently treated as a load-level outbox candidate even though it is a market/search summary.
+This meant `MARKET_SNAPSHOT` was treated as a load-level outbox candidate even though it is a market/search summary.
+
+## Implemented Behavior
+
+`MARKET_SNAPSHOT` is now excluded from load-level DispatchCase outbox handling.
+
+Current case-eligible outbox message types:
+
+```text
+LOAD_OPPORTUNITY
+REVIEW_ONCE
+SEARCH_HEALTH_CHECK
+```
+
+Practical result:
+
+- successful `MARKET_SNAPSHOT` outbox records do not create load-level DispatchCases
+- successful `MARKET_SNAPSHOT` outbox records do not attach to existing load-level DispatchCases through parsed best-load lane fields
+- successful `MARKET_SNAPSHOT` outbox records with empty metadata fields do not create generic outbox-only load cases
+- `LOAD_OPPORTUNITY` and `REVIEW_ONCE` remain load-level case events
+- `SEARCH_HEALTH_CHECK` behavior was intentionally left unchanged in this mini-block
 
 ## How MARKET_SNAPSHOT Can Match A Load Case Today
 
@@ -91,21 +114,21 @@ Treating market summaries as load cases can create two problems:
 1. A market summary with a best clean match can attach to a load case even though the alert itself was a market summary.
 2. A market summary with empty load fields can create a low-quality outbox-only load case.
 
-## Recommended Policy
+## Implemented Policy
 
-Recommended current policy:
+Implemented current policy:
 
 ```text
-MARKET_SNAPSHOT should be outbox/reporting-only in DispatchCase flow until a search-level entity exists.
+MARKET_SNAPSHOT is outbox/reporting-only in DispatchCase flow until a search-level entity exists.
 ```
 
 Practical meaning:
 
-- `MARKET_SNAPSHOT` should still be written to `telegram_outbox.jsonl`.
-- `MARKET_SNAPSHOT` should remain available for outbox reports, replay, and SQLite/reporting work.
-- `MARKET_SNAPSHOT` should not create a load-level DispatchCase.
-- `MARKET_SNAPSHOT` should not attach to a load-level DispatchCase through parsed best-load lane fields.
-- `MARKET_SNAPSHOT` should not create a generic outbox-only case with empty load identity.
+- `MARKET_SNAPSHOT` is still written to `telegram_outbox.jsonl`.
+- `MARKET_SNAPSHOT` remains available for outbox reports, replay, and SQLite/reporting work.
+- `MARKET_SNAPSHOT` does not create a load-level DispatchCase.
+- `MARKET_SNAPSHOT` does not attach to a load-level DispatchCase through parsed best-load lane fields.
+- `MARKET_SNAPSHOT` does not create a generic outbox-only case with empty load identity.
 
 Future policy after a search-level model exists:
 
@@ -131,13 +154,13 @@ That future model should be separate from load-level DispatchCase.
 
 `telegram_summary_metadata.py` now builds market summary metadata with intentionally empty load-specific core fields.
 
-That helper should not be wired into `send_market_summary_to_telegram(...)` until `MARKET_SNAPSHOT` DispatchCase policy is changed or protected by tests.
+That helper is not wired into `send_market_summary_to_telegram(...)` yet.
 
-If metadata is wired first, DispatchCase could still create generic load-shaped cases from empty market-summary fields.
+Because load-level DispatchCase exclusion is now protected, market summary metadata wiring can be considered in a later mini-block.
 
-## Tests Needed Before Behavior Change
+## Behavior Tests
 
-Before changing DispatchCase behavior, add focused tests covering:
+The behavior change is protected by focused tests covering:
 
 1. A successful `MARKET_SNAPSHOT` with no decision records does not create a load case.
 2. A successful `MARKET_SNAPSHOT` with parsed best-load pickup/delivery does not attach to an existing load case.
@@ -146,14 +169,6 @@ Before changing DispatchCase behavior, add focused tests covering:
 5. `REVIEW_ONCE` still creates or updates load-level DispatchCases.
 6. Failed outbox records are still ignored.
 7. Existing `TELEGRAM_ALERT_SENT` behavior for load-level alerts remains unchanged.
-
-Possible implementation direction for a future mini-block:
-
-```text
-dispatch_case.py should exclude MARKET_SNAPSHOT from load-level outbox case building.
-```
-
-Keep this future change small and test-first.
 
 ## Do Not Change Yet
 
@@ -175,15 +190,14 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-DispatchCase MARKET_SNAPSHOT load-case exclusion
+Telegram market summary metadata wiring
 ```
 
 Scope should be:
 
 - test-first
-- exclude `MARKET_SNAPSHOT` from load-level DispatchCase creation/matching
-- preserve `LOAD_OPPORTUNITY` and `REVIEW_ONCE`
-- do not wire market summary metadata in the same block
+- wire `build_market_summary_metadata(...)` into `send_market_summary_to_telegram(...)` only
+- keep formatter text unchanged
 - do not change Telegram/outbox schema
 
-After that behavior is protected, market summary metadata can be wired safely in a separate mini-block.
+Do not wire search health, reload-chain, or reload-watch metadata in the same block.

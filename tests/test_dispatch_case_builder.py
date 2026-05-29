@@ -198,6 +198,136 @@ class TestDispatchCaseBuilder(unittest.TestCase):
 
         self.assertEqual(events[0]["event_type"], "TELEGRAM_ALERT_SENT")
 
+    def test_load_opportunity_outbox_still_creates_load_case(self):
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "LOAD_OPPORTUNITY",
+                "category": "LOAD OPPORTUNITY",
+                "telegram_message_id": "777",
+                "reference_id": "REF-LOAD-OUTBOX",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": 2200,
+                "broker": "Outbox Broker",
+                "broker_mc": "654321",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(cases[0]["reference_id"], "REF-LOAD-OUTBOX")
+        self.assertEqual(cases[0]["ai_decision"]["category"], "LOAD OPPORTUNITY")
+        self.assertEqual(events[0]["event_type"], "TELEGRAM_ALERT_SENT")
+
+    def test_market_snapshot_outbox_does_not_attach_to_existing_load_case(self):
+        decision_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:00:00+00:00",
+                "driver_name": "Alex",
+                "load_id": "LOAD-123",
+                "reference_id": "REF-123",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "broker_mc": "123456",
+                "decision": "MATCH",
+                "category": "LOAD OPPORTUNITY",
+            }
+        ]
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "MARKET_SNAPSHOT",
+                "category": "MARKET SNAPSHOT",
+                "telegram_message_id": "888",
+                "reference_id": "",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": 2200,
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=decision_records,
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(len(cases), 1)
+        self.assertEqual(len(events), 1)
+        self.assertEqual(cases[0]["telegram_alerts"], [])
+        self.assertEqual(events[0]["event_type"], "AI_DECISION_CREATED")
+
+    def test_market_snapshot_outbox_does_not_create_outbox_only_load_case(self):
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "MARKET_SNAPSHOT",
+                "category": "MARKET SNAPSHOT",
+                "telegram_message_id": "888",
+                "reference_id": "",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": 2200,
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(cases, [])
+        self.assertEqual(events, [])
+
+    def test_market_snapshot_with_empty_metadata_fields_does_not_create_generic_case(self):
+        telegram_outbox_records = [
+            {
+                "timestamp_utc": "2026-05-28T10:05:00+00:00",
+                "driver_name": "Alex",
+                "send_success": True,
+                "message_type": "MARKET_SNAPSHOT",
+                "category": "MARKET SNAPSHOT",
+                "telegram_message_id": "888",
+                "reference_id": "",
+                "pickup": "",
+                "delivery": "",
+                "rate": "",
+                "broker": "",
+                "broker_mc": "",
+            }
+        ]
+
+        cases, events = build_cases_and_events(
+            decision_records=[],
+            feedback_records=[],
+            telegram_outbox_records=telegram_outbox_records,
+            simulation_event_records=[],
+        )
+
+        self.assertEqual(cases, [])
+        self.assertEqual(events, [])
+
     def test_build_cases_and_events_creates_case_from_feedback_only(self):
         feedback_records = [
             {

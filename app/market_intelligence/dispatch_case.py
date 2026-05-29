@@ -26,6 +26,11 @@ from app.market_intelligence.case_update_applier import (
 
 
 DISPATCH_CASES_FILE = Path("data/dispatch_cases.jsonl")
+CASE_ELIGIBLE_OUTBOX_MESSAGE_TYPES = {
+    "LOAD_OPPORTUNITY",
+    "REVIEW_ONCE",
+    "SEARCH_HEALTH_CHECK",
+}
 
 def load_jsonl(file_path):
     file_path = Path(file_path)
@@ -100,12 +105,7 @@ def build_cases_and_events(
         if not outbox.get("send_success", False):
             continue
 
-        if outbox.get("message_type") not in [
-            "LOAD_OPPORTUNITY",
-            "REVIEW_ONCE",
-            "MARKET_SNAPSHOT",
-            "SEARCH_HEALTH_CHECK",
-        ]:
+        if outbox.get("message_type") not in CASE_ELIGIBLE_OUTBOX_MESSAGE_TYPES:
             continue
 
         matched_case_id = None

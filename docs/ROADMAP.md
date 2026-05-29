@@ -108,6 +108,7 @@ Current direction:
 - Market summary metadata was audited; helper-only work is safe next, but wiring should wait for a separate DispatchCase `MARKET_SNAPSHOT` policy decision.
 - `telegram_summary_metadata.py` now builds market summary metadata with intentionally empty load-specific core fields; it is not wired into the notifier yet.
 - `MARKET_SNAPSHOT` policy was audited; recommended policy is outbox/reporting-only until a search-level entity exists.
+- DispatchCase now excludes `MARKET_SNAPSHOT` from load-level case creation/matching, so market summary records remain outbox/reporting-only.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
@@ -411,7 +412,7 @@ docs/DISPATCH_CASE_MARKET_SNAPSHOT_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Exclude `MARKET_SNAPSHOT` from load-level DispatchCase creation/matching before wiring market summary metadata.
+2. Wire market summary metadata in a focused notifier-only block.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -736,5 +737,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: DispatchCase `MARKET_SNAPSHOT` load-case exclusion.
+4. Recommended next target: Telegram market summary metadata wiring.
 5. Avoid new large files by default.
