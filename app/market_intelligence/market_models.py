@@ -19,6 +19,7 @@ from app.market_intelligence.market_weight_rules import apply_weight_rules
 from app.market_intelligence.market_od_permit_rules import apply_od_permit_rules
 from app.market_intelligence.market_quality_rules import apply_quality_rules
 from app.market_intelligence.market_payment_risk_rules import apply_payment_risk_rules
+from app.market_intelligence.market_load_serializer import market_load_to_dict
 from app.market_intelligence.market_scoring import (
     is_good as score_is_good,
     is_qualified as score_is_qualified,
@@ -331,54 +332,7 @@ class MarketLoad:
         return score_opportunity_reason(self)
 
     def to_dict(self):
-        return {
-            "origin": self.origin,
-            "destination": self.destination,
-            "pickup": self.pickup,
-            "delivery": self.delivery,
-            "rate": self.rate,
-            "loaded_miles": self.loaded_miles,
-            "empty_miles": self.empty_miles,
-            "total_miles": self.total_miles,
-            "total_rpm": self.total_rpm,
-            "loaded_rpm": self.loaded_rpm(),
-            "bucket": self.bucket,
-            "pickup_date": self.pickup_date,
-            "delivery_date": self.delivery_date,
-            "pickup_time": self.pickup_time,
-            "delivery_time": self.delivery_time,
-            "weight": self.weight,
-            "posted_trailer_type": self.posted_trailer_type,
-            "equipment": self.equipment,
-            "commodity": self.commodity,
-            "notes": self.notes,
-            "parsed_notes": self.parsed_notes,
-            "broker_name": self.broker_name,
-            "broker_mc": self.broker_mc,
-            "broker_contact": self.broker_contact,
-            "primary_email": self.primary_email,
-            "primary_phone": self.primary_phone,
-            "has_email": self.has_email,
-            "has_phone": self.has_phone,
-            "broker_contact_raw": self.broker_contact_raw,
-            "parsed_contact": self.parsed_contact,
-            "credit_score": self.credit_score,
-            "days_to_pay": self.days_to_pay,
-            "reference_id": self.reference_id,
-            "driver_match_status": self.driver_match_status,
-            "driver_match_notes": self.driver_match_notes,
-            "opportunity_score": self.opportunity_score(),
-            "priority": self.priority(),
-            "suggested_action": self.suggested_action(),
-            "is_bookable": self.is_bookable,
-            "is_private": self.is_private,
-            "is_partial": self.is_partial,
-            "is_od": self.is_od,
-            "is_tracking_required": self.is_tracking_required,
-            "broker_status": self.broker_status,
-            "delivery_zone": self.delivery_zone,
-            "extra": self.extra,
-        }
+        return market_load_to_dict(self)
 
 
 class DriverProfile:
