@@ -254,6 +254,157 @@ Minimum test coverage for any builder migration:
 - DispatchCase builder tests remain green;
 - reporting-only outbox policy remains protected.
 
+## Normalized Event Wrapper Design
+
+Future helper name candidate:
+
+```text
+app/market_intelligence/case_event_normalizer.py
+```
+
+Potential function:
+
+```python
+normalize_case_event_for_report(event)
+```
+
+This should be report-only at first.
+
+### Proposed Return Shape
+
+Recommended shape:
+
+```python
+{
+    "legacy_payload": {...},
+    "normalized_payload": {
+        "event_type": "...",
+        "event_group": "...",
+        "case_id": "...",
+        "timestamp_utc": "...",
+        "source": "...",
+        "details": {...},
+        "related_ids": {...},
+    },
+    "warnings": [],
+}
+```
+
+Answer to design question 1:
+
+The wrapper should return both `legacy_payload` and `normalized_payload`.
+
+Reason:
+
+- reports can compare old and normalized shapes;
+- runtime event consumers can keep using the old envelope;
+- future migrations can prove compatibility before storing normalized data.
+
+### Normalized Details
+
+Answer to design question 2:
+
+`normalized_payload["details"]` should copy current event `payload` data first.
+
+For example:
+
+```python
+"details": {
+    "legacy_event_payload": event.get("payload", {}),
+}
+```
+
+Later event-specific mappers can add structured fields, but the first wrapper should avoid reinterpreting payload semantics.
+
+### Related IDs
+
+The normalized view should move current identity fields into `related_ids`:
+
+```python
+"related_ids": {
+    "event_id": event.get("event_id", ""),
+    "load_id": event.get("load_id", ""),
+    "reference_id": event.get("reference_id", ""),
+    "driver_name": event.get("driver_name", ""),
+}
+```
+
+This preserves identity context without removing old top-level fields.
+
+### Missing Fields
+
+Answer to design question 3:
+
+Missing `case_id`, `timestamp_utc`, or `source` should become safe defaults and warnings, not exceptions.
+
+Suggested warnings:
+
+- `missing_case_id`
+- `missing_timestamp_utc`
+- `missing_source`
+
+The wrapper should not invent a case ID.
+
+### Unknown Event Types
+
+Answer to design question 4:
+
+Unknown event types should normalize to uppercase/underscore text, use `event_group = "unknown"`, and add a warning:
+
+```text
+unknown_event_type
+```
+
+Unknown event types should remain reportable and JSON-serializable.
+
+### Report First
+
+Answer to design question 5:
+
+The wrapper should be used by reports first, not runtime.
+
+Allowed first consumers:
+
+- synthetic fixture reports
+- compatibility CLI
+- future DecisionResult timeline preview comparisons
+
+Not allowed first consumers:
+
+- `dispatch_case.build_cases_and_events(...)`
+- `case_event_builder.py`
+- event_logger writes
+- Telegram paths
+
+### Required Tests Before Implementation
+
+Answer to design question 6:
+
+Before implementation, add tests for:
+
+1. `legacy_payload` equals a copy of the original event;
+2. `normalized_payload` contains `event_type`, `event_group`, `case_id`, `timestamp_utc`, `source`, `details`, and `related_ids`;
+3. event type normalizes through taxonomy;
+4. unknown event types are safe;
+5. missing case/timestamp/source produce warnings;
+6. input event is not mutated;
+7. output is JSON-serializable;
+8. current builder event samples normalize successfully;
+9. no imports from Telegram sender/notifier, DispatchCase runtime builder, event logger writes, storage, or external APIs.
+
+### Non-goals
+
+The wrapper should not:
+
+- write events;
+- call `build_cases_and_events(...)`;
+- call `case_event_builder.py`;
+- change event IDs;
+- decide event ownership;
+- add DecisionResult to runtime events;
+- create cases;
+- read or write JSONL/SQLite.
+
 ## Current Recommendation
 
 Next safe implementation target:
