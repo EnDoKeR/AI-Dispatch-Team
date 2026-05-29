@@ -65,6 +65,7 @@ def build_human_summary_lines(record, status):
         "INTAKE RECORD DRY RUN",
         "DRY RUN ONLY - no parser/storage/integration used",
         f"Status: {status}",
+        f"Intake ID: {record['intake_id'] or 'MISSING'}",
         f"Broker: {record['broker_name'] or 'MISSING'}",
         f"Broker MC: {record['broker_mc'] or 'MISSING'}",
         f"Rate: {record['rate'] or 'MISSING'}",

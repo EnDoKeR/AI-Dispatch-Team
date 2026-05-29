@@ -37,6 +37,7 @@ SAMPLE_SOURCE = {
 
 
 DRY_RUN_WARNING = "DRY RUN ONLY - no parser/storage/integration used"
+DEFAULT_INTAKE_ID = "DRY-RUN-INTAKE-1"
 
 
 def parse_args(args=None):
@@ -58,6 +59,11 @@ def parse_args(args=None):
         "--save",
         action="store_true",
         help="Save the normalized intake record to the local JSON repository.",
+    )
+    parser.add_argument(
+        "--intake-id",
+        default=DEFAULT_INTAKE_ID,
+        help="Intake id to place on the normalized dry-run record.",
     )
     parser.add_argument(
         "--records-file",
@@ -138,7 +144,7 @@ def main(args=None):
     summary = build_intake_record_summary(
         source,
         received_at_utc="2026-05-29T10:00:00Z",
-        intake_id="DRY-RUN-INTAKE-1",
+        intake_id=parsed_args.intake_id,
     )
 
     print(format_intake_record_summary(summary))

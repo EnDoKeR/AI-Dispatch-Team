@@ -1124,7 +1124,7 @@ Manual intake dry-run commands:
 py scripts/run_intake_record_dry_run.py
 py scripts/run_intake_record_dry_run.py --json '{""broker_name"":""Acme Logistics"",""broker_mc"":""123456"",""rate"":3200,""pickup_location"":""Dallas, TX"",""pickup_date"":""2026-05-30"",""delivery_location"":""Denver, CO"",""delivery_date"":""2026-05-31"",""commodity"":""Steel coils"",""weight"":42000,""reference_id"":""REF-123"",""equipment"":""Conestoga""}'
 py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json
-py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json --save --records-file data\intake_records.json
+py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json --intake-id INTAKE-001 --save --records-file data\intake_records.json
 py scripts/run_intake_scenarios.py
 ~~~
 
@@ -1172,7 +1172,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 881 tests.
+Recent full test discovery passed with 886 tests.
 
 See also:
 
