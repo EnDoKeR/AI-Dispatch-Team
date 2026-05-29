@@ -225,3 +225,99 @@ Example:
 app/market_intelligence/sqlite_memory_repository.py
 tests/test_sqlite_memory_repository.py
 ~~~
+
+---
+
+## 12. Package structure rule
+
+New logic must go into the correct domain package or focused module.
+
+Planned domain packages are documented in:
+
+~~~text
+docs/ARCHITECTURE_PACKAGE_LAYOUT.md
+~~~
+
+Default package ownership:
+
+- intake logic belongs in `app/market_intelligence/intake/`
+- Telegram logic belongs in a future `app/market_intelligence/telegram/`
+- DispatchCase logic belongs in a future `app/market_intelligence/dispatch_cases/`
+- reload-watch logic belongs in a future `app/market_intelligence/reload_watch/`
+- market context logic belongs in a future `app/market_intelligence/market_context/`
+- chain/reload-chain logic belongs in a future `app/market_intelligence/chains/`
+- memory/repository logic belongs in a future `app/market_intelligence/memory/`
+- truly cross-domain helpers may belong in a future `app/market_intelligence/shared/`
+
+Do not create god files.
+
+Do not add unrelated responsibilities to broad existing files just because they are already imported by a script.
+
+---
+
+## 13. Responsibility rule
+
+Each module type has one job:
+
+- formatters only format text
+- metadata helpers only build metadata
+- repositories only read/write records
+- parsers only extract structured evidence
+- parser contracts only normalize parser output
+- Telegram senders only send messages and report send result
+- orchestrators coordinate helper calls but should not absorb domain logic
+
+Parsers must not:
+
+- make MATCH/BLOCK/REVIEW dispatch decisions
+- write Google Sheets
+- create DispatchCase events
+- send Telegram
+- write event logs
+- own broker/driver/memory scoring
+
+Intake must not write Google Sheets directly.
+
+Intake must not create DispatchCase events directly.
+
+Telegram sender must not build business logic.
+
+DispatchCase should not parse Telegram text directly as a primary data source. Structured outbox metadata should be preferred where available, with legacy text parsing preserved only as compatibility fallback.
+
+Live integrations require a separate accepted design before implementation.
+
+---
+
+## 14. Package migration rule
+
+File/package migrations must be proposed before they happen.
+
+Migration order:
+
+1. document the proposed package target
+2. migrate one domain at a time
+3. keep old import path compatibility wrappers
+4. add import compatibility tests
+5. keep runtime behavior unchanged
+6. update docs
+7. run focused tests
+8. run full test discovery
+
+Do not migrate Telegram, DispatchCase, reload-watch, reload-chain, memory, or market snapshot modules casually. They require separate audits because they have broader runtime surfaces.
+
+If all imports are not migrated in the same safe block, old path wrappers must remain.
+
+---
+
+## 15. README scope rule
+
+README should stay concise and user-facing.
+
+Update README when:
+
+- user-facing commands change
+- a major foundation capability becomes available
+- setup/testing commands change
+- project direction changes
+
+Detailed architecture, policies, migration plans, safety rules, and long decisions belong in `docs/`, not README.
