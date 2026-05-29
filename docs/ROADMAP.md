@@ -114,6 +114,7 @@ Current direction:
 - DispatchCase now excludes `SEARCH_HEALTH_CHECK` from load-level case creation/matching, so search health records remain outbox/reporting-only.
 - `telegram_search_health_metadata.py` builds structured search health metadata with intentionally empty load-specific core fields and is wired into the search-health sender path.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
+- `docs/TELEGRAM_UX_PLAN.md` documents future private-chat commands, cards, settings, digest, and anti-spam UX ideas. Current Telegram runtime behavior remains unchanged.
 
 ### 1.4 Completed: Notes parser refactor
 
@@ -464,8 +465,9 @@ Recommended order:
 35. Synthetic DecisionEngine scenarios are complete.
 36. DecisionEngine dry-run scenario runner and CLI are complete.
 37. Read-only MarketLoad DecisionResult adapter and dry-run CLI are complete.
-38. Next recommended target: DispatchCase/Event Timeline gap audit.
-39. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+38. Telegram UX future interface plan is documented.
+39. Next recommended target: DispatchCase/Event Timeline gap audit.
+40. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

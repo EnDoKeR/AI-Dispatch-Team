@@ -1142,6 +1142,8 @@ This is dry-run only. It normalizes pasted JSON, one explicit JSON file, or manu
 
 DecisionEngine dry-run scenarios are synthetic-only. They validate the new result/signal/risk-flag foundation shape and do not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior. The adapter dry-run command previews read-only normalization of existing load decision fields into `DecisionResult`; it is not wired into runtime flow.
 
+Telegram UX planning is documented in `docs/TELEGRAM_UX_PLAN.md`. Current Telegram behavior remains simple and unchanged; future menu/cards/settings/digest work should wait until backend event ownership is stable.
+
 Intake docs:
 
 - `docs/RATECON_INTAKE_WORKFLOW.md`
@@ -1196,6 +1198,7 @@ See also:
 - `docs/ROADMAP.md`
 - `docs/TESTING.md`
 - `docs/TELEGRAM_OUTBOX_LOGGING.md`
+- `docs/TELEGRAM_UX_PLAN.md`
 ---
 
 ## Detailed Roadmap

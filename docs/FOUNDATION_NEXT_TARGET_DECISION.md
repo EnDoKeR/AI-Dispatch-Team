@@ -968,3 +968,32 @@ Not recommended next:
 - expanding synthetic DecisionEngine scenarios: useful later, but current coverage is enough for the adapter phase
 - risk flag mapping from notes/parser/intake: should wait until event/report needs are clearer
 - reload-chain DispatchCase policy audit: still important, but narrower than the general DispatchCase/Event Timeline gap audit
+
+## Telegram UX Planning Note
+
+Completed:
+
+```text
+docs/TELEGRAM_UX_PLAN.md
+```
+
+Purpose:
+
+- capture future interface ideas before backend audit work continues
+- keep Telegram positioned as an adapter, not the business core
+- define future menu/cards/settings/digest direction without changing runtime behavior
+
+Current status:
+
+- documentation only
+- no Telegram runtime commands
+- no Telegram buttons
+- no Telegram formatter text changes
+- no load alert changes
+- no DispatchCase behavior changes
+
+This does not change the next backend recommendation:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
