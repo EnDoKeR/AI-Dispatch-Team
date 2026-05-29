@@ -771,6 +771,40 @@ Manual dry-run command:
 py scripts/run_case_event_report.py --wrapped
 ```
 
+## Intake-to-Case Timeline Policy Update
+
+The intake-to-case link audit now defines a conservative future event policy for intake evidence and link candidates.
+
+Current behavior remains unchanged:
+
+- IntakeRecords do not create DispatchCases.
+- IntakeRecords do not write events.
+- parser contract output does not write events.
+- local intake repository saves do not write events.
+- existing `RATECON_RECEIVED` behavior remains tied to dispatcher feedback with `document_path`.
+
+Future intake/document event ownership:
+
+| Event type | Future owner | Runtime today |
+| --- | --- | --- |
+| `INTAKE_RECORD_CREATED` | intake/document evidence | not wired |
+| `INTAKE_MISSING_FIELDS` | review/reporting context | not wired |
+| `RATECON_PARSED` | intake/document evidence | not wired |
+| `RATECON_RECEIVED` | load-level case when tied to feedback or approved link | feedback path only |
+| `INTAKE_LINK_CANDIDATE_CREATED` | report/review candidate | not in runtime taxonomy yet |
+| `INTAKE_LINK_APPROVED` | load-level case after approval | not in runtime taxonomy yet |
+| `INTAKE_LINK_REJECTED` | review/audit trail | not in runtime taxonomy yet |
+| `CASE_CREATED_FROM_INTAKE` | load-level case after approval | not in runtime taxonomy yet |
+
+Policy:
+
+- `INTAKE_RECORD_CREATED` must not create a DispatchCase automatically.
+- `INTAKE_MISSING_FIELDS` is review/reporting context, not a dispatch decision.
+- `RATECON_PARSED` is evidence only and must not overwrite case facts automatically.
+- `CASE_CREATED_FROM_INTAKE` requires explicit human approval and a separate implementation block.
+- link-specific event names need a taxonomy update and focused tests before runtime use.
+- private RateCon contents should not be copied into public timeline details.
+
 ## Current Recommended Next Target
 
 Recommended next implementation target after this policy:

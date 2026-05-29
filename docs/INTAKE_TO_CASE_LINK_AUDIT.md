@@ -613,3 +613,122 @@ Before adding a helper, add focused tests for:
 9. candidate generation does not mutate IntakeRecord or DispatchCase input;
 10. candidate generation does not write events or update `linked_dispatch_case_id`;
 11. no parser/PDF/OCR/Telegram/Gmail/Google Sheets/DispatchCase writer imports.
+
+## Intake-to-Case Event And Timeline Policy
+
+This section defines future timeline behavior for intake links. It is documentation only. No event writes exist for intake links today.
+
+### Current Timeline Status
+
+Current runtime document-related behavior:
+
+- `RATECON_RECEIVED` can be emitted when dispatcher feedback includes a `document_path`;
+- IntakeRecords do not emit events;
+- parser contract output does not emit events;
+- local intake repository saves do not emit events;
+- dry-run summaries and reports do not emit events.
+
+Current taxonomy foundation includes:
+
+```text
+INTAKE_RECORD_CREATED
+INTAKE_MISSING_FIELDS
+RATECON_RECEIVED
+RATECON_PARSED
+DOCUMENT_RECEIVED
+DOCUMENT_LINKED
+```
+
+Future link-specific event names proposed by policy, not runtime:
+
+```text
+INTAKE_LINK_CANDIDATE_CREATED
+INTAKE_LINK_APPROVED
+INTAKE_LINK_REJECTED
+CASE_CREATED_FROM_INTAKE
+```
+
+These proposed link-specific names should get a separate taxonomy update and tests before any runtime use.
+
+### Event Ownership Rules
+
+`INTAKE_RECORD_CREATED`
+
+- Future evidence/repository event.
+- Does not create a DispatchCase.
+- Does not link to a DispatchCase.
+- Should preserve `intake_id`, source metadata, and status.
+
+`INTAKE_MISSING_FIELDS`
+
+- Future review/reporting event.
+- Should indicate required fields are absent.
+- Must not become a load decision by itself.
+- Must not create or update a load-level DispatchCase.
+
+`RATECON_RECEIVED`
+
+- Current load-level event when produced from dispatcher feedback with a document path.
+- Future intake-driven use requires link policy and approval first.
+- Should not be emitted from parser output alone.
+
+`RATECON_PARSED`
+
+- Future evidence event.
+- Should summarize structured fields, missing fields, needs-check fields, and confidence.
+- Must not create a case automatically.
+- Must not overwrite case facts automatically.
+
+`INTAKE_LINK_CANDIDATE_CREATED`
+
+- Future dry-run/review event candidate.
+- Should be report-only until an approved link workflow exists.
+- Should include the candidate recommendation, evidence, and warnings.
+- Must not set `linked_dispatch_case_id`.
+
+`INTAKE_LINK_APPROVED`
+
+- Future load-level event only after explicit human approval.
+- Should record who/what approved the link later.
+- Should not be emitted by parser, CLI dry-runs, or reports.
+
+`INTAKE_LINK_REJECTED`
+
+- Future review/audit event when a proposed link is rejected.
+- Should preserve mismatch reasons.
+- Should not mutate the case facts.
+
+`CASE_CREATED_FROM_INTAKE`
+
+- Future load-level event only after explicit approval.
+- Should be emitted only after a separate case creation workflow exists.
+- Must not be created from parser output alone.
+
+### Timeline Write Rules
+
+Future timeline writes must wait for an explicit implementation block.
+
+Required rules:
+
+- IntakeRecord creation does not automatically create DispatchCase.
+- `RATECON_PARSED` is an evidence event only.
+- `CASE_CREATED_FROM_INTAKE` requires approval.
+- `INTAKE_MISSING_FIELDS` is review/reporting context, not a dispatch decision.
+- Link candidate reports must remain read-only until wiring is accepted.
+- Private RateCon contents should not be copied into public timeline details.
+- Timeline payloads must preserve existing runtime event compatibility.
+
+### Future Tests Required
+
+Before writing any intake link events, add tests for:
+
+1. `INTAKE_RECORD_CREATED` does not create a case;
+2. `INTAKE_MISSING_FIELDS` remains reporting/review-only;
+3. `RATECON_PARSED` does not change case facts;
+4. `INTAKE_LINK_CANDIDATE_CREATED` is report-only until approved;
+5. `INTAKE_LINK_APPROVED` requires a candidate and approval;
+6. `CASE_CREATED_FROM_INTAKE` requires approval and complete evidence;
+7. existing `RATECON_RECEIVED` behavior from feedback remains unchanged;
+8. event payloads are JSON-serializable;
+9. event taxonomy recognizes any new link-specific event names before use;
+10. no parser/Telegram/Gmail/Google Sheets/PDF/OCR imports in event policy helpers.
