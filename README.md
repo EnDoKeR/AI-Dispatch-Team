@@ -1071,11 +1071,12 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 552 tests.
+Recent full test discovery passed with 555 tests.
 
 See also:
 
 - `docs/ARCHITECTURE.md`
+- `docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md`
 - `docs/FOUNDATION_HARDENING.md`
 - `docs/LEGACY_CANDIDATES.md`
 - `docs/DEVELOPMENT_RULES.md`
