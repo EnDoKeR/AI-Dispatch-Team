@@ -417,10 +417,9 @@ docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Clean up the stale `test_sheet_connection.py` compileall command reference so validation output is easier to trust.
-3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
-4. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+2. Keep legacy intake cleanup audit-only until a replacement path is chosen.
+3. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -743,5 +742,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: compileall warning cleanup.
+4. Recommended next target: legacy intake boundary review.
 5. Avoid new large files by default.

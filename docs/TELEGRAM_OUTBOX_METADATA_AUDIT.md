@@ -341,12 +341,11 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Compileall warning cleanup
+Legacy intake boundary review
 ```
 
 Scope should be limited to:
 
-- remove or update stale `test_sheet_connection.py` command references only
 - keep runtime behavior unchanged
 - keep old text parser fallback and outbox schema stable
 - keep `LOAD_OPPORTUNITY`, `REVIEW_ONCE`, `MARKET_SNAPSHOT`, and `SEARCH_HEALTH_CHECK` metadata tests green
