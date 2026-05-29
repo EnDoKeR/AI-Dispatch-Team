@@ -288,7 +288,55 @@ Live integrations require a separate accepted design before implementation.
 
 ---
 
-## 14. Package migration rule
+## 14. Core vs adapter rule
+
+Telegram is an adapter/interface only.
+
+CLI scripts are adapters/interfaces only.
+
+Gmail, Google Sheets, future dashboards, Telegram file upload handling, and other live integrations are adapters/interfaces only.
+
+Core domain logic must not import:
+
+- Telegram sender/notifier modules
+- Gmail/email clients
+- Google Sheets clients
+- dashboard/UI modules
+- live integration clients
+
+Core domain logic includes:
+
+- intake record normalization
+- parser contracts
+- DispatchCase and Event Timeline behavior
+- DecisionEngine/risk analysis
+- market context
+- duplicate/load identity
+- chain scoring
+- reload-watch state decisions
+
+DecisionEngine logic must stay interface-independent. It may return explainable recommendations, risk labels, reasons, and structured context, but it must not send messages, write integrations, or make autonomous commitments.
+
+Every AI or automated recommendation must be explainable. A dispatcher should be able to see why the recommendation exists, what evidence was used, and what still needs checking.
+
+Accounting/factoring modules must not submit real packets, contact outside parties, or create financial/legal commitments without explicit dispatcher approval.
+
+No autonomous booking, factoring submission, legal commitment, or financial commitment should be added without a separate accepted product and safety design.
+
+New modules should identify their responsibility as one of:
+
+- core domain
+- adapter/interface
+- repository/storage
+- parser/extractor
+- formatter
+- audit/reporting
+
+If a module does not fit one category clearly, split the design before implementation.
+
+---
+
+## 15. Package migration rule
 
 File/package migrations must be proposed before they happen.
 
@@ -309,7 +357,7 @@ If all imports are not migrated in the same safe block, old path wrappers must r
 
 ---
 
-## 15. README scope rule
+## 16. README scope rule
 
 README should stay concise and user-facing.
 
