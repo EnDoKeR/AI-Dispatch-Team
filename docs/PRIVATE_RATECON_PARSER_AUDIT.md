@@ -287,3 +287,24 @@ tests/test_parser_expected_outputs.py
 They describe fake future parser outputs for clean RateCons, missing fields, multi-stop structure, accessorial notes, low-confidence fields, appointment windows, special requirements, and Conestoga-specific language.
 
 These fixtures do not parse files and do not use real RateCon data. They only prove that future parser-shaped output can normalize through the intake parser contract and produce intake summaries.
+
+## Synthetic Parser Scenario Runner
+
+The synthetic parser scenario runner exists in:
+
+```text
+app/market_intelligence/intake/parser_scenario_runner.py
+scripts/run_parser_scenarios.py
+tests/test_parser_scenario_runner.py
+tests/test_parser_scenario_cli.py
+```
+
+It processes the synthetic expected outputs through the parser contract and intake summary flow, then reports pass/fail status, missing-field summary, needs-check summary, and confidence summary.
+
+Manual command:
+
+```powershell
+py scripts/run_parser_scenarios.py
+```
+
+This is dry-run only. It uses synthetic parser-shaped fixtures only and does not read private RateCons, parse PDFs, run OCR, or call any integration.

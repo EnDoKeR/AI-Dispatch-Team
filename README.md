@@ -1129,9 +1129,10 @@ py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample
 py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample_records\clean_full_ratecon.json --intake-id INTAKE-001 --save --records-file data\intake_records.json
 py scripts/report_intake_records.py --file-path data\intake_records.json
 py scripts/run_intake_scenarios.py
+py scripts/run_parser_scenarios.py
 ~~~
 
-This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, can optionally save the normalized record to a gitignored local JSON repository, uses synthetic fixtures for scenarios, and defines the internal parser output contract. It does not parse PDFs, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, can optionally save the normalized record to a gitignored local JSON repository, uses synthetic fixtures for intake/parser scenarios, and defines the internal parser output contract. It does not parse PDFs, run OCR, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`; synthetic parser-shaped examples live in `tests/fixtures/parser_expected_outputs.py`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
 Intake docs:
 
@@ -1175,7 +1176,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 929 tests.
+Recent full test discovery passed with 943 tests.
 
 See also:
 

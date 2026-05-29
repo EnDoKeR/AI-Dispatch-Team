@@ -186,6 +186,23 @@ tests/test_intake_scenario_runner.py
 
 The runner processes the synthetic fixtures through the intake record and dry-run summary helpers, then reports scenario pass/fail status, missing-field counts, and needs-check counts. It does not parse PDFs, read real documents, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events.
 
+Synthetic parser scenario runner:
+
+```text
+app/market_intelligence/intake/parser_scenario_runner.py
+scripts/run_parser_scenarios.py
+tests/test_parser_scenario_runner.py
+tests/test_parser_scenario_cli.py
+```
+
+The parser scenario runner processes synthetic parser-shaped expected outputs through `normalize_parser_output(...)` and intake summaries. It reports scenario pass/fail status, missing-field counts, needs-check counts, and confidence counts. It does not parse PDFs, run OCR, read private RateCons, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events.
+
+Manual command:
+
+```powershell
+py scripts/run_parser_scenarios.py
+```
+
 Private real-document safety is documented in:
 
 ```text
