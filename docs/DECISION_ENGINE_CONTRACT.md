@@ -503,6 +503,10 @@ Initial policy:
 - `SUPERVISED`: can prepare actions, but dispatcher confirms
 - `AUTOPILOT`: future concept only; not implemented and not approved
 
+Implementation status:
+
+`app/market_intelligence/decision_engine/approval_modes.py` now provides a conservative pure helper for approval mode normalization and action approval checks. Booking, rate commitments, factoring, financial, and legal actions still require approval in every mode.
+
 ### Signal Ownership Rule
 
 Each signal group should be built before entering the DecisionEngine.
