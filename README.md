@@ -1071,7 +1071,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 558 tests.
+Recent full test discovery passed with 564 tests.
 
 See also:
 
@@ -1082,6 +1082,7 @@ See also:
 - `docs/DEVELOPMENT_RULES.md`
 - `docs/ROADMAP.md`
 - `docs/TESTING.md`
+- `docs/TELEGRAM_OUTBOX_LOGGING.md`
 ---
 
 ## Detailed Roadmap
