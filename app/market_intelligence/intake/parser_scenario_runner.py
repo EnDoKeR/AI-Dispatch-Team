@@ -89,3 +89,61 @@ def build_parser_scenario_report(scenarios):
         "needs_check_summary": needs_check_summary,
         "confidence_summary": confidence_summary,
     }
+
+
+def field_list_text(field_names):
+    if not field_names:
+        return "none"
+
+    return ", ".join(field_names)
+
+
+def count_summary_lines(counts):
+    if not counts:
+        return ["- none"]
+
+    return [
+        f"- {key}: {counts[key]}"
+        for key in sorted(counts)
+    ]
+
+
+def format_parser_scenario_report(report):
+    report = report or {}
+    lines = [
+        "PARSER SCENARIO DRY RUN",
+        f"Total scenarios: {report.get('total_scenarios', 0)}",
+        f"Passed: {report.get('passed', 0)}",
+        f"Failed: {report.get('failed', 0)}",
+        "",
+        "Scenario results:",
+    ]
+
+    for result in report.get("scenario_results", []):
+        outcome = "PASS" if result.get("passed") else "FAIL"
+        scenario_name = result.get("name", "")
+        label = result.get("scenario_id", "")
+        if scenario_name:
+            label = f"{label} ({scenario_name})"
+        lines.extend(
+            [
+                f"- {label}: {outcome}",
+                f"  Status: {result.get('status', '')}",
+                "  Missing fields: "
+                + field_list_text(result.get("missing_fields", [])),
+                "  Needs-check fields: "
+                + field_list_text(result.get("needs_check_fields", [])),
+                "  Confidence keys: "
+                + field_list_text(result.get("confidence_keys", [])),
+            ]
+        )
+
+    lines.extend(["", "Missing field summary:"])
+    lines.extend(count_summary_lines(report.get("missing_field_summary", {})))
+    lines.append("Needs-check summary:")
+    lines.extend(count_summary_lines(report.get("needs_check_summary", {})))
+    lines.append("Confidence summary:")
+    lines.extend(count_summary_lines(report.get("confidence_summary", {})))
+    lines.append("DRY RUN ONLY - synthetic parser scenarios only")
+
+    return "\n".join(lines)
