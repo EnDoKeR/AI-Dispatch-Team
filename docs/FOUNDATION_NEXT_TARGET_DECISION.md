@@ -1983,3 +1983,72 @@ Not recommended next:
 - DispatchCase linking/event writes;
 - synthetic 100-200 load dataset;
 - reload-chain metadata/case wiring.
+
+## Private RateCon Local Batch Readiness Closeout
+
+Completed:
+
+- private RateCon folder safety verification for `originals`, `text_exports`, `dry_run_results`, and `inventory`;
+- local-only inventory command: `scripts/private_ratecon_inventory.py`;
+- manual batch protocol update: `docs/MANUAL_RATECON_TEXT_DRY_RUN_PROTOCOL.md`;
+- safe dry-run result summary template: `docs/templates/PRIVATE_RATECON_DRY_RUN_RESULT_SUMMARY_TEMPLATE.md`.
+
+Current status:
+
+- private files stay under `data/private_ratecons/` and remain gitignored;
+- the inventory command counts files and emits anonymized `RATECON_###` labels without reading contents;
+- no private text is committed;
+- no PDF/OCR extraction exists;
+- no DispatchCase creation/linking/events exist;
+- no Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, synthetic 100-200 load dataset, or reload-chain metadata work was added.
+
+Options evaluated:
+
+1. user manually runs first private text dry-run and shares a safe summary
+2. anonymized synthetic scenario expansion based on issues found
+3. PDF extraction strategy audit
+4. pdfplumber/PyMuPDF local extraction helper later
+5. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+first private manual text dry-run protocol execution
+```
+
+Conditions:
+
+- user runs 1-3 private dry-runs locally first;
+- user shares only safe summary fields/categories, not private text or filenames;
+- do not share real broker/customer/driver names, contact details, addresses, MCs, reference numbers, appointment notes, or copied document text;
+- do not add PDF/OCR extraction yet.
+
+Recommended fallback target:
+
+```text
+anonymized RateCon synthetic scenario expansion
+```
+
+Use this if the local dry-run output reveals parser gaps that can be represented safely with fake data, or if private testing should pause.
+
+Recommended later target:
+
+```text
+PDF extraction strategy audit
+```
+
+This should remain audit/design only until manual text dry-runs produce enough safe summary evidence.
+
+Not recommended next:
+
+- PDF extraction implementation;
+- OCR;
+- committing private documents or extracted private text;
+- creating tracked fixtures from private documents;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase linking/event writes;
+- DAT/API or Google Maps;
+- accounting/factoring implementation;
+- synthetic 100-200 load dataset;
+- reload-chain metadata/case wiring.

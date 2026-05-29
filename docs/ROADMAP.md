@@ -481,10 +481,12 @@ Recommended order:
 50. IntakeCaseLinkCandidate helper, synthetic fixtures, report helper, and CLI are complete.
 51. Private RateCon field inventory plan, safe template, manual text dry-run protocol, and readiness checklist are complete.
 52. Manual RateCon text dry-run helper, CLI, protocol sync, and result checklist are complete.
-53. Recommended next target: first private manual text dry-run protocol execution, only if readiness checklist passes.
-54. Recommended fallback: anonymized RateCon synthetic scenario expansion.
-55. Recommended later audit: reload-chain DispatchCase policy audit.
-56. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+53. Private RateCon local batch readiness workflow is complete.
+54. Recommended next target: user manually runs 1-3 private text dry-runs locally and shares only safe summaries.
+55. Recommended fallback: anonymized RateCon synthetic scenario expansion.
+56. Recommended later audit: PDF extraction strategy audit, before any pdfplumber/PyMuPDF helper.
+57. Recommended later policy target: reload-chain DispatchCase policy audit.
+58. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1020,10 +1022,10 @@ Future capabilities:
 
 ## Current next step
 
-After this documentation update:
+After the private local batch readiness workflow:
 
-1. Run full tests.
-2. Commit documentation.
-3. Start the next confirmed mini-block only.
-4. Recommended next target: manual intake dry-run CLI with JSON input.
-5. Avoid new large files by default.
+1. User runs 1-3 private manual text dry-runs locally.
+2. User records only safe summary fields/categories.
+3. User shares no private text, filenames, broker/customer/contact details, addresses, MCs, or reference numbers.
+4. If issues are found, expand anonymized synthetic scenarios with fake data only.
+5. Do not start PDF extraction implementation; run a PDF extraction strategy audit first when ready.

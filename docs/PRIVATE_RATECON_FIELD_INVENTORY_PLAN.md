@@ -155,6 +155,49 @@ It prints:
 
 It does not read document contents, extract text, write files, create fixtures, create DispatchCases, or print private filenames by default.
 
+## Local Batch Readiness Status
+
+The local private batch workflow is ready for a small manual run.
+
+Safe local folders:
+
+```text
+data/private_ratecons/originals/
+data/private_ratecons/text_exports/
+data/private_ratecons/dry_run_results/
+data/private_ratecons/inventory/
+```
+
+These folders remain gitignored and are for local/private work only.
+
+Recommended first local execution:
+
+1. Run `py scripts/private_ratecon_inventory.py`.
+2. Pick 1-3 anonymized labels, such as `RATECON_001`.
+3. Open each private document manually.
+4. Copy text manually into `py scripts/run_manual_ratecon_text_dry_run.py --stdin`.
+5. Record only safe summary results using `docs/templates/PRIVATE_RATECON_DRY_RUN_RESULT_SUMMARY_TEMPLATE.md`.
+
+Do not commit private PDFs, copied document text, extracted text, local dry-run outputs, real broker/customer/contact details, addresses, MCs, reference numbers, or appointment notes.
+
+Recommended next step:
+
+```text
+user manually runs 1-3 private text dry-runs locally and shares only safe summaries
+```
+
+Fallback:
+
+```text
+expand anonymized synthetic RateCon scenarios with fake data only
+```
+
+Later:
+
+```text
+PDF extraction strategy audit before any PDF extraction helper
+```
+
 ## How To Use Inventory Results Later
 
 The inventory can inform future work:
