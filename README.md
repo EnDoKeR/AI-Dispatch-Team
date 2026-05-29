@@ -1137,6 +1137,7 @@ py scripts/run_pasted_text_scenarios.py
 py scripts/run_decision_engine_scenarios.py
 py scripts/run_decision_engine_adapter_dry_run.py
 py scripts/run_decision_engine_comparison_report.py
+py scripts/run_decision_engine_timeline_report.py
 py scripts/run_case_event_report.py
 py scripts/run_case_event_report.py --wrapped
 py scripts/run_case_event_builder_compatibility.py
