@@ -359,6 +359,30 @@ $scenarioFile = "$env:TEMP\market_reload_watch_scenario_records.json"
 py scripts/run_market_reload_watch_scenario.py --file-path $scenarioFile
 ~~~
 
+Closeout note:
+
+Reload-watch foundation is completed for dry-run/manual mode.
+
+Ready:
+
+- market/reload-watch synthetic scenario dry-run
+- manual watch start
+- manual event simulation
+- manual report
+- Telegram preview-only formatting
+- JSON watch record/repository
+- boundary tests
+
+Not yet:
+
+- real Telegram sending
+- Telegram buttons
+- scheduler or 2-3 minute watch loop
+- DispatchCase event writes
+- Google Maps real mileage
+- RateCon parsing expansion
+- DAT/API or live board integration
+
 ### 1.11 Next candidates for hardening
 
 Candidate approach:
@@ -377,8 +401,8 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 
 Recommended order:
 
-1. Continue reload-watch design only in small blocks.
-2. Architecture/import audit.
+1. Pause reload-watch feature development before live wiring.
+2. Run a fresh architecture/import audit.
 3. Review remaining large files.
 4. Choose next target based on layer-boundary risk.
 5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
