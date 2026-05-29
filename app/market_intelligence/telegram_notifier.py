@@ -1,12 +1,11 @@
 from app.market_intelligence.telegram_buttons import build_feedback_buttons
 from app.market_intelligence.telegram_broker_block import (broker_block, get_broker_status_text)
 from app.market_intelligence.telegram_duplicate_keys import (
-    load_duplicate_key,
     market_summary_key,
     normalize,
-    remove_duplicates,
     search_health_key,
 )
+from app.market_intelligence.telegram_load_selection import select_new_loads
 from app.market_intelligence.telegram_sent_state import (
     get_lines,
     get_sent_health_alerts,
@@ -105,26 +104,19 @@ def send_top_opportunities_to_telegram(loads, search_request, limit=3):
 
     sent_history = get_sent_loads()
 
-    unique_loads = remove_duplicates(loads, search_request)
+    selection = select_new_loads(
+        loads,
+        search_request,
+        sent_history,
+        limit,
+    )
+    loads_to_send = selection["loads_to_send"]
 
-    selected_loads = unique_loads[:limit]
-
-    loads_to_send = []
-
-    for load in selected_loads:
-        key = load_duplicate_key(
-            load,
-            driver_name=search_request.driver_name,
+    for load in selection["already_sent_loads"]:
+        print(
+            f"Already sent before for {search_request.driver_name}, skipped: "
+            f"{load.pickup} -> {load.delivery}"
         )
-
-        if key in sent_history:
-            print(
-                f"Already sent before for {search_request.driver_name}, skipped: "
-                f"{load.pickup} -> {load.delivery}"
-            )
-            continue
-
-        loads_to_send.append(load)
 
     if not loads_to_send:
         print(f"No new Telegram loads to send ({search_request.driver_name})")
@@ -136,12 +128,12 @@ def send_top_opportunities_to_telegram(loads, search_request, limit=3):
         message = format_opportunity_message(load, index, search_request)
 
         success = send_telegram_message(
-        message,
-        reply_markup=build_feedback_buttons(
-            "load",
-            reference_id=getattr(load, "reference_id", ""),
-        ),
-)
+            message,
+            reply_markup=build_feedback_buttons(
+                "load",
+                reference_id=getattr(load, "reference_id", ""),
+            ),
+        )
 
         if success:
             save_sent_load(load, search_request)
@@ -157,25 +149,19 @@ def send_review_once_to_telegram(loads, search_request, limit=3):
 
     sent_history = get_sent_review_once_loads()
 
-    unique_loads = remove_duplicates(loads, search_request)
-    selected_loads = unique_loads[:limit]
+    selection = select_new_loads(
+        loads,
+        search_request,
+        sent_history,
+        limit,
+    )
+    loads_to_send = selection["loads_to_send"]
 
-    loads_to_send = []
-
-    for load in selected_loads:
-        key = load_duplicate_key(
-            load,
-            driver_name=search_request.driver_name,
+    for load in selection["already_sent_loads"]:
+        print(
+            f"Review-once already sent for {search_request.driver_name}, skipped: "
+            f"{load.pickup} -> {load.delivery}"
         )
-
-        if key in sent_history:
-            print(
-                f"Review-once already sent for {search_request.driver_name}, skipped: "
-                f"{load.pickup} -> {load.delivery}"
-            )
-            continue
-
-        loads_to_send.append(load)
 
     if not loads_to_send:
         print(f"No new review-once loads to send ({search_request.driver_name})")
@@ -193,10 +179,10 @@ def send_review_once_to_telegram(loads, search_request, limit=3):
         success = send_telegram_message(
             message,
             reply_markup=build_feedback_buttons(
-            "review_once",
-            reference_id=getattr(load, "reference_id", ""),
-),
-)
+                "review_once",
+                reference_id=getattr(load, "reference_id", ""),
+            ),
+        )
 
         if success:
             save_sent_review_once_load(load, search_request)
