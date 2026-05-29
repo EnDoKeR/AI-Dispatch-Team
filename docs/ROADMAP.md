@@ -203,7 +203,7 @@ Current state:
 - `broker_memory_rules.py` is orchestration-only.
 - `sqlite_memory.py` is a backward-compatible facade with `__all__`.
 - `market_snapshot.py` is runner/orchestrator-only for the current scope.
-- Recent full test discovery passed with 594 tests.
+- Recent full test discovery passed with 602 tests.
 
 ### 1.7 Completed: Market snapshot refactor
 
