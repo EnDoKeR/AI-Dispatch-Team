@@ -405,6 +405,51 @@ The wrapper should not:
 - create cases;
 - read or write JSONL/SQLite.
 
+## DecisionResult Event Wiring Prerequisites
+
+DecisionResult must not be written into real case events until all prerequisites below are true.
+
+Prerequisites:
+
+1. Normalized event wrapper is implemented and accepted in report-only mode.
+2. Old event shape preservation tests exist and are stable.
+3. DecisionResult adapter coverage is accepted.
+4. DecisionEngine comparison report is stable.
+5. DecisionResult timeline preview is stable.
+6. DispatchCase ownership policy confirms `AI_DECISION_CREATED` is load-level.
+7. DecisionResult payload size is acceptable for event storage and reports.
+8. Event reports can read both old runtime event shape and normalized wrapper output.
+9. No Telegram sender/notifier/formatter dependency is introduced.
+10. An explicit wiring mini-block is approved.
+
+DecisionResult writes must not originate from:
+
+- parser helpers;
+- intake record helpers;
+- Telegram formatters;
+- Telegram sender/notifier modules;
+- market summary or search health reporting-only paths;
+- reload-watch dry-run/manual paths;
+- reload-chain metadata or formatter paths.
+
+First wiring policy:
+
+- Prefer dry-run/report-only comparison first.
+- If runtime wiring is later accepted, start with `AI_DECISION_CREATED` only.
+- Preserve current flat fields: `decision`, `category`, `score`, `reasons`, `pickup`, `delivery`, and `rate`.
+- Add nested DecisionResult only as additive data.
+- Do not remove or rename existing event fields.
+- Keep DispatchCase case creation/matching/update behavior unchanged unless explicitly in scope.
+- Add focused old-shape and new-shape tests in the same mini-block.
+
+Explicitly not allowed without separate accepted design:
+
+- writing DecisionResult from a parser;
+- writing DecisionResult from a Telegram formatter;
+- writing DecisionResult from `MARKET_SNAPSHOT` or `SEARCH_HEALTH_CHECK`;
+- attaching DecisionResult to search/session-level records before SearchSession exists;
+- writing DecisionResult for reload-chain or reload-watch before ownership policy is accepted.
+
 ## Current Recommendation
 
 Next safe implementation target:

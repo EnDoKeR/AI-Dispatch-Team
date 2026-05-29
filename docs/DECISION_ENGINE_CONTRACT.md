@@ -625,3 +625,19 @@ Current non-scope:
 - no load selection or market snapshot changes
 
 This preview shows a possible future event payload shape. It is not a migration and is not production event behavior.
+
+## Runtime Event Wiring Gate
+
+DecisionResult must not be written to real DispatchCase events until a separate accepted wiring block exists.
+
+Before runtime event writes:
+
+- normalized event wrapper must be accepted in report-only mode
+- old event shape preservation tests must exist
+- DecisionEngine comparison report must stay green
+- timeline preview must stay green
+- DispatchCase ownership policy must keep `AI_DECISION_CREATED` load-level
+- event reports must read old and normalized shapes
+- no Telegram, parser, or reporting-only path may write DecisionResult events
+
+The first future runtime candidate, if approved later, should be additive nested DecisionResult data on `AI_DECISION_CREATED`. Existing flat event fields must remain stable.
