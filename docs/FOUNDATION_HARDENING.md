@@ -509,5 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Wire review-once metadata in a small test-first block.
+1. Audit market summary metadata shape before wiring it.
 2. Keep legacy intake cleanup audit-only until a replacement path is chosen.

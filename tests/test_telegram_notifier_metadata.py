@@ -141,7 +141,7 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
         self.assertEqual(second_metadata["broker_mc"], "654321")
         self.assertEqual(second_metadata["reference_id"], "REF-456")
 
-    def test_review_once_sender_does_not_pass_load_opportunity_metadata_yet(self):
+    def test_review_once_sender_passes_review_once_metadata(self):
         load = FakeLoad()
         search_request = FakeSearchRequest()
 
@@ -178,7 +178,78 @@ class TestTelegramNotifierMetadata(unittest.TestCase):
                                         limit=1,
                                     )
 
-        self.assertNotIn("metadata", send_message.call_args.kwargs)
+        send_message.assert_called_once_with(
+            "REVIEW MESSAGE",
+            reply_markup={"inline_keyboard": []},
+            metadata={
+                "message_type": "REVIEW_ONCE",
+                "category": "REVIEW ONCE",
+                "driver_name": "Alex",
+                "pickup": "Dallas, TX",
+                "delivery": "Houston, TX",
+                "rate": 2200,
+                "broker": "Primary Broker",
+                "broker_mc": "123456",
+                "reference_id": "REF-123",
+            },
+        )
+
+    def test_review_once_sender_uses_per_load_metadata(self):
+        first_load = FakeLoad()
+        second_load = FakeLoad()
+        second_load.pickup = "Laredo, TX"
+        second_load.delivery = "Atlanta, GA"
+        second_load.rate = 3100
+        second_load.broker_name = "Review Broker"
+        second_load.broker_mc = "777888"
+        second_load.reference_id = "REV-456"
+        search_request = FakeSearchRequest()
+
+        with patch(
+            "app.market_intelligence.telegram_notifier.get_sent_review_once_loads",
+            return_value=set(),
+        ):
+            with patch(
+                "app.market_intelligence.telegram_notifier.select_new_loads",
+                return_value={
+                    "loads_to_send": [first_load, second_load],
+                    "already_sent_loads": [],
+                },
+            ):
+                with patch(
+                    "app.market_intelligence.telegram_notifier.format_review_once_message",
+                    side_effect=["FIRST REVIEW", "SECOND REVIEW"],
+                ):
+                    with patch(
+                        "app.market_intelligence.telegram_notifier.build_feedback_buttons",
+                        return_value={"inline_keyboard": []},
+                    ):
+                        with patch(
+                            "app.market_intelligence.telegram_notifier.send_telegram_message",
+                            return_value=True,
+                        ) as send_message:
+                            with patch(
+                                "app.market_intelligence.telegram_notifier.save_sent_review_once_load"
+                            ):
+                                with patch("builtins.print"):
+                                    send_review_once_to_telegram(
+                                        [first_load, second_load],
+                                        search_request,
+                                        limit=2,
+                                    )
+
+        first_metadata = send_message.call_args_list[0].kwargs["metadata"]
+        second_metadata = send_message.call_args_list[1].kwargs["metadata"]
+
+        self.assertEqual(first_metadata["message_type"], "REVIEW_ONCE")
+        self.assertEqual(first_metadata["reference_id"], "REF-123")
+        self.assertEqual(second_metadata["message_type"], "REVIEW_ONCE")
+        self.assertEqual(second_metadata["pickup"], "Laredo, TX")
+        self.assertEqual(second_metadata["delivery"], "Atlanta, GA")
+        self.assertEqual(second_metadata["rate"], 3100)
+        self.assertEqual(second_metadata["broker"], "Review Broker")
+        self.assertEqual(second_metadata["broker_mc"], "777888")
+        self.assertEqual(second_metadata["reference_id"], "REV-456")
 
     def test_market_summary_health_and_chain_paths_do_not_pass_metadata_yet(self):
         search_request = FakeSearchRequest()

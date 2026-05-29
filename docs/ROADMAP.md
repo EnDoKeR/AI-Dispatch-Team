@@ -104,6 +104,7 @@ Current direction:
 - `telegram_load_selection.py` now scans unique sorted loads before applying the unsent alert limit, so already-sent top loads do not hide later unsent good loads.
 - `telegram_chain_selection.py` now scans unique reload-chain candidates before applying the unsent alert limit, so already-sent top chains do not hide later unsent good chains.
 - Normal `LOAD_OPPORTUNITY` alerts now pass structured outbox metadata through the top-opportunity sender path.
+- `REVIEW_ONCE` alerts now pass structured outbox metadata through the review-once sender path.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
@@ -406,7 +407,7 @@ docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Wire review-once metadata in a small test-first block.
+2. Audit market summary metadata shape before wiring it.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -731,5 +732,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram review-once metadata wiring.
+4. Recommended next target: Telegram market summary metadata audit.
 5. Avoid new large files by default.

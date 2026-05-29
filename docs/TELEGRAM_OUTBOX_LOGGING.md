@@ -123,9 +123,9 @@ Current load metadata helper:
 telegram_load_metadata.py
 ```
 
-This helper builds metadata for normal load opportunity and review-once alerts. Normal load opportunity metadata is wired into the top-opportunity `LOAD_OPPORTUNITY` sender path only.
+This helper builds metadata for normal load opportunity and review-once alerts. Normal load opportunity metadata is wired into the top-opportunity `LOAD_OPPORTUNITY` sender path, and review-once metadata is wired into the review-once sender path.
 
-Review-once metadata is not wired yet. Review-once, market summary, search health, and reload-chain sender paths still use text parsing fallback.
+Market summary, search health, and reload-chain sender paths still use text parsing fallback.
 
 ---
 
@@ -141,7 +141,7 @@ Review-once metadata is not wired yet. Review-once, market summary, search healt
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Wire review-once metadata in a separate test-first block.
+2. Audit market summary metadata shape before wiring it.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 
