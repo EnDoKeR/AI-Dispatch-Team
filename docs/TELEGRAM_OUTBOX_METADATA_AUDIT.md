@@ -118,6 +118,8 @@ SEARCH_HEALTH_CHECK
 
 `MARKET_SNAPSHOT` is logged for outbox/reporting, but it is excluded from load-level DispatchCase creation and matching until a search-level entity exists.
 
+`SEARCH_HEALTH_CHECK` is still eligible for load-level DispatchCase handling today, but policy audit recommends excluding it before metadata wiring.
+
 `RELOAD_CHAIN` is currently logged but not used to create DispatchCases.
 
 Outbox matching depends on:
@@ -173,9 +175,10 @@ Recommended path:
 12. Audit DispatchCase `MARKET_SNAPSHOT` policy. Completed.
 13. Exclude `MARKET_SNAPSHOT` from load-level DispatchCase handling. Completed.
 14. Wire market summary metadata. Completed.
-15. Wire search health and reload-chain only in separate future blocks.
-16. Keep reload-chain DispatchCase role separate until it has an accepted design.
-17. Keep old text parser tests until every live path passes metadata and historical records remain readable.
+15. Audit DispatchCase `SEARCH_HEALTH_CHECK` policy. Completed.
+16. Wire search health and reload-chain only in separate future blocks.
+17. Keep reload-chain DispatchCase role separate until it has an accepted design.
+18. Keep old text parser tests until every live path passes metadata and historical records remain readable.
 
 Suggested future call shape:
 
@@ -328,12 +331,13 @@ Do not change yet:
 Recommended next mini-block:
 
 ```text
-Telegram search health metadata audit
+DispatchCase SEARCH_HEALTH_CHECK load-case exclusion
 ```
 
 Scope should be limited to:
 
-- audit current search health outbox needs and DispatchCase role
+- test-first behavior change
+- prevent successful `SEARCH_HEALTH_CHECK` outbox records from creating or updating load-level DispatchCases
 - do not wire search health metadata yet
 - do not change outbox schema or DispatchCase behavior
 - possibly a small docs note

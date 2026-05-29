@@ -110,6 +110,7 @@ Current direction:
 - `MARKET_SNAPSHOT` policy was audited; recommended policy is outbox/reporting-only until a search-level entity exists.
 - DispatchCase now excludes `MARKET_SNAPSHOT` from load-level case creation/matching, so market summary records remain outbox/reporting-only.
 - Market summary `MARKET_SNAPSHOT` alerts now pass structured metadata through the market summary sender path.
+- `SEARCH_HEALTH_CHECK` policy was audited; recommended policy is outbox/reporting-only until a search-level entity exists.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
@@ -408,12 +409,13 @@ docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
 docs/TELEGRAM_OUTBOX_METADATA_AUDIT.md
 docs/DISPATCH_CASE_MARKET_SNAPSHOT_POLICY.md
+docs/DISPATCH_CASE_SEARCH_HEALTH_POLICY.md
 ~~~
 
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Audit search health metadata shape before wiring it.
+2. Exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase creation/matching before wiring search health metadata.
 3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
@@ -738,5 +740,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram search health metadata audit.
+4. Recommended next target: DispatchCase `SEARCH_HEALTH_CHECK` load-case exclusion.
 5. Avoid new large files by default.

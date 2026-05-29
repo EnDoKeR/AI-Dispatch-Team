@@ -149,7 +149,7 @@ Search health and reload-chain sender paths still use text parsing fallback.
 ## Safe Next Steps
 
 1. Keep existing text parser fallback.
-2. Audit search health metadata shape before wiring it.
+2. Exclude `SEARCH_HEALTH_CHECK` from load-level DispatchCase creation/matching before wiring search health metadata.
 3. Keep DispatchCase matching tests green after each sender path.
 4. Clean message encoding one formatter family at a time after metadata is stable.
 
