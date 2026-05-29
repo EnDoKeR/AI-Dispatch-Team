@@ -213,6 +213,15 @@ tests/test_pasted_text_parser_adapter.py
 
 The adapter extracts only obvious label/value fields from synthetic or manually pasted text. It does not parse PDFs, read files, process private RateCons, run OCR, or call integrations.
 
+Scenario runner status:
+
+```text
+app/market_intelligence/intake/pasted_text_scenario_runner.py
+tests/test_pasted_text_scenario_runner.py
+```
+
+The runner processes synthetic pasted-text fixtures through the adapter, parser contract, and intake summary flow. It reports missing-field, needs-check, confidence, and parser-warning summaries without reading files or using private data.
+
 ## Stop Conditions
 
 Stop and redesign if:
