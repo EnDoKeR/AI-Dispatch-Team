@@ -73,19 +73,19 @@ The current reload-watch architecture is suitable for manual testing and scenari
 
 Do not wire it to live Telegram, scheduler loops, buttons, DispatchCase events, or live boards until a separate integration plan is accepted.
 
-### 2. Reload-chain Telegram selection has a likely limit-order risk
+### 2. Reload-chain Telegram selection had a limit-order risk
 
-`telegram_chain_selection.py` currently slices candidates by `limit` before filtering duplicates and already-sent history.
+Audit finding: `telegram_chain_selection.py` sliced candidates by `limit` before filtering duplicates and already-sent history.
 
-This can hide later unsent reload-chain candidates when the top candidates were already sent. The normal load selector was already hardened against this pattern.
+This could hide later unsent reload-chain candidates when the top candidates were already sent. The normal load selector was already hardened against this pattern.
 
-Recommended next mini-block:
+Follow-up:
 
 ```text
-Telegram reload-chain selection safety
+Telegram reload-chain selection safety completed.
 ```
 
-This should be test-first and limited to `telegram_chain_selection.py` plus `tests/test_telegram_chain_selection.py`.
+`telegram_chain_selection.py` now scans unique candidates in order and applies `limit` to unsent chains, not to the initial top slice.
 
 ### 3. Telegram outbox logging remains text-parser dependent
 
@@ -107,15 +107,11 @@ Do not wire new metadata behavior until the audit defines a small compatibility 
 
 ## Recommended next targets
 
-1. `Telegram reload-chain selection safety`
-   - Safe because it is a small selector bug-risk similar to the completed load-selection fix.
-   - Important because it prevents Telegram from missing useful unsent reload-chain candidates.
-
-2. `Telegram outbox structured metadata audit`
+1. `Telegram outbox structured metadata audit`
    - Safe as an audit-only block.
    - Important because DispatchCase matching should eventually rely on structured metadata, not Telegram text parsing.
 
-3. `Legacy intake boundary review`
+2. `Legacy intake boundary review`
    - Safe if kept audit-only.
    - Important because `app/load_intake/` still mixes intake, scoring, and manual integrations.
 

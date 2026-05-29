@@ -102,6 +102,7 @@ Current direction:
 - `telegram_notifier.py` should remain send/orchestration logic.
 - Message formatting should stay in formatter modules.
 - `telegram_load_selection.py` now scans unique sorted loads before applying the unsent alert limit, so already-sent top loads do not hide later unsent good loads.
+- `telegram_chain_selection.py` now scans unique reload-chain candidates before applying the unsent alert limit, so already-sent top chains do not hide later unsent good chains.
 - `telegram_duplicate_keys.py` separates repost identity, Telegram duplicate prevention, legacy sent-history compatibility, and future update signatures.
 
 ### 1.4 Completed: Notes parser refactor
@@ -403,10 +404,9 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 Recommended order:
 
 1. Keep reload-watch paused before live wiring.
-2. Fix Telegram reload-chain selection limit/sent-history behavior test-first.
-3. Audit Telegram outbox structured metadata before changing formatter/parser behavior.
-4. Keep legacy intake cleanup audit-only until a replacement path is chosen.
-5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+2. Audit Telegram outbox structured metadata before changing formatter/parser behavior.
+3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
+4. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -729,5 +729,5 @@ After this documentation update:
 1. Run full tests.
 2. Commit documentation.
 3. Start the next confirmed mini-block only.
-4. Recommended next target: Telegram reload-chain selection safety.
+4. Recommended next target: Telegram outbox structured metadata audit.
 5. Avoid new large files by default.

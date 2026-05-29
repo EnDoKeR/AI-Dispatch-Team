@@ -509,6 +509,5 @@ Start with:
 
 Next safe candidates:
 
-1. Fix Telegram reload-chain selection limit/sent-history behavior test-first.
-2. Run a focused Telegram outbox structured-metadata audit before changing formatter/parser behavior.
-3. Keep legacy intake cleanup audit-only until a replacement path is chosen.
+1. Run a focused Telegram outbox structured-metadata audit before changing formatter/parser behavior.
+2. Keep legacy intake cleanup audit-only until a replacement path is chosen.
