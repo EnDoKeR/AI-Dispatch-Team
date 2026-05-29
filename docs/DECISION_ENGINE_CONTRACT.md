@@ -237,3 +237,293 @@ DispatchCase should store timeline/state after a separate policy decides what ev
 The first implementation must wrap existing behavior rather than replacing it.
 
 Current `MarketLoad` fields and existing tests should remain valid until a migration is explicitly accepted.
+
+## Input Signal Map
+
+The future DecisionEngine should consume structured signal groups. It should not parse Telegram text or raw PDFs directly.
+
+### 1. Load Facts
+
+Typical source:
+
+- `MarketLoad`
+- load-board snapshot
+- simulation load
+- future normalized intake/load record
+
+Signals:
+
+- pickup
+- delivery
+- rate
+- loaded miles
+- empty miles
+- total miles
+- total RPM
+- weight
+- commodity
+- dimensions
+- posted trailer/equipment
+- pickup date
+- pickup time
+- delivery date
+- delivery time
+- reference ID
+- broker name
+- broker MC
+
+Decision use:
+
+- rate/RPM quality
+- lane fit
+- weight/dimension compatibility
+- timing review
+- missing data review
+- load identity/linking
+
+### 2. Parsed Notes Facts
+
+Typical source:
+
+- `notes_parser.py`
+- `notes_parser_*`
+- future document/parser extracted notes evidence
+
+Signals:
+
+- tarp requirement
+- tarp size
+- no Conestoga language
+- Conestoga allowed/preferred/denied language
+- flatbed or step-deck compatibility language
+- tracking required
+- hazmat required
+- TWIC required
+- tanker required
+- ramps/dunnage/wood required
+- OD/oversize/permit language
+- dimensions
+- actual pickup
+- multiple loads/stops
+- appointment requirement
+- contact override
+- payment risk language
+
+Decision use:
+
+- equipment compatibility
+- document requirement review/block
+- Conestoga verification
+- payment/broker risk warning
+- needs-check fields
+
+### 3. Driver Profile
+
+Typical source:
+
+- `driver_profile.py`
+- `driver_profile_loader.py`
+- `SearchRequest`
+
+Signals:
+
+- driver name
+- equipment
+- max weight
+- max empty miles
+- target direction
+- target city/radius
+- target direction mode
+- tarp capability
+- max tarp size
+- OD/permit capability
+- hazmat/TWIC/tanker status
+- ramps/dunnage status
+- tracking tolerance
+- blocked lanes/states later
+- preferences and notes
+
+Decision use:
+
+- driver/load compatibility
+- target-direction fit
+- hard blocks for known incompatibilities
+- review when capability is unknown
+
+### 4. Broker Memory
+
+Typical source:
+
+- `broker_memory_core.py`
+- `broker_memory_rules.py`
+- broker memory SQLite/query helpers
+
+Signals:
+
+- broker MC
+- broker status
+- broker risk level
+- prior bad broker feedback
+- rate negotiation history
+- watchlist status
+- positive broker history
+- sample size/confidence later
+
+Decision use:
+
+- add review warning
+- add positive signal
+- never override hard business blocks
+
+### 5. Market Context
+
+Typical source:
+
+- `market_baseline.py`
+- `market_zone_snapshot.py`
+- `market_exit_classifier.py`
+- `chain_scoring.py`
+- market snapshot helpers
+
+Signals:
+
+- market median RPM
+- market median rate
+- mileage bucket stats
+- market status
+- qualified load count
+- clean match count
+- review-once count
+- blocked count
+- delivery city/state exit status
+- clean exit count
+- review exit count
+- rate-check exit count
+- chain score/status
+- secondary exit risk
+
+Decision use:
+
+- context, priority, and review warnings
+- reload-watch recommendation
+- avoid treating weak market/weak zone as an automatic hard block
+- compare load quality against current snapshot instead of only static thresholds
+
+### 6. Dispatch Memory
+
+Typical source:
+
+- DispatchCase timeline
+- dispatcher feedback
+- driver preference helpers
+- driver lane preference helpers
+- broker memory helpers
+- SQLite memory later
+
+Signals:
+
+- prior feedback
+- rejected reasons
+- booked outcomes
+- sent-to-driver outcomes
+- ratecon received outcomes
+- skipped/covered/rate-too-low feedback
+- driver/lane sample quality
+- can-affect-decision policy
+
+Decision use:
+
+- add review context
+- add positive/negative historical signals
+- avoid overriding hard business logic unless a future policy explicitly allows it
+
+### 7. Intake / Parser Evidence
+
+Typical source:
+
+- `app/market_intelligence/intake/record.py`
+- `app/market_intelligence/intake/parser_contract.py`
+- pasted-text parser adapter
+- future PDF/OCR parser output
+
+Signals:
+
+- intake ID
+- source type
+- source file name
+- broker name/MC
+- rate
+- pickup/delivery fields
+- commodity
+- weight
+- reference ID
+- equipment
+- special requirements
+- missing fields
+- needs-check fields
+- field confidence
+- linked DispatchCase ID later
+
+Decision use:
+
+- attach document-derived evidence
+- explain missing/uncertain fields
+- prepare for future DispatchCase linking
+- never let parser output make the dispatch decision by itself
+
+### 8. Approval Mode
+
+Potential source:
+
+- future configuration
+- dispatcher/user settings
+- operational policy
+
+Initial modes:
+
+- `COPILOT`
+- `SUPERVISED`
+- `AUTOPILOT` later, only if explicitly designed and accepted
+
+Decision use:
+
+- decide how recommendations are routed
+- decide whether a dispatcher must approve before action
+- never bypass explicit approval for booking, factoring, legal, or financial commitments
+
+Initial policy:
+
+- `COPILOT`: recommendation and explanation only
+- `SUPERVISED`: can prepare actions, but dispatcher confirms
+- `AUTOPILOT`: future concept only; not implemented and not approved
+
+### Signal Ownership Rule
+
+Each signal group should be built before entering the DecisionEngine.
+
+The DecisionEngine should combine signals. It should not own:
+
+- raw PDF/OCR parsing
+- Telegram text parsing
+- Google Maps calls
+- DAT/API calls
+- Gmail/Google Sheets calls
+- DispatchCase writes
+- accounting/factoring submission
+
+### Minimal First Implementation Input
+
+A safe first DecisionEngine wrapper can start with:
+
+```python
+{
+    "load": load,
+    "search_request": search_request,
+    "market_context": {},
+    "intake_record": {},
+    "memory_context": {},
+    "approval_mode": "COPILOT",
+}
+```
+
+This keeps the first implementation small while preserving the target architecture.
