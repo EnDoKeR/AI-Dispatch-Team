@@ -1,55 +1,34 @@
 from app.market_intelligence.telegram_buttons import build_feedback_buttons
-from app.market_intelligence.telegram_broker_block import (broker_block, get_broker_status_text)
+from app.market_intelligence.telegram_broker_block import get_broker_status_text
 from app.market_intelligence.telegram_duplicate_keys import (
     market_summary_key,
-    normalize,
     search_health_key,
 )
 from app.market_intelligence.telegram_load_selection import select_new_loads
 from app.market_intelligence.telegram_sent_state import (
-    get_lines,
     get_sent_health_alerts,
     get_sent_loads,
     get_sent_review_once_loads,
     get_sent_summaries,
-    save_line,
     save_sent_health_alert,
     save_sent_load,
     save_sent_review_once_load,
     save_sent_summary,
 )
-from app.market_intelligence.telegram_text_helpers import (
-    delivery_zone_outlook,
-    safe_value,
-)
 from app.market_intelligence.telegram_market_summary_formatter import format_market_summary_message
 from app.market_intelligence.telegram_opportunity_formatter import format_opportunity_message
-from app.market_intelligence.telegram_review_once_formatter import (
-    _dedupe_review_reasons,
-    format_review_once_message,
-)
+from app.market_intelligence.telegram_review_once_formatter import format_review_once_message
 from app.market_intelligence.telegram_search_health_formatter import format_search_health_message
 from app.market_intelligence.telegram_chain_formatter import (
     chain_duplicate_key,
     format_chain_candidate_message,
     get_sent_chain_alerts,
-    important_checklist,
     save_sent_chain_alert,
 )
 from app.market_intelligence.telegram_sender import (
-    ENV_FILE,
     load_env,
     send_telegram_message,
 )
-
-
-SENT_FILE = "data/sent_telegram_loads.txt"
-SENT_REVIEW_ONCE_FILE = "data/sent_review_once_loads.txt"
-SENT_HEALTH_FILE = "data/sent_search_health_alerts.txt"
-SENT_SUMMARY_FILE = "data/sent_market_summaries.txt"
-SENT_CHAIN_FILE = "data/sent_reload_chain_alerts.txt"
-
-
 
 
 def send_market_summary_to_telegram(
