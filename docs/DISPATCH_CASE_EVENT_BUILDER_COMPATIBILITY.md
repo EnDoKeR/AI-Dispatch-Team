@@ -337,3 +337,39 @@ Why:
 - it should not write events or modify `case_event_builder.py`
 
 Do not migrate event builders yet.
+
+## DecisionResult Timeline Preview Closeout
+
+Completed preview foundation:
+
+- `app/market_intelligence/decision_engine/timeline_preview.py`
+- `app/market_intelligence/decision_engine/timeline_preview_report.py`
+- `tests/fixtures/decision_result_timeline_previews.py`
+- `scripts/run_decision_result_timeline_preview.py`
+
+Command:
+
+```powershell
+py scripts/run_decision_result_timeline_preview.py
+```
+
+Current findings:
+
+- future `AI_DECISION_CREATED` preview payloads can embed normalized `DecisionResult`
+- previews use the base event payload helper
+- previews are marked `preview_only = True` and `runtime_wired = False`
+- report output summarizes decisions, risk flags, and validation warnings
+- no events are written and no runtime builder behavior changes
+
+Recommended next step:
+
+```text
+case_event_builder migration plan
+```
+
+Why:
+
+- the preview shows the desired future payload shape
+- the runtime builder envelope must remain stable
+- a migration plan should decide whether future work adds a wrapper, a nested preview field, or a compatibility extension
+- the plan should be docs-only before code changes

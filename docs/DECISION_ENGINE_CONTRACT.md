@@ -596,3 +596,32 @@ Current non-scope:
 - no external service calls
 
 The report is a compatibility lens only. It helps validate adapter coverage before any future timeline/case integration is considered.
+
+## Timeline Preview Status
+
+`app/market_intelligence/decision_engine/timeline_preview.py`, `app/market_intelligence/decision_engine/timeline_preview_report.py`, and `scripts/run_decision_result_timeline_preview.py` now provide a report-only preview of future `AI_DECISION_CREATED` timeline payloads that include nested `DecisionResult` data.
+
+Command:
+
+```powershell
+py scripts/run_decision_result_timeline_preview.py
+```
+
+Current scope:
+
+- uses synthetic DecisionResult fixtures only
+- builds base event payload previews with `event_type = AI_DECISION_CREATED`
+- embeds normalized `decision_result`
+- marks every payload with `preview_only = True` and `runtime_wired = False`
+- summarizes decisions, risk flags, case IDs, and validation warnings
+
+Current non-scope:
+
+- no event writes
+- no DispatchCase reads or writes
+- no `case_event_builder.py` changes
+- no runtime DecisionResult wiring
+- no Telegram behavior changes
+- no load selection or market snapshot changes
+
+This preview shows a possible future event payload shape. It is not a migration and is not production event behavior.

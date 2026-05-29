@@ -1272,6 +1272,74 @@ Not recommended next:
 - synthetic 100-200 load dataset
 - DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
 
+## DecisionResult Timeline Preview Closeout
+
+Completed:
+
+- preview helper: `app/market_intelligence/decision_engine/timeline_preview.py`
+- synthetic preview fixtures: `tests/fixtures/decision_result_timeline_previews.py`
+- preview report helper: `app/market_intelligence/decision_engine/timeline_preview_report.py`
+- manual dry-run CLI: `scripts/run_decision_result_timeline_preview.py`
+
+Command:
+
+```powershell
+py scripts/run_decision_result_timeline_preview.py
+```
+
+Current status:
+
+- report-only
+- synthetic DecisionResult fixtures only
+- no event writes
+- no DispatchCase reads/writes
+- no `case_event_builder.py` changes
+- no runtime DecisionResult wiring
+- no Telegram, MarketLoad, market snapshot, or load selection behavior changes
+
+Options evaluated:
+
+1. DispatchCase event builder migration plan
+2. event payload wrapper around existing builder, no runtime wiring
+3. DecisionEngine comparison + timeline preview combined report
+4. intake-to-case link audit
+5. reload-chain DispatchCase policy audit
+6. synthetic 100-200 load dataset planning
+
+Recommended next target:
+
+```text
+case_event_builder migration plan
+```
+
+Why:
+
+- timeline preview now shows the desired future nested DecisionResult payload shape
+- existing builder compatibility is clean but the runtime envelope is intentionally different from the base payload helper
+- before any wrapper or migration, document exactly how current flat event fields will be preserved
+- this can remain docs-only and avoid runtime behavior changes
+
+Recommended second target:
+
+```text
+event payload wrapper around existing builder, no runtime wiring
+```
+
+Why:
+
+- useful only after the migration plan is accepted
+- should remain unused by runtime until a later explicit wiring block
+
+Not recommended next:
+
+- modifying `build_cases_and_events(...)`
+- replacing `case_event_builder.py`
+- writing DecisionResult events
+- intake-to-case linking
+- reload-chain DispatchCase wiring
+- synthetic 100-200 load dataset
+- DAT/API, Google Maps, Gmail/email, Google Sheets, PDF/OCR, scheduler, accounting/factoring, or live automation
+
 Recommended second target:
 
 ```text

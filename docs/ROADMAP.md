@@ -471,9 +471,10 @@ Recommended order:
 40. DecisionEngine comparison report helper, fixtures, and CLI are complete.
 41. Event Timeline foundation helpers and synthetic report CLI are complete.
 42. DispatchCase event builder compatibility audit/reporting is complete.
-43. Next recommended backend target: report-only DecisionResult timeline preview.
-44. Recommended follow-up: case_event_builder migration plan, docs-only first.
-45. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+43. Report-only DecisionResult timeline preview is complete.
+44. Next recommended backend target: case_event_builder migration plan, docs-only first.
+45. Recommended follow-up: event payload wrapper around existing builder, no runtime wiring.
+46. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -601,6 +602,28 @@ report-only DecisionResult timeline preview
 ```
 
 This should stay dry-run/report-only and show a future `AI_DECISION_CREATED` payload shape without writing it to DispatchCase events.
+
+Completed preview target:
+
+```text
+report-only DecisionResult timeline preview
+```
+
+Command:
+
+```powershell
+py scripts/run_decision_result_timeline_preview.py
+```
+
+This uses synthetic DecisionResult fixtures and shows future `AI_DECISION_CREATED` base payload previews with nested DecisionResult data. It writes no events and does not modify DispatchCase runtime behavior.
+
+Next backend target:
+
+```text
+case_event_builder migration plan
+```
+
+This should be docs-only. It should decide how to preserve the existing runtime event envelope while preparing any future wrapper or nested DecisionResult extension.
 
 ---
 
