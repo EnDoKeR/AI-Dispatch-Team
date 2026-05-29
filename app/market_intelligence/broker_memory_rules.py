@@ -10,23 +10,12 @@ def connect_db(db_path=SQLITE_DB_FILE):
     return connection
 
 
-def normalize_mc(broker_mc):
-    return str(broker_mc or "").strip()
-
-
-def is_valid_mc(broker_mc):
-    broker_mc = normalize_mc(broker_mc)
-
-    if not broker_mc:
-        return False
-
-    if broker_mc.upper() == "NEEDS CHECK":
-        return False
-
-    if broker_mc.upper() == "NO MC":
-        return False
-
-    return True
+from app.market_intelligence.broker_memory_core import (
+    classify_broker_from_counts,
+    format_broker_memory_status,
+    is_valid_mc,
+    normalize_mc,
+)
 
 
 def get_broker_feedback_counts(connection, broker_mc):
@@ -248,15 +237,3 @@ def get_broker_memory_status(broker_mc, db_path=SQLITE_DB_FILE):
         "feedback_counts": feedback_counts,
         "case_counts": case_counts,
     }
-
-
-def format_broker_memory_status(memory_status):
-    status = memory_status.get("status", "UNKNOWN")
-    risk_level = memory_status.get("risk_level", "UNKNOWN")
-    reasons = memory_status.get("reasons", [])
-
-    if reasons:
-        reason_text = "; ".join(reasons)
-        return f"{status} / {risk_level} вЂ” {reason_text}"
-
-    return f"{status} / {risk_level}"
