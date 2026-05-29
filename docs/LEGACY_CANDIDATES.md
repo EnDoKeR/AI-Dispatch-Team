@@ -86,7 +86,7 @@ Do not do yet:
 
 Safe next steps:
 
-1. Identify which scripts still depend on `app/load_intake`.
+1. Use `docs/LOAD_INTAKE_BOUNDARY_REVIEW.md` as the current boundary review.
 2. Decide whether the ratecon parser should become a clean intake-only parser.
 3. Keep decision logic in the decision layer, not in raw intake.
 

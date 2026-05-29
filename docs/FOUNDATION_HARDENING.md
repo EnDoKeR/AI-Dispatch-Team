@@ -510,5 +510,5 @@ Start with:
 
 Next safe candidates:
 
-1. Keep legacy intake cleanup audit-only until a replacement path is chosen.
+1. Design the future RateCon/document intake workflow before changing parser behavior.
 2. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
