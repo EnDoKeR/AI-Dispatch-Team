@@ -394,6 +394,7 @@ Run a fresh architecture/file-size audit before choosing another target.
 Current audit notes:
 
 ~~~text
+docs/ARCHITECTURE_AUDIT.md
 docs/LEGACY_CANDIDATES.md
 docs/DRIVER_PROFILE_SOURCE_OF_TRUTH.md
 docs/TELEGRAM_OUTBOX_LOGGING.md
@@ -401,10 +402,10 @@ docs/TELEGRAM_OUTBOX_LOGGING.md
 
 Recommended order:
 
-1. Pause reload-watch feature development before live wiring.
-2. Run a fresh architecture/import audit.
-3. Review remaining large files.
-4. Choose next target based on layer-boundary risk.
+1. Keep reload-watch paused before live wiring.
+2. Fix Telegram reload-chain selection limit/sent-history behavior test-first.
+3. Audit Telegram outbox structured metadata before changing formatter/parser behavior.
+4. Keep legacy intake cleanup audit-only until a replacement path is chosen.
 5. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
@@ -727,6 +728,6 @@ After this documentation update:
 
 1. Run full tests.
 2. Commit documentation.
-3. Review file sizes again.
-4. Choose the next hardening target.
+3. Start the next confirmed mini-block only.
+4. Recommended next target: Telegram reload-chain selection safety.
 5. Avoid new large files by default.
