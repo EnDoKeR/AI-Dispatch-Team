@@ -146,6 +146,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 
 ```text
 JSON-ready intake record helper - complete
+Parser interface contract - complete
 Manual intake dry-run summary helper/CLI - complete
 Synthetic intake fixtures - complete
 Synthetic intake scenario runner - complete
@@ -229,6 +230,31 @@ Design reference:
 ```text
 docs/INTAKE_JSON_FILE_INPUT_AUDIT.md
 ```
+
+## Parser Contract Decision
+
+Completed mini-block:
+
+```text
+Parser interface contract foundation
+```
+
+Files:
+
+```text
+app/market_intelligence/intake_parser_contract.py
+tests/test_intake_parser_contract.py
+```
+
+The helper normalizes future parser output into the existing intake record shape. It does not parse PDFs, read files, write files, send Telegram, call Gmail/email APIs, write Google Sheets, create DispatchCases, write event logs, use DAT/API, call Google Maps, run scheduler/background work, or import legacy `app/load_intake`.
+
+Recommended next intake target:
+
+```text
+Intake JSON repository policy audit
+```
+
+This should decide whether local JSON persistence is needed before any storage helper is implemented.
 
 ## Still Not Next
 

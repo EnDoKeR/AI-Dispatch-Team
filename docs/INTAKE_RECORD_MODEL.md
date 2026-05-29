@@ -222,6 +222,19 @@ Expected helper responsibilities:
 
 Current helper remains pure. It does not parse PDFs, read/write files, send Telegram, write Google Sheets, call Gmail/email APIs, write DispatchCase events, import legacy `app/load_intake`, or make dispatch decisions.
 
+## Parser Contract
+
+Implemented parser boundary helper:
+
+```text
+app/market_intelligence/intake_parser_contract.py
+tests/test_intake_parser_contract.py
+```
+
+`normalize_parser_output(...)` accepts dict/object parser output, applies optional source metadata, and returns a JSON-ready intake record through `build_intake_record(...)`.
+
+This is a contract only. Future parser implementations may read PDF text, OCR text, email body text, Telegram upload content, or manual JSON, but their output must be structured fields. The parser layer must not make dispatch decisions, send Telegram, write Google Sheets, create DispatchCases, write event logs, or import legacy `app/load_intake`.
+
 ## Manual Dry-Run Summary
 
 Implemented dry-run summary layer:
@@ -261,7 +274,7 @@ tests/fixtures/intake_sample_records/
 tests/test_intake_sample_json_fixtures.py
 ```
 
-They are fake JSON objects only. The CLI does not read them yet.
+They are fake JSON objects only and can be used with the dry-run CLI `--json-file` command.
 
 The fixtures are exercised by:
 

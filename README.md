@@ -1111,6 +1111,7 @@ Current intake / RateCon dry-run foundation:
 
 ~~~text
 intake_record.py
+intake_parser_contract.py
 intake_record_summary.py
 intake_scenario_runner.py
 scripts/run_intake_record_dry_run.py
@@ -1126,7 +1127,7 @@ py scripts/run_intake_record_dry_run.py --json-file tests\fixtures\intake_sample
 py scripts/run_intake_scenarios.py
 ~~~
 
-This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, uses synthetic fixtures for scenarios, and does not parse PDFs, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+This is dry-run only. It normalizes pasted JSON or one explicit JSON file into an intake summary, uses synthetic fixtures for scenarios, and defines the internal parser output contract. It does not parse PDFs, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
 
 Intake docs:
 
@@ -1170,7 +1171,7 @@ py -m compileall app scripts main.py
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 847 tests.
+Recent full test discovery passed with 856 tests.
 
 See also:
 

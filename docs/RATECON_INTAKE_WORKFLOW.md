@@ -107,11 +107,23 @@ Current dry-run foundation:
 
 ```text
 app/market_intelligence/intake_record.py
+app/market_intelligence/intake_parser_contract.py
 app/market_intelligence/intake_record_summary.py
 scripts/run_intake_record_dry_run.py
 ```
 
-These helpers provide record normalization and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
+These helpers provide record normalization, parser-output contract normalization, and manual summary output only. They do not implement parser, storage, Telegram, Gmail/email, Google Sheets, DispatchCase, OCR, DAT/API, Google Maps, or scheduler behavior.
+
+Parser contract foundation:
+
+```text
+app/market_intelligence/intake_parser_contract.py
+tests/test_intake_parser_contract.py
+```
+
+Future parsers may later consume PDF text, OCR text, email body text, Telegram upload content, or manual JSON. Their output must be structured fields compatible with `build_intake_record(...)`.
+
+The parser boundary must not decide MATCH/BLOCK/REVIEW, send Telegram, write Google Sheets, create DispatchCases, write event logs, or perform storage.
 
 The manual dry-run CLI can now accept a pasted JSON object:
 
@@ -144,6 +156,7 @@ tests/test_intake_sample_json_fixtures.py
 ```
 
 These files are plain fake JSON objects for future `--json-file` dry-run testing. They are not read by the CLI yet.
+These files are plain fake JSON objects used by tests and available for `--json-file` dry-run testing.
 
 Synthetic scenario runner:
 
