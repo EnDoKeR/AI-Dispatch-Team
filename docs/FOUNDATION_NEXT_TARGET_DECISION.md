@@ -145,13 +145,13 @@ The intake foundation modules now live in a dedicated package:
 
 Old root-level intake module paths remain thin compatibility wrappers so existing scripts and tests keep working during the package migration phase.
 
-Next structural target:
+Current structural guard:
 
 ```text
 Intake package boundary tests
 ```
 
-This should protect the new package from Telegram, DispatchCase, parser/OCR, Gmail/email, Google Sheets, scheduler, DAT/API, Google Maps, and legacy `app/load_intake` imports before any private RateCon parser audit begins.
+These tests protect the new package from Telegram, DispatchCase, parser/OCR, Gmail/email, Google Sheets, scheduler, DAT/API, Google Maps, and legacy `app/load_intake` imports before any private RateCon parser audit begins.
 
 ## Decision
 

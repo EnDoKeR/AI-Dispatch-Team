@@ -307,6 +307,7 @@ Migration status:
 - intake foundation modules now live in `app/market_intelligence/intake/`
 - old root-level intake module paths remain thin wrappers
 - scripts and existing tests continue to use old import paths safely until a later import cleanup
+- `tests/test_intake_package_boundaries.py` protects the package from forbidden live/integration imports
 - Telegram, DispatchCase, reload-watch, chains, memory, and market-context packages are not migrated yet
 
 ## Packages Not To Migrate Yet

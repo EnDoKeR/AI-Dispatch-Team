@@ -438,10 +438,11 @@ Recommended order:
 11. Architecture package layout proposal is documented.
 12. Development structure rules are updated.
 13. Intake package migration is complete with compatibility wrappers.
-14. Next structural target: add intake package boundary tests.
-15. Private RateCon parser audit should wait until package structure is fully closed out.
-16. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-17. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+14. Intake package boundary tests are complete.
+15. Next structural target: architecture structure closeout and next-target decision.
+16. Private RateCon parser audit should wait until package structure is fully closed out.
+17. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+18. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
