@@ -63,4 +63,3 @@ def build_market_snapshot_context(
         "review_once_loads": review_once_loads,
         "chain_candidates": chain_candidates,
     }
-
