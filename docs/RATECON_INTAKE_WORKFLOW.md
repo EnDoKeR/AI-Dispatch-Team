@@ -203,6 +203,17 @@ Manual command:
 py scripts/run_parser_scenarios.py
 ```
 
+Manual pasted-text parser dry-run:
+
+```text
+app/market_intelligence/intake/pasted_text_parser_adapter.py
+scripts/run_pasted_text_parser_dry_run.py
+tests/test_pasted_text_parser_adapter.py
+tests/test_pasted_text_parser_cli.py
+```
+
+The pasted-text dry-run accepts synthetic/manual text through `--text` or uses a built-in synthetic sample. It extracts only obvious label/value fields, returns structured parser output, normalizes through the parser contract, and prints an intake summary. It does not read files, parse PDFs, run OCR, process private RateCons, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events.
+
 Private real-document safety is documented in:
 
 ```text

@@ -222,6 +222,21 @@ tests/test_pasted_text_scenario_runner.py
 
 The runner processes synthetic pasted-text fixtures through the adapter, parser contract, and intake summary flow. It reports missing-field, needs-check, confidence, and parser-warning summaries without reading files or using private data.
 
+Manual dry-run CLI status:
+
+```text
+scripts/run_pasted_text_parser_dry_run.py
+tests/test_pasted_text_parser_cli.py
+```
+
+Command:
+
+```powershell
+py scripts/run_pasted_text_parser_dry_run.py
+```
+
+The CLI supports built-in sample mode or `--text "..."`. It prints extracted fields, field confidence, missing fields, needs-check fields, and final intake status. It does not read files or save records.
+
 ## Stop Conditions
 
 Stop and redesign if:
