@@ -10,54 +10,14 @@ def connect_db(db_path=SQLITE_DB_FILE):
     return connection
 
 
-def normalize_driver_name(driver_name):
-    return str(driver_name or "").strip()
-
-
-def is_valid_driver_name(driver_name):
-    driver_name = normalize_driver_name(driver_name)
-
-    if not driver_name:
-        return False
-
-    if driver_name.upper() in ["UNKNOWN", "NEEDS CHECK", "NONE"]:
-        return False
-
-    return True
-
-def get_sample_quality(sample_size):
-    sample_size = int(sample_size or 0)
-
-    if sample_size >= 50:
-        return {
-            "sample_quality": "RELIABLE_PATTERN",
-            "sample_note": "50+ feedback/case signals available",
-            "can_affect_decision": True,
-        }
-
-    if sample_size >= 25:
-        return {
-            "sample_quality": "DEVELOPING_PATTERN",
-            "sample_note": "25-49 feedback/case signals available",
-            "can_affect_decision": False,
-        }
-
-    if sample_size >= 10:
-        return {
-            "sample_quality": "EARLY_SIGNAL",
-            "sample_note": "10-24 feedback/case signals available",
-            "can_affect_decision": False,
-        }
-
-    return {
-        "sample_quality": "INSUFFICIENT_SAMPLE",
-        "sample_note": "Less than 10 feedback/case signals available",
-        "can_affect_decision": False,
-    }
-
-
-def feedback_sample_size(feedback_counts):
-    return sum(int(value or 0) for value in feedback_counts.values())
+from app.market_intelligence.driver_preference_core import (
+    classify_driver_from_counts,
+    feedback_sample_size,
+    format_driver_preference_status,
+    get_sample_quality,
+    is_valid_driver_name,
+    normalize_driver_name,
+)
 
 
 def get_driver_feedback_counts(connection, driver_name):
@@ -379,19 +339,3 @@ def get_driver_preference_status(driver_name, db_path=SQLITE_DB_FILE):
         "case_counts": case_counts,
         "lane_feedback": lane_feedback,
     }
-
-def format_driver_preference_status(preference_status):
-    status = preference_status.get("status", "UNKNOWN")
-    confidence = preference_status.get("confidence", "UNKNOWN")
-    sample_quality = preference_status.get("sample_quality", "UNKNOWN")
-    sample_size = preference_status.get("sample_size", 0)
-    reasons = preference_status.get("reasons", [])
-
-    base_text = f"{status} / {confidence} / {sample_quality} ({sample_size} signals)"
-
-    if reasons:
-        reason_text = "; ".join(reasons)
-        return f"{base_text} — {reason_text}"
-
-    return base_text
-
