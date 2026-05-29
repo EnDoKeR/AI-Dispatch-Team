@@ -20,11 +20,11 @@ from app.market_intelligence.telegram_opportunity_formatter import format_opport
 from app.market_intelligence.telegram_review_once_formatter import format_review_once_message
 from app.market_intelligence.telegram_search_health_formatter import format_search_health_message
 from app.market_intelligence.telegram_chain_formatter import (
-    chain_duplicate_key,
     format_chain_candidate_message,
     get_sent_chain_alerts,
     save_sent_chain_alert,
 )
+from app.market_intelligence.telegram_chain_selection import select_new_chain_candidates
 from app.market_intelligence.telegram_sender import (
     load_env,
     send_telegram_message,
@@ -214,39 +214,33 @@ def send_chain_candidates_to_telegram(chain_candidates, search_request, limit=3)
         return
 
     sent_history = get_sent_chain_alerts()
-    selected_candidates = chain_candidates[:limit]
+    selection = select_new_chain_candidates(
+        chain_candidates,
+        search_request,
+        sent_history,
+        limit,
+    )
+    candidates_to_send = selection["candidates_to_send"]
 
-    candidates_to_send = []
-    seen_this_run = set()
+    for candidate in selection["duplicate_candidates"]:
+        first_load = candidate["first_load"]
+        reload_load = candidate["reload_load"]
 
-    for candidate in selected_candidates:
-        key = chain_duplicate_key(candidate, search_request)
+        print(
+            f"Duplicate reload chain skipped in current run for {search_request.driver_name}: "
+            f"{first_load.pickup} -> {first_load.delivery} + "
+            f"{reload_load.pickup} -> {reload_load.delivery}"
+        )
 
-        if key in seen_this_run:
-            first_load = candidate["first_load"]
-            reload_load = candidate["reload_load"]
+    for candidate in selection["already_sent_candidates"]:
+        first_load = candidate["first_load"]
+        reload_load = candidate["reload_load"]
 
-            print(
-                f"Duplicate reload chain skipped in current run for {search_request.driver_name}: "
-                f"{first_load.pickup} -> {first_load.delivery} + "
-                f"{reload_load.pickup} -> {reload_load.delivery}"
-            )
-            continue
-
-        seen_this_run.add(key)
-
-        if key in sent_history:
-            first_load = candidate["first_load"]
-            reload_load = candidate["reload_load"]
-
-            print(
-                f"Reload chain already sent for {search_request.driver_name}, skipped: "
-                f"{first_load.pickup} -> {first_load.delivery} + "
-                f"{reload_load.pickup} -> {reload_load.delivery}"
-            )
-            continue
-
-        candidates_to_send.append(candidate)
+        print(
+            f"Reload chain already sent for {search_request.driver_name}, skipped: "
+            f"{first_load.pickup} -> {first_load.delivery} + "
+            f"{reload_load.pickup} -> {reload_load.delivery}"
+        )
 
     if not candidates_to_send:
         print(f"No new reload chain candidates to send ({search_request.driver_name})")
