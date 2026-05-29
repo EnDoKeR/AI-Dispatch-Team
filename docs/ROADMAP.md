@@ -433,8 +433,10 @@ Recommended order:
 7. Intake JSON repository foundation is complete.
 8. Intake record status helper is complete.
 9. Optional CLI save behavior for intake dry-run records is complete.
-10. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
-11. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+10. Intake repository report CLI, parser contract scenarios, and private RateCon testing plan are complete.
+11. Next recommended intake target: private RateCon parser audit before any parser implementation.
+12. Audit reload-chain DispatchCase policy before any reload-chain metadata wiring.
+13. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 

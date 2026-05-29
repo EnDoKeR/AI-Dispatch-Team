@@ -305,6 +305,52 @@ Next safe target:
 Intake foundation follow-up target selection
 ```
 
+## Intake Follow-up Target Selection
+
+Completed foundation since the parser contract:
+
+```text
+Explicit intake id for dry-run CLI - complete
+Intake repository report CLI - complete
+Parser contract scenario tests - complete
+Private RateCon local testing plan - complete
+```
+
+Options evaluated:
+
+1. Parser dry-run adapter with manual text input
+2. Simple text-to-field manual parser stub
+3. Intake repository cleanup/status report improvements
+4. Private RateCon parser audit
+5. Pause intake and do reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+Private RateCon parser audit
+```
+
+Why:
+
+- Current intake foundation is now strong enough to receive parser output.
+- But implementing even a simple text-to-field parser would start parser behavior before parser risks are understood.
+- A parser audit can inspect expected RateCon layouts, legacy/prototype boundaries, output fields, confidence handling, and missing-field behavior without reading or committing real documents.
+- It keeps PDF/OCR/Gmail/Telegram/Google Sheets/DispatchCase work out of scope.
+
+Recommended follow-up after audit:
+
+```text
+Parser dry-run adapter with manual text input
+```
+
+This should be implemented only if the audit defines a narrow adapter contract. It should remain dry-run only and should not parse PDFs, run OCR, upload Telegram files, send emails, write Sheets, or create DispatchCases.
+
+Not recommended next:
+
+- Simple text-to-field parser stub: too easy to become hidden parser behavior without audit.
+- Repository cleanup/report improvements: useful later, but current report is enough for foundation dry-run.
+- Reload-chain DispatchCase policy audit: still important, but can wait until intake parser audit decides whether intake remains the active foundation target.
+
 ## Still Not Next
 
 Do not build next:
