@@ -15,12 +15,8 @@ from app.market_intelligence.market_snapshot_opportunities import (
     get_top_opportunities,
 )
 from app.market_intelligence.market_snapshot_route_fallback import prepare_route_fallback
-from app.market_intelligence.telegram_notifier import (
-    send_chain_candidates_to_telegram,
-    send_market_summary_to_telegram,
-    send_review_once_to_telegram,
-    send_search_health_check_to_telegram,
-    send_top_opportunities_to_telegram,
+from app.market_intelligence.market_snapshot_telegram_dispatcher import (
+    send_market_snapshot_to_telegram,
 )
 
 SEARCH_REQUESTS_FOLDER = "data/search_requests"
@@ -173,43 +169,16 @@ def process_search_request(request_file):
         f"Run ID: {decision_log_result['run_id']}"
     )
 
-    telegram_loads = top_opportunities
-
-    print(f"\n===== TELEGRAM SUMMARY SEND вЂ” {search_request.driver_name} =====\n")
-
-    send_market_summary_to_telegram(
-        stats,
-        recommendation,
-        top_opportunities,
-        search_request,
+    send_market_snapshot_to_telegram(
+        stats=stats,
+        recommendation=recommendation,
+        top_opportunities=top_opportunities,
+        review_once_loads=review_once_loads,
+        search_request=search_request,
+        loads=loads,
         search_location=search_location,
     )
 
-    print(f"\n===== TELEGRAM MATCH LOADS SEND вЂ” {search_request.driver_name} =====\n")
-
-    send_top_opportunities_to_telegram(
-        telegram_loads,
-        search_request,
-        limit=3,
-    )
-
-    print(f"\n===== TELEGRAM REVIEW ONCE SEND вЂ” {search_request.driver_name} =====\n")
-
-    send_review_once_to_telegram(
-        review_once_loads,
-        search_request,
-        limit=3,
-    )
-
-    print(f"\n===== TELEGRAM SEARCH HEALTH CHECK вЂ” {search_request.driver_name} =====\n")
-
-    send_search_health_check_to_telegram(
-        search_request,
-        loads,
-        top_opportunities,
-        review_once_loads,
-        monitored_minutes=30,
-    )
 
 def run_market_snapshot():
     active_requests = get_active_search_request_files()
