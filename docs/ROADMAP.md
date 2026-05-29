@@ -463,8 +463,9 @@ Recommended order:
 34. Pure DecisionEngine signal bundle helper is complete.
 35. Synthetic DecisionEngine scenarios are complete.
 36. DecisionEngine dry-run scenario runner and CLI are complete.
-37. Next recommended DecisionEngine target: read-only MarketLoad DecisionResult adapter.
-38. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+37. Read-only MarketLoad DecisionResult adapter and dry-run CLI are complete.
+38. Next recommended target: DispatchCase/Event Timeline gap audit.
+39. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -510,15 +511,15 @@ py scripts/run_decision_engine_scenarios.py
 
 This validates synthetic DecisionEngine scenario expectations against the pure signal/result/risk-flag helpers only.
 
-Immediate next decision:
+Completed DecisionEngine adapter target:
 
 ```text
 Read-only MarketLoad DecisionResult adapter
 ```
 
-The adapter should read existing `MarketLoad` decision fields after current logic has run and produce a DecisionResult. It must not call `apply_search_request(...)`, mutate loads, send Telegram, write DispatchCases, write storage, or change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
+The adapter reads existing `MarketLoad` decision fields after current logic has run and produces a DecisionResult. It does not call `apply_search_request(...)`, mutate loads, send Telegram, write DispatchCases, write storage, or change current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior.
 
-Second recommended target:
+Immediate next target:
 
 ```text
 DispatchCase/Event Timeline gap audit
@@ -526,21 +527,13 @@ DispatchCase/Event Timeline gap audit
 
 Do this before any new case-writing behavior, intake-to-case linking, accounting/factoring document events, or replay/missed-opportunity expansion.
 
-Second recommended DecisionEngine target:
+Possible follow-up DecisionEngine target:
 
 ```text
-Adapter around existing MarketLoad decision logic
+DecisionEngine comparison report
 ```
 
-This should happen only after dry-run scenarios are accepted. The adapter must preserve current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior exactly.
-
-Next major audit after pure DecisionEngine helpers:
-
-```text
-DispatchCase/Event Timeline gap audit
-```
-
-This should define what evidence belongs on a load-level DispatchCase, what belongs to a future search/session entity, and what should remain reporting-only until a policy exists.
+This should remain report-only and compare current MarketLoad fields against normalized DecisionResult output before any runtime wiring.
 
 ---
 

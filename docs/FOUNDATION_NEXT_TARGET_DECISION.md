@@ -903,3 +903,68 @@ Not recommended next:
 - expand synthetic DecisionEngine scenarios: useful later, but current set is enough for adapter foundation
 - risk flag mapping from notes/parser/intake: should wait until adapter confirms current field compatibility
 - reload-chain DispatchCase policy audit: still important, but separate from core DecisionEngine adapter work
+
+## Read-only MarketLoad Adapter Closeout
+
+Completed:
+
+- MarketLoad decision field audit
+- read-only `decision_result_from_market_load(...)` adapter
+- adapter regression fixtures
+- adapter dry-run CLI
+
+Command:
+
+```powershell
+py scripts/run_decision_engine_adapter_dry_run.py
+```
+
+Current status:
+
+- report/dry-run only
+- no runtime wiring
+- no `MarketLoad.apply_search_request(...)` call
+- no current `MATCH` / `REVIEW_ONCE` / `BLOCK` behavior change
+- no Telegram behavior change
+- no DispatchCase behavior change
+- no market snapshot behavior change
+
+Options evaluated:
+
+1. integrate adapter into report-only tooling
+2. DecisionEngine comparison report: current MarketLoad fields vs DecisionResult
+3. DispatchCase/Event Timeline gap audit
+4. expand DecisionEngine synthetic scenarios
+5. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+DispatchCase/Event Timeline gap audit
+```
+
+Why:
+
+- the adapter now gives a normalized DecisionResult view of existing load decisions
+- before writing any DecisionResult to cases/events, the project needs a clear case/timeline policy
+- intake records, documents, dispatcher feedback, Telegram outbox records, and future accounting/factoring packet events all depend on stable event ownership
+- this can remain audit-only and does not require runtime behavior changes
+
+Recommended secondary target:
+
+```text
+DecisionEngine comparison report
+```
+
+Why:
+
+- a report-only comparison could show current MarketLoad fields beside normalized DecisionResult output
+- it would help validate adapter coverage before any production wiring
+- it should wait until the DispatchCase/Event Timeline gap audit confirms where such reports should live
+
+Not recommended next:
+
+- runtime DecisionEngine wiring: too early before case/timeline policy
+- expanding synthetic DecisionEngine scenarios: useful later, but current coverage is enough for the adapter phase
+- risk flag mapping from notes/parser/intake: should wait until event/report needs are clearer
+- reload-chain DispatchCase policy audit: still important, but narrower than the general DispatchCase/Event Timeline gap audit

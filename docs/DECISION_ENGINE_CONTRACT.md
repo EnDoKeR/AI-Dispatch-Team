@@ -547,3 +547,27 @@ Implementation status:
 `app/market_intelligence/decision_engine/scenario_runner.py` and `scripts/run_decision_engine_scenarios.py` now validate synthetic DecisionEngine scenarios against the signal bundle and DecisionResult shape.
 
 This is dry-run only. The runner compares expected scenario fields to the current DecisionEngine foundation helpers. It does not evaluate real loads, wrap `MarketLoad.apply_search_request(...)`, send Telegram messages, write DispatchCases, change market snapshots, or call external services.
+
+## Read-only MarketLoad Adapter Status
+
+`app/market_intelligence/decision_engine/marketload_adapter.py` now provides a read-only adapter that converts existing load decision fields into `DecisionResult`.
+
+Current scope:
+
+- reads existing `driver_match_status`, category/review fields, reasons, and identifiers
+- preserves existing `MATCH` / `REVIEW_ONCE` / `BLOCK` outcomes
+- preserves human-readable review/block/positive reason text
+- maps only conservative existing signals into risk flags
+- supports a dry-run preview command: `py scripts/run_decision_engine_adapter_dry_run.py`
+
+Current non-scope:
+
+- no call to `MarketLoad.apply_search_request(...)`
+- no runtime wiring
+- no load selection changes
+- no Telegram behavior changes
+- no DispatchCase writes
+- no market snapshot behavior changes
+- no external service calls
+
+The adapter is ready for report-only comparison tooling, but not for changing production decision flow.
