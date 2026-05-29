@@ -162,7 +162,43 @@ Recommended order:
 
 ---
 
-## Phase 2 - DispatchCase and Event Timeline
+## Phase 2 - Layer Boundary Audit
+
+Status: next priority.
+
+Goal:
+
+Reduce coupling before adding larger intelligence features.
+
+The system should be checked against these layers:
+
+~~~text
+Layer 1 - Raw Intake
+Layer 2 - Decision Engine
+Layer 3 - DispatchCase Builder
+Layer 4 - Memory Layer
+Layer 5 - Interfaces
+~~~
+
+Audit questions:
+
+- Does Decision Engine know too much about Telegram?
+- Does Telegram formatting contain business logic?
+- Does SQLite memory directly change decisions?
+- Does broker memory override hard rules?
+- Does replay have enough structured event data?
+- Are there circular imports or cross-layer shortcuts?
+
+Expected outcome:
+
+- clearer module ownership
+- fewer cross-layer dependencies
+- safer replay and testing
+- better preparation for parallel agents and future interfaces
+
+---
+
+## Phase 3 - DispatchCase and Event Timeline
 
 Status: partially complete.
 
@@ -188,7 +224,7 @@ Next steps:
 
 ---
 
-## Phase 3 - Simulation and Replay
+## Phase 4 - Simulation and Replay
 
 Status: in progress.
 
@@ -213,7 +249,7 @@ Next steps:
 
 ---
 
-## Phase 4 - SQLite Dispatch Memory
+## Phase 5 - SQLite Dispatch Memory
 
 Status: in progress.
 
@@ -240,7 +276,7 @@ Next steps:
 
 ---
 
-## Phase 5 - Broker, Driver, and Lane Memory
+## Phase 6 - Broker, Driver, and Lane Memory
 
 Status: in progress.
 
@@ -274,7 +310,7 @@ Next steps:
 
 ---
 
-## Phase 6 - Telegram Feedback UX
+## Phase 7 - Telegram Feedback UX
 
 Status: partially complete.
 
@@ -300,7 +336,7 @@ Next steps:
 
 ---
 
-## Phase 7 - Documentation and Engineering Rules
+## Phase 8 - Documentation and Engineering Rules
 
 Status: active.
 
@@ -327,7 +363,69 @@ Next steps:
 
 ---
 
-## Phase 8 - Live DAT/API Integration
+## Phase 9 - Dispatch Replay Engine
+
+Status: future, but high priority after memory hardening.
+
+Goal:
+
+Replay historical dispatch opportunities and compare:
+
+- what the AI recommended
+- what dispatcher actually did
+- what happened later
+- whether the AI was too strict or too soft
+
+Replay input:
+
+- historical market snapshots
+- loads
+- driver state
+- AI decisions
+- Telegram alerts
+- dispatcher feedback
+- final outcomes
+- broker and lane memory
+
+Replay output:
+
+- case replay report
+- AI-vs-human comparison
+- missed opportunity candidates
+- bad recommendation candidates
+- rule regression evidence
+- future training dataset
+
+This is a core moat for the product.
+
+---
+
+## Phase 10 - Missed Opportunity Engine
+
+Status: future, after Replay Engine.
+
+Goal:
+
+Find loads that were ignored, missed, or misclassified.
+
+The engine should detect:
+
+- strong loads ignored by dispatcher
+- strong loads blocked by AI too aggressively
+- RATE CHECK loads that later became good
+- brokers that were underestimated
+- lanes that repeatedly produce good outcomes
+- AI recommendations that turned out bad
+
+This module should not be built until:
+
+- DispatchCase timeline is stable
+- SQLite memory is stable
+- replay reports are reliable
+- final outcome data is consistent
+
+---
+## Phase 11 - Live DAT/API Integration
 
 Status: future, not current priority.
 
@@ -351,7 +449,7 @@ Next steps when ready:
 
 ---
 
-## Phase 9 - AI Dispatch Observer / Shadow Dispatcher
+## Phase 12 - AI Dispatch Observer / Shadow Dispatcher
 
 Status: future.
 

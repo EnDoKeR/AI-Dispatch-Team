@@ -1,0 +1,336 @@
+# Architecture
+
+AI Dispatch Team is an early-stage Dispatch Operating Intelligence System for flatbed and Conestoga freight dispatch.
+
+The project is no longer just a Telegram load alert bot. The architectural direction is a memory-driven dispatch intelligence platform built around:
+
+- load intake
+- decision engine
+- DispatchCase lifecycle
+- event timeline
+- dispatcher feedback
+- broker / driver / lane memory
+- replay and backtesting
+- future observer interfaces
+
+---
+
+## 1. Core architecture principle
+
+The system must be designed in layers.
+
+Each layer should have a clear responsibility and should avoid knowing too much about other layers.
+
+The long-term structure is:
+
+~~~text
+Raw Intake -> Decision Engine -> DispatchCase Builder -> Memory Layer -> Interfaces
+~~~
+
+The main risk at this stage is coupling.
+
+If market analysis, decision logic, Telegram formatting, event logging, broker memory, reload logic, and SQLite all depend directly on each other, the system will become hard to test, replay, and scale.
+
+---
+
+## 2. Layer 1 - Raw Intake
+
+Raw Intake only handles:
+
+- parsing
+- normalization
+- ingestion
+- source-specific cleanup
+
+Output should be normalized load data, usually represented as `MarketLoad` or a compatible data structure.
+
+Raw Intake must not know about:
+
+- Telegram
+- SQLite
+- dispatcher feedback
+- broker scoring
+- driver lane memory
+- final decisions
+
+Examples:
+
+~~~text
+load_source.py
+contact_parser.py
+notes_parser.py
+notes_parser_*.py
+market_contact_extractor.py
+~~~
+
+---
+
+## 3. Layer 2 - Decision Engine
+
+Decision Engine produces a decision.
+
+It should answer:
+
+~~~text
+Should this load be MATCH, REVIEW_ONCE, BLOCK, or UNKNOWN?
+Why?
+What category?
+What reasons?
+~~~
+
+The Decision Engine may use:
+
+- driver profile
+- equipment rules
+- weight rules
+- OD / permit logic
+- document requirements
+- rate logic
+- broker risk context
+- memory context when safe
+
+The Decision Engine must not directly handle:
+
+- Telegram sending
+- SQLite writes
+- PDF/ratecon files
+- JSONL persistence
+- UI actions
+
+Output should be a structured `LoadDecision`-style result.
+
+---
+
+## 4. Layer 3 - DispatchCase Builder
+
+DispatchCase Builder connects:
+
+- market data
+- AI decision
+- Telegram alert evidence
+- dispatcher feedback
+- ratecon evidence
+- final outcome
+- event timeline
+
+This layer answers:
+
+~~~text
+What happened to this opportunity?
+What did the AI recommend?
+What did the dispatcher do?
+What was the final result?
+~~~
+
+Examples:
+
+~~~text
+dispatch_case.py
+case_factory.py
+case_event_builder.py
+case_matcher.py
+case_status_engine.py
+case_update_applier.py
+case_id_resolver.py
+~~~
+
+DispatchCase is the operational backbone of the system.
+
+---
+
+## 5. Layer 4 - Memory Layer
+
+Memory Layer stores and reads structured operational truth.
+
+Current direction:
+
+~~~text
+JSONL audit logs -> SQLite operational memory -> future Postgres if needed
+~~~
+
+Memory should support:
+
+- broker history
+- driver behavior
+- lane behavior
+- feedback learning
+- event replay
+- case reports
+- future probabilistic scoring
+
+Memory must not silently override hard business logic.
+
+Memory can:
+
+- add context
+- add reasons
+- suggest review
+- improve confidence
+
+Memory must not override:
+
+- equipment mismatch
+- explicit No Conestoga
+- OD / permit hard block
+- overweight hard block
+- broker MC requirement
+- date/time incompatibility
+- dimensions that do not fit equipment
+
+---
+
+## 6. Layer 5 - Interfaces
+
+Interfaces expose system output to humans or external tools.
+
+Current interface:
+
+- Telegram alerts
+- Telegram feedback bot
+- reports
+
+Future interfaces:
+
+- dashboard
+- desktop observer
+- browser/clipboard observer
+- DAT/API adapter
+- dispatcher assistant UI
+
+Interfaces must not own core business logic.
+
+Telegram formatting should not decide whether a load is good.
+
+Dashboard views should not mutate decisions directly.
+
+Observer tools must follow:
+
+~~~text
+Observe first.
+Do not click.
+Do not book.
+Do not send without confirmation.
+~~~
+
+---
+
+## 7. Replay architecture
+
+Replay is a major future architecture block.
+
+Dispatch Replay Engine should be able to take:
+
+- historical market snapshot
+- historical loads
+- historical driver state
+- historical AI decisions
+- dispatcher actions
+- final outcomes
+
+and replay:
+
+- what AI would recommend
+- what dispatcher actually did
+- what happened later
+- whether the AI was too strict or too soft
+
+Replay supports:
+
+- backtesting
+- evaluation
+- AI-vs-human comparison
+- training dataset creation
+- missed opportunity detection
+- rule regression testing
+
+---
+
+## 8. Missed Opportunity Engine
+
+Missed Opportunity Engine is a future intelligence module.
+
+It should identify:
+
+- strong loads that were ignored
+- weak loads that AI recommended
+- RATE CHECK loads that later became good
+- brokers or lanes that were underestimated
+- lanes where dispatcher behavior differs from AI recommendations
+
+This should be built after the event timeline, SQLite memory, and replay engine are stable.
+
+---
+
+## 9. Probabilistic memory direction
+
+Broker, driver, and lane memory are currently rules-based.
+
+That is acceptable for MVP and foundation hardening.
+
+Future memory should become more probabilistic.
+
+Possible future signals:
+
+~~~text
+broker_reliability_score
+broker_negotiation_score
+conestoga_acceptance_probability
+late_appointment_probability
+lane_profitability_score
+driver_acceptance_probability
+rate_check_conversion_probability
+~~~
+
+This must be added carefully after enough structured history exists.
+
+Do not add probabilistic scoring before replay and memory consistency are reliable.
+
+---
+
+## 10. Current architecture discipline
+
+Current development rule:
+
+~~~text
+small focused module + matching test file + orchestrator import
+~~~
+
+Orchestrator files should coordinate workflow only.
+
+Examples of orchestrator-only direction:
+
+~~~text
+notes_parser.py -> parse_notes()
+driver_lane_preference_rules.py -> get_driver_lane_preference_status()
+dispatch_case.py -> build_cases_and_events()
+~~~
+
+New logic should not be added to already-large files without first checking whether it belongs in a focused helper module.
+
+---
+
+## 11. What not to build yet
+
+Do not focus now on:
+
+- autonomous booking
+- voice AI
+- AI agents everywhere
+- huge dashboards
+- uncontrolled browser automation
+- live DAT/API write actions
+
+Current stage:
+
+~~~text
+intelligence infrastructure
+~~~
+
+The correct focus is:
+
+- strict layers
+- stable entities
+- event discipline
+- replay architecture
+- memory consistency
+- tests

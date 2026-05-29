@@ -155,3 +155,44 @@ The assistant should provide:
 - commit command only after verification
 
 The user should not make independent code changes without a clear instruction in the current workflow.
+---
+
+## 9. Layer boundary rule
+
+The project should follow strict architecture layers:
+
+~~~text
+Raw Intake -> Decision Engine -> DispatchCase Builder -> Memory Layer -> Interfaces
+~~~
+
+Layer rules:
+
+- Raw Intake should not know Telegram or SQLite.
+- Decision Engine should not send Telegram messages.
+- Decision Engine should not write SQLite directly.
+- DispatchCase Builder should connect decisions, events, feedback, and outcomes.
+- Memory Layer should store and retrieve operational truth.
+- Interfaces should display or collect information, not own business rules.
+
+Avoid circular dependencies.
+
+Avoid shortcuts where Telegram, reports, or memory modules make core dispatch decisions directly.
+
+---
+
+## 10. Replay-first intelligence rule
+
+Before building autonomous agents, large dashboards, or live automation, the project should build replay and missed opportunity intelligence.
+
+Priority order:
+
+1. stable events
+2. stable DispatchCase timeline
+3. SQLite memory consistency
+4. replay engine
+5. missed opportunity engine
+6. probabilistic memory
+7. observer / interface expansion
+8. live DAT/API integration
+
+Do not build autonomous booking before replay can explain whether the AI was right or wrong.
