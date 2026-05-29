@@ -145,7 +145,7 @@ The helper is pure and does not implement parser, storage, Telegram, Gmail/email
 Recommended next target:
 
 ```text
-Intake dry-run scenario runner
+Private RateCon fixture safety / gitignore foundation
 ```
 
 Only after confirmation.

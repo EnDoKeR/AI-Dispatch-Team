@@ -122,6 +122,16 @@ tests/test_synthetic_intake_records.py
 
 They contain fake RateCon-like records only. They do not contain real broker, customer, driver, contact, or RateCon data.
 
+Synthetic scenario runner:
+
+```text
+app/market_intelligence/intake_scenario_runner.py
+scripts/run_intake_scenarios.py
+tests/test_intake_scenario_runner.py
+```
+
+The runner processes the synthetic fixtures through the intake record and dry-run summary helpers, then reports scenario pass/fail status, missing-field counts, and needs-check counts. It does not parse PDFs, read real documents, store records, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events.
+
 The safest first implementation target after this design is a pure JSON-ready record helper, not a parser.
 
 ## Mandatory Fields

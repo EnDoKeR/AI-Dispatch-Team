@@ -246,3 +246,13 @@ tests/test_synthetic_intake_records.py
 ```
 
 The fixtures cover clean records, missing broker fields, missing dates, missing weight, missing commodity, missing reference id, special requirements, weak confidence fields, and missing rate. They are fake data only.
+
+The fixtures are exercised by:
+
+```text
+app/market_intelligence/intake_scenario_runner.py
+scripts/run_intake_scenarios.py
+tests/test_intake_scenario_runner.py
+```
+
+This runner is dry-run only and uses synthetic data only.
