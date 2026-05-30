@@ -6,10 +6,21 @@ from app.document_ai.layout_provider_diagnostics import (
     QUALITY_RICH_LAYOUT,
     QUALITY_TABLE_LIKE,
     QUALITY_TEXT_ONLY,
+    build_layout_provider_diagnostics,
     build_provider_document_diagnostics,
     build_provider_page_diagnostics,
     build_stop_evidence_signals,
     compute_layout_quality_bucket,
+    summarize_layout_tables,
+    summarize_stop_label_signals,
+)
+from app.document_ai.layout_artifacts import (
+    build_layout_extraction_artifact,
+    build_layout_line,
+    build_layout_page_artifact,
+    build_layout_table,
+    build_layout_table_cell,
+    build_layout_word,
 )
 
 
@@ -106,6 +117,97 @@ class LayoutProviderDiagnosticsTests(unittest.TestCase):
             "time_label_hits",
             "table_stop_like_rows",
         })
+
+    def test_diagnostics_builder_counts_synthetic_table_artifact(self):
+        artifact = build_layout_extraction_artifact(
+            provider="pdfplumber",
+            pages=[
+                build_layout_page_artifact(
+                    page_number=1,
+                    words=[
+                        build_layout_word(text="Pickup"),
+                        build_layout_word(text="Delivery"),
+                    ],
+                    lines=[
+                        build_layout_line(
+                            "line_1",
+                            text_redacted="Pickup Date <DATE>",
+                            page_number=1,
+                        ),
+                        build_layout_line(
+                            "line_2",
+                            text_redacted="Delivery Time <TIME>",
+                            page_number=1,
+                        ),
+                    ],
+                    tables=[
+                        build_layout_table(
+                            "table_1",
+                            page_number=1,
+                            cells=[
+                                build_layout_table_cell(0, 0, "Stop"),
+                                build_layout_table_cell(0, 1, "Date"),
+                                build_layout_table_cell(0, 2, "Time"),
+                                build_layout_table_cell(1, 0, "Pickup"),
+                                build_layout_table_cell(1, 1, "<DATE>"),
+                                build_layout_table_cell(1, 2, "<TIME>"),
+                                build_layout_table_cell(2, 0, "Delivery"),
+                                build_layout_table_cell(2, 1, "<DATE>"),
+                                build_layout_table_cell(2, 2, "<TIME>"),
+                            ],
+                        )
+                    ],
+                )
+            ],
+        )
+        provider_result = {
+            "provider_name": "pdfplumber",
+            "status": "success",
+            "artifact": artifact,
+            "page_count": 1,
+        }
+
+        diagnostics = build_layout_provider_diagnostics(provider_result)
+
+        self.assertEqual(diagnostics["total_word_count"], 2)
+        self.assertEqual(diagnostics["total_line_count"], 2)
+        self.assertEqual(diagnostics["total_table_count"], 1)
+        self.assertEqual(diagnostics["total_table_cell_count"], 9)
+        self.assertGreaterEqual(
+            diagnostics["stop_evidence_signals"]["pickup_label_hits"],
+            1,
+        )
+        self.assertGreaterEqual(
+            diagnostics["stop_evidence_signals"]["table_stop_like_rows"],
+            2,
+        )
+        self.assertFalse(diagnostics["raw_text_included"])
+
+    def test_table_and_stop_signal_summaries_do_not_return_values(self):
+        artifact = build_layout_extraction_artifact(
+            pages=[
+                build_layout_page_artifact(
+                    page_number=1,
+                    tables=[
+                        build_layout_table(
+                            "table_1",
+                            cells=[
+                                build_layout_table_cell(0, 0, "Pickup"),
+                                build_layout_table_cell(0, 1, "Date"),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        )
+
+        table_summary = summarize_layout_tables(artifact)
+        signals = summarize_stop_label_signals(artifact)
+        dumped = json.dumps({"table": table_summary, "signals": signals})
+
+        self.assertEqual(table_summary["table_count"], 1)
+        self.assertNotIn("Pickup", dumped)
+        self.assertNotIn("Date", dumped)
 
 
 if __name__ == "__main__":
