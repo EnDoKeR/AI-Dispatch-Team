@@ -85,6 +85,11 @@ class OperationalFusionTests(unittest.TestCase):
 
         self.assertIn(FIELD_EQUIPMENT, result["conflict_fields"])
         self.assertTrue(result["decisions"][0]["review_required"])
+        self.assertEqual(result["worsened_fields"], [])
+        self.assertIn(
+            "layout_candidate_rejected_to_prevent_regression",
+            result["warning_codes"],
+        )
 
     def test_special_requirement_preserved(self):
         text = self._candidate(

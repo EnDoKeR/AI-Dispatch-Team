@@ -3,6 +3,7 @@ import unittest
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
+    FIELD_EQUIPMENT,
     FIELD_DELIVERY_DATE,
     FIELD_PICKUP_DATE,
     FIELD_PICKUP_LOCATION,
@@ -167,6 +168,18 @@ class StopCandidateFusionTests(unittest.TestCase):
 
         self.assertEqual(result["worsened_fields"], [])
         self.assertIn(FIELD_PICKUP_LOCATION, result["unchanged_fields"])
+
+    def test_non_stop_resolved_baseline_fields_are_not_marked_worsened(self):
+        result = fuse_stop_candidates(
+            self._text_result([]),
+            build_stop_association_result(stop_groups=[]),
+            baseline_resolution_result={
+                "field_statuses": {FIELD_EQUIPMENT: "resolved"},
+            },
+        )
+
+        self.assertEqual(result["worsened_fields"], [])
+        self.assertEqual(result["unresolved_stop_fields"], [])
 
 
 if __name__ == "__main__":

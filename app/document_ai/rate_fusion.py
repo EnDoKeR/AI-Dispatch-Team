@@ -162,6 +162,9 @@ def fuse_rate_candidates(
             conflict_ids.extend([selected_id, _candidate_id(candidate, index)])
 
     if conflict_ids:
+        warnings = ["rate_fusion_conflicting_strong_totals"]
+        if baseline_status == "resolved":
+            warnings.append("layout_candidate_rejected_to_prevent_regression")
         return {
             "field_name": FIELD_RATE,
             "fused_status": "conflict",
@@ -169,9 +172,9 @@ def fuse_rate_candidates(
             "excluded_candidate_ids": sorted(set(excluded_ids)),
             "conflict_candidate_ids": sorted(set(conflict_ids)),
             "did_improve_baseline": False,
-            "did_worsen_baseline": baseline_status == "resolved",
+            "did_worsen_baseline": False,
             "review_required": True,
-            "warning_codes": ["rate_fusion_conflicting_strong_totals"],
+            "warning_codes": warnings,
             "fusion_version": RATE_FUSION_VERSION,
         }
 

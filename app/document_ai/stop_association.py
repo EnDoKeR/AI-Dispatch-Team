@@ -773,7 +773,7 @@ def fuse_stop_candidates(
     fields = sorted(
         set(candidate["full_field_name"] for candidate in text_candidates)
         | set(candidate["full_field_name"] for candidate in layout_candidates)
-        | set(baseline_statuses)
+        | (set(baseline_statuses) & set(_TEXT_STOP_FIELD_MAP))
     )
 
     improved = []
@@ -820,7 +820,8 @@ def fuse_stop_candidates(
         else:
             unresolved.append(field_name)
             if baseline_status == "resolved":
-                worsened.append(field_name)
+                unchanged.append(field_name)
+                warnings.append("layout_candidate_rejected_to_prevent_regression")
 
     return {
         "stop_groups": (layout_stop_association_result or {}).get("stop_groups", []),

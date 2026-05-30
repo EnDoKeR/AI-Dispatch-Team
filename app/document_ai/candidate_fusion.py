@@ -47,6 +47,23 @@ FUSION_STATUS_CONFLICT = "conflict"
 FUSION_STATUS_NEEDS_REVIEW = "needs_review"
 
 FUSION_VERSION = "candidate_fusion_v1"
+NO_REGRESSION_WARNING = "layout_candidate_rejected_to_prevent_regression"
+
+PROTECTED_CRITICAL_FIELDS = {
+    "broker_name",
+    "broker_mc",
+    "load_number",
+    "rate",
+    "pickup_location",
+    "pickup_date",
+    "pickup_time",
+    "delivery_location",
+    "delivery_date",
+    "delivery_time",
+    "equipment",
+    "weight",
+    "commodity",
+}
 
 _CONFIDENCE_SCORE = {
     CANDIDATE_CONFIDENCE_HIGH: 30,
@@ -323,3 +340,63 @@ def fuse_candidates_by_field(candidates, baseline_statuses=None):
         conflict_fields=sorted(set(conflict_fields)),
         warning_codes=sorted(set(warnings)),
     )
+
+
+def apply_no_regression_guard(
+    fusion_result,
+    baseline_statuses=None,
+    protected_fields=None,
+    allow_layout_regression_for_debug=False,
+):
+    result = dict(fusion_result or {})
+    if allow_layout_regression_for_debug:
+        return result
+
+    baseline_statuses = baseline_statuses or {}
+    protected = {
+        normalize_field_name(field)
+        for field in (protected_fields or PROTECTED_CRITICAL_FIELDS)
+    }
+    worsened = {
+        normalize_field_name(field)
+        for field in result.get("worsened_fields", []) or []
+    }
+    unchanged = {
+        normalize_field_name(field)
+        for field in result.get("unchanged_fields", []) or []
+    }
+    warnings = set(normalize_list(result.get("warning_codes")))
+
+    prevented = sorted(
+        field
+        for field in worsened
+        if field in protected and _text(baseline_statuses.get(field)) == "resolved"
+    )
+    if not prevented:
+        return result
+
+    worsened -= set(prevented)
+    unchanged |= set(prevented)
+    warnings.add(NO_REGRESSION_WARNING)
+    result["worsened_fields"] = sorted(worsened)
+    result["unchanged_fields"] = sorted(unchanged)
+    result["prevented_regression_fields"] = prevented
+    result["warning_codes"] = sorted(warnings)
+
+    guarded_decisions = []
+    for decision in result.get("decisions", []) or []:
+        if not isinstance(decision, dict):
+            continue
+        item = dict(decision)
+        field_name = normalize_field_name(item.get("field_name"))
+        if field_name in prevented:
+            item["did_worsen_baseline"] = False
+            item["review_required"] = True
+            item["warning_codes"] = sorted(
+                set(normalize_list(item.get("warning_codes"))) | {NO_REGRESSION_WARNING}
+            )
+        guarded_decisions.append(item)
+    if guarded_decisions:
+        result["decisions"] = guarded_decisions
+
+    return result

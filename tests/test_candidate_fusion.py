@@ -4,8 +4,10 @@ import unittest
 from app.document_ai.candidate_fusion import (
     FUSION_STATUS_CONFLICT,
     FUSION_STATUS_RESOLVED,
+    NO_REGRESSION_WARNING,
     SOURCE_PRIORITY_LAYOUT_TABLE,
     SOURCE_PRIORITY_TEXT_REGEX,
+    apply_no_regression_guard,
     build_candidate_fusion_result,
     classify_candidate_source_priority,
     fuse_candidates_by_field,
@@ -128,6 +130,44 @@ class CandidateFusionTests(unittest.TestCase):
 
         self.assertIn("candidate_fusion_v1", text)
         self.assertIn(FIELD_RATE, text)
+
+    def test_no_regression_guard_removes_protected_worsened_field(self):
+        guarded = apply_no_regression_guard(
+            {
+                "worsened_fields": [FIELD_RATE],
+                "unchanged_fields": [],
+                "warning_codes": [],
+                "decisions": [
+                    {
+                        "field_name": FIELD_RATE,
+                        "did_worsen_baseline": True,
+                        "warning_codes": [],
+                    }
+                ],
+            },
+            baseline_statuses={FIELD_RATE: "resolved"},
+        )
+
+        self.assertEqual(guarded["worsened_fields"], [])
+        self.assertIn(FIELD_RATE, guarded["unchanged_fields"])
+        self.assertIn(FIELD_RATE, guarded["prevented_regression_fields"])
+        self.assertIn(NO_REGRESSION_WARNING, guarded["warning_codes"])
+        self.assertFalse(guarded["decisions"][0]["did_worsen_baseline"])
+
+    def test_no_regression_guard_allows_explicit_debug_regression(self):
+        result = {
+            "worsened_fields": [FIELD_RATE],
+            "unchanged_fields": [],
+            "warning_codes": [],
+        }
+
+        guarded = apply_no_regression_guard(
+            result,
+            baseline_statuses={FIELD_RATE: "resolved"},
+            allow_layout_regression_for_debug=True,
+        )
+
+        self.assertEqual(guarded["worsened_fields"], [FIELD_RATE])
 
 
 if __name__ == "__main__":

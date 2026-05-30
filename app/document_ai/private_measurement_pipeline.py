@@ -23,6 +23,11 @@ from app.document_ai.extraction_scope import (
     should_skip_ratecon_extraction,
 )
 from app.document_ai.layout_pipeline import extract_layout_candidates_from_pdf
+from app.document_ai.candidate_fusion import (
+    NO_REGRESSION_WARNING,
+    PROTECTED_CRITICAL_FIELDS,
+    apply_no_regression_guard,
+)
 from app.document_ai.operational_fusion import fuse_operational_detail_candidates
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
@@ -286,6 +291,7 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "fusion_worsened_fields": [],
         "fusion_unchanged_fields": [],
         "fusion_conflict_fields": [],
+        "prevented_regression_fields": [],
         "stop_group_count": 0,
         "fusion_warning_codes": [],
         "fused_candidate_result": None,
@@ -329,6 +335,7 @@ def _layout_fusion_fields(
     baseline_resolution_result,
     document_type="",
     enable_layout_fusion=False,
+    allow_layout_regression_for_debug=False,
 ):
     defaults = _default_fusion_fields(enable_layout_fusion=enable_layout_fusion)
     if not enable_layout_fusion:
@@ -408,6 +415,22 @@ def _layout_fusion_fields(
             + operational_fusion.get("warning_codes", [])
         )
     )
+    guard_result = apply_no_regression_guard(
+        {
+            "worsened_fields": worsened,
+            "unchanged_fields": unchanged,
+            "warning_codes": fusion_warnings,
+        },
+        baseline_statuses=baseline_statuses,
+        protected_fields=PROTECTED_CRITICAL_FIELDS,
+        allow_layout_regression_for_debug=allow_layout_regression_for_debug,
+    )
+    worsened = guard_result.get("worsened_fields", worsened)
+    unchanged = guard_result.get("unchanged_fields", unchanged)
+    prevented_regressions = guard_result.get("prevented_regression_fields", [])
+    fusion_warnings = guard_result.get("warning_codes", fusion_warnings)
+    if prevented_regressions:
+        fusion_warnings = sorted(set(fusion_warnings) | {NO_REGRESSION_WARNING})
 
     defaults.update(
         {
@@ -416,6 +439,7 @@ def _layout_fusion_fields(
             "fusion_worsened_fields": worsened,
             "fusion_unchanged_fields": unchanged,
             "fusion_conflict_fields": conflicts,
+            "prevented_regression_fields": prevented_regressions,
             "stop_group_count": len(stop_association.get("stop_groups", [])),
             "fusion_warning_codes": fusion_warnings,
             "fused_candidate_result": _build_fused_candidate_result(

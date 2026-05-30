@@ -126,8 +126,10 @@ def fuse_operational_detail_candidates(
             status = "conflict"
             conflicts.append(field_name)
             warnings.append(f"operational_fusion_conflict:{field_name}")
+            if baseline_status == "resolved":
+                warnings.append("layout_candidate_rejected_to_prevent_regression")
             did_improve = False
-            did_worsen = baseline_status == "resolved"
+            did_worsen = False
         else:
             status = "resolved"
             did_improve = baseline_status in _UNRESOLVED_STATUSES

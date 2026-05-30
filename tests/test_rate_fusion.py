@@ -112,6 +112,23 @@ class RateFusionTests(unittest.TestCase):
         self.assertTrue(result["review_required"])
         self.assertIn("rate_fusion_conflicting_strong_totals", result["warning_codes"])
 
+    def test_conflicting_layout_rate_does_not_mark_resolved_baseline_worsened(self):
+        text = self._candidate("text_rate", "2400.00", source=SOURCE_REGEX, section_role="")
+        layout = self._candidate("layout_rate", "2600.00")
+
+        result = fuse_rate_candidates(
+            text_candidates=[text],
+            layout_candidates=[layout],
+            baseline_status="resolved",
+        )
+
+        self.assertEqual(result["fused_status"], "conflict")
+        self.assertFalse(result["did_worsen_baseline"])
+        self.assertIn(
+            "layout_candidate_rejected_to_prevent_regression",
+            result["warning_codes"],
+        )
+
     def test_tonu_payment_is_separate_from_normal_linehaul(self):
         tonu = self._candidate(
             "tonu_amount",
