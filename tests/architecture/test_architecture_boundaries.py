@@ -615,6 +615,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         classification_files = [
             DOCUMENT_AI_PACKAGE / "document_classification.py",
             DOCUMENT_AI_PACKAGE / "extraction_scope.py",
+            DOCUMENT_AI_PACKAGE / "classification_audit.py",
         ]
 
         for path in classification_files:
@@ -632,6 +633,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         classification_files = [
             DOCUMENT_AI_PACKAGE / "document_classification.py",
             DOCUMENT_AI_PACKAGE / "extraction_scope.py",
+            DOCUMENT_AI_PACKAGE / "classification_audit.py",
         ]
 
         for path in classification_files:
@@ -655,6 +657,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for fragment in forbidden_fragments:
             with self.subTest(fragment=fragment):
                 self.assertNotIn(fragment, source)
+
+    def test_classification_audit_outputs_are_local_only_and_redacted(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "classification_audit.py")
+
+        self.assertIn(".local_outputs/private_ratecon_measurement", source)
+        self.assertIn("No raw text, filenames, paths, or private values included.", source)
+        self.assertIn("FORBIDDEN_AUDIT_KEYS", source)
+        self.assertNotIn("DispatchCase", source)
+        self.assertNotIn("DecisionEngine", source)
 
 
 if __name__ == "__main__":
