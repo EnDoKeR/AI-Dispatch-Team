@@ -2368,8 +2368,9 @@ Current commands:
 
 ```powershell
 py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
 py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
-py scripts/export_ratecon_dry_run_csv.py
+py scripts/export_ratecon_dry_run_csv.py --limit 3
 ```
 
 Current status:
@@ -2377,8 +2378,11 @@ Current status:
 - parser improvements were driven by fake/synthetic examples only;
 - no private text entered tracked files;
 - no private fixtures were created;
+- redacted layout-shape diagnostics can show placeholder-only label/value structures;
+- parser hardening now covers safe label-adjacent values such as `TOTAL: USD $ <AMOUNT>`, `Load #: <ID>`, next-line shipper/consignee addresses, and table-like commodity/weight/equipment rows;
 - CSV export writes safe status/summary columns only;
 - CSV output defaults to `data/private_ratecons/dry_run_results/`, which is gitignored;
+- CSV export now defaults to a batch size of 3 so row counts match the batch review command unless overridden;
 - no Google Sheets API, legacy sheet writer, OCR, Telegram upload, Gmail/email, DispatchCase writes, DAT/API, Google Maps, accounting/factoring, or reload-chain metadata were added.
 
 Options evaluated:
@@ -2400,6 +2404,8 @@ Safe share fields:
 - anonymized labels;
 - extraction status;
 - page/character counts;
+- signal counts by category;
+- sanitized shape categories and placeholder shapes if needed;
 - missing field names;
 - needs-check field names;
 - low-confidence field names;

@@ -147,6 +147,32 @@ Before closing the dry-run:
 - [ ] If CSV export was used, did it contain only status fields, missing/needs-check fields, low-confidence field names, parser-gap field names, result categories, and generic warnings?
 - [ ] Did the CSV avoid broker names, MCs, addresses, reference IDs, appointment details, and raw extracted text?
 
+## Batch 3 Review Commands
+
+Use these commands for the next local/private rerun:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py --limit 3
+```
+
+Share only safe summary fields:
+
+- extraction status;
+- page/character counts;
+- signal counts;
+- sanitized shape categories if needed;
+- missing fields;
+- needs-check fields;
+- low-confidence fields;
+- suspected parser gap fields;
+- result categories;
+- generic warnings.
+
+Do not share raw extracted text, private values, broker/customer/contact names, MCs, addresses, reference numbers, appointment details, or document snippets.
+
 ## Recommended Follow-up
 
 For each dry-run, record only local/private notes unless the content is fully anonymized.

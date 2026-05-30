@@ -1040,20 +1040,30 @@ Future capabilities:
 
 ## Current next step
 
-After legacy load-intake deletion cleanup:
+After redacted layout diagnostics, synthetic parser hardening, and CSV batch export review:
 
-1. User runs private batch diagnostics and PDF dry-run locally with limit 3.
-2. User reviews safe summary output and optional CSV export.
-3. If parser gaps remain, add more anonymized synthetic scenarios before parser changes.
-4. If `pypdf` text order is poor, run PDF extraction dependency refinement audit.
-5. Keep active intake work under `app/market_intelligence/intake/`.
-6. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
-7. Do not start OCR, dependency expansion, Google Sheets API work, or legacy parser reuse without a separate accepted block.
+1. User reruns private batch diagnostics and PDF dry-run locally with limit 3.
+2. User exports CSV summaries with the batch command.
+3. User shares only safe summary fields: extraction status, page/character counts, signal counts, sanitized shape categories, missing/needs-check/low-confidence field names, parser-gap field names, result categories, and generic warnings.
+4. If parser gaps remain, add more anonymized synthetic scenarios before parser changes.
+5. If `pypdf` text order is poor, run PDF extraction dependency refinement audit.
+6. Keep active intake work under `app/market_intelligence/intake/`.
+7. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
+8. Do not start OCR, dependency expansion, Google Sheets API work, or legacy parser reuse without a separate accepted block.
+
+Recommended commands:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py --limit 3
+```
 
 Closeout decision:
 
 ```text
-Next: private PDF dry-run batch 3 with safe summaries only.
+Next: rerun private PDF dry-run batch 3 with updated redacted diagnostics, parser hardening, and CSV export.
 Then: more anonymized synthetic scenarios if gaps remain.
 ```
 

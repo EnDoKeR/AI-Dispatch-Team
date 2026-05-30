@@ -184,11 +184,14 @@ Current safe output includes:
 Related safe batch commands:
 
 ```powershell
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
 py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
-py scripts/export_ratecon_dry_run_csv.py
+py scripts/export_ratecon_dry_run_csv.py --limit 3
 ```
 
 The CSV export writes safe summary/status columns only to a gitignored local dry-run results folder. It does not export raw extracted text, private values, broker names, MCs, addresses, reference numbers, or document snippets, and it does not use Google Sheets APIs.
+
+The layout diagnostics command prints placeholder-only shapes and counts. The user may share sanitized shape categories and generic placeholders if needed, but must not share raw extracted text, real values, broker/customer/contact names, MCs, addresses, reference numbers, appointment details, or document snippets.
 
 Completed parser hardening from synthetic scenarios:
 
@@ -202,7 +205,7 @@ Completed parser hardening from synthetic scenarios:
 Recommended next step:
 
 ```text
-user runs private batch dry-run locally with limit 3 and shares safe summaries only
+user reruns private batch dry-run locally with limit 3 and shares safe summaries only
 ```
 
 Recommended follow-up:

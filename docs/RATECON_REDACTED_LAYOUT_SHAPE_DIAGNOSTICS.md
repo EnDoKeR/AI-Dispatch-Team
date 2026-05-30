@@ -115,6 +115,30 @@ Parser improvements must be made only after a safe layout shape is represented b
 5. Create new fake/anonymized scenarios from the shapes if parser gaps remain.
 6. Improve parser behavior only against those fake scenarios.
 
+## Batch 3 Rerun Command
+
+After synthetic parser hardening, run layout diagnostics alongside the existing redacted diagnostics and PDF dry-run commands:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py --limit 3
+```
+
+Share only safe summaries:
+
+- extraction status;
+- page/character counts;
+- signal counts;
+- sanitized shape categories and placeholder shapes if needed;
+- missing, needs-check, and low-confidence field names;
+- suspected parser gap field names;
+- result categories;
+- generic warnings.
+
+Do not share raw text, private values, broker/customer/contact names, MCs, addresses, reference numbers, appointment details, or document snippets.
+
 ## Stop Conditions
 
 Stop and return to process review if:
