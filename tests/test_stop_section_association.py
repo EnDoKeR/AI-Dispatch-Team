@@ -101,6 +101,40 @@ class StopSectionAssociationTests(unittest.TestCase):
         self.assertEqual(classification["stop_type"], STOP_TYPE_STOP)
         self.assertIn("ambiguous_stop_type", classification["warning_codes"])
 
+    def test_provider_style_lines_produce_stop_groups(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "lines": [
+                        {
+                            "line_id": "line_1",
+                            "text_redacted": "PU FAKE ORIGIN <DATE> <TIME>",
+                            "page_number": 1,
+                        },
+                        {
+                            "line_id": "line_2",
+                            "text_redacted": "SO FAKE DEST <DATE> <TIME>",
+                            "page_number": 1,
+                        },
+                    ],
+                    "blocks": [],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_sections(artifact)
+
+        self.assertEqual(len(result["stop_groups"]), 2)
+        self.assertEqual(result["stop_groups"][0]["stop_type"], STOP_TYPE_PICKUP)
+        self.assertEqual(result["stop_groups"][1]["stop_type"], STOP_TYPE_DELIVERY)
+        field_sets = [
+            {candidate["field_name"] for candidate in group["field_candidates"]}
+            for group in result["stop_groups"]
+        ]
+        self.assertIn(STOP_FIELD_DATE, field_sets[0])
+        self.assertIn(STOP_FIELD_TIME, field_sets[1])
+
 
 if __name__ == "__main__":
     unittest.main()

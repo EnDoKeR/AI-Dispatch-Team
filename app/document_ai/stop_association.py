@@ -196,18 +196,38 @@ def _sequence_from_text(value):
 
 def _column_kind(header_text):
     text = _text(header_text).lower()
-    if any(token in text for token in ["stop", "seq", "#", "number"]):
-        return "sequence"
-    if any(token in text for token in ["type", "activity", "event"]):
-        return "type"
-    if any(token in text for token in ["location", "city", "state", "address", "shipper", "consignee"]):
-        return STOP_FIELD_LOCATION
     if "date" in text:
         return STOP_FIELD_DATE
     if any(token in text for token in ["time", "appt", "appointment"]):
         return STOP_FIELD_TIME
     if any(token in text for token in ["ref", "reference", "po", "pickup #", "delivery #"]):
         return STOP_FIELD_REFERENCE
+    if any(token in text for token in ["stop", "seq", "#", "number"]):
+        return "sequence"
+    if any(token in text for token in ["type", "activity", "event"]):
+        return "type"
+    if any(
+        token in text
+        for token in [
+            "location",
+            "city",
+            "state",
+            "address",
+            "shipper",
+            "consignee",
+            "pickup",
+            "pick",
+            "pu",
+            "delivery",
+            "deliver",
+            "drop",
+            "del",
+            "so",
+            "origin",
+            "destination",
+        ]
+    ):
+        return STOP_FIELD_LOCATION
     return ""
 
 
@@ -226,6 +246,7 @@ def detect_stop_table_columns(table):
 
 
 def classify_stop_row(row, columns):
+    row_text = " ".join(_cell_text(cell) for cell in (row or {}).values())
     type_text = " ".join(
         _cell_text(row.get(col_index))
         for col_index, kind in columns.items()
@@ -236,7 +257,7 @@ def classify_stop_row(row, columns):
         for col_index, kind in columns.items()
         if kind == STOP_FIELD_LOCATION
     )
-    combined = f"{type_text} {location_text}"
+    combined = f"{row_text} {type_text} {location_text}"
     warnings = []
 
     if any(token in combined for token in ["pickup", "pick", "pu", "shipper", "origin"]):
@@ -304,9 +325,13 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
     for page in (layout_artifact or {}).get("pages", []) or []:
         for table in page.get("tables", []) or []:
             columns = detect_stop_table_columns(table)
-            if len(set(columns.values()) & {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME}) < 1:
-                continue
-            if "type" not in set(columns.values()) and "sequence" not in set(columns.values()):
+            stop_field_kinds = set(columns.values()) & {
+                STOP_FIELD_LOCATION,
+                STOP_FIELD_DATE,
+                STOP_FIELD_TIME,
+                STOP_FIELD_REFERENCE,
+            }
+            if len(stop_field_kinds) < 2:
                 continue
 
             rows = _rows_by_index(table)
@@ -329,7 +354,11 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
                 )
                 if not field_candidates:
                     continue
-                group_warnings = list(row_classification["warning_codes"])
+                if row_classification["stop_type"] == STOP_TYPE_STOP:
+                    group_warnings = list(row_classification["warning_codes"])
+                    group_warnings.append("provider_stop_table_row_type_ambiguous")
+                else:
+                    group_warnings = list(row_classification["warning_codes"])
                 warnings.extend(group_warnings)
                 stop_groups.append(
                     build_stop_group_candidate(
@@ -440,8 +469,8 @@ def classify_stop_section(block_or_section):
 def associate_nearby_date_time_to_stop(section_text):
     text = _text(section_text)
     return {
-        "has_date": bool(_DATE_RE.search(text)),
-        "has_time": bool(_TIME_RE.search(text)),
+        "has_date": bool(_DATE_RE.search(text)) or "<date>" in text.lower(),
+        "has_time": bool(_TIME_RE.search(text)) or "<time>" in text.lower(),
     }
 
 
@@ -523,6 +552,7 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
     stop_groups = []
     warnings = []
     for page in (layout_artifact or {}).get("pages", []) or []:
+        grouped_line_ids = set()
         for block in page.get("blocks", []) or []:
             if not isinstance(block, dict):
                 continue
@@ -539,6 +569,7 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                 warnings.extend(section_classification["warning_codes"])
                 continue
 
+            grouped_line_ids.update(_text(line_id) for line_id in block.get("line_ids", []) or [])
             stop_sequence = len(stop_groups) + 1
             stop_group_id = _text(block.get("block_id")) or f"section_stop_{stop_sequence}"
             fields = collect_stop_fields_within_section(
@@ -563,6 +594,60 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                     field_candidates=fields,
                     confidence=section_classification["confidence"],
                     reasons=["layout_section_preserves_stop_context"],
+                    warning_codes=group_warnings,
+                )
+            )
+
+        for line in page.get("lines", []) or []:
+            if not isinstance(line, dict):
+                continue
+            line_id = _text(line.get("line_id"))
+            if line_id and line_id in grouped_line_ids:
+                continue
+            line_text = _text(line.get("text_redacted"))
+            if not line_text:
+                continue
+            line_section = {
+                "section_role": line.get("section_role", ""),
+                "text_redacted": line_text,
+            }
+            section_classification = classify_stop_section(line_section)
+            if section_classification["ignored"]:
+                if "not_a_stop_section" not in section_classification["warning_codes"]:
+                    warnings.extend(section_classification["warning_codes"])
+                continue
+
+            stop_sequence = len(stop_groups) + 1
+            stop_group_id = line_id or f"line_stop_{stop_sequence}"
+            pseudo_block = {
+                "block_id": stop_group_id,
+                "block_type": "text",
+                "section_role": line.get("section_role", ""),
+                "line_ids": [line_id] if line_id else [],
+                "text_redacted": line_text,
+            }
+            fields = collect_stop_fields_within_section(
+                block=pseudo_block,
+                page=page,
+                stop_group_id=stop_group_id,
+                stop_type=section_classification["stop_type"],
+                stop_sequence=stop_sequence,
+            )
+            if not fields:
+                continue
+            group_warnings = list(section_classification["warning_codes"])
+            warnings.extend(group_warnings)
+            stop_groups.append(
+                build_stop_group_candidate(
+                    stop_group_id=stop_group_id,
+                    stop_sequence=stop_sequence,
+                    stop_type=section_classification["stop_type"],
+                    source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                    page_number=page.get("page_number", line.get("page_number", "")),
+                    section_role=_text(line.get("section_role")),
+                    field_candidates=fields,
+                    confidence=section_classification["confidence"],
+                    reasons=["layout_line_preserves_stop_context"],
                     warning_codes=group_warnings,
                 )
             )

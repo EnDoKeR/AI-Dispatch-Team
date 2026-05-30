@@ -88,6 +88,71 @@ class StopTableAssociationTests(unittest.TestCase):
         self.assertEqual(classification["stop_type"], "stop")
         self.assertIn("ambiguous_stop_type", classification["warning_codes"])
 
+    def test_provider_style_table_rows_produce_stop_groups_without_type_column(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "tables": [
+                        {
+                            "table_id": "P1_T1",
+                            "page_number": 1,
+                            "header_rows": [0],
+                            "cells": [
+                                {"row_index": 0, "col_index": 0, "text_redacted": "Stop"},
+                                {"row_index": 0, "col_index": 1, "text_redacted": "Location"},
+                                {"row_index": 0, "col_index": 2, "text_redacted": "Date"},
+                                {"row_index": 0, "col_index": 3, "text_redacted": "Time"},
+                                {"row_index": 1, "col_index": 0, "text_redacted": "PU"},
+                                {"row_index": 1, "col_index": 1, "text_redacted": "FAKE ORIGIN"},
+                                {"row_index": 1, "col_index": 2, "text_redacted": "<DATE>"},
+                                {"row_index": 1, "col_index": 3, "text_redacted": "<TIME>"},
+                                {"row_index": 2, "col_index": 0, "text_redacted": "SO"},
+                                {"row_index": 2, "col_index": 1, "text_redacted": "FAKE DEST"},
+                                {"row_index": 2, "col_index": 2, "text_redacted": "<DATE>"},
+                                {"row_index": 2, "col_index": 3, "text_redacted": "<TIME>"},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_tables(artifact)
+
+        self.assertEqual(len(result["stop_groups"]), 2)
+        self.assertEqual(result["stop_groups"][0]["stop_type"], STOP_TYPE_PICKUP)
+        self.assertEqual(result["stop_groups"][1]["stop_type"], STOP_TYPE_DELIVERY)
+
+    def test_provider_style_table_with_weak_headers_still_preserves_rows(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "tables": [
+                        {
+                            "table_id": "P1_T1",
+                            "page_number": 1,
+                            "header_rows": [0],
+                            "cells": [
+                                {"row_index": 0, "col_index": 0, "text_redacted": "#"},
+                                {"row_index": 0, "col_index": 1, "text_redacted": "City/State"},
+                                {"row_index": 0, "col_index": 2, "text_redacted": "Appt"},
+                                {"row_index": 1, "col_index": 0, "text_redacted": "Stop 1 Pickup"},
+                                {"row_index": 1, "col_index": 1, "text_redacted": "FAKE ORIGIN"},
+                                {"row_index": 1, "col_index": 2, "text_redacted": "<TIME>"},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_tables(artifact)
+
+        self.assertEqual(len(result["stop_groups"]), 1)
+        self.assertEqual(result["stop_groups"][0]["stop_type"], STOP_TYPE_PICKUP)
+
 
 if __name__ == "__main__":
     unittest.main()
