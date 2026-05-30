@@ -62,8 +62,8 @@ MATRIX = [
         "fixture": "missing_broker_mc_header_only_ratecon.txt",
         "status": TEMPLATE_SELECTION_STATUS_MATCHED,
         "template_id": "alpha_freight_mock_v1",
-        "resolved": ["rate", "pickup_location", "delivery_location"],
-        "missing": ["broker_name", "broker_mc"],
+        "resolved": ["broker_name", "rate", "pickup_location", "delivery_location"],
+        "missing": ["broker_mc"],
         "needs": [],
         "conflicts": [],
         "forbidden_resolved": ["broker_mc"],
@@ -215,6 +215,15 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
             broker_resolution["selected_candidate"]["normalized_value"],
             "Fake Carrier Placeholder LLC",
         )
+
+    def test_header_only_broker_name_can_resolve_without_inventing_mc(self):
+        _, resolution, intake = self._run_case("missing_broker_mc_header_only_ratecon.txt")
+        resolved_fields = self._resolved_fields(resolution)
+
+        self.assertIn("broker_name", resolved_fields)
+        self.assertIn("broker_mc", resolution["missing_fields"])
+        self.assertNotIn("broker_mc", resolved_fields)
+        self.assertNotIn("broker_mc", intake["missing_fields"])
 
     def test_reference_candidates_remain_typed_when_labels_are_clear(self):
         extraction, _, _ = self._run_case("references_near_wrong_stop_ratecon.txt")

@@ -7,7 +7,14 @@ from app.document_ai.broker_template_matcher import (
 )
 from app.document_ai.broker_template_scoring import apply_template_candidate_scoring
 from app.document_ai.ratecon_candidate_extraction import extract_ratecon_candidates
-from app.document_ai.ratecon_candidates import build_candidate_extraction_result
+from app.document_ai.ratecon_candidates import (
+    CANDIDATE_CONFIDENCE_HIGH,
+    CANDIDATE_CONFIDENCE_MEDIUM,
+    FIELD_BROKER_NAME,
+    SOURCE_BROKER_TEMPLATE_FUTURE,
+    build_candidate_extraction_result,
+    build_field_candidate,
+)
 
 
 TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION = "template_aware_candidate_extractor_v1"
@@ -39,6 +46,63 @@ def _safe_adjusted_candidate_result(base_result, adjusted_candidates, extractor_
     )
 
 
+def _artifact_text(artifact):
+    if isinstance(artifact, dict):
+        full_text = artifact.get("full_text", "")
+        if full_text:
+            return str(full_text or "")
+
+        return "\n".join(
+            str(page.get("text", "") or "")
+            for page in artifact.get("pages", [])
+            if isinstance(page, dict)
+        )
+
+    return str(getattr(artifact, "full_text", "") or "")
+
+
+def _has_field_candidate(candidates, field_name):
+    return any(candidate.get("field_name") == field_name for candidate in candidates)
+
+
+def _append_template_identity_candidates(candidates, template, template_selection, artifact):
+    if _has_field_candidate(candidates, FIELD_BROKER_NAME):
+        return candidates
+
+    display_name = str(template.get("display_name") or "").strip()
+    template_id = str(template.get("template_id") or "").strip()
+    if not display_name or not template_id:
+        return candidates
+
+    if display_name.lower() not in _artifact_text(artifact).lower():
+        return candidates
+
+    selected_confidence = float(template_selection.get("selected_confidence", 0.0) or 0.0)
+    confidence = (
+        CANDIDATE_CONFIDENCE_HIGH
+        if selected_confidence >= 0.7
+        else CANDIDATE_CONFIDENCE_MEDIUM
+    )
+    enriched = list(candidates)
+    enriched.append(
+        build_field_candidate(
+            candidate_id=f"template-broker-name-{template_id}",
+            field_name=FIELD_BROKER_NAME,
+            raw_value=display_name,
+            normalized_value=display_name,
+            confidence=confidence,
+            confidence_reasons=[
+                "matched_template_identity_keyword",
+                "broker_name_from_template_header",
+            ],
+            label="template_display_name",
+            source=SOURCE_BROKER_TEMPLATE_FUTURE,
+            value_type="name",
+        )
+    )
+    return enriched
+
+
 def extract_ratecon_candidates_with_template_context(artifact, registry_or_templates):
     templates = _templates_from_registry(registry_or_templates)
     base_candidate_result = extract_ratecon_candidates(artifact)
@@ -67,9 +131,15 @@ def extract_ratecon_candidates_with_template_context(artifact, registry_or_templ
             base_candidate_result,
             selected_template,
         )
+        adjusted_candidates = _append_template_identity_candidates(
+            scoring_result["adjusted_candidates"],
+            selected_template,
+            template_selection,
+            artifact,
+        )
         adjusted_candidate_result = _safe_adjusted_candidate_result(
             base_candidate_result,
-            scoring_result["adjusted_candidates"],
+            adjusted_candidates,
             TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION,
         )
         warnings.extend(scoring_result.get("warnings", []))
