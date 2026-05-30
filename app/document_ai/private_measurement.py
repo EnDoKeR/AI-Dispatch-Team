@@ -205,6 +205,8 @@ def build_private_ratecon_measurement_aggregate(
     empty_text_count=0,
     text_extracted_count=0,
     critical_field_missing_counts=None,
+    conflict_counts_by_field=None,
+    needs_check_counts_by_field=None,
     generated_at="",
     measurement_version=MEASUREMENT_VERSION,
 ):
@@ -219,6 +221,8 @@ def build_private_ratecon_measurement_aggregate(
         "empty_text_count": int(empty_text_count or 0),
         "text_extracted_count": int(text_extracted_count or 0),
         "critical_field_missing_counts": _normalize_mapping(critical_field_missing_counts),
+        "conflict_counts_by_field": _normalize_mapping(conflict_counts_by_field),
+        "needs_check_counts_by_field": _normalize_mapping(needs_check_counts_by_field),
         "generated_at": _text(generated_at),
         "measurement_version": _text(measurement_version or MEASUREMENT_VERSION),
         "raw_text_saved": False,

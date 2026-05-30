@@ -1,0 +1,111 @@
+import json
+import unittest
+
+from app.document_ai.private_measurement import (
+    BLOCKER_CONFLICTING_CRITICAL_FIELD,
+    BLOCKER_OCR_NEEDED,
+    EXTRACTION_STATUS_EMPTY_TEXT,
+    EXTRACTION_STATUS_TEXT_EXTRACTED,
+    FIELD_STATUS_CONFLICT,
+    FIELD_STATUS_MISSING,
+    FIELD_STATUS_RESOLVED,
+    build_field_status_summary,
+    build_private_ratecon_measurement_row,
+)
+from app.document_ai.private_measurement_reports import (
+    build_private_ratecon_measurement_aggregate,
+    compare_private_measurement_to_known_baseline,
+)
+
+
+class PrivateMeasurementReportTests(unittest.TestCase):
+    def _rows(self):
+        return [
+            build_private_ratecon_measurement_row(
+                document_alias="RATECON_001",
+                triage_route="DIGITAL_TEXT",
+                extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
+                template_status="unknown",
+                field_statuses=[
+                    build_field_status_summary("rate", FIELD_STATUS_RESOLVED),
+                    build_field_status_summary("weight", FIELD_STATUS_MISSING),
+                ],
+                missing_fields=["weight"],
+                blocker_categories=["MISSING_CRITICAL_FIELD"],
+                review_required=True,
+            ),
+            build_private_ratecon_measurement_row(
+                document_alias="RATECON_002",
+                triage_route="OCR_NEEDED",
+                extraction_status=EXTRACTION_STATUS_EMPTY_TEXT,
+                template_status="unknown",
+                field_statuses=[
+                    build_field_status_summary("rate", FIELD_STATUS_MISSING),
+                ],
+                missing_fields=["rate"],
+                blocker_categories=[BLOCKER_OCR_NEEDED],
+                review_required=True,
+            ),
+            build_private_ratecon_measurement_row(
+                document_alias="RATECON_003",
+                triage_route="DIGITAL_TEXT",
+                extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
+                template_status="matched",
+                field_statuses=[
+                    build_field_status_summary("rate", FIELD_STATUS_CONFLICT),
+                ],
+                conflict_fields=["rate"],
+                needs_check_fields=["rate"],
+                blocker_categories=[BLOCKER_CONFLICTING_CRITICAL_FIELD],
+                review_required=True,
+            ),
+        ]
+
+    def test_aggregate_counts_core_statuses(self):
+        aggregate = build_private_ratecon_measurement_aggregate(self._rows())
+
+        self.assertEqual(aggregate["document_count"], 3)
+        self.assertEqual(aggregate["text_extracted_count"], 2)
+        self.assertEqual(aggregate["empty_text_count"], 1)
+        self.assertEqual(aggregate["review_required_count"], 3)
+        self.assertEqual(aggregate["template_status_counts"]["unknown"], 2)
+
+    def test_aggregate_counts_missing_conflict_and_needs_check_fields(self):
+        aggregate = build_private_ratecon_measurement_aggregate(self._rows())
+
+        self.assertEqual(aggregate["critical_field_missing_counts"]["rate"], 1)
+        self.assertEqual(aggregate["critical_field_missing_counts"]["weight"], 1)
+        self.assertEqual(aggregate["conflict_counts_by_field"]["rate"], 1)
+        self.assertEqual(aggregate["needs_check_counts_by_field"]["rate"], 1)
+
+    def test_aggregate_counts_blockers(self):
+        aggregate = build_private_ratecon_measurement_aggregate(self._rows())
+
+        self.assertEqual(aggregate["blocker_category_counts"][BLOCKER_OCR_NEEDED], 1)
+        self.assertEqual(
+            aggregate["blocker_category_counts"][BLOCKER_CONFLICTING_CRITICAL_FIELD],
+            1,
+        )
+
+    def test_aggregate_serializes_without_private_values(self):
+        aggregate = build_private_ratecon_measurement_aggregate(self._rows())
+        payload = json.dumps(aggregate)
+
+        self.assertNotIn("FAKE BROKER LLC", payload)
+        self.assertFalse(aggregate["raw_text_saved"])
+        self.assertTrue(aggregate["private_values_redacted"])
+
+    def test_baseline_comparison_uses_counts_only(self):
+        aggregate = build_private_ratecon_measurement_aggregate(self._rows())
+        comparison = compare_private_measurement_to_known_baseline(
+            aggregate,
+            {"empty_text_count": 1, "text_extracted_count": 2},
+        )
+
+        self.assertTrue(comparison["baseline_compared"])
+        self.assertEqual(comparison["empty_text_count_delta"], 0)
+        self.assertFalse(comparison["comparison_uses_private_values"])
+
+
+if __name__ == "__main__":
+    unittest.main()
