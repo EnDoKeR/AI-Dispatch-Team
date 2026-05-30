@@ -2534,3 +2534,74 @@ Not recommended next:
 - Telegram upload handling;
 - Gmail/email;
 - DAT/API or Google Maps.
+
+## RateCon Core Field Alignment And Value Review Closeout
+
+Completed:
+
+- RateCon core-field policy now matches the user's working review table;
+- `broker_mc` and `equipment` are optional for current RateCon core success;
+- `loaded_miles` is deferred with `miles_status = DEFERRED_GOOGLE_MAPS` and `miles_source = NOT_FROM_RATECON`;
+- dry-run summaries now separate `missing_core_fields`, `optional_missing_fields`, and `deferred_fields`;
+- fake table-style scenarios cover the user's table columns;
+- parser hardening for user table-style rows is based on fake/synthetic examples only;
+- local private value-review CSV export exists and writes only to the ignored private dry-run results folder.
+
+Safe local rerun result:
+
+- two sampled PDFs produced extractable text;
+- one sampled PDF produced `EMPTY_TEXT`;
+- persistent parser gaps remain in core fields, especially customer/load identity, stop/date, rate, and weight categories;
+- safe dry-run CSV export produced 3 rows using an ignored alternate output path because the default path was locally locked;
+- private value-review CSV produced 3 rows using an ignored alternate output path;
+- no private PDFs, extracted text, private values, or CSV outputs are tracked.
+
+Options evaluated:
+
+1. user opens the local value-review CSV and verifies extracted values;
+2. add more fake table/layout scenarios if core extraction is still weak;
+3. run a PDF extraction dependency refinement audit if `EMPTY_TEXT` or text order becomes the blocker;
+4. plan optional Google Sheets adapter later only after CSV format is accepted;
+5. keep miles/Google Maps and OCR as separate later blocks.
+
+Recommended next target:
+
+```text
+user opens the local private value-review CSV and shares only safe field-status feedback
+```
+
+Safe feedback should include only:
+
+- anonymized labels;
+- field status as yes/no/partial/missing;
+- missing core field names;
+- optional missing field names;
+- deferred field names;
+- low-confidence field names;
+- result categories;
+- generic warning categories.
+
+Recommended follow-up if core extraction remains weak:
+
+```text
+more anonymized synthetic table/layout scenarios, then another parser hardening round against fake data only
+```
+
+Recommended later target if CSV review is accepted:
+
+```text
+optional Google Sheets adapter plan
+```
+
+This must be a separate adapter block and should not reuse the deleted legacy sheet writer.
+
+Not recommended next:
+
+- committing private value-review CSVs;
+- Google Sheets API;
+- OCR;
+- parser fixtures from private text;
+- DispatchCase creation/linking/events;
+- Telegram upload handling;
+- Gmail/email;
+- DAT/API or Google Maps.

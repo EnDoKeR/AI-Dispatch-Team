@@ -63,3 +63,21 @@ RateCon dry-run should not be downgraded to field-fix status only because:
 ## Privacy Boundary
 
 Tracked tests and docs must use fake values only. Do not commit private PDFs, extracted text, real customer/broker/contact names, MCs, addresses, phone numbers, emails, reference numbers, appointment details, or document snippets.
+
+## Current Dry-run Closeout
+
+The local private batch rerun confirmed the policy behavior:
+
+- `loaded_miles` is reported as deferred, not missing;
+- missing `broker_mc` does not block current core extraction by itself;
+- missing `equipment` does not block current core extraction by itself;
+- value-review CSV output is local-only and ignored by Git;
+- private extracted values may be reviewed locally by the user but must not be committed or copied into tracked docs/tests.
+
+Recommended next action:
+
+```text
+User reviews the ignored local value-review CSV and shares only safe field-status feedback.
+```
+
+If core fields still miss repeatedly, parser improvements should come from new fake/anonymized table or layout scenarios, not private document text.

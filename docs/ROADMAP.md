@@ -1040,58 +1040,50 @@ Future capabilities:
 
 ## Current next step
 
-After redacted layout diagnostics, synthetic parser hardening, and CSV batch export review:
+After core-field policy alignment and local value-review CSV support:
 
-1. User reruns private batch diagnostics and PDF dry-run locally with limit 3.
-2. User exports CSV summaries with the batch command.
-3. User shares only safe summary fields: extraction status, page/character counts, signal counts, sanitized shape categories, missing/needs-check/low-confidence field names, parser-gap field names, result categories, and generic warnings.
-4. If parser gaps remain, add more anonymized synthetic scenarios before parser changes.
-5. If `pypdf` text order is poor, run PDF extraction dependency refinement audit.
+1. User opens the ignored local value-review CSV and verifies whether the extracted values match the working review table.
+2. User shares only safe status feedback: anonymized labels, yes/no/partial/missing field status, missing core field names, optional missing field names, deferred field names, low-confidence field names, result categories, and generic warnings.
+3. If core extraction is still weak, add more fake/anonymized table/layout scenarios before parser changes.
+4. If one or more PDFs still produce `EMPTY_TEXT` or poor text order, run a PDF extraction dependency refinement audit before considering OCR.
+5. If CSV visual review is accepted and the user wants a live sheet, plan an optional Google Sheets adapter as a separate block.
 6. Keep active intake work under `app/market_intelligence/intake/`.
 7. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
-8. Do not start OCR, dependency expansion, Google Sheets API work, or legacy parser reuse without a separate accepted block.
+8. Do not start OCR, Google Sheets API work, Google Maps/miles logic, or legacy parser reuse without a separate accepted block.
 
-Recommended commands:
+Current commands:
 
 ```powershell
-py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
-py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
 py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
 py scripts/export_ratecon_dry_run_csv.py --limit 3
+py scripts/export_private_ratecon_value_review_csv.py --limit 3
 ```
-
-Closeout decision:
-
-```text
-Next: rerun private PDF dry-run batch 3 with updated redacted diagnostics, parser hardening, and CSV export.
-Then: more anonymized synthetic scenarios if gaps remain.
-```
-
-This keeps private RateCon text out of tracked files and prevents deleted legacy runtime code from returning through parser improvements.
-
-Next decision after the rerun:
-
-- if safe summaries show parser gaps, add more anonymized synthetic scenarios before parser changes;
-- if CSV visual review is useful, plan an optional Google Sheets adapter later but do not add the API now;
-- if `pypdf` text order is weak, run a PDF extraction dependency refinement audit;
-- OCR remains a later separate audit only.
 
 Local rerun result:
 
-- private batch 3 was run locally with safe diagnostics only;
-- parser hardening from fake scenarios produced a small improvement on one extracted document;
-- one sampled document remained `EMPTY_TEXT`;
-- persistent parser gaps remain in identity, rate, stop/location, weight/equipment, and reference categories;
-- CSV export produced three safe rows and does not need Google Sheets API work yet.
+- two sampled PDFs produced extractable text;
+- one sampled PDF produced `EMPTY_TEXT`;
+- loaded miles are correctly deferred instead of treated as RateCon failure;
+- `broker_mc` and `equipment` are optional for current core extraction;
+- persistent core parser gaps remain around customer/load identity, stop/date, rate, and weight categories;
+- safe summary CSV and private value-review CSV each produced three rows in ignored output paths;
+- no private PDFs, extracted text, private values, snippets, or CSV outputs are tracked.
 
 Recommended next:
 
 ```text
-Add another round of anonymized synthetic RateCon scenarios for the persistent main-field gaps, then harden the parser against those fake scenarios only.
+User reviews the local value-review CSV and shares only safe field-status feedback.
 ```
 
-Possible parallel audit:
+Likely follow-up:
 
 ```text
-PDF extraction dependency refinement for EMPTY_TEXT / weak layout, before any OCR work.
+More anonymized synthetic table/layout scenarios, then another parser hardening round against fake data only.
+```
+
+Possible later adapter:
+
+```text
+Optional Google Sheets adapter plan after CSV review is accepted.
 ```
