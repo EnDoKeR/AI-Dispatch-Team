@@ -590,6 +590,72 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn(".local_private/", gitignore)
         self.assertIn(".local_outputs/", gitignore)
 
+    def test_document_classification_modules_do_not_import_business_output_or_cloud_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "pdfplumber",
+            "fitz",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        classification_files = [
+            DOCUMENT_AI_PACKAGE / "document_classification.py",
+            DOCUMENT_AI_PACKAGE / "extraction_scope.py",
+        ]
+
+        for path in classification_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_document_classification_modules_do_not_emit_dispatch_recommendations(self):
+        forbidden_literals = {
+            "ACCEPT",
+            "REJECT",
+            "REVIEW_ONCE",
+            "BOOK",
+            "DISPATCH",
+        }
+        classification_files = [
+            DOCUMENT_AI_PACKAGE / "document_classification.py",
+            DOCUMENT_AI_PACKAGE / "extraction_scope.py",
+        ]
+
+        for path in classification_files:
+            literals = set(string_literals(path))
+            for literal in forbidden_literals:
+                with self.subTest(path=str(path), literal=literal):
+                    self.assertNotIn(literal, literals)
+
+    def test_extraction_scope_filter_does_not_write_timeline_or_files(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "extraction_scope.py")
+
+        forbidden_fragments = [
+            "write_text",
+            "open(",
+            "event_logger",
+            "case_event",
+            "timeline",
+            "DispatchCase",
+        ]
+
+        for fragment in forbidden_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, source)
+
 
 if __name__ == "__main__":
     unittest.main()
