@@ -103,12 +103,16 @@ def redact_company_like_fragments(text):
 
 
 def redact_city_state_like_fragments(text):
-    return _replace_after_label(
+    redacted = _replace_after_label(
         text,
         LOCATION_LABELS,
         "<CITY_STATE_OR_LOCATION>",
         stop_at_comma=False,
     )
+    table_label_pattern = re.compile(
+        r"(?i)\b(pickup|delivery|shipper|consignee|origin|destination)\s*\|\s*([^|\n]+)"
+    )
+    return table_label_pattern.sub(r"\1 | <CITY_STATE_OR_LOCATION>", redacted)
 
 
 def redact_weight(text):
