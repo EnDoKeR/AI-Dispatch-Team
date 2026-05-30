@@ -19,6 +19,19 @@ from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
 )
 
 
+CLASSIFICATION_FIXTURE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "document_classification"
+    / "eligibility_calibration"
+)
+
+
+def load_classification_fixture(name):
+    return (CLASSIFICATION_FIXTURE_DIR / name).read_text(encoding="utf-8")
+
+
 class PrivateRateConMeasurementCliTests(unittest.TestCase):
     def _fake_pdf_dir(self, count=2):
         temp = tempfile.TemporaryDirectory()
@@ -102,11 +115,37 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
 
         self.assertEqual(report["document_count"], 2)
         self.assertIn("RATECON_001", output)
+        self.assertIn("extraction_relevant_count", output)
+        self.assertIn("normal_load_movement_count", output)
+        self.assertIn("classification_status_counts", output)
         self.assertIn("candidate_counts_by_field", output)
         self.assertNotIn("b_fake.pdf", output)
         self.assertNotIn("a_fake.pdf", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
         self.assertNotIn("FAKE BROKER LLC", output)
+
+    def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            write_fake_text_pdf(
+                root,
+                file_name="a_tonu.pdf",
+                text=load_classification_fixture("fake_truck_order_not_used_payment.txt"),
+            )
+            write_fake_text_pdf(
+                root,
+                file_name="b_bol.pdf",
+                text=load_classification_fixture("fake_bol_only.txt"),
+            )
+            report = build_private_ratecon_measurement_report(root)
+            output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("tonu_count: 1", output)
+        self.assertIn("normal_load_movement_count: 0", output)
+        self.assertIn("non_applicable_fields", output)
+        self.assertIn("skipped_by_scope", output)
+        self.assertNotIn("BOL-6006", output)
+        self.assertNotIn("TONU-4004", output)
 
     def test_cli_writes_safe_json_and_csv_to_custom_temp_output(self):
         temp, root = self._fake_pdf_dir()
