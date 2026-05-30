@@ -74,14 +74,20 @@ SPECIAL_REQUIREMENT_LABELS = {
 }
 
 RATE_REVIEW_LABELS = {
+    "line haul",
     "linehaul",
     "fuel",
+    "fuel surcharge",
     "accessorial",
     "accessorials",
     "detention",
+    "detention charges",
     "layover",
+    "layover fee",
     "lumper",
+    "lumper fee",
     "tonu",
+    "tonu fee",
 }
 
 

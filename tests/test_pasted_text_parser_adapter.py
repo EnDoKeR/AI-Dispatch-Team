@@ -146,6 +146,77 @@ Equipment: Flatbed
         self.assertIn("ACCESSORIALS_PRESENT", parsed["special_requirements"])
         self.assertEqual(parsed["field_confidence"]["rate"], "UNKNOWN")
 
+    def test_total_carrier_pay_with_accessorials_extracts_clear_total_only(self):
+        text = """
+Broker: Synthetic Accessorial Broker
+Broker MC: MC000000
+Linehaul: 2500
+Fuel Surcharge: 300
+Detention: FAKE TERMS
+Total Carrier Pay: 2800
+Reference #: FAKE-RATE-001
+Pickup: Fake City, ST
+Pickup Date: 2026-10-01
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-02
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["rate"], 2800)
+        self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
+        self.assertIn("ACCESSORIALS_PRESENT", parsed["special_requirements"])
+
+    def test_accessorial_amounts_without_total_do_not_set_rate(self):
+        text = """
+Broker: Synthetic Accessorial Broker
+Broker MC: MC000000
+Linehaul: 2500
+Fuel Surcharge: 300
+Layover Fee: 100
+Lumper Fee: 50
+TONU Fee: 150
+Reference #: FAKE-RATE-002
+Pickup: Fake City, ST
+Pickup Date: 2026-10-03
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-04
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Van
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["rate"], "")
+        self.assertEqual(parsed["field_confidence"]["rate"], "UNKNOWN")
+        self.assertEqual(
+            parsed["special_requirements"].count("ACCESSORIALS_PRESENT"),
+            1,
+        )
+
+    def test_conflicting_rate_totals_are_review_only(self):
+        text = """
+Broker: Synthetic Rate Conflict Broker
+Broker MC: MC000000
+Rate: 3000
+Total Rate: 3250
+Reference #: FAKE-RATE-003
+Pickup: Fake City, ST
+Pickup Date: 2026-10-05
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-06
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Conestoga
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["rate"], "")
+        self.assertEqual(parsed["field_confidence"]["rate"], "LOW")
+        self.assertIn("RATE_NEEDS_REVIEW", parsed["special_requirements"])
+
     def test_ambiguous_broker_context_stays_conservative(self):
         self.assert_expected_fields("ambiguous_broker_contact_heavy")
 
