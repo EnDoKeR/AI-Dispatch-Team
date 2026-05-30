@@ -1107,4 +1107,257 @@ Equipment: Van
             ],
         },
     },
+    {
+        "scenario_id": "batch3_next_line_identity_and_rate",
+        "scenario_name": "Batch 3 next-line identity and rate labels",
+        "text": """
+TRUCKLOAD RATE CONFIRMATION
+Broker
+FAKE BROKER LLC
+MC Number
+MC000000
+Load Number
+FAKE-REF-024
+Total Carrier Pay
+USD $0000.00
+Shipper Information
+Address
+Fake City, ST 00000
+Pickup Time
+2026-11-20
+Consignee Information
+Address
+Fake Town, ST 00000
+Delivery Time
+2026-11-21
+Commodity
+FAKE PRODUCT
+Weight
+40000 LBS
+Equipment
+Flatbed
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_parser_gap_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+    },
+    {
+        "scenario_id": "batch3_table_like_stops_and_freight",
+        "scenario_name": "Batch 3 table-like stop and freight layout",
+        "text": """
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Total Carrier Pay: $0000.00
+Load #: FAKE-REF-025
+Stop Type    Location    Date    Time
+Pickup Date / Delivery Date
+Pickup    Fake City, ST 00000    2026-11-22    08:00
+Delivery    Fake Town, ST 00000    2026-11-23    09:00
+Freight Table
+Commodity / Weight / Equipment
+FAKE COMMODITY    40000 LBS    Conestoga
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_parser_gap_fields": [
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+    },
+    {
+        "scenario_id": "batch3_authority_and_origin_destination_blocks",
+        "scenario_name": "Batch 3 authority and origin destination blocks",
+        "text": """
+Customer:
+FAKE BROKER LLC
+Motor Carrier:
+MC000000
+Order Number:
+FAKE-REF-026
+Carrier Pay:
+$0000.00
+Origin:
+Fake City, ST 00000
+Destination:
+Fake Town, ST 00000
+Pickup Appt:
+2026-11-24
+Delivery Appt:
+2026-11-25
+Description:
+FAKE PRODUCT
+WT:
+40000 LBS
+Trailer:
+Step Deck
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_parser_gap_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+    },
+    {
+        "scenario_id": "batch3_accessorial_total_next_line",
+        "scenario_name": "Batch 3 accessorial and total next-line labels",
+        "text": """
+Broker Name: FAKE BROKER LLC
+Broker MC: MC000000
+Load #: FAKE-REF-027
+Linehaul Charge
+$0000.00
+Detention
+FAKE TERMS
+Lumper
+FAKE TERMS
+Total
+USD $0000.00
+Pickup Location: Fake City, ST 00000
+Pickup Date: 2026-11-26
+Delivery Location: Fake Town, ST 00000
+Delivery Date: 2026-11-27
+Commodity: FAKE FREIGHT
+Weight: 40000 LBS
+Equipment: Van
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+            "special_requirements",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": ["rate"],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+            "accessorials",
+        ],
+        "expected_parser_gap_fields": [
+            "rate",
+            "accessorials",
+        ],
+    },
 ]

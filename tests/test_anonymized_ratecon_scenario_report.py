@@ -94,6 +94,26 @@ class AnonymizedRateConScenarioReportTests(unittest.TestCase):
                     closed_gaps.intersection(result["suspected_parser_gap_fields"])
                 )
 
+    def test_batch3_gap_scenarios_identify_expected_parser_gaps(self):
+        scenarios_with_expected_gaps = [
+            scenario
+            for scenario in ANONYMIZED_RATECON_SCENARIOS
+            if scenario.get("expected_parser_gap_fields")
+        ]
+
+        self.assertGreaterEqual(len(scenarios_with_expected_gaps), 4)
+
+        for scenario in scenarios_with_expected_gaps:
+            report = build_anonymized_ratecon_scenario_report([scenario])
+            result = report["scenario_results"][0]
+
+            for field_name in scenario["expected_parser_gap_fields"]:
+                with self.subTest(
+                    scenario=scenario["scenario_id"],
+                    field=field_name,
+                ):
+                    self.assertIn(field_name, result["suspected_parser_gap_fields"])
+
     def test_report_contains_no_raw_scenario_text_or_values(self):
         report = build_anonymized_ratecon_scenario_report(
             ANONYMIZED_RATECON_SCENARIOS
