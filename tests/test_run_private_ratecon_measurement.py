@@ -91,13 +91,16 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
             summary_exists = summary_path.exists()
             csv_exists = csv_path.exists()
             payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            console_output = buffer.getvalue()
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(summary_exists)
         self.assertTrue(csv_exists)
         self.assertEqual(len(payload["rows"]), 1)
         self.assertNotIn("FAKE BROKER LLC", json.dumps(payload))
-        self.assertIn("safe_outputs_written", buffer.getvalue())
+        self.assertIn("safe_outputs_written", console_output)
+        self.assertNotIn(str(root), console_output)
+        self.assertNotIn(output_dir, console_output)
 
     def test_cli_limit_controls_processed_rows(self):
         temp, root = self._fake_pdf_dir(count=2)

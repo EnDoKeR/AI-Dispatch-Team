@@ -34,6 +34,13 @@ SAFETY_BANNER = (
 )
 
 
+def _safe_output_file_labels(paths):
+    return {
+        key: Path(value).name
+        for key, value in (paths or {}).items()
+    }
+
+
 def _load_registry(template_dir):
     path = Path(template_dir)
     if path.exists():
@@ -185,7 +192,7 @@ def main(argv=None):
             write_value_review_template=args.write_value_review_template,
             allow_custom_output_dir=args.allow_custom_output_dir,
         )
-        print(f"safe_outputs_written: {output['paths']}")
+        print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
 
     return 0
 
