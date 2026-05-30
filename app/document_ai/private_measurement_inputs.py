@@ -8,8 +8,42 @@ class PrivateMeasurementInputError(ValueError):
     """Raised when private measurement input configuration is invalid."""
 
 
+PLACEHOLDER_INPUT_PATH_HINTS = [
+    "c:/path/to/private/ratecons",
+    "/path/to/private/ratecons",
+    "c:/real/path/to/your/ratecons",
+    "<path>",
+    "<replace_with_private_ratecon_folder>",
+]
+
+
+def looks_like_placeholder_input_path(value):
+    """Return True when an input path is an example placeholder, not a real path."""
+    normalized = str(value or "").strip().strip('"').strip("'").replace("\\", "/").lower()
+    normalized = normalized.rstrip("/")
+
+    if not normalized:
+        return False
+
+    if normalized in PLACEHOLDER_INPUT_PATH_HINTS:
+        return True
+
+    placeholder_tokens = [
+        "<replace",
+        "your_name",
+        "/real/path/to/your/",
+        "/path/to/private/ratecons",
+    ]
+    return any(token in normalized for token in placeholder_tokens)
+
+
 def validate_private_input_dir(path):
     input_dir = Path(path)
+
+    if looks_like_placeholder_input_path(path):
+        raise PrivateMeasurementInputError(
+            "input path looks like an example placeholder"
+        )
 
     if not input_dir.exists():
         raise PrivateMeasurementInputError("private input directory does not exist")

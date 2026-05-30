@@ -11,11 +11,13 @@ if str(REPO_ROOT) not in sys.path:
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
+    PrivateMeasurementInputError,
     build_safe_aliases,
     discover_private_pdfs,
 )
 from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    PrivateMeasurementOutputError,
     write_private_measurement_outputs,
 )
 from app.document_ai.private_measurement_pipeline import measure_private_ratecon_pdf
@@ -39,6 +41,24 @@ def _safe_output_file_labels(paths):
         key: Path(value).name
         for key, value in (paths or {}).items()
     }
+
+
+def _print_expected_error(reason):
+    print("Private RateCon measurement could not start.", file=sys.stderr)
+    print(f"Reason: {reason}.", file=sys.stderr)
+    print(
+        "Replace the example path with a real local folder containing RateCon PDFs.",
+        file=sys.stderr,
+    )
+    print("Tip: start with --limit 3 for the first safe run.", file=sys.stderr)
+    print("", file=sys.stderr)
+    print("Example:", file=sys.stderr)
+    print(
+        'py scripts/run_private_ratecon_measurement.py --input-dir '
+        '"C:\\Users\\YOUR_NAME\\Documents\\RateCons" '
+        "--confirm-private-local-run --limit 3 --write-json --write-csv --write-md",
+        file=sys.stderr,
+    )
 
 
 def _load_registry(template_dir):
@@ -157,42 +177,46 @@ def main(argv=None):
         print("Refusing to run: pass --confirm-private-local-run for local private measurement.")
         return 2
 
-    policy = build_safe_measurement_output_policy(
-        include_filenames=args.include_filenames_local_only,
-        include_file_hash_prefix=args.include_file_hash_prefix_local_only,
-        include_private_values=False,
-        include_raw_text=False,
-    )
-    report = build_private_ratecon_measurement_report(
-        input_dir=args.input_dir,
-        template_dir=args.template_dir,
-        alias_prefix=args.alias_prefix,
-        limit=args.limit,
-        output_policy=policy,
-    )
-
-    for line in format_private_measurement_report(report):
-        print(line)
-
-    if not args.dry_run and any(
-        [
-            args.write_json,
-            args.write_csv,
-            args.write_md,
-            args.write_value_review_template,
-        ]
-    ):
-        output = write_private_measurement_outputs(
-            report["rows"],
-            report["aggregate"],
-            output_dir=args.output_dir,
-            write_json=args.write_json,
-            write_csv=args.write_csv,
-            write_md=args.write_md,
-            write_value_review_template=args.write_value_review_template,
-            allow_custom_output_dir=args.allow_custom_output_dir,
+    try:
+        policy = build_safe_measurement_output_policy(
+            include_filenames=args.include_filenames_local_only,
+            include_file_hash_prefix=args.include_file_hash_prefix_local_only,
+            include_private_values=False,
+            include_raw_text=False,
         )
-        print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
+        report = build_private_ratecon_measurement_report(
+            input_dir=args.input_dir,
+            template_dir=args.template_dir,
+            alias_prefix=args.alias_prefix,
+            limit=args.limit,
+            output_policy=policy,
+        )
+
+        for line in format_private_measurement_report(report):
+            print(line)
+
+        if not args.dry_run and any(
+            [
+                args.write_json,
+                args.write_csv,
+                args.write_md,
+                args.write_value_review_template,
+            ]
+        ):
+            output = write_private_measurement_outputs(
+                report["rows"],
+                report["aggregate"],
+                output_dir=args.output_dir,
+                write_json=args.write_json,
+                write_csv=args.write_csv,
+                write_md=args.write_md,
+                write_value_review_template=args.write_value_review_template,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
+    except (PrivateMeasurementInputError, PrivateMeasurementOutputError, FileNotFoundError) as exc:
+        _print_expected_error(str(exc))
+        return 2
 
     return 0
 

@@ -8,6 +8,7 @@ from app.document_ai.private_measurement_inputs import (
     build_safe_aliases,
     discover_private_pdfs,
     load_alias_map,
+    looks_like_placeholder_input_path,
     validate_private_input_dir,
 )
 
@@ -35,6 +36,22 @@ class PrivateMeasurementInputTests(unittest.TestCase):
 
         with self.assertRaises(PrivateMeasurementInputError):
             validate_private_input_dir(missing)
+
+    def test_placeholder_paths_are_detected_before_discovery(self):
+        placeholders = [
+            r"C:\path\to\private\ratecons",
+            r"C:\REAL\PATH\TO\YOUR\RATECONS",
+            "/path/to/private/ratecons",
+            "<path>",
+            "<REPLACE_WITH_PRIVATE_RATECON_FOLDER>",
+            r"C:\Users\YOUR_NAME\Documents\RateCons",
+        ]
+
+        for placeholder in placeholders:
+            with self.subTest(placeholder=placeholder):
+                self.assertTrue(looks_like_placeholder_input_path(placeholder))
+                with self.assertRaises(PrivateMeasurementInputError):
+                    validate_private_input_dir(placeholder)
 
     def test_safe_aliases_are_stable_and_do_not_include_filenames_in_values(self):
         paths = [

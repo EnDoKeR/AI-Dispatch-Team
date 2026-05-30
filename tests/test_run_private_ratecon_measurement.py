@@ -3,7 +3,7 @@ import inspect
 import json
 import tempfile
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 
 from scripts import run_private_ratecon_measurement
@@ -37,6 +37,48 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertIn("--confirm-private-local-run", buffer.getvalue())
+
+    def test_cli_missing_input_directory_returns_friendly_error(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "missing-ratecon-measurement-cli-dir"
+
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        str(missing),
+                        "--confirm-private-local-run",
+                    ]
+                )
+
+        combined_output = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 2)
+        self.assertIn("Private RateCon measurement could not start.", stderr.getvalue())
+        self.assertIn("private input directory does not exist", stderr.getvalue())
+        self.assertIn("start with --limit 3", stderr.getvalue())
+        self.assertNotIn("Traceback", combined_output)
+
+    def test_cli_placeholder_input_directory_returns_friendly_error(self):
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with redirect_stdout(stdout), redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    r"C:\path\to\private\ratecons",
+                    "--confirm-private-local-run",
+                ]
+            )
+
+        combined_output = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 2)
+        self.assertIn("looks like an example placeholder", stderr.getvalue())
+        self.assertIn("Replace the example path", stderr.getvalue())
+        self.assertNotIn("Traceback", combined_output)
 
     def test_cli_help_includes_safety_wording(self):
         buffer = io.StringIO()

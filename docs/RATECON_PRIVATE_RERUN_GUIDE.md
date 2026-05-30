@@ -37,6 +37,7 @@ Safe summary fields:
 Do not share:
 
 - private filenames;
+- local private paths;
 - raw extracted text;
 - broker/customer names;
 - MCs;
@@ -118,14 +119,19 @@ listed here and must not print raw text.
 After hard-layout resolver hardening, the safe local measurement harness is:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-json --write-csv --write-md
 ```
 
 Optional blank local review template:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md --write-value-review-template
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-json --write-csv --write-md --write-value-review-template
 ```
+
+Replace `C:\Users\YOUR_NAME\Documents\RateCons` with your real local RateCon
+PDF folder. Do not paste the real folder path back into chat. If the folder does
+not exist, or if the path still looks like an example placeholder, the CLI exits
+safely with a friendly error instead of a traceback.
 
 Default output directory:
 

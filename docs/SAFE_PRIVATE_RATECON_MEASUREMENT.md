@@ -162,16 +162,20 @@ local-only human value-review template. Generated files must not be committed.
 Run locally only:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-json --write-csv --write-md
 ```
 
 Optional local review template:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md --write-value-review-template
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-json --write-csv --write-md --write-value-review-template
 ```
 
 The CLI refuses to run unless `--confirm-private-local-run` is supplied.
+Replace `C:\Users\YOUR_NAME\Documents\RateCons` with a real local folder that
+contains RateCon PDFs. Do not paste your real local folder path back into chat.
+If the folder does not exist, or if the input still looks like an example
+placeholder, the CLI exits safely with a friendly error instead of a traceback.
 
 Default local output directory:
 
