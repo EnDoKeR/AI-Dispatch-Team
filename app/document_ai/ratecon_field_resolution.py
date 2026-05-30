@@ -5,6 +5,21 @@ missing fields, conflicts, and low-confidence fields without creating cases or
 making dispatch recommendations.
 """
 
+from app.document_ai.ratecon_candidates import (
+    CANDIDATE_CONFIDENCE_HIGH,
+    CANDIDATE_CONFIDENCE_LOW,
+    CANDIDATE_CONFIDENCE_MEDIUM,
+    FIELD_BROKER_MC,
+    FIELD_BROKER_NAME,
+    FIELD_DELIVERY_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_EQUIPMENT,
+    FIELD_PICKUP_DATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_RATE,
+    FIELD_WEIGHT,
+)
+
 FIELD_RESOLUTION_STATUS_RESOLVED = "resolved"
 FIELD_RESOLUTION_STATUS_MISSING = "missing"
 FIELD_RESOLUTION_STATUS_NEEDS_REVIEW = "needs_review"
@@ -20,6 +35,26 @@ FIELD_RESOLUTION_STATUSES = (
 )
 
 RATECON_FIELD_RESOLVER_VERSION = "ratecon_field_resolver_contract_v1"
+RATECON_GENERIC_RESOLVER_VERSION = "ratecon_generic_resolver_v1"
+
+DEFAULT_RATECON_RESOLUTION_FIELDS = (
+    FIELD_BROKER_NAME,
+    FIELD_BROKER_MC,
+    FIELD_RATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_PICKUP_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_DELIVERY_DATE,
+    FIELD_EQUIPMENT,
+    FIELD_WEIGHT,
+)
+
+CONFIDENCE_RANKS = {
+    CANDIDATE_CONFIDENCE_HIGH: 3,
+    CANDIDATE_CONFIDENCE_MEDIUM: 2,
+    CANDIDATE_CONFIDENCE_LOW: 1,
+}
+MIN_RESOLVE_CONFIDENCE_RANK = CONFIDENCE_RANKS[CANDIDATE_CONFIDENCE_MEDIUM]
 
 
 def _normalize_list(value):
@@ -104,3 +139,149 @@ def build_ratecon_field_resolution_result(
         "warnings": _normalize_list(warnings),
         "resolver_version": str(resolver_version or RATECON_FIELD_RESOLVER_VERSION).strip(),
     }
+
+
+def _candidate_confidence_rank(candidate):
+    return CONFIDENCE_RANKS.get(str(candidate.get("confidence", "")).upper(), 0)
+
+
+def _candidate_value(candidate):
+    return str(candidate.get("normalized_value") or candidate.get("raw_value") or "").strip()
+
+
+def _candidate_evidence_ref(candidate):
+    candidate_id = str(candidate.get("candidate_id") or "").strip()
+    if candidate_id:
+        return candidate_id
+
+    page_number = candidate.get("page_number", "")
+    line_number = candidate.get("line_number", "")
+    if page_number or line_number:
+        return f"p{page_number}-l{line_number}"
+
+    return ""
+
+
+def _group_candidates(candidate_result):
+    grouped = {}
+
+    for candidate in candidate_result.get("candidates", []):
+        if not isinstance(candidate, dict):
+            continue
+
+        field_name = str(candidate.get("field_name") or "").strip()
+        if not field_name:
+            continue
+
+        grouped.setdefault(field_name, []).append(candidate)
+
+    return grouped
+
+
+def _resolution_for_field(field_name, candidates):
+    if not candidates:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_MISSING,
+            reasons=["no_candidate"],
+        )
+
+    sorted_candidates = sorted(
+        candidates,
+        key=lambda candidate: (_candidate_confidence_rank(candidate), _candidate_value(candidate)),
+        reverse=True,
+    )
+    best = sorted_candidates[0]
+    best_rank = _candidate_confidence_rank(best)
+    best_value = _candidate_value(best)
+    evidence_refs = [
+        evidence_ref
+        for evidence_ref in [_candidate_evidence_ref(best)]
+        if evidence_ref
+    ]
+
+    if best_rank < MIN_RESOLVE_CONFIDENCE_RANK:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["best_candidate_below_threshold"],
+            evidence_refs=evidence_refs,
+            warnings=["field_requires_review"],
+        )
+
+    strong_candidates = [
+        candidate
+        for candidate in sorted_candidates
+        if _candidate_confidence_rank(candidate) >= MIN_RESOLVE_CONFIDENCE_RANK
+    ]
+    strong_values = {
+        _candidate_value(candidate)
+        for candidate in strong_candidates
+        if _candidate_value(candidate)
+    }
+
+    if len(strong_values) > 1:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_CONFLICT,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["multiple_strong_candidate_values"],
+            evidence_refs=[
+                ref
+                for ref in [_candidate_evidence_ref(candidate) for candidate in strong_candidates]
+                if ref
+            ],
+            warnings=["field_conflict_requires_review"],
+        )
+
+    return build_field_resolution(
+        field_name=field_name,
+        status=FIELD_RESOLUTION_STATUS_RESOLVED,
+        selected_candidate=best,
+        rejected_candidates=sorted_candidates[1:],
+        confidence=best.get("confidence", ""),
+        reasons=["selected_highest_confidence_candidate"],
+        evidence_refs=evidence_refs,
+        warnings=best.get("warnings", []),
+    )
+
+
+def resolve_ratecon_fields(candidate_result, field_names=None):
+    grouped = _group_candidates(candidate_result)
+    target_fields = tuple(field_names or DEFAULT_RATECON_RESOLUTION_FIELDS)
+    resolutions = []
+    missing_fields = []
+    needs_check_fields = []
+    conflict_fields = []
+
+    for field_name in target_fields:
+        resolution = _resolution_for_field(field_name, grouped.get(field_name, []))
+        resolutions.append(resolution)
+
+        status = resolution["status"]
+        if status == FIELD_RESOLUTION_STATUS_MISSING:
+            missing_fields.append(field_name)
+        elif status == FIELD_RESOLUTION_STATUS_CONFLICT:
+            conflict_fields.append(field_name)
+            needs_check_fields.append(field_name)
+        elif status in [
+            FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+            FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+        ]:
+            needs_check_fields.append(field_name)
+
+    return build_ratecon_field_resolution_result(
+        document_id=candidate_result.get("document_id", ""),
+        artifact_id=candidate_result.get("artifact_id", ""),
+        resolutions=resolutions,
+        missing_fields=missing_fields,
+        needs_check_fields=needs_check_fields,
+        conflict_fields=conflict_fields,
+        warnings=candidate_result.get("warnings", []),
+        resolver_version=RATECON_GENERIC_RESOLVER_VERSION,
+    )

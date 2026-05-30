@@ -61,6 +61,12 @@ ACCESSORIAL_LABELS = (
     "deduction",
 )
 
+MONEY_EXCLUSION_LABELS = (
+    "weight",
+    "gross weight",
+    "total weight",
+)
+
 BROKER_NAME_LABELS = (
     "broker",
     "broker name",
@@ -282,6 +288,11 @@ def _has_money_context(line):
     return any(label in lower_line for label in STRONG_RATE_LABELS + ACCESSORIAL_LABELS)
 
 
+def _has_non_money_context(line):
+    lower_line = line.lower()
+    return any(label in lower_line for label in MONEY_EXCLUSION_LABELS)
+
+
 def generate_money_rate_candidates(artifact):
     candidates = []
 
@@ -295,6 +306,9 @@ def generate_money_rate_candidates(artifact):
 
             for match_index, match in enumerate(MONEY_PATTERN.finditer(line), start=1):
                 raw_value = match.group("amount")
+                if _has_non_money_context(line) and not _has_money_context(line):
+                    continue
+
                 if _is_bare_number_amount(raw_value) and not _has_money_context(line):
                     continue
 
