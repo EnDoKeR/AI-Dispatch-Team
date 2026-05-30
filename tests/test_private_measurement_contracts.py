@@ -76,17 +76,48 @@ class PrivateMeasurementContractTests(unittest.TestCase):
         self.assertEqual(row["template_confidence_bucket"], "high")
         self.assertNotIn("PRIVATE REAL BROKER", payload)
 
+    def test_measurement_row_supports_classification_summary_fields(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            document_type="BILL_OF_LADING",
+            ratecon_eligible=False,
+            supplemental_only=True,
+            page_role_counts={"BOL": 1},
+            section_role_counts={"BOL_BODY": 1},
+            classification_status="supplemental_only",
+            classification_warning_codes=["supplemental_page_skipped_for_core_ratecon"],
+        )
+
+        payload = json.dumps(row)
+
+        self.assertEqual(row["document_type"], "BILL_OF_LADING")
+        self.assertFalse(row["ratecon_eligible"])
+        self.assertTrue(row["supplemental_only"])
+        self.assertEqual(row["page_role_counts"], {"BOL": 1})
+        self.assertEqual(row["section_role_counts"], {"BOL_BODY": 1})
+        self.assertNotIn("raw_text", row)
+        self.assertNotIn("FAKE BROKER LLC", payload)
+
     def test_aggregate_serializes(self):
         aggregate = build_private_ratecon_measurement_aggregate(
             document_count=2,
             triage_route_counts={"DIGITAL_TEXT": 1, "OCR_NEEDED": 1},
             extraction_status_counts={"TEXT_EXTRACTED": 1, "EMPTY_TEXT": 1},
             critical_field_missing_counts={"rate": 1},
+            document_type_counts={"RATE_CONFIRMATION": 1, "BILL_OF_LADING": 1},
+            ratecon_eligible_count=1,
+            supplemental_only_count=1,
+            page_role_counts={"MAIN_RATECONF": 1, "BOL": 1},
+            section_role_counts={"RATE_SUMMARY": 1, "BOL_BODY": 1},
+            eligible_critical_field_missing_counts={"rate": 1},
+            eligible_critical_field_denominator=1,
         )
 
         json.dumps(aggregate)
         self.assertFalse(aggregate["raw_text_saved"])
         self.assertTrue(aggregate["private_values_redacted"])
+        self.assertEqual(aggregate["ratecon_eligible_count"], 1)
+        self.assertEqual(aggregate["supplemental_only_count"], 1)
 
     def test_output_policy_defaults_are_shareable_and_safe(self):
         policy = build_safe_measurement_output_policy()

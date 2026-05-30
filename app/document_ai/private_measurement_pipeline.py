@@ -9,6 +9,18 @@ from app.document_ai.broker_template_candidate_extraction import (
     extract_ratecon_candidates_with_template_context,
 )
 from app.document_ai.broker_template_matcher import build_safe_template_selection_summary
+from app.document_ai.document_classification import (
+    CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+    classify_document_from_text_artifact,
+)
+from app.document_ai.extraction_scope import (
+    extraction_scope_warning_codes,
+    select_pages_for_rate_candidates,
+    select_pages_for_ratecon_core,
+    select_pages_for_requirements_candidates,
+    select_pages_for_stop_candidates,
+    should_skip_ratecon_extraction,
+)
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
     DIGITAL_TEXT,
@@ -34,6 +46,7 @@ from app.document_ai.private_measurement import (
     build_field_status_summary,
     build_private_ratecon_measurement_row,
     build_safe_measurement_output_policy,
+    count_values,
 )
 from app.document_ai.private_measurement_blockers import (
     classify_private_ratecon_measurement_blockers,
@@ -194,6 +207,77 @@ def _merged_list(*values):
     return merged
 
 
+def _page_role_counts(classification_result):
+    return count_values([
+        role
+        for page in (classification_result or {}).get("page_results", [])
+        for role in page.get("page_roles", [])
+    ])
+
+
+def _section_role_counts(classification_result):
+    return count_values([
+        section.get("section_role", "")
+        for page in (classification_result or {}).get("page_results", [])
+        for section in page.get("section_summaries", [])
+        if isinstance(section, dict)
+    ])
+
+
+def _classification_fields(classification_result):
+    result = classification_result or {}
+    return {
+        "document_type": result.get("document_type", "UNKNOWN"),
+        "ratecon_eligible": result.get("ratecon_eligible", False),
+        "supplemental_only": result.get("supplemental_only", False),
+        "page_role_counts": _page_role_counts(result),
+        "section_role_counts": _section_role_counts(result),
+        "classification_status": result.get(
+            "classification_status",
+            CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+        ),
+        "classification_warning_codes": result.get("warning_codes", []),
+    }
+
+
+def _selected_candidate_pages(classification_result, artifact):
+    pages_by_number = {}
+    for page in artifact.get("pages", []):
+        pages_by_number[int(page.get("page_number", 0) or 0)] = page
+
+    selected_numbers = []
+    for page in (
+        select_pages_for_ratecon_core(classification_result, artifact)
+        + select_pages_for_rate_candidates(classification_result, artifact)
+        + select_pages_for_stop_candidates(classification_result, artifact)
+        + select_pages_for_requirements_candidates(classification_result, artifact)
+    ):
+        page_number = int(page.get("page_number", 0) or 0)
+        if page_number and page_number not in selected_numbers:
+            selected_numbers.append(page_number)
+
+    return [
+        pages_by_number[number]
+        for number in selected_numbers
+        if number in pages_by_number
+    ]
+
+
+def _scoped_artifact_for_pages(artifact, pages):
+    return build_text_extraction_artifact_for_candidates(
+        artifact_id=f"{artifact.get('artifact_id', '')}-SCOPED",
+        document_id=artifact.get("document_id", ""),
+        source_name=artifact.get("source_name", ""),
+        pages=pages,
+        source_method=artifact.get("source_method", "private_measurement_in_memory"),
+        warnings=_merged_list(
+            artifact.get("warnings", []),
+            ["classification_extraction_scope_applied"],
+        ),
+        contains_private_text=artifact.get("contains_private_text", False),
+    )
+
+
 def _base_triage_row(document_alias, triage_result, extraction_status, warnings=None):
     return build_private_ratecon_measurement_row(
         document_alias=document_alias,
@@ -210,6 +294,8 @@ def _base_triage_row(document_alias, triage_result, extraction_status, warnings=
             extraction_status=extraction_status,
             broken=triage_result.get("broken", False),
             likely_image_based=triage_result.get("likely_image_based", False),
+            ratecon_eligible=False,
+            classification_status=CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
         ),
         review_required=True,
     )
@@ -259,8 +345,56 @@ def measure_private_ratecon_pdf(
         contains_private_text=True,
         warnings=["private_text_in_memory_only"],
     )
+    classification_result = classify_document_from_text_artifact(artifact)
+    classification_fields = _classification_fields(classification_result)
+    scope_warnings = extraction_scope_warning_codes(classification_result)
+
+    if should_skip_ratecon_extraction(classification_result):
+        review_required = (
+            classification_result.get("classification_status")
+            == CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED
+        )
+        all_warnings = sorted(
+            set(
+                combined_warnings
+                + classification_result.get("warning_codes", [])
+                + scope_warnings
+            )
+        )
+        return build_private_ratecon_measurement_row(
+            document_alias=document_alias,
+            page_count=triage_result.get("page_count", extraction.get("page_count", 0)),
+            char_count=extraction.get("char_count", triage_result.get("char_count", 0)),
+            triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
+            extraction_status=extraction_status,
+            has_text_layer=triage_result.get("has_text_layer", False),
+            likely_image_based=triage_result.get("likely_image_based", False),
+            template_status="unknown",
+            candidate_counts_by_field={},
+            field_statuses=[],
+            missing_fields=[],
+            needs_check_fields=[],
+            conflict_fields=[],
+            warning_codes=all_warnings,
+            blocker_categories=classify_private_ratecon_measurement_blockers(
+                triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
+                extraction_status=extraction_status,
+                review_required=review_required,
+                broken=triage_result.get("broken", False),
+                likely_image_based=triage_result.get("likely_image_based", False),
+                ratecon_eligible=classification_result.get("ratecon_eligible", False),
+                supplemental_only=classification_result.get("supplemental_only", False),
+                classification_status=classification_result.get("classification_status", ""),
+            ),
+            intake_status="CLASSIFICATION_SKIPPED_RATECON_EXTRACTION",
+            review_required=review_required,
+            **classification_fields,
+        )
+
+    selected_pages = _selected_candidate_pages(classification_result, artifact)
+    scoped_artifact = _scoped_artifact_for_pages(artifact, selected_pages or artifact.get("pages", []))
     template_result = extract_ratecon_candidates_with_template_context(
-        artifact,
+        scoped_artifact,
         registry_or_templates or [],
     )
     candidate_result = template_result.get("adjusted_candidate_result", {})
@@ -273,9 +407,11 @@ def measure_private_ratecon_pdf(
     template_status = template_selection.get("status", "unknown")
     field_statuses = _field_statuses(resolution_result, candidate_counts)
     all_warnings = sorted(
-        set(
-            combined_warnings
-            + template_result.get("warnings", [])
+            set(
+                combined_warnings
+                + classification_result.get("warning_codes", [])
+                + scope_warnings
+                + template_result.get("warnings", [])
             + candidate_result.get("warnings", [])
             + resolution_result.get("warnings", [])
             + validation.get("warnings", [])
@@ -294,6 +430,7 @@ def measure_private_ratecon_pdf(
         selected_template_id=safe_template_summary.get("selected_template_safe_id", ""),
         template_source=safe_template_summary.get("template_source", ""),
         template_confidence_bucket=safe_template_summary.get("template_confidence_bucket", ""),
+        **classification_fields,
         candidate_counts_by_field=candidate_counts,
         field_statuses=field_statuses,
         missing_fields=_merged_list(
@@ -329,6 +466,9 @@ def measure_private_ratecon_pdf(
             candidate_counts_by_field=candidate_counts,
             broken=triage_result.get("broken", False),
             likely_image_based=triage_result.get("likely_image_based", False),
+            ratecon_eligible=classification_result.get("ratecon_eligible", False),
+            supplemental_only=classification_result.get("supplemental_only", False),
+            classification_status=classification_result.get("classification_status", ""),
         ),
         intake_status=validation.get("status", intake.get("status", "")),
         review_required=validation.get("review_required", intake.get("review_required", True)),

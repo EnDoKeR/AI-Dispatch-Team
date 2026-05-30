@@ -6,6 +6,7 @@ import unittest
 from app.document_ai import private_measurement_pipeline
 from app.document_ai.private_measurement import (
     BLOCKER_CONFLICTING_CRITICAL_FIELD,
+    BLOCKER_SUPPLEMENTAL_DOCUMENT_ONLY,
     BLOCKER_OCR_NEEDED,
     BLOCKER_UNSUPPORTED_OR_BROKEN_PDF,
     EXTRACTION_STATUS_EMPTY_TEXT,
@@ -20,6 +21,19 @@ from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
     write_fake_text_pdf,
 )
 from tests.fixtures.document_ai.ratecon_text.fixture_loader import load_fixture_text
+from pathlib import Path
+
+
+CLASSIFICATION_FIXTURE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "document_classification"
+)
+
+
+def load_classification_fixture(name):
+    return (CLASSIFICATION_FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
 class PrivateMeasurementPipelineTests(unittest.TestCase):
@@ -51,6 +65,8 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertGreater(row["char_count"], 0)
         self.assertGreater(row["candidate_counts_by_field"].get("rate", 0), 0)
         self.assertTrue(row["private_values_redacted"])
+        self.assertEqual(row["document_type"], "RATE_CONFIRMATION")
+        self.assertTrue(row["ratecon_eligible"])
 
     def test_conflicting_rate_text_exposes_conflict_without_values(self):
         registry = BrokerTemplateRegistry.from_directory(FIXTURE_DIR)
@@ -78,6 +94,54 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", payload)
         self.assertNotIn("FAKE BROKER LLC", payload)
         self.assertNotIn("FAKE-REF-001", payload)
+
+    def test_bol_like_text_skips_ratecon_extraction_without_missing_core_fields(self):
+        text = load_classification_fixture("fake_bol_scanned_like_text.txt")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir, text=text)
+            row = measure_private_ratecon_pdf(pdf_path, "RATECON_BOL")
+
+        self.assertEqual(row["document_type"], "BILL_OF_LADING")
+        self.assertFalse(row["ratecon_eligible"])
+        self.assertTrue(row["supplemental_only"])
+        self.assertEqual(row["candidate_counts_by_field"], {})
+        self.assertEqual(row["missing_fields"], [])
+        self.assertIn(BLOCKER_SUPPLEMENTAL_DOCUMENT_ONLY, row["blocker_categories"])
+
+    def test_carrier_info_sheet_does_not_create_missing_rate_failure(self):
+        text = load_classification_fixture("fake_driver_carrier_information_sheet.txt")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir, text=text)
+            row = measure_private_ratecon_pdf(pdf_path, "RATECON_INFO")
+
+        self.assertEqual(row["document_type"], "DRIVER_CARRIER_INFO_SHEET")
+        self.assertFalse(row["ratecon_eligible"])
+        self.assertEqual(row["candidate_counts_by_field"], {})
+        self.assertEqual(row["missing_fields"], [])
+
+    def test_main_ratecon_uses_classified_extraction_scope(self):
+        text = load_classification_fixture("fake_rate_load_confirmation_main_page.txt")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir, text=text)
+            row = measure_private_ratecon_pdf(pdf_path, "RATECON_MIXED")
+
+        self.assertTrue(row["ratecon_eligible"])
+        self.assertIn("MAIN_RATECONF", row["page_role_counts"])
+        self.assertGreater(row["candidate_counts_by_field"].get("rate", 0), 0)
+
+    def test_tonu_document_is_classified_without_stop_missing_failure(self):
+        text = load_classification_fixture("fake_tonu_load_confirmation.txt")
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir, text=text)
+            row = measure_private_ratecon_pdf(pdf_path, "RATECON_TONU")
+
+        self.assertEqual(row["document_type"], "TRUCK_ORDER_NOT_USED")
+        self.assertTrue(row["ratecon_eligible"])
+        self.assertIn("tonu_not_normal_load_movement", row["classification_warning_codes"])
 
     def test_no_dispatch_decision_or_adapter_imports(self):
         source = inspect.getsource(private_measurement_pipeline)

@@ -25,6 +25,10 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 document_alias="RATECON_001",
                 triage_route="DIGITAL_TEXT",
                 extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
+                document_type="RATE_CONFIRMATION",
+                ratecon_eligible=True,
+                page_role_counts={"MAIN_RATECONF": 1},
+                section_role_counts={"RATE_SUMMARY": 1},
                 template_status="unknown",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_RESOLVED),
@@ -38,6 +42,8 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 document_alias="RATECON_002",
                 triage_route="OCR_NEEDED",
                 extraction_status=EXTRACTION_STATUS_EMPTY_TEXT,
+                document_type="UNKNOWN",
+                ratecon_eligible=False,
                 template_status="unknown",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_MISSING),
@@ -50,6 +56,10 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 document_alias="RATECON_003",
                 triage_route="DIGITAL_TEXT",
                 extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
+                document_type="RATE_CONFIRMATION",
+                ratecon_eligible=True,
+                page_role_counts={"MAIN_RATECONF": 1},
+                section_role_counts={"RATE_SUMMARY": 1},
                 template_status="matched",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_CONFLICT),
@@ -69,12 +79,17 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         self.assertEqual(aggregate["empty_text_count"], 1)
         self.assertEqual(aggregate["review_required_count"], 3)
         self.assertEqual(aggregate["template_status_counts"]["unknown"], 2)
+        self.assertEqual(aggregate["document_type_counts"]["RATE_CONFIRMATION"], 2)
+        self.assertEqual(aggregate["ratecon_eligible_count"], 2)
+        self.assertEqual(aggregate["eligible_critical_field_denominator"], 2)
 
     def test_aggregate_counts_missing_conflict_and_needs_check_fields(self):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())
 
         self.assertEqual(aggregate["critical_field_missing_counts"]["rate"], 1)
         self.assertEqual(aggregate["critical_field_missing_counts"]["weight"], 1)
+        self.assertEqual(aggregate["eligible_critical_field_missing_counts"]["weight"], 1)
+        self.assertNotIn("rate", aggregate["eligible_critical_field_missing_counts"])
         self.assertEqual(aggregate["conflict_counts_by_field"]["rate"], 1)
         self.assertEqual(aggregate["needs_check_counts_by_field"]["rate"], 1)
 

@@ -57,6 +57,9 @@ BLOCKER_LOW_CONFIDENCE_CRITICAL_FIELD = "LOW_CONFIDENCE_CRITICAL_FIELD"
 BLOCKER_CONFLICTING_CRITICAL_FIELD = "CONFLICTING_CRITICAL_FIELD"
 BLOCKER_MISSING_CRITICAL_FIELD = "MISSING_CRITICAL_FIELD"
 BLOCKER_PARSED_HIGH_CONFIDENCE_CANDIDATE = "PARSED_HIGH_CONFIDENCE_CANDIDATE"
+BLOCKER_NON_RATECON_DOCUMENT = "NON_RATECON_DOCUMENT"
+BLOCKER_SUPPLEMENTAL_DOCUMENT_ONLY = "SUPPLEMENTAL_DOCUMENT_ONLY"
+BLOCKER_UNKNOWN_DOCUMENT_TYPE_REVIEW = "UNKNOWN_DOCUMENT_TYPE_REVIEW"
 
 
 def _text(value):
@@ -157,6 +160,13 @@ def build_private_ratecon_measurement_row(
     selected_template_id="",
     template_source="",
     template_confidence_bucket=CONFIDENCE_BUCKET_UNKNOWN,
+    document_type="UNKNOWN",
+    ratecon_eligible=False,
+    supplemental_only=False,
+    page_role_counts=None,
+    section_role_counts=None,
+    classification_status="unknown_review_required",
+    classification_warning_codes=None,
     candidate_counts_by_field=None,
     field_statuses=None,
     missing_fields=None,
@@ -179,6 +189,13 @@ def build_private_ratecon_measurement_row(
         "selected_template_id": _text(selected_template_id),
         "template_source": _text(template_source),
         "template_confidence_bucket": _normalize_confidence_bucket(template_confidence_bucket),
+        "document_type": _text(document_type) or "UNKNOWN",
+        "ratecon_eligible": _bool(ratecon_eligible),
+        "supplemental_only": _bool(supplemental_only),
+        "page_role_counts": _normalize_mapping(page_role_counts),
+        "section_role_counts": _normalize_mapping(section_role_counts),
+        "classification_status": _text(classification_status) or "unknown_review_required",
+        "classification_warning_codes": _normalize_list(classification_warning_codes),
         "candidate_counts_by_field": _normalize_mapping(candidate_counts_by_field),
         "field_statuses": [
             status
@@ -211,6 +228,14 @@ def build_private_ratecon_measurement_aggregate(
     critical_field_missing_counts=None,
     conflict_counts_by_field=None,
     needs_check_counts_by_field=None,
+    document_type_counts=None,
+    ratecon_eligible_count=0,
+    supplemental_only_count=0,
+    non_ratecon_count=0,
+    page_role_counts=None,
+    section_role_counts=None,
+    eligible_critical_field_missing_counts=None,
+    eligible_critical_field_denominator=0,
     generated_at="",
     measurement_version=MEASUREMENT_VERSION,
 ):
@@ -227,6 +252,16 @@ def build_private_ratecon_measurement_aggregate(
         "critical_field_missing_counts": _normalize_mapping(critical_field_missing_counts),
         "conflict_counts_by_field": _normalize_mapping(conflict_counts_by_field),
         "needs_check_counts_by_field": _normalize_mapping(needs_check_counts_by_field),
+        "document_type_counts": _normalize_mapping(document_type_counts),
+        "ratecon_eligible_count": int(ratecon_eligible_count or 0),
+        "supplemental_only_count": int(supplemental_only_count or 0),
+        "non_ratecon_count": int(non_ratecon_count or 0),
+        "page_role_counts": _normalize_mapping(page_role_counts),
+        "section_role_counts": _normalize_mapping(section_role_counts),
+        "eligible_critical_field_missing_counts": _normalize_mapping(
+            eligible_critical_field_missing_counts
+        ),
+        "eligible_critical_field_denominator": int(eligible_critical_field_denominator or 0),
         "generated_at": _text(generated_at),
         "measurement_version": _text(measurement_version or MEASUREMENT_VERSION),
         "raw_text_saved": False,

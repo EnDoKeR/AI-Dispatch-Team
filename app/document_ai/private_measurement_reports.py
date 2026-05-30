@@ -121,6 +121,27 @@ def _critical_missing_counts(rows):
     return dict(sorted(counter.items()))
 
 
+def _sum_mapping_values(rows, key):
+    counter = Counter()
+    for row in rows:
+        value = row.get(key, {})
+        if not isinstance(value, dict):
+            continue
+        for item, count in value.items():
+            text = str(item or "").strip()
+            if text:
+                counter[text] += int(count or 0)
+    return dict(sorted(counter.items()))
+
+
+def _eligible_rows(rows):
+    return [
+        row
+        for row in rows
+        if row.get("ratecon_eligible")
+    ]
+
+
 def build_private_ratecon_measurement_aggregate(rows):
     safe_rows = [
         row
@@ -129,6 +150,7 @@ def build_private_ratecon_measurement_aggregate(rows):
     ]
 
     extraction_status_counts = _count_by_key(safe_rows, "extraction_status")
+    eligible_rows = _eligible_rows(safe_rows)
 
     return build_aggregate_contract(
         document_count=len(safe_rows),
@@ -143,6 +165,18 @@ def build_private_ratecon_measurement_aggregate(rows):
         critical_field_missing_counts=_critical_missing_counts(safe_rows),
         conflict_counts_by_field=_count_list_values(safe_rows, "conflict_fields"),
         needs_check_counts_by_field=_count_list_values(safe_rows, "needs_check_fields"),
+        document_type_counts=_count_by_key(safe_rows, "document_type"),
+        ratecon_eligible_count=len(eligible_rows),
+        supplemental_only_count=sum(1 for row in safe_rows if row.get("supplemental_only")),
+        non_ratecon_count=sum(
+            1
+            for row in safe_rows
+            if not row.get("ratecon_eligible") and not row.get("supplemental_only")
+        ),
+        page_role_counts=_sum_mapping_values(safe_rows, "page_role_counts"),
+        section_role_counts=_sum_mapping_values(safe_rows, "section_role_counts"),
+        eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
+        eligible_critical_field_denominator=len(eligible_rows),
     )
 
 
