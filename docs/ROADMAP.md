@@ -496,11 +496,15 @@ Recommended order:
 65. Legacy `app/load_intake/` package and legacy-only import tests are removed.
 66. Active intake path remains `app/market_intelligence/intake/`.
 67. Recommended next target: anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas.
-68. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
-69. Old Google Sheets, parser-to-`MarketLoad`, decision scoring, reload scoring, zone/mileage scoring, and broker scoring from the deleted package are intentionally not part of the architecture.
-70. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
-71. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
-72. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+68. Anonymized synthetic RateCon scenarios are expanded.
+69. Synthetic RateCon parser coverage reporting is complete.
+70. Pasted-text parser hardening is complete for synthetic identity, main-field, rate/accessorial, pickup/delivery, equipment, commodity, and weight labels.
+71. Safe RateCon dry-run CSV export is complete for local visual review without Google Sheets API.
+72. Recommended next target: user runs private PDF dry-run batch 3 and shares safe summaries only.
+73. If parser gaps remain, add more anonymized synthetic scenarios before parser changes.
+74. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
+75. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
+76. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1038,18 +1042,19 @@ Future capabilities:
 
 After legacy load-intake deletion cleanup:
 
-1. Expand anonymized synthetic RateCon scenarios using fake data only.
-2. Include safe legacy label ideas and safe redacted-diagnostics gap categories.
-3. Improve parser patterns only after synthetic examples exist.
-4. Keep active intake work under `app/market_intelligence/intake/`.
-5. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
-6. Do not start OCR, dependency expansion, Google Sheets reuse, or legacy parser reuse without a separate accepted block.
+1. User runs private batch diagnostics and PDF dry-run locally with limit 3.
+2. User reviews safe summary output and optional CSV export.
+3. If parser gaps remain, add more anonymized synthetic scenarios before parser changes.
+4. If `pypdf` text order is poor, run PDF extraction dependency refinement audit.
+5. Keep active intake work under `app/market_intelligence/intake/`.
+6. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
+7. Do not start OCR, dependency expansion, Google Sheets API work, or legacy parser reuse without a separate accepted block.
 
 Closeout decision:
 
 ```text
-Next: anonymized synthetic RateCon scenario expansion.
-Then: parser field extraction improvements based on accepted fake scenarios.
+Next: private PDF dry-run batch 3 with safe summaries only.
+Then: more anonymized synthetic scenarios if gaps remain.
 ```
 
 This keeps private RateCon text out of tracked files and prevents deleted legacy runtime code from returning through parser improvements.

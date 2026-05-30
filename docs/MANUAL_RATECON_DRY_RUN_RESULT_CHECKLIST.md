@@ -18,6 +18,18 @@ BAD_TEXT_EXTRACTION
 NOT_READY_FOR_PDF
 ```
 
+## Batch Review Commands
+
+After synthetic parser hardening and CSV export support, the safe local batch review commands are:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py
+```
+
+The CSV export is for manual visual review in Excel or Google Sheets. It is a local CSV file only; it does not call the Google Sheets API and does not export raw private text or private field values.
+
 ### PASS_FOR_DRY_RUN
 
 Use when the dry-run output is good enough for manual review:
@@ -132,6 +144,8 @@ Before closing the dry-run:
 - [ ] Did no PDF/OCR extraction run?
 - [ ] Did no Telegram, Gmail/email, Google Sheets, DAT/API, or Google Maps integration run?
 - [ ] Did no DispatchCase or event write occur?
+- [ ] If CSV export was used, did it contain only status fields, missing/needs-check fields, low-confidence field names, parser-gap field names, result categories, and generic warnings?
+- [ ] Did the CSV avoid broker names, MCs, addresses, reference IDs, appointment details, and raw extracted text?
 
 ## Recommended Follow-up
 

@@ -163,7 +163,7 @@ scripts/run_private_ratecon_redacted_diagnostics.py
 Current command:
 
 ```powershell
-py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
 ```
 
 The command uses local extraction, runs redacted signal diagnostics, compares the signal counts to parser/intake coverage, and prints safe summaries only.
@@ -181,16 +181,34 @@ Current safe output includes:
 - result category;
 - generic warnings.
 
+Related safe batch commands:
+
+```powershell
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py
+```
+
+The CSV export writes safe summary/status columns only to a gitignored local dry-run results folder. It does not export raw extracted text, private values, broker names, MCs, addresses, reference numbers, or document snippets, and it does not use Google Sheets APIs.
+
+Completed parser hardening from synthetic scenarios:
+
+- expanded fake/anonymized RateCon scenarios;
+- parser coverage reporting for synthetic scenarios;
+- identity/main-field label aliases;
+- conservative rate vs accessorial handling;
+- pickup/delivery block handling;
+- equipment, commodity, and weight aliases.
+
 Recommended next step:
 
 ```text
-user runs redacted diagnostics locally and shares safe summary
+user runs private batch dry-run locally with limit 3 and shares safe summaries only
 ```
 
 Recommended follow-up:
 
 ```text
-create anonymized synthetic RateCon examples from observed parser gap categories
+add more anonymized synthetic RateCon examples if parser gaps remain
 ```
 
 Parser improvements should be based on fake/synthetic examples derived from the safe summaries. Do not improve parser patterns by committing private text or snippets.

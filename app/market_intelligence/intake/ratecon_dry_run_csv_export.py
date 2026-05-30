@@ -86,9 +86,14 @@ def _field_status(field_name, missing_fields, needs_check_fields, low_confidence
 
 def build_ratecon_dry_run_csv_row(summary):
     safe_summary = dict(summary or {})
-    missing_fields = set(_as_list(safe_summary.get("missing_fields", [])))
-    needs_check_fields = set(_as_list(safe_summary.get("needs_check_fields", [])))
-    low_confidence_fields = set(_as_list(safe_summary.get("low_confidence_fields", [])))
+    missing_field_list = _as_list(safe_summary.get("missing_fields", []))
+    needs_check_field_list = _as_list(safe_summary.get("needs_check_fields", []))
+    low_confidence_field_list = _as_list(
+        safe_summary.get("low_confidence_fields", [])
+    )
+    missing_fields = set(missing_field_list)
+    needs_check_fields = set(needs_check_field_list)
+    low_confidence_fields = set(low_confidence_field_list)
     row = {
         "anonymized_label": str(
             safe_summary.get("anonymized_label")
@@ -100,9 +105,9 @@ def build_ratecon_dry_run_csv_row(summary):
         "char_count": safe_summary.get("char_count", 0),
         "intake_status": str(safe_summary.get("intake_status", "")),
         "result_category": str(safe_summary.get("result_category", "")),
-        "missing_fields": _join(missing_fields),
-        "needs_check_fields": _join(needs_check_fields),
-        "low_confidence_fields": _join(low_confidence_fields),
+        "missing_fields": _join(missing_field_list),
+        "needs_check_fields": _join(needs_check_field_list),
+        "low_confidence_fields": _join(low_confidence_field_list),
         "suspected_parser_gap_fields": _join(
             safe_summary.get("suspected_parser_gap_fields", [])
         ),

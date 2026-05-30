@@ -2351,3 +2351,82 @@ Not recommended next:
 - Gmail/email or Google Sheets integration;
 - DispatchCase creation/linking/events;
 - synthetic 100-200 load dataset.
+
+## Synthetic RateCon Parser Hardening And CSV Export Closeout
+
+Completed:
+
+- expanded anonymized/fake RateCon scenarios;
+- safe parser coverage report for synthetic scenarios;
+- parser hardening for identity and main-field aliases;
+- parser hardening for rate vs accessorial amounts;
+- parser hardening for pickup/delivery blocks and appointment labels;
+- parser hardening for equipment, commodity, and weight labels;
+- safe CSV export for RateCon dry-run summaries.
+
+Current commands:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py
+```
+
+Current status:
+
+- parser improvements were driven by fake/synthetic examples only;
+- no private text entered tracked files;
+- no private fixtures were created;
+- CSV export writes safe status/summary columns only;
+- CSV output defaults to `data/private_ratecons/dry_run_results/`, which is gitignored;
+- no Google Sheets API, legacy sheet writer, OCR, Telegram upload, Gmail/email, DispatchCase writes, DAT/API, Google Maps, accounting/factoring, or reload-chain metadata were added.
+
+Options evaluated:
+
+1. user runs private PDF dry-run batch 3 and shares safe summaries
+2. if parser gaps remain, add more anonymized scenarios
+3. if `pypdf` text order is poor, run PDF extraction dependency refinement audit
+4. if CSV visual review is useful, plan optional Google Sheets adapter later
+5. OCR only after separate audit
+
+Recommended next target:
+
+```text
+user runs private PDF dry-run batch 3 locally and shares safe summaries only
+```
+
+Safe share fields:
+
+- anonymized labels;
+- extraction status;
+- page/character counts;
+- missing field names;
+- needs-check field names;
+- low-confidence field names;
+- suspected parser gap field names;
+- result categories;
+- generic warnings.
+
+Recommended follow-up if gaps remain:
+
+```text
+add more anonymized synthetic RateCon scenarios before parser changes
+```
+
+Recommended later target if extraction quality is weak:
+
+```text
+PDF extraction dependency refinement audit
+```
+
+Not recommended next:
+
+- direct parser changes from private extracted text;
+- committing CSV outputs or private dry-run result files;
+- adding Google Sheets API;
+- OCR implementation;
+- Telegram upload handling;
+- Gmail/email integration;
+- DispatchCase creation/linking/events;
+- DAT/API or Google Maps;
+- synthetic 100-200 load dataset.
