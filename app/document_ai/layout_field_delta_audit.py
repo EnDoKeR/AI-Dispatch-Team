@@ -30,6 +30,20 @@ DEBUG_BUCKET_SCOPE_FILTER = "scope_filter"
 DEBUG_BUCKET_PROVIDER_QUALITY = "provider_quality"
 DEBUG_BUCKET_RESOLVER_SCORING = "resolver_scoring"
 
+FORBIDDEN_AUDIT_KEYS = {
+    "raw_text",
+    "extracted_text",
+    "filename",
+    "file_path",
+    "local_path",
+    "broker_name",
+    "broker_mc",
+    "rate_value",
+    "address",
+    "reference_value",
+    "private_note",
+}
+
 _UNRESOLVED_STATUSES = {
     "",
     "missing",
@@ -149,6 +163,12 @@ def build_layout_field_delta_audit(rows):
     for row in rows or []:
         if not isinstance(row, dict):
             continue
+        unsafe_keys = FORBIDDEN_AUDIT_KEYS & set(row)
+        if unsafe_keys:
+            raise PrivateMeasurementOutputError(
+                "unsafe layout field delta audit input field detected: "
+                + ", ".join(sorted(unsafe_keys))
+            )
         alias = _text(row.get("document_alias"))
         if not alias:
             continue

@@ -13,6 +13,7 @@ from app.document_ai.layout_field_delta_audit import (
     build_layout_field_delta_audit,
     write_layout_field_delta_audit_report,
 )
+from app.document_ai.private_measurement_outputs import PrivateMeasurementOutputError
 
 
 class LayoutFieldDeltaAuditTests(unittest.TestCase):
@@ -80,6 +81,13 @@ class LayoutFieldDeltaAuditTests(unittest.TestCase):
         self.assertNotIn("FAKE BROKER LLC", text)
         self.assertNotIn("123 Main", text)
         self.assertNotIn("raw text", text.lower().replace("no raw text", ""))
+
+    def test_audit_rejects_unsafe_input_fields(self):
+        rows = self._rows()
+        rows[0]["raw_text"] = "private text should not be accepted"
+
+        with self.assertRaises(PrivateMeasurementOutputError):
+            build_layout_field_delta_audit(rows)
 
     def test_default_output_path_is_ignored_local_outputs(self):
         path = Path(".local_outputs/private_ratecon_measurement") / LAYOUT_FIELD_DELTA_AUDIT_MD

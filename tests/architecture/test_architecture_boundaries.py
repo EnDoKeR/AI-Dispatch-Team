@@ -839,6 +839,100 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("synthetic layout fixtures", source)
         self.assertNotIn("private_ratecons", source)
 
+    def test_layout_fusion_modules_do_not_import_business_output_or_disallowed_extractors(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "pypdf",
+            "pdfplumber",
+            "fitz",
+            "camelot",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        fusion_files = [
+            DOCUMENT_AI_PACKAGE / "candidate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "stop_association.py",
+            DOCUMENT_AI_PACKAGE / "rate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "operational_fusion.py",
+            DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py",
+        ]
+
+        for path in fusion_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_layout_fusion_modules_do_not_emit_dispatch_recommendations(self):
+        forbidden_literals = {
+            "ACCEPT",
+            "REJECT",
+            "REVIEW_ONCE",
+            "BOOK",
+            "DISPATCH",
+        }
+        fusion_files = [
+            DOCUMENT_AI_PACKAGE / "candidate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "stop_association.py",
+            DOCUMENT_AI_PACKAGE / "rate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "operational_fusion.py",
+            DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py",
+        ]
+
+        for path in fusion_files:
+            literals = set(string_literals(path))
+            for literal in forbidden_literals:
+                with self.subTest(path=str(path), literal=literal):
+                    self.assertNotIn(literal, literals)
+
+    def test_layout_fusion_modules_do_not_write_timeline_or_nonlocal_outputs(self):
+        fusion_files = [
+            DOCUMENT_AI_PACKAGE / "candidate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "stop_association.py",
+            DOCUMENT_AI_PACKAGE / "rate_fusion.py",
+            DOCUMENT_AI_PACKAGE / "operational_fusion.py",
+        ]
+        forbidden_fragments = [
+            "write_text",
+            "open(",
+            "event_logger",
+            "case_event",
+            "timeline",
+            "DispatchCase",
+            "DecisionEngine",
+            "telegram",
+            "private_ratecons",
+        ]
+
+        for path in fusion_files:
+            source = source_text(path)
+            for fragment in forbidden_fragments:
+                with self.subTest(path=str(path), fragment=fragment):
+                    self.assertNotIn(fragment, source)
+
+    def test_layout_field_delta_audit_outputs_are_local_only_and_redacted(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py")
+
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", source)
+        self.assertIn("layout_field_delta_audit.md", source)
+        self.assertIn("No raw text, filenames, paths, or private values included.", source)
+        self.assertIn("FORBIDDEN_AUDIT_KEYS", source)
+        self.assertNotIn("DispatchCase", source)
+        self.assertNotIn("DecisionEngine", source)
+        self.assertNotIn("telegram", source)
+
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
