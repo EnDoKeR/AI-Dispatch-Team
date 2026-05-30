@@ -3,8 +3,11 @@ import unittest
 from pathlib import Path
 
 from app.document_ai.normalized_stops import (
+    NORMALIZED_STOP_FIELD_DATE,
     NORMALIZED_STOP_FIELD_LOCATION,
+    NORMALIZED_STOP_FIELD_STATUS_MISSING,
     NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+    NORMALIZED_STOP_FIELD_TIME,
     NORMALIZED_STOP_TYPE_PICKUP,
     build_normalized_stop,
     build_normalized_stop_field,
@@ -14,6 +17,7 @@ from app.document_ai.stop_review_packet import (
     LOCAL_PRIVATE_REVIEW_WARNING,
     STOP_REVIEW_PACKET_CSV,
     STOP_REVIEW_PACKET_MD,
+    build_stop_review_packet_summary,
     stop_review_rows,
     write_stop_review_packet,
 )
@@ -82,6 +86,44 @@ class StopReviewPacketTests(unittest.TestCase):
             )
 
         self.assertIn(".local_outputs", str(result["csv"]))
+
+    def test_summary_counts_date_time_and_pattern_statuses_without_values(self):
+        date = build_normalized_stop_field(
+            NORMALIZED_STOP_FIELD_DATE,
+            NORMALIZED_STOP_FIELD_STATUS_MISSING,
+            warning_codes=["normalized_stop_field_missing"],
+        )
+        time = build_normalized_stop_field(
+            NORMALIZED_STOP_FIELD_TIME,
+            NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+            selected_candidate_id="candidate_time",
+            evidence_refs=[{"page_number": 1, "evidence_type": "section_context"}],
+        )
+        stop = build_normalized_stop(
+            "stop_001",
+            1,
+            NORMALIZED_STOP_TYPE_PICKUP,
+            fields=[
+                build_normalized_stop_field(
+                    NORMALIZED_STOP_FIELD_LOCATION,
+                    NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+                    evidence_refs=[{"page_number": 1, "evidence_type": "section_context"}],
+                ),
+                date,
+                time,
+            ],
+        )
+        stop_set = build_normalized_stop_set(document_alias="RATECON_001", stops=[stop])
+        stop_set["table_row_merge_count"] = 2
+
+        summary = build_stop_review_packet_summary([stop_set])
+
+        self.assertEqual(summary["date_candidate_generated_count"], 0)
+        self.assertEqual(summary["time_candidate_generated_count"], 1)
+        self.assertEqual(summary["table_row_merge_count"], 2)
+        self.assertEqual(summary["unresolved_due_to_missing_date"], 1)
+        self.assertFalse(summary["private_values_included"])
+        self.assertNotIn("FAKE_LOCAL_PRIVATE_VALUE", str(summary))
 
 
 if __name__ == "__main__":

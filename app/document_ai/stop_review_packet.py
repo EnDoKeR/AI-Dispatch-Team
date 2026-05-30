@@ -6,6 +6,9 @@ from pathlib import Path
 from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
 )
+from app.document_ai.stop_review_pattern_classifier import (
+    classify_stop_review_packet_patterns,
+)
 
 
 STOP_REVIEW_PACKET_CSV = "stop_review_packet.csv"
@@ -81,6 +84,78 @@ def stop_review_rows(stop_sets, include_private_values_local_only=False):
                     row["selected_value_local_only"] = _selected_value(field)
                 rows.append(row)
     return rows
+
+
+def _field_status_count(rows, field_name, statuses):
+    allowed = {str(status) for status in statuses}
+    return sum(
+        1
+        for row in rows or []
+        if _text(row.get("field_name")) == field_name
+        and _text(row.get("status")) in allowed
+    )
+
+
+def _warning_count(stop_sets, warning_code):
+    return sum(
+        1
+        for stop_set in stop_sets or []
+        if isinstance(stop_set, dict)
+        for stop in stop_set.get("stops", []) or []
+        if isinstance(stop, dict)
+        and warning_code in (stop.get("warning_codes", []) or [])
+    )
+
+
+def build_stop_review_packet_summary(stop_sets):
+    safe_stop_sets = [stop_set for stop_set in stop_sets or [] if isinstance(stop_set, dict)]
+    rows = stop_review_rows(safe_stop_sets)
+    patterns = classify_stop_review_packet_patterns(rows)
+    attached_statuses = {
+        "resolved",
+        "low_confidence",
+        "conflict",
+        "review_required",
+    }
+    date_generated = _field_status_count(rows, "date", attached_statuses)
+    time_generated = _field_status_count(rows, "time", attached_statuses)
+    unknown_count = sum(int(stop_set.get("unknown_count", 0) or 0) for stop_set in safe_stop_sets)
+    duplicate_removed = sum(
+        int(stop_set.get("stop_duplicate_removed_count", 0) or 0)
+        for stop_set in safe_stop_sets
+    )
+    noise_removed = sum(
+        int(stop_set.get("stop_noise_removed_count", 0) or 0)
+        for stop_set in safe_stop_sets
+    )
+    pattern_counts = patterns.get("pattern_counts", {})
+    return {
+        "stop_pattern_counts": pattern_counts,
+        "table_row_merge_count": sum(
+            int(stop_set.get("table_row_merge_count", 0) or 0)
+            for stop_set in safe_stop_sets
+        ),
+        "section_context_merge_count": sum(
+            int(stop_set.get("section_context_merge_count", 0) or 0)
+            for stop_set in safe_stop_sets
+        ),
+        "date_candidate_generated_count": date_generated,
+        "date_candidate_attached_count": date_generated,
+        "time_candidate_generated_count": time_generated,
+        "time_candidate_attached_count": time_generated,
+        "overclassified_stop_count": _warning_count(
+            safe_stop_sets,
+            "stop_type_overclassified_review_required",
+        ),
+        "ambiguous_stop_count": unknown_count,
+        "duplicate_like_stop_count": duplicate_removed
+        + int(pattern_counts.get("DUPLICATE_STOP_GROUPS", 0) or 0),
+        "noise_removed_count": noise_removed,
+        "unresolved_due_to_missing_date": _field_status_count(rows, "date", {"missing"}),
+        "unresolved_due_to_ambiguous_type": unknown_count,
+        "private_values_included": False,
+        "raw_text_included": False,
+    }
 
 
 def _write_csv(path, rows, include_private_values_local_only=False):

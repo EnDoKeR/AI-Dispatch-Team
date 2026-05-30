@@ -316,6 +316,43 @@ def build_private_ratecon_measurement_aggregate(rows):
         stop_duplicate_removed_count_total=sum(
             int(row.get("stop_duplicate_removed_count", 0) or 0) for row in safe_rows
         ),
+        table_row_merge_count_total=sum(
+            int(row.get("table_row_merge_count", 0) or 0) for row in safe_rows
+        ),
+        section_context_merge_count_total=sum(
+            int(row.get("section_context_merge_count", 0) or 0) for row in safe_rows
+        ),
+        stop_pattern_counts=_sum_mapping_values(safe_rows, "stop_pattern_counts"),
+        date_candidate_generated_count_total=sum(
+            int(row.get("date_candidate_generated_count", 0) or 0) for row in safe_rows
+        ),
+        date_candidate_attached_count_total=sum(
+            int(row.get("date_candidate_attached_count", 0) or 0) for row in safe_rows
+        ),
+        time_candidate_generated_count_total=sum(
+            int(row.get("time_candidate_generated_count", 0) or 0) for row in safe_rows
+        ),
+        time_candidate_attached_count_total=sum(
+            int(row.get("time_candidate_attached_count", 0) or 0) for row in safe_rows
+        ),
+        overclassified_stop_count_total=sum(
+            int(row.get("overclassified_stop_count", 0) or 0) for row in safe_rows
+        ),
+        ambiguous_stop_count_total=sum(
+            int(row.get("ambiguous_stop_count", 0) or 0) for row in safe_rows
+        ),
+        duplicate_like_stop_count_total=sum(
+            int(row.get("duplicate_like_stop_count", 0) or 0) for row in safe_rows
+        ),
+        noise_removed_count_total=sum(
+            int(row.get("noise_removed_count", 0) or 0) for row in safe_rows
+        ),
+        unresolved_due_to_missing_date_total=sum(
+            int(row.get("unresolved_due_to_missing_date", 0) or 0) for row in safe_rows
+        ),
+        unresolved_due_to_ambiguous_type_total=sum(
+            int(row.get("unresolved_due_to_ambiguous_type", 0) or 0) for row in safe_rows
+        ),
         stop_field_status_counts=_sum_nested_status_counts(safe_rows, "stop_field_status_counts"),
         normalized_stop_improved_counts_by_field=_count_list_values(
             safe_rows, "normalized_stop_improved_fields"

@@ -97,6 +97,7 @@ from app.document_ai.stop_normalization import (
     build_normalized_stop_set,
     flat_field_updates_from_normalized_stop_set,
 )
+from app.document_ai.stop_review_packet import build_stop_review_packet_summary
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.market_intelligence.intake.rate_confirmation_validation import (
     validate_rate_confirmation_intake,
@@ -332,6 +333,7 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "normalized_stop_set": None,
         "normalized_stop_flat_fields": {},
         "stop_field_status_counts": {},
+        "stop_review_summary": {},
     }
 
 
@@ -399,6 +401,7 @@ def _layout_fusion_fields(
     normalized_flat_fields = flat_field_updates_from_normalized_stop_set(
         normalized_stop_set
     )
+    stop_review_summary = build_stop_review_packet_summary([normalized_stop_set])
     stop_fusion = fuse_stop_candidates(
         text_candidate_result,
         stop_association,
@@ -503,6 +506,7 @@ def _layout_fusion_fields(
             "normalized_stop_set": normalized_stop_set,
             "normalized_stop_flat_fields": normalized_flat_fields,
             "stop_field_status_counts": _stop_field_status_counts(normalized_stop_set),
+            "stop_review_summary": stop_review_summary,
             "fused_candidate_result": _build_fused_candidate_result(
                 text_candidate_result,
                 layout_candidates,
@@ -1119,6 +1123,45 @@ def measure_private_ratecon_pdf(
         stop_duplicate_removed_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("stop_duplicate_removed_count", 0),
+        table_row_merge_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("table_row_merge_count", 0),
+        section_context_merge_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("section_context_merge_count", 0),
+        stop_pattern_counts=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("stop_pattern_counts", {}),
+        date_candidate_generated_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("date_candidate_generated_count", 0),
+        date_candidate_attached_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("date_candidate_attached_count", 0),
+        time_candidate_generated_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("time_candidate_generated_count", 0),
+        time_candidate_attached_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("time_candidate_attached_count", 0),
+        overclassified_stop_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("overclassified_stop_count", 0),
+        ambiguous_stop_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("ambiguous_stop_count", 0),
+        duplicate_like_stop_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("duplicate_like_stop_count", 0),
+        noise_removed_count=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("noise_removed_count", 0),
+        unresolved_due_to_missing_date=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("unresolved_due_to_missing_date", 0),
+        unresolved_due_to_ambiguous_type=(
+            fusion_fields.get("stop_review_summary", {}) or {}
+        ).get("unresolved_due_to_ambiguous_type", 0),
         stop_field_status_counts=fusion_fields.get("stop_field_status_counts", {}),
         normalized_stop_improved_fields=(
             fusion_fields.get("normalized_stop_flat_fields", {}) or {}
