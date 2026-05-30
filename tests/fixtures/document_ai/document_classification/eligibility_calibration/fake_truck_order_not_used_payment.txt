@@ -1,0 +1,13 @@
+TRUCK ORDER NOT USED / TONU CONFIRMATION
+Unknown Mock Brokerage
+TONU Number: TONU-4004
+Carrier: Demo Carrier LLC
+
+Payment Status
+Truck ordered not used payment: $250.00
+Reason: shipper canceled after dispatch.
+
+No active pickup appointment.
+No active delivery appointment.
+Submit invoice with TONU number.
+

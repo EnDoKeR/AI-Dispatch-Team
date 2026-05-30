@@ -1,0 +1,21 @@
+LOAD / ORDER CONFIRMATION
+Mock Operations System
+Order Number: ORD-3003
+Pro Number: PRO-3003
+Carrier: Demo Carrier LLC
+
+PU SECTION
+Pickup Location: Mock Plant A
+Pickup Date: 06/25/2026
+Pickup Time: 0700
+
+SO SECTION
+Stop Off / Delivery Location: Mock Distribution B
+Delivery Date: 06/26/2026
+Delivery Time: 1300
+
+Payment Summary
+Carrier Freight Pay: $2,925.00
+Equipment: Flatbed
+Weight: 43,000 lbs
+

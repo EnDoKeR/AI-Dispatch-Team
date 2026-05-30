@@ -1,0 +1,20 @@
+LOAD TENDER
+Northstar Logistics Mock
+Tender Number: LT-2002
+Carrier: Demo Carrier LLC
+
+Pickup
+Mock Shipper Facility
+Pickup Date: 06/23/2026
+
+Drop
+Mock Receiver Facility
+Delivery Date: 06/24/2026
+
+Agreed Amount: $3,050.00
+Trailer Type: Reefer
+Gross Weight: 36,000 lbs
+
+Billing Instructions
+Submit invoice and signed POD through mock paperwork portal.
+

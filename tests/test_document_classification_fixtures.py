@@ -8,6 +8,7 @@ FIXTURE_DIR = (
     / "document_ai"
     / "document_classification"
 )
+ELIGIBILITY_FIXTURE_DIR = FIXTURE_DIR / "eligibility_calibration"
 
 EXPECTED_FIXTURES = {
     "fake_rate_load_confirmation_main_page.txt",
@@ -29,6 +30,19 @@ EXPECTED_FIXTURES = {
     "fake_certificate_of_signature.txt",
     "fake_tonu_load_confirmation.txt",
     "fake_unknown_document.txt",
+}
+
+EXPECTED_ELIGIBILITY_FIXTURES = {
+    "fake_carrier_load_tender_route_rate.txt",
+    "fake_load_tender_with_billing_page.txt",
+    "fake_mcleod_order_confirmation_two_page.txt",
+    "fake_truck_order_not_used_payment.txt",
+    "fake_signature_certificate_only.txt",
+    "fake_bol_only.txt",
+    "fake_terms_only_with_many_money_amounts.txt",
+    "fake_billing_quickpay_only.txt",
+    "fake_carrier_agreement_only.txt",
+    "fake_driver_carrier_info_only.txt",
 }
 
 BANNED_REAL_BROKER_FRAGMENTS = {
@@ -76,7 +90,7 @@ class DocumentClassificationFixtureTests(unittest.TestCase):
     def test_fixtures_do_not_contain_obvious_real_broker_names(self):
         combined = "\n".join(
             path.read_text(encoding="utf-8").lower()
-            for path in FIXTURE_DIR.glob("*.txt")
+            for path in FIXTURE_DIR.rglob("*.txt")
         )
 
         for fragment in BANNED_REAL_BROKER_FRAGMENTS:
@@ -86,7 +100,7 @@ class DocumentClassificationFixtureTests(unittest.TestCase):
     def test_fixtures_do_not_contain_private_path_patterns(self):
         combined = "\n".join(
             path.read_text(encoding="utf-8").lower()
-            for path in FIXTURE_DIR.glob("*.txt")
+            for path in FIXTURE_DIR.rglob("*.txt")
         )
 
         for fragment in PRIVATE_PATH_FRAGMENTS:
@@ -99,6 +113,26 @@ class DocumentClassificationFixtureTests(unittest.TestCase):
         self.assertIn("no private data", readme)
         self.assertIn("real screenshots must not be committed", readme)
         self.assertIn("fake structure-equivalent", readme)
+
+    def test_eligibility_calibration_fixtures_exist_and_load(self):
+        self.assertTrue(ELIGIBILITY_FIXTURE_DIR.exists())
+
+        actual = {path.name for path in ELIGIBILITY_FIXTURE_DIR.glob("*.txt")}
+        self.assertEqual(actual, EXPECTED_ELIGIBILITY_FIXTURES)
+
+        for name in sorted(EXPECTED_ELIGIBILITY_FIXTURES):
+            with self.subTest(name=name):
+                text = (ELIGIBILITY_FIXTURE_DIR / name).read_text(encoding="utf-8")
+                self.assertGreater(len(text.strip()), 40)
+
+    def test_eligibility_calibration_readme_declares_private_data_policy(self):
+        readme = (ELIGIBILITY_FIXTURE_DIR / "README.md").read_text(
+            encoding="utf-8"
+        ).lower()
+
+        self.assertIn("no private data", readme)
+        self.assertIn("do not commit screenshots", readme)
+        self.assertIn("mimic structure only", readme)
 
 
 if __name__ == "__main__":

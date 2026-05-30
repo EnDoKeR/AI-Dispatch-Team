@@ -1,0 +1,9 @@
+BILLING INSTRUCTIONS AND QUICK PAY
+
+Invoice To: mock-billing@example.invalid
+Remit paperwork through mock portal.
+Quick Pay: available after approved paperwork.
+Standard Payment Terms: Net 30.
+
+No route details are provided on this page.
+

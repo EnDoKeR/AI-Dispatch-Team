@@ -1,0 +1,19 @@
+CARRIER LOAD TENDER & RATE CONFIRMATION
+Alpha Freight Mock
+Tender ID: TENDER-1001
+Freight Bill: FB-1001
+
+Carrier: Demo Carrier LLC
+Equipment: Dry Van
+Commodity: Mock packaged freight
+Weight: 40,500 lbs
+
+Route Details
+Stop #1 Pickup: Mock Origin Warehouse, Example City FS
+Pickup Appointment: 06/21/2026 0800
+Stop #2 Drop: Mock Destination Warehouse, Sample City FS
+Delivery Appointment: 06/22/2026 1500
+
+Agreed Rate
+Total Carrier Pay: $2,750.00
+

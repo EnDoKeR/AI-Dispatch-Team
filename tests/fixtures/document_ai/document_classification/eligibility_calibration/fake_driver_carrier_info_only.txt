@@ -1,0 +1,11 @@
+DRIVER / CARRIER INFORMATION SHEET
+
+Carrier Name: Demo Carrier LLC
+Carrier MC: MC 999999
+Dispatcher Name: Test Dispatcher
+Driver Name: Test Driver
+Truck Number: TRUCK-101
+Trailer Number: TRAILER-202
+
+Information sheet only.
+
