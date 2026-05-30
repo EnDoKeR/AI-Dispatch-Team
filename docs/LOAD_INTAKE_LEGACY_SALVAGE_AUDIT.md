@@ -655,3 +655,119 @@ Still forbidden:
 - committing private text;
 - improving parser patterns from private text directly;
 - creating/linking DispatchCases or writing events.
+
+## Pre-deletion Import/Reference Audit
+
+This section records the final reference audit before deleting `app/load_intake/`.
+
+Searches run:
+
+```powershell
+rg -n "app\.load_intake|app/load_intake|load_intake|parse_ratecon|import_ratecon|append_load|test_load_intake" app scripts tests docs README.md
+```
+
+## References Found
+
+### Active legacy package references
+
+```text
+app/load_intake/parser.py
+app/load_intake/importer.py
+app/load_intake/sheet_writer.py
+```
+
+These are internal references inside the legacy package and will be removed when the package is deleted.
+
+### Legacy-only tests to remove
+
+```text
+tests/test_load_intake_imports.py
+tests/test_load_intake_parser_import.py
+```
+
+These tests exist only to protect old import compatibility. They should be removed in the deletion block.
+
+### Tests to keep
+
+Many current intake tests include `load_intake` only as a forbidden import string. These should stay because they protect new modules from importing the deleted legacy path.
+
+Examples:
+
+```text
+tests/test_intake_package_boundaries.py
+tests/test_intake_record_repository.py
+tests/test_intake_record_status.py
+tests/test_intake_record_report.py
+tests/test_parser_confidence.py
+tests/test_pasted_text_parser_adapter.py
+tests/test_ratecon_field_diagnostics.py
+tests/test_ratecon_parser_coverage.py
+```
+
+These are not dependencies on the legacy package.
+
+### Manual Google Sheets script to keep
+
+```text
+scripts/manual_test_sheet_connection.py
+tests/test_manual_sheet_connection_script.py
+```
+
+This manual script does not import `app/load_intake/`. It should remain unless a separate Google Sheets cleanup block is approved.
+
+### Legacy standalone script outside package
+
+```text
+scripts/import_ratecon.py
+```
+
+This script does not import `app/load_intake/`, but it is old manual PDF-to-Google-Sheets logic with hardcoded paths and external dependencies. Deleting `app/load_intake/` does not break it. It should remain untouched in this cleanup unless a separate manual-script cleanup is approved.
+
+### Docs to update after deletion
+
+Docs with legacy-retained wording include:
+
+```text
+docs/ARCHITECTURE_AUDIT.md
+docs/FOUNDATION_NEXT_TARGET_DECISION.md
+docs/LOAD_INTAKE_BOUNDARY_REVIEW.md
+docs/LEGACY_CANDIDATES.md
+docs/ROADMAP.md
+docs/LOAD_INTAKE_LEGACY_SALVAGE_AUDIT.md
+```
+
+Other docs mention legacy `app/load_intake` as a forbidden import or historical boundary. Those can remain if they still describe architectural guardrails accurately.
+
+## Active Runtime Import Finding
+
+No active `app/market_intelligence/intake/` module imports `app/load_intake/`.
+
+No current private PDF/text dry-run helper imports `app/load_intake/`.
+
+No DecisionEngine, Event Timeline, Telegram, DispatchCase, or reload-watch foundation module should need a code change for this deletion.
+
+## Final Deletion Checklist
+
+Before deletion:
+
+- safe label ideas preserved in docs;
+- synthetic legacy label examples exist;
+- redacted diagnostics tests cover preserved labels;
+- no private text is committed;
+- no runtime imports depend on the legacy package.
+
+Deletion block should:
+
+1. delete `app/load_intake/`;
+2. delete `tests/test_load_intake_imports.py`;
+3. delete `tests/test_load_intake_parser_import.py`;
+4. keep `tests/test_manual_sheet_connection_script.py`;
+5. keep current `app/market_intelligence/intake/`;
+6. keep current private RateCon docs/templates and ignore rules;
+7. run compileall, focused import/search checks, full unittest discovery, diff check, and status.
+
+Post-deletion docs cleanup should:
+
+- state that the legacy package was removed;
+- state that useful label vocabulary was preserved in synthetic examples;
+- state that old Google Sheets, parser-to-`MarketLoad`, and scoring flows are intentionally not part of the architecture.
