@@ -210,6 +210,73 @@ Equipment: Flatbed
         self.assert_expected_fields("conestoga_specific")
         self.assert_expected_fields("flatbed_specific")
 
+    def test_equipment_commodity_and_weight_aliases_extract(self):
+        text = """
+Broker: Synthetic Freight Broker
+Broker MC: MC000000
+Rate: 3250
+Reference #: FAKE-FREIGHT-001
+Pickup: Fake City, ST
+Pickup Date: 2026-10-01
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-02
+Freight Description: FAKE PIPE
+Pounds: 42,000 LBS
+Trailer Type/Size: Conestoga 48
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["commodity"], "FAKE PIPE")
+        self.assertEqual(parsed["weight"], 42000)
+        self.assertEqual(parsed["equipment"], "Conestoga 48")
+        self.assertEqual(parsed["field_confidence"]["commodity"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["weight"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["equipment"], "HIGH")
+
+    def test_tbd_commodity_and_weight_stay_missing_with_review_signal(self):
+        text = """
+Broker: Synthetic TBD Broker
+Broker MC: MC000000
+Rate: 3000
+Reference #: FAKE-FREIGHT-002
+Pickup: Fake City, ST
+Pickup Date: 2026-10-03
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-04
+Product: TBD
+Total Weight: call for weight
+Equipment: Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["commodity"], "")
+        self.assertEqual(parsed["weight"], "")
+        self.assertIn("COMMODITY_NEEDS_REVIEW", parsed["special_requirements"])
+        self.assertIn("WEIGHT_NEEDS_REVIEW", parsed["special_requirements"])
+        self.assertEqual(parsed["field_confidence"]["commodity"], "LOW")
+        self.assertEqual(parsed["field_confidence"]["weight"], "LOW")
+
+    def test_generic_mode_does_not_override_specific_equipment(self):
+        text = """
+Broker: Synthetic Equipment Broker
+Broker MC: MC000000
+Rate: 3100
+Reference #: FAKE-FREIGHT-003
+Pickup: Fake City, ST
+Pickup Date: 2026-10-05
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-06
+Commodity Description: FAKE STEEL
+Weight: 40000
+Mode: Truckload
+Equipment: Step Deck
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["equipment"], "Step Deck")
+        self.assertIn("EQUIPMENT_NEEDS_REVIEW", parsed["special_requirements"])
+        self.assertEqual(parsed["field_confidence"]["equipment"], "HIGH")
+
     def test_multiple_rates_handled_conservatively(self):
         self.assert_expected_fields("multiple_rates_accessorials")
         parsed = parse_pasted_text_to_parser_output(

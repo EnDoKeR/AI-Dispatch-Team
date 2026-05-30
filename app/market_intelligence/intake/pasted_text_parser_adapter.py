@@ -63,7 +63,13 @@ LABEL_MAPPINGS = {
     "delivery time": ("delivery_time", HIGH),
     "delivery window": ("delivery_time", MEDIUM),
     "commodity": ("commodity", HIGH),
+    "commodity description": ("commodity", HIGH),
+    "product": ("commodity", MEDIUM),
+    "freight description": ("commodity", MEDIUM),
+    "total weight": ("weight", HIGH),
     "weight": ("weight", HIGH),
+    "lbs": ("weight", MEDIUM),
+    "pounds": ("weight", MEDIUM),
     "reference": ("reference_id", HIGH),
     "reference #": ("reference_id", HIGH),
     "reference id": ("reference_id", HIGH),
@@ -74,6 +80,9 @@ LABEL_MAPPINGS = {
     "shipment #": ("reference_id", MEDIUM),
     "shipment id": ("reference_id", MEDIUM),
     "equipment": ("equipment", HIGH),
+    "trailer type/size": ("equipment", HIGH),
+    "trailer type": ("equipment", HIGH),
+    "mode": ("equipment", LOW),
 }
 
 SPECIAL_REQUIREMENT_LABELS = {
@@ -133,6 +142,23 @@ DATETIME_LABELS = {
     "delivery appt": ("delivery_date", "delivery_time", MEDIUM),
 }
 
+UNKNOWN_VALUE_PATTERNS = [
+    r"\btbd\b",
+    r"\bunknown\b",
+    r"\bcall\b",
+    r"\bcall\s+for\b",
+    r"\bto\s+be\s+determined\b",
+]
+
+KNOWN_EQUIPMENT_TERMS = {
+    "van",
+    "reefer",
+    "flatbed",
+    "step deck",
+    "stepdeck",
+    "conestoga",
+}
+
 
 def empty_parser_output():
     return {
@@ -175,6 +201,34 @@ def numeric_value(value):
     return number
 
 
+def value_needs_review(value):
+    text = str(value or "").strip().lower()
+
+    if not text:
+        return False
+
+    return any(re.search(pattern, text) for pattern in UNKNOWN_VALUE_PATTERNS)
+
+
+def numeric_weight_value(value):
+    text = str(value or "").strip()
+
+    if value_needs_review(text):
+        return ""
+
+    match = re.search(r"\d[\d,]*(?:\.\d+)?", text)
+
+    if not match:
+        return numeric_value(text)
+
+    return numeric_value(match.group(0))
+
+
+def value_contains_equipment_term(value):
+    text = str(value or "").strip().lower()
+    return any(term in text for term in KNOWN_EQUIPMENT_TERMS)
+
+
 def append_special_requirement(output, requirement):
     text = str(requirement or "").strip()
 
@@ -208,10 +262,28 @@ def set_field(output, field_name, value, confidence):
     if value in ["", None]:
         return
 
-    if field_name in {"rate", "weight"}:
+    if value_needs_review(value) and field_name in {
+        "commodity",
+        "weight",
+        "equipment",
+    }:
+        append_special_requirement(output, f"{field_name.upper()}_NEEDS_REVIEW")
+        output["field_confidence"][field_name] = LOW
+        output["field_confidence"]["special_requirements"] = LOW
+        return
+
+    if field_name == "rate":
         normalized_value = numeric_value(value)
+    elif field_name == "weight":
+        normalized_value = numeric_weight_value(value)
     else:
         normalized_value = str(value).strip()
+
+    if normalized_value in ["", None]:
+        output["field_confidence"][field_name] = LOW
+        append_special_requirement(output, f"{field_name.upper()}_NEEDS_REVIEW")
+        output["field_confidence"]["special_requirements"] = LOW
+        return
 
     existing_value = output.get(field_name, "")
 
@@ -325,6 +397,13 @@ def apply_label_value(output, label, value):
         return
 
     field_name, confidence = mapping
+
+    if field_name == "equipment" and label == "mode" and not value_contains_equipment_term(value):
+        append_special_requirement(output, "EQUIPMENT_NEEDS_REVIEW")
+        output["field_confidence"]["equipment"] = LOW
+        output["field_confidence"]["special_requirements"] = LOW
+        return
+
     set_field(output, field_name, value, confidence)
 
 
