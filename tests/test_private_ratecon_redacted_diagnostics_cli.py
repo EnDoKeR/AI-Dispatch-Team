@@ -21,7 +21,7 @@ def fake_extractor(_path):
     return {
         "text": (
             f"Broker: {RAW_VALUE}\n"
-            "Motor Carrier: 000000\n"
+            "Motor Carrier Authority: 000000\n"
             "Rate: 3000\n"
             "Pickup Date: hidden\n"
             "Pickup: hidden\n"

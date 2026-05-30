@@ -13,7 +13,7 @@ PRIVATE_LOOKING_VALUE = "PRIVATE VALUE SHOULD NOT APPEAR"
 
 class RateConParserCoverageTests(unittest.TestCase):
     def test_label_detected_but_parser_misses_field_creates_gap(self):
-        text = "Motor Carrier: 000000\nRate: 3000"
+        text = "Motor Carrier Authority: 000000\nRate: 3000"
 
         report = build_ratecon_parser_coverage_report(text)
 

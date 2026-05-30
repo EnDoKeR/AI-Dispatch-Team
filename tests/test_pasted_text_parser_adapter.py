@@ -11,12 +11,23 @@ from app.market_intelligence.intake.pasted_text_parser_adapter import (
 from tests.fixtures.pasted_text_ratecon_examples import (
     PASTED_TEXT_RATECON_EXAMPLES,
 )
+from tests.fixtures.anonymized_ratecon_scenarios import (
+    ANONYMIZED_RATECON_SCENARIOS,
+)
 
 
 def fixture(scenario_id):
     return next(
         scenario
         for scenario in PASTED_TEXT_RATECON_EXAMPLES
+        if scenario["scenario_id"] == scenario_id
+    )
+
+
+def anonymized_fixture(scenario_id):
+    return next(
+        scenario
+        for scenario in ANONYMIZED_RATECON_SCENARIOS
         if scenario["scenario_id"] == scenario_id
     )
 
@@ -298,6 +309,67 @@ Commodity Description    FAKE TABLE PRODUCT    40000 LBS    Flatbed
         self.assertEqual(parsed["field_confidence"]["commodity"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["weight"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["equipment"], "MEDIUM")
+
+    def test_next_line_labels_extract_batch3_identity_and_main_fields(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("batch3_next_line_identity_and_rate")["text"]
+        )
+
+        self.assertEqual(parsed["broker_name"], "FAKE BROKER LLC")
+        self.assertEqual(parsed["broker_mc"], "MC000000")
+        self.assertEqual(parsed["rate"], 0)
+        self.assertEqual(parsed["reference_id"], "FAKE-REF-024")
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-11-20")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["delivery_date"], "2026-11-21")
+        self.assertEqual(parsed["commodity"], "FAKE PRODUCT")
+        self.assertEqual(parsed["weight"], 40000)
+        self.assertEqual(parsed["equipment"], "Flatbed")
+
+    def test_table_like_stop_and_freight_rows_extract_batch3_fields(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("batch3_table_like_stops_and_freight")["text"]
+        )
+
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-11-22")
+        self.assertEqual(parsed["pickup_time"], "08:00")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["delivery_date"], "2026-11-23")
+        self.assertEqual(parsed["delivery_time"], "09:00")
+        self.assertEqual(parsed["commodity"], "FAKE COMMODITY")
+        self.assertEqual(parsed["weight"], 40000)
+        self.assertEqual(parsed["equipment"], "Conestoga")
+
+    def test_authority_and_origin_destination_blocks_extract_conservatively(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("batch3_authority_and_origin_destination_blocks")[
+                "text"
+            ]
+        )
+
+        self.assertEqual(parsed["broker_name"], "FAKE BROKER LLC")
+        self.assertEqual(parsed["broker_mc"], "MC000000")
+        self.assertEqual(parsed["rate"], 0)
+        self.assertEqual(parsed["reference_id"], "FAKE-REF-026")
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-11-24")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["delivery_date"], "2026-11-25")
+        self.assertEqual(parsed["commodity"], "FAKE PRODUCT")
+        self.assertEqual(parsed["weight"], 40000)
+        self.assertEqual(parsed["equipment"], "Step Deck")
+        self.assertEqual(parsed["field_confidence"]["broker_mc"], "LOW")
+
+    def test_next_line_accessorial_total_extracts_total_and_review_context(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("batch3_accessorial_total_next_line")["text"]
+        )
+
+        self.assertEqual(parsed["rate"], 0)
+        self.assertIn("ACCESSORIALS_PRESENT", parsed["special_requirements"])
+        self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
 
     def test_tbd_commodity_and_weight_stay_missing_with_review_signal(self):
         text = """

@@ -34,6 +34,7 @@ LABEL_MAPPINGS = {
     "bill to": ("broker_name", MEDIUM),
     "customer": ("broker_name", MEDIUM),
     "broker mc": ("broker_mc", HIGH),
+    "motor carrier": ("broker_mc", LOW),
     "mc#": ("broker_mc", MEDIUM),
     "mc #": ("broker_mc", MEDIUM),
     "mc": ("broker_mc", MEDIUM),
@@ -46,6 +47,7 @@ LABEL_MAPPINGS = {
     "linehaul total": ("rate", MEDIUM),
     "shipper": ("pickup_location", MEDIUM),
     "shipper information": ("pickup_location", MEDIUM),
+    "origin": ("pickup_location", MEDIUM),
     "pickup": ("pickup_location", HIGH),
     "pick up": ("pickup_location", HIGH),
     "pu": ("pickup_location", MEDIUM),
@@ -56,6 +58,7 @@ LABEL_MAPPINGS = {
     "consignee": ("delivery_location", MEDIUM),
     "consignee information": ("delivery_location", MEDIUM),
     "receiver": ("delivery_location", MEDIUM),
+    "destination": ("delivery_location", MEDIUM),
     "delivery": ("delivery_location", HIGH),
     "drop": ("delivery_location", MEDIUM),
     "delivery location": ("delivery_location", HIGH),
@@ -64,10 +67,12 @@ LABEL_MAPPINGS = {
     "delivery window": ("delivery_time", MEDIUM),
     "commodity": ("commodity", HIGH),
     "commodity description": ("commodity", HIGH),
+    "description": ("commodity", LOW),
     "product": ("commodity", MEDIUM),
     "freight description": ("commodity", MEDIUM),
     "total weight": ("weight", HIGH),
     "weight": ("weight", HIGH),
+    "wt": ("weight", MEDIUM),
     "lbs": ("weight", MEDIUM),
     "pounds": ("weight", MEDIUM),
     "reference": ("reference_id", HIGH),
@@ -77,11 +82,13 @@ LABEL_MAPPINGS = {
     "load #": ("reference_id", MEDIUM),
     "load number": ("reference_id", MEDIUM),
     "order #": ("reference_id", MEDIUM),
+    "order number": ("reference_id", MEDIUM),
     "shipment #": ("reference_id", MEDIUM),
     "shipment id": ("reference_id", MEDIUM),
     "equipment": ("equipment", HIGH),
     "trailer type/size": ("equipment", HIGH),
     "trailer type": ("equipment", HIGH),
+    "trailer": ("equipment", MEDIUM),
     "mode": ("equipment", LOW),
 }
 
@@ -93,6 +100,7 @@ SPECIAL_REQUIREMENT_LABELS = {
 RATE_REVIEW_LABELS = {
     "line haul",
     "linehaul",
+    "linehaul charge",
     "fuel",
     "fuel surcharge",
     "accessorial",
@@ -122,6 +130,7 @@ DELIVERY_BLOCK_LABELS = {
     "receiver",
     "delivery",
     "delivery location",
+    "destination",
     "drop",
 }
 
@@ -180,6 +189,32 @@ def split_label_value(line):
     label, value = line.split(":", 1)
 
     return normalize_label(label), value.strip()
+
+
+def is_known_standalone_label(label):
+    return (
+        label in LABEL_MAPPINGS
+        or label in SPECIAL_REQUIREMENT_LABELS
+        or label in RATE_REVIEW_LABELS
+        or label in DATETIME_LABELS
+        or label in BLOCK_ADDRESS_LABELS
+        or label in PICKUP_BLOCK_LABELS
+        or label in DELIVERY_BLOCK_LABELS
+    )
+
+
+def standalone_label(line):
+    text = str(line or "").strip()
+
+    if not text or ":" in text:
+        return ""
+
+    label = normalize_label(text)
+
+    if is_known_standalone_label(label):
+        return label
+
+    return ""
 
 
 def numeric_value(value):
@@ -380,6 +415,67 @@ def table_line_parts(line):
     return parts
 
 
+def table_header_for_line(line):
+    normalized = normalize_label(re.sub(r"[/|]", " ", str(line or "")))
+
+    if (
+        "commodity" in normalized
+        and "weight" in normalized
+        and ("equipment" in normalized or "trailer" in normalized)
+    ):
+        return "freight"
+
+    return ""
+
+
+def apply_active_table_line(output, active_table, line):
+    if active_table != "freight":
+        return False
+
+    parts = table_line_parts(line)
+
+    if len(parts) < 3:
+        return False
+
+    set_field(output, "commodity", parts[0], MEDIUM)
+    set_field(output, "weight", parts[1], MEDIUM)
+    set_field(output, "equipment", parts[2], MEDIUM)
+    return True
+
+
+def apply_stop_table_like_line(output, line):
+    parts = table_line_parts(line)
+
+    if len(parts) < 3:
+        return False
+
+    first = normalize_label(parts[0])
+
+    if first in {"pickup", "pick up", "pu", "shipper", "origin"}:
+        set_field(output, "pickup_location", parts[1], MEDIUM)
+
+        if len(parts) >= 3:
+            set_field(output, "pickup_date", parts[2], MEDIUM)
+
+        if len(parts) >= 4:
+            set_field(output, "pickup_time", parts[3], MEDIUM)
+
+        return True
+
+    if first in {"delivery", "drop", "consignee", "receiver", "destination"}:
+        set_field(output, "delivery_location", parts[1], MEDIUM)
+
+        if len(parts) >= 3:
+            set_field(output, "delivery_date", parts[2], MEDIUM)
+
+        if len(parts) >= 4:
+            set_field(output, "delivery_time", parts[3], MEDIUM)
+
+        return True
+
+    return False
+
+
 def apply_table_like_line(output, line):
     parts = table_line_parts(line)
 
@@ -464,6 +560,24 @@ def apply_label_value(output, label, value):
     set_field(output, field_name, value, confidence)
 
 
+def should_wait_for_next_line(label, active_block):
+    if label in BLOCK_ADDRESS_LABELS and active_block:
+        return True
+
+    return is_known_standalone_label(label)
+
+
+def apply_pending_label_value(output, pending_label, value, active_block):
+    if not pending_label:
+        return False
+
+    if apply_block_address(output, active_block, pending_label, value):
+        return True
+
+    apply_label_value(output, pending_label, value)
+    return True
+
+
 def apply_missing_confidence(output):
     if not output["broker_mc"]:
         output["field_confidence"].setdefault("broker_mc", UNKNOWN)
@@ -504,14 +618,51 @@ def parse_pasted_text_to_parser_output(text):
     output = empty_parser_output()
     output["source_type"] = "manual_pasted_text"
     active_block = ""
+    active_table = ""
+    pending_label = ""
 
     for raw_line in str(text or "").splitlines():
+        clean_line = str(raw_line or "").strip()
+
+        if not clean_line:
+            pending_label = ""
+            continue
+
+        if active_table and apply_active_table_line(output, active_table, clean_line):
+            active_table = ""
+            pending_label = ""
+            continue
+
+        table_header = table_header_for_line(clean_line)
+
+        if table_header:
+            active_table = table_header
+            pending_label = ""
+            continue
+
+        if apply_stop_table_like_line(output, clean_line):
+            pending_label = ""
+            continue
+
         if apply_table_like_line(output, raw_line):
+            pending_label = ""
             continue
 
         label, value = split_label_value(raw_line)
 
         if not label:
+            label = standalone_label(clean_line)
+
+        if not label:
+            if pending_label:
+                apply_pending_label_value(
+                    output,
+                    pending_label,
+                    clean_line,
+                    active_block,
+                )
+                pending_label = ""
+
             continue
 
         next_block = block_for_label(label)
@@ -519,10 +670,19 @@ def parse_pasted_text_to_parser_output(text):
         if next_block:
             active_block = next_block
 
-        if apply_block_address(output, active_block, label, value):
+        if value != "" and apply_block_address(output, active_block, label, value):
+            pending_label = ""
+            continue
+
+        if value == "" and should_wait_for_next_line(label, active_block):
+            if label in RATE_REVIEW_LABELS:
+                apply_label_value(output, label, value)
+
+            pending_label = label
             continue
 
         apply_label_value(output, label, value)
+        pending_label = ""
 
     apply_ambiguous_context(output, text)
     apply_missing_confidence(output)
