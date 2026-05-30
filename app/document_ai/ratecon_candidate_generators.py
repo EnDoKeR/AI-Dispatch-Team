@@ -9,10 +9,17 @@ from app.document_ai.ratecon_candidates import (
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_CARRIER_NAME,
+    FIELD_DELIVERY_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_DELIVERY_TIME,
     FIELD_ACCESSORIAL_TERM,
     FIELD_LOAD_NUMBER,
+    FIELD_PICKUP_DATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_PICKUP_TIME,
     FIELD_REFERENCE,
     FIELD_RATE,
+    SOURCE_SECTION_PATTERN,
     SOURCE_LABEL_PATTERN,
     build_candidate_extraction_result,
     build_field_candidate,
@@ -84,6 +91,22 @@ MC_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+LOCATION_PATTERN = re.compile(
+    r"\b(?P<location>[A-Z][A-Za-z ]+,\s*[A-Z]{2}(?:\s+\d{5})?)\b"
+)
+
+DATE_PATTERN = re.compile(
+    r"\b(?P<date>\d{1,2}/\d{1,2}/\d{2,4}|\d{4}-\d{2}-\d{2}|"
+    r"(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec)[a-z]*\s+\d{1,2},\s+\d{4})\b",
+    re.IGNORECASE,
+)
+
+TIME_PATTERN = re.compile(
+    r"\b(?P<time>FCFS|Appt\s+\d{1,2}:\d{2}|"
+    r"\d{1,2}:\d{2}(?:\s?[AP]M)?(?:\s*-\s*\d{1,2}:\d{2}(?:\s?[AP]M)?)?)\b",
+    re.IGNORECASE,
+)
+
 
 def _artifact_pages(artifact):
     if isinstance(artifact, dict):
@@ -119,6 +142,44 @@ def _split_label_value(line):
         return label.strip(), value.strip()
 
     return "", ""
+
+
+def _section_from_line(line):
+    lower_line = line.lower()
+    confidence = CANDIDATE_CONFIDENCE_HIGH
+
+    if any(text in lower_line for text in ["pickup", "pick up", "shipper", "origin"]):
+        return "pickup", confidence
+
+    if re.search(r"\bpu\b", lower_line):
+        return "pickup", confidence
+
+    if any(text in lower_line for text in ["delivery", "consignee", "destination", "receiver"]):
+        return "delivery", confidence
+
+    if re.search(r"\bdel\b", lower_line):
+        return "delivery", confidence
+
+    if "stop 1" in lower_line:
+        return "pickup", CANDIDATE_CONFIDENCE_LOW
+
+    if "stop 2" in lower_line:
+        return "delivery", CANDIDATE_CONFIDENCE_LOW
+
+    return "", CANDIDATE_CONFIDENCE_LOW
+
+
+def _stop_field(section, field_kind):
+    fields = {
+        ("pickup", "location"): FIELD_PICKUP_LOCATION,
+        ("pickup", "date"): FIELD_PICKUP_DATE,
+        ("pickup", "time"): FIELD_PICKUP_TIME,
+        ("delivery", "location"): FIELD_DELIVERY_LOCATION,
+        ("delivery", "date"): FIELD_DELIVERY_DATE,
+        ("delivery", "time"): FIELD_DELIVERY_TIME,
+    }
+
+    return fields.get((section, field_kind), "")
 
 
 def _label_from_line(line, match_start):
@@ -363,4 +424,93 @@ def build_identity_reference_candidate_result(artifact):
         missing_candidate_fields=missing,
         warnings=warnings,
         extractor_version="identity_reference_candidates_v1",
+    )
+
+
+def generate_stop_candidates(artifact):
+    candidates = []
+
+    for page in _artifact_pages(artifact):
+        page_number = page.get("page_number", "")
+        lines = str(page.get("text", "") or "").splitlines()
+        current_section = ""
+        current_confidence = CANDIDATE_CONFIDENCE_LOW
+
+        for line_index, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            section, section_confidence = _section_from_line(f" {stripped} ")
+            if section:
+                current_section = section
+                current_confidence = section_confidence
+
+            active_section = section or current_section
+            active_confidence = section_confidence if section else current_confidence
+            context_before, context_after = _line_context(lines, line_index - 1)
+
+            for field_kind, pattern in [
+                ("location", LOCATION_PATTERN),
+                ("date", DATE_PATTERN),
+                ("time", TIME_PATTERN),
+            ]:
+                field_name = _stop_field(active_section, field_kind)
+                if not field_name:
+                    continue
+
+                for match_index, match in enumerate(pattern.finditer(stripped), start=1):
+                    value = match.group(field_kind)
+                    warnings = []
+                    confidence_reasons = [f"{active_section}_{field_kind}_section"]
+
+                    if active_confidence == CANDIDATE_CONFIDENCE_LOW:
+                        warnings.append("ambiguous_stop_section")
+                        confidence_reasons.append("generic_stop_label")
+
+                    candidates.append(
+                        build_field_candidate(
+                            candidate_id=(
+                                f"{field_name}-p{page_number}-l{line_index}-{match_index}"
+                            ),
+                            field_name=field_name,
+                            raw_value=value,
+                            normalized_value=value,
+                            confidence=active_confidence,
+                            confidence_reasons=confidence_reasons,
+                            page_number=page_number,
+                            line_number=line_index,
+                            label=active_section,
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_SECTION_PATTERN,
+                            warnings=warnings,
+                            value_type=field_kind,
+                        )
+                    )
+
+    return candidates
+
+
+def build_stop_candidate_result(artifact):
+    candidates = generate_stop_candidates(artifact)
+    present_fields = {candidate["field_name"] for candidate in candidates}
+    required_fields = [
+        FIELD_PICKUP_LOCATION,
+        FIELD_PICKUP_DATE,
+        FIELD_DELIVERY_LOCATION,
+        FIELD_DELIVERY_DATE,
+    ]
+    missing = [
+        field_name for field_name in required_fields if field_name not in present_fields
+    ]
+    warnings = ["stop_candidates_missing"] if missing else []
+
+    return build_candidate_extraction_result(
+        document_id=(artifact or {}).get("document_id", ""),
+        artifact_id=(artifact or {}).get("artifact_id", ""),
+        candidates=candidates,
+        missing_candidate_fields=missing,
+        warnings=warnings,
+        extractor_version="stop_candidates_v1",
     )
