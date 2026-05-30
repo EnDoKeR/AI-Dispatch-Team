@@ -28,12 +28,14 @@ class DecisionEngineResultTest(unittest.TestCase):
         )
 
         self.assertEqual(result["decision"], "MATCH")
+        self.assertEqual(result["recommendation"], "MATCH")
         self.assertEqual(result["category"], "LOAD OPPORTUNITY")
         self.assertEqual(result["positive_signals"], ["Strong gross"])
         self.assertEqual(result["confidence"], "HIGH")
         self.assertTrue(result["approval_required"])
         self.assertEqual(result["recommended_next_action"], "CALL_NOW")
         self.assertEqual(result["source_signals"]["load_facts"]["rate"], 3500)
+        self.assertEqual(result["decision_version"], "decision_result_v1")
 
     def test_builds_review_once_with_risk_flags_and_reasons(self):
         result = build_decision_result(
@@ -47,6 +49,7 @@ class DecisionEngineResultTest(unittest.TestCase):
 
         self.assertEqual(result["decision"], "REVIEW_ONCE")
         self.assertEqual(result["risk_flags"], ["MISSING_RATE", "BROKER_MC_MISSING"])
+        self.assertEqual(result["reasons"], ["Rate needs broker check."])
         self.assertEqual(result["review_reasons"], ["Rate needs broker check."])
         self.assertEqual(result["missing_fields"], ["rate"])
         self.assertEqual(result["needs_check_fields"], ["broker_mc"])
@@ -73,13 +76,17 @@ class DecisionEngineResultTest(unittest.TestCase):
         self.assertEqual(result["risk_flags"], [])
         self.assertEqual(result["missing_fields"], [])
         self.assertEqual(result["needs_check_fields"], [])
+        self.assertEqual(result["reasons"], [])
         self.assertEqual(result["review_reasons"], [])
         self.assertEqual(result["block_reasons"], [])
+        self.assertEqual(result["rules_fired"], [])
+        self.assertEqual(result["evidence_refs"], [])
         self.assertEqual(result["positive_signals"], [])
         self.assertEqual(result["explanation"], "")
         self.assertEqual(result["confidence"], "UNKNOWN")
         self.assertEqual(result["source_signals"], {})
         self.assertFalse(result["approval_required"])
+        self.assertEqual(result["decision_version"], "decision_result_v1")
 
     def test_dedupes_risk_flags(self):
         result = build_decision_result(
@@ -134,7 +141,71 @@ class DecisionEngineResultTest(unittest.TestCase):
 
     def test_normalizers_fall_back_safely(self):
         self.assertEqual(normalize_decision("unknown"), "NO_ACTION")
+        self.assertEqual(normalize_decision("review required"), "REVIEW_REQUIRED")
         self.assertEqual(normalize_confidence("maybe"), "UNKNOWN")
+
+    def test_missing_critical_fields_route_match_to_review_required(self):
+        result = build_decision_result(
+            decision="MATCH",
+            missing_fields=["rate"],
+            confidence="HIGH",
+        )
+
+        self.assertEqual(result["decision"], "REVIEW_REQUIRED")
+        self.assertEqual(result["recommendation"], "REVIEW_REQUIRED")
+        self.assertEqual(result["missing_fields"], ["rate"])
+        self.assertTrue(result["approval_required"])
+
+    def test_low_confidence_critical_signal_routes_match_to_review_required(self):
+        result = build_decision_result(
+            decision="MATCH",
+            confidence="HIGH",
+            source_signals={
+                "field_confidence": {
+                    "rate": "LOW",
+                }
+            },
+        )
+
+        self.assertEqual(result["decision"], "REVIEW_REQUIRED")
+        self.assertEqual(result["confidence"], "HIGH")
+        self.assertTrue(result["approval_required"])
+
+    def test_global_low_confidence_routes_match_to_review_required(self):
+        result = build_decision_result(
+            decision="MATCH",
+            confidence="LOW",
+        )
+
+        self.assertEqual(result["decision"], "REVIEW_REQUIRED")
+        self.assertEqual(result["confidence"], "LOW")
+
+    def test_conflicting_critical_signal_routes_match_to_review_required(self):
+        result = build_decision_result(
+            decision="MATCH",
+            source_signals={
+                "conflicting_fields": ["rate"],
+            },
+            rules_fired=["rate_candidate_conflict"],
+            evidence_refs=["evidence-rate-1"],
+        )
+
+        self.assertEqual(result["decision"], "REVIEW_REQUIRED")
+        self.assertEqual(result["rules_fired"], ["rate_candidate_conflict"])
+        self.assertEqual(result["evidence_refs"], ["evidence-rate-1"])
+
+    def test_review_once_and_block_decisions_are_preserved(self):
+        review_result = build_decision_result(
+            decision="REVIEW_ONCE",
+            missing_fields=["rate"],
+        )
+        block_result = build_decision_result(
+            decision="BLOCK",
+            missing_fields=["rate"],
+        )
+
+        self.assertEqual(review_result["decision"], "REVIEW_ONCE")
+        self.assertEqual(block_result["decision"], "BLOCK")
 
     def test_no_forbidden_imports(self):
         source = inspect.getsource(decision_result).lower()

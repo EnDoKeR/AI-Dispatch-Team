@@ -20,12 +20,16 @@ It should answer:
 ```python
 {
     "decision": "MATCH",
+    "recommendation": "MATCH",
     "category": "LOAD OPPORTUNITY",
     "risk_flags": [],
     "missing_fields": [],
     "needs_check_fields": [],
+    "reasons": [],
     "review_reasons": [],
     "block_reasons": [],
+    "rules_fired": [],
+    "evidence_refs": [],
     "positive_signals": [],
     "explanation": "",
     "confidence": "MEDIUM",
@@ -34,6 +38,7 @@ It should answer:
     "recommended_next_action": "",
     "linked_load_id": "",
     "reference_id": "",
+    "decision_version": "decision_result_v1",
 }
 ```
 
@@ -45,6 +50,7 @@ Allowed first-version values:
 
 - `MATCH`
 - `REVIEW_ONCE`
+- `REVIEW_REQUIRED`
 - `BLOCK`
 - `NO_ACTION`
 
@@ -52,8 +58,21 @@ Meaning:
 
 - `MATCH`: clean enough to show as a strong opportunity.
 - `REVIEW_ONCE`: uncertain or potentially useful, but needs dispatcher check.
+- `REVIEW_REQUIRED`: missing, low-confidence, or conflicting critical data prevents a clean match.
 - `BLOCK`: clear incompatibility or unacceptable risk.
 - `NO_ACTION`: no actionable alert or decision should be produced.
+
+Current helper behavior:
+
+- `MATCH` with missing fields routes to `REVIEW_REQUIRED`.
+- `MATCH` with needs-check fields routes to `REVIEW_REQUIRED`.
+- `MATCH` with LOW confidence routes to `REVIEW_REQUIRED`.
+- `MATCH` with conflict signals routes to `REVIEW_REQUIRED`.
+- Existing `REVIEW_ONCE` and `BLOCK` decisions are preserved for backward compatibility.
+
+### `recommendation`
+
+Machine-readable recommendation mirror for downstream adapters. It currently follows the normalized `decision` value and must not be calculated by Telegram formatters.
 
 ### `category`
 
@@ -110,6 +129,10 @@ Human-readable reasons that explain why a dispatcher should review the load.
 
 These may be shown in Telegram, CLI dry-runs, future dashboard cards, or audit reports.
 
+### `reasons`
+
+Canonical combined reason list for logging, reports, and future adapters. It may include review and block reasons and should stay JSON-serializable.
+
 ### `block_reasons`
 
 Human-readable reasons that explain hard blocks.
@@ -127,6 +150,18 @@ Examples:
 - low empty miles
 - broker memory positive signal
 - clean exit available
+
+### `rules_fired`
+
+Machine-readable rule identifiers that explain which decision rules contributed to the result.
+
+### `evidence_refs`
+
+References to structured evidence records or future extraction artifacts. These must not contain raw private document text.
+
+### `decision_version`
+
+Schema/ruleset version string for replay and audit compatibility.
 
 ### `explanation`
 
