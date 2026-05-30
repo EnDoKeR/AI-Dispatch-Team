@@ -1,0 +1,20 @@
+LOAD CONFIRMATION
+Tablelane Transport Mock
+MC 333333
+Load ID: TLM-3003
+
+CONTACT | DISPATCH | MOCK CONTACT
+CARRIER | Demo Carrier LLC | Contact: Test Dispatcher
+
+RATE TABLE
+Description | Amount
+Total Carrier Pay | $1,875.00
+
+STOP TABLE
+Stop | Type | Name | City State | Date | Time
+1 | Pickup | Mock Pickup Facility | Blue City FS | 06/14/2026 | 0700
+2 | Delivery | Mock Delivery Facility | Gray City FS | 06/15/2026 | 1200
+
+Equipment | Flatbed
+Weight | 44,000 lbs
+Commodity | Mock steel pieces

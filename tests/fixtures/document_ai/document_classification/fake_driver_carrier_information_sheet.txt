@@ -1,0 +1,12 @@
+DRIVER / CARRIER INFORMATION SHEET
+
+Carrier Name: Demo Carrier LLC
+Carrier MC: MC 999999
+Dispatcher Name: Test Dispatcher
+Driver Name: Test Driver
+Driver Phone: 555-000-0000
+Truck Number: TRUCK-555
+Trailer Number: TRAILER-777
+
+This sheet is for contact and equipment information only.
+It is not a rate confirmation.

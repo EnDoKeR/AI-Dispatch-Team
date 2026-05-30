@@ -1,0 +1,7 @@
+DOCUMENT NOTICE
+
+This mock page contains general information.
+It has no clear rate confirmation, bill of lading, billing, terms, tender,
+or signature certificate labels.
+
+Review is required before using this document for extraction.

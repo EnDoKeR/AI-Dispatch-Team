@@ -1,0 +1,28 @@
+RATE & LOAD CONFIRMATION
+Alpha Freight Mock
+Broker MC: MC 111111
+Load Number: AFM-LOAD-1001
+
+Carrier: Demo Carrier LLC
+Carrier Contact: Test Dispatcher
+
+Carrier Pay: $2,450.00
+Equipment: Dry Van
+Weight: 41,000 lbs
+Commodity: Packaged mock goods
+
+Shipper / Pickup
+Mock Shipper One
+100 Example Pickup Road
+Faketown, FS
+Pickup Date: 06/10/2026
+Pickup Window: 0800-1100
+
+Consignee / Delivery
+Mock Consignee One
+200 Example Delivery Road
+Sampleville, FS
+Delivery Date: 06/11/2026
+Delivery Window: 1300-1600
+
+Special Instructions: seal required, call before pickup.

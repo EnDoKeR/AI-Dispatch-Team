@@ -1,0 +1,11 @@
+TRUCK ORDER NOT USED CONFIRMATION
+Unknown Mock Brokerage
+TONU Reference: TONU-8008
+
+Carrier: Demo Carrier LLC
+Truck ordered not used payment: $250.00
+Reason: load canceled after carrier dispatch.
+
+No pickup appointment is active.
+No delivery appointment is active.
+Submit invoice with TONU reference for payment review.

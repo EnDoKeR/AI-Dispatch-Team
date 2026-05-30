@@ -1,0 +1,13 @@
+LOAD / ORDER CONFIRMATION CONTINUATION
+Mock Operations System
+Order Number: MOL-4004
+
+SO SECTION
+Stop Off / Delivery Location: Mock Delivery DC
+Delivery City/State: South Mocktown, FS
+Delivery Date: 06/17/2026
+Delivery Time: 1400
+
+Payment Summary
+Carrier Freight Pay: $2,050.00
+Accessorials must be approved in writing.

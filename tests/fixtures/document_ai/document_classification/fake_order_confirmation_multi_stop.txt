@@ -1,0 +1,14 @@
+ORDER CONFIRMATION
+Unknown Mock Brokerage
+Order #: ORD-5005
+Carrier Pay: $4,200.00
+
+MULTI STOP SECTION
+Stop 1 Pickup: Mock Origin A, FS on 06/18/2026 at 0700
+Stop 2 Pickup: Mock Origin B, FS on 06/18/2026 at 1100
+Stop 3 Delivery: Mock Destination C, FS on 06/19/2026 at 1600
+
+Equipment: Reefer
+Weight: 39,500 lbs
+Commodity: Mock refrigerated goods
+Special Instructions: appointment required at each stop.

@@ -1,0 +1,14 @@
+TERMS AND CONDITIONS
+Alpha Freight Mock
+Load Number: AFM-LOAD-1001
+
+Payment Summary
+Linehaul: $2,450.00
+Detention policy: $50 per hour after two free hours.
+Layover policy: $250 per day if approved.
+Truck ordered not used: $150 if canceled after dispatch.
+Quick pay fee: 2 percent deduction.
+
+Carrier agrees to submit all paperwork within 24 hours.
+Failure to provide paperwork may delay payment.
+This page is not a new load confirmation.

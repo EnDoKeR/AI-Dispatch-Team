@@ -1,0 +1,15 @@
+BILL OF LADING
+BOL No: BOL-6006
+
+Shipper: Mock Shipper Facility
+Consignee: Mock Receiver Facility
+Carrier: Demo Carrier LLC
+
+Description of Articles
+Mock freight, packaged units
+Pieces: 20
+Weight: 10,000 lbs
+
+Shipper Signature: __________________
+Carrier Signature: __________________
+Received By: ________________________

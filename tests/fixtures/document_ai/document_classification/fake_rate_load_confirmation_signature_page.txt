@@ -1,0 +1,14 @@
+SIGNATURE PAGE
+Alpha Freight Mock
+Load Number: AFM-LOAD-1001
+
+Accepted By: ______________________
+Printed Name: _____________________
+Carrier Signature: ________________
+Date Signed: ______________________
+
+Driver Name: Test Driver
+Truck Number: TRUCK-101
+Trailer Number: TRAILER-202
+
+Signature only page.

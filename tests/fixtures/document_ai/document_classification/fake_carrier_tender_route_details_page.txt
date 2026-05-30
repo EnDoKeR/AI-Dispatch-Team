@@ -1,0 +1,19 @@
+CARRIER LOAD TENDER
+Northstar Logistics Mock
+Shipment #: NSM-2002
+Docket MC: MC 222222
+
+Route Details
+Stop 1 Pickup
+Origin: Example Origin Warehouse
+City/State: Origin City, FS
+Appointment: 06/12/2026 0900
+
+Stop 2 Delivery
+Destination: Example Destination Warehouse
+City/State: Destination City, FS
+Appointment: 06/13/2026 1500
+
+Trailer Type: Reefer
+Gross Weight: 37,500 lbs
+Temperature: 34 degrees

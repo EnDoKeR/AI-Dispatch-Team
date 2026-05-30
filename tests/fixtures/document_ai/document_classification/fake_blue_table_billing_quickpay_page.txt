@@ -1,0 +1,14 @@
+BILLING AND QUICK PAY
+Tablelane Transport Mock
+Load ID: TLM-3003
+
+Remit To
+Mock Billing Department
+paperwork@example.invalid
+
+Quick Pay Terms
+Quick pay fee: 3 percent
+Standard pay: 30 days after paperwork approval
+Invoice must include signed rate confirmation and POD.
+
+This billing page does not change the total carrier pay.

@@ -1,0 +1,16 @@
+LOAD / ORDER CONFIRMATION
+Mock Operations System
+Order Number: MOL-4004
+Load Number: MOL-4004
+
+PU SECTION
+Pickup Location: Mock Pickup Plant
+Pickup City/State: North Mocktown, FS
+Pickup Date: 06/16/2026
+Pickup Time: 0800
+
+Equipment: Van
+Commodity: Example cartons
+Weight: 25,000 lbs
+
+Carrier: Demo Carrier LLC

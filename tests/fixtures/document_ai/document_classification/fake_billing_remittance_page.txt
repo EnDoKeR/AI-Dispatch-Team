@@ -1,0 +1,9 @@
+BILLING INSTRUCTIONS
+
+Invoice To: mock-ap@example.invalid
+Remit To: Mock Remittance Center
+Paperwork Submission: upload invoice, signed POD, and load number.
+Payment Terms: Net 30 after approved documents.
+Quick Pay: available with deduction.
+
+No load movement details are provided on this page.

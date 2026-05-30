@@ -1,0 +1,14 @@
+CARRIER LOAD TENDER CONTINUATION
+Northstar Logistics Mock
+Shipment #: NSM-2002
+
+Agreed Rate Table
+Linehaul Amount: $3,100.00
+Fuel Included: Yes
+Accessorials require written approval.
+
+Billing Instructions
+Invoice To: billing@example.invalid
+Remit paperwork through mock carrier portal.
+Quick Pay: available after delivery paperwork approval.
+Paperwork must include signed POD and invoice.
