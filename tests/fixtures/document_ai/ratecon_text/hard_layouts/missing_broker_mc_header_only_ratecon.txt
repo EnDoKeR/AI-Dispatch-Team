@@ -1,0 +1,13 @@
+--- PAGE 1 ---
+Alpha Freight Mock
+Alpha Rate Confirmation
+Load Number: FAKE-LOAD-204
+Carrier Pay: $2,650.00
+Pickup: Fake Header Origin, ST 00000
+Pickup Date: 06/07/2026
+Delivery: Fake Header Destination, ST 00000
+Delivery Date: 06/08/2026
+Equipment: Conestoga
+Commodity: FAKE BUILDING SUPPLIES
+Weight: 39,000 lbs
+Special Requirements: straps required

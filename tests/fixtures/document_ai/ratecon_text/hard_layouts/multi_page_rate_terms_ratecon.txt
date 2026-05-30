@@ -1,0 +1,26 @@
+--- PAGE 1 ---
+Northstar Docket
+Broker: Northstar Logistics Mock
+Docket MC: MC 222222
+Shipment #: FAKE-SHIP-202
+Agreed Amount: $3,150.00
+Shipper: Fake Pickup Point, ST 00000
+Pickup # : FAKE-PU-202
+Pickup Date: 06/03/2026
+Pickup Time: Appt 09:30
+Consignee: Fake Delivery Point, ST 00000
+Delivery # : FAKE-DEL-202
+Delivery Date: 06/04/2026
+Delivery Time: 14:00-16:00
+Trailer Type: Reefer
+Freight Description: FAKE PACKAGED GOODS
+Gross Weight: 38,500 lbs
+
+--- PAGE 2 ---
+Northstar Docket Terms
+Layover: $300.00
+TONU: $150.00
+Quick Pay Fee: $45.00
+Lumper: $85.00
+Fuel Surcharge: $125.00
+Driver Notes: appointment required

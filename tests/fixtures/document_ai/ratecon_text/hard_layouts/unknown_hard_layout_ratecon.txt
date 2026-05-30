@@ -1,0 +1,13 @@
+--- PAGE 1 ---
+Unknown Mock Brokerage
+Fake Hard Layout Confirmation
+Reference: FAKE-UNKNOWN-210
+Amount Due Carrier: $2,400.00
+Origin Info: Fake Unknown Origin, ST 00000
+Origin Date: 06/19/2026
+Destination Info: Fake Unknown Destination, ST 00000
+Destination Date: 06/20/2026
+Mode: Van
+Description: FAKE MIXED FREIGHT
+Weight: 32,000 lbs
+Notes: call for fake appointment details

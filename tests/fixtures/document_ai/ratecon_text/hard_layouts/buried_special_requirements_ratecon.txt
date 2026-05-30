@@ -1,0 +1,16 @@
+--- PAGE 1 ---
+Alpha Rate Confirmation
+Broker: Alpha Freight Mock
+Broker MC: MC 111111
+Load Number: FAKE-LOAD-208
+Carrier Pay: $3,220.00
+Pickup: Fake Notes Origin, ST 00000
+Pickup Date: 06/15/2026
+Delivery: Fake Notes Destination, ST 00000
+Delivery Date: 06/16/2026
+Equipment: Flatbed
+Commodity: FAKE STEEL PARTS
+Weight: 45,000 lbs
+
+Notes: tarp required, straps required, chains required, driver assist, no touch, appointment required, load bars
+Accessorial: detention requires written approval

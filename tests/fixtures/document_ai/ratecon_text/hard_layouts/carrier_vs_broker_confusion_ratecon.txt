@@ -1,0 +1,15 @@
+--- PAGE 1 ---
+Northstar Docket
+Broker: Northstar Logistics Mock
+Docket MC: MC 222222
+Carrier Name: Fake Carrier Placeholder LLC
+Trucking Company: Fake Carrier Placeholder LLC
+Shipment #: FAKE-SHIP-205
+Agreed Amount: $3,040.00
+Shipper: Fake Broker Test Origin, ST 00000
+Pickup Date: 06/09/2026
+Consignee: Fake Broker Test Destination, ST 00000
+Delivery Date: 06/10/2026
+Trailer Type: Flatbed
+Freight Description: FAKE LUMBER
+Gross Weight: 44,000 lbs

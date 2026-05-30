@@ -1,0 +1,26 @@
+--- PAGE 1 ---
+Alpha Rate Confirmation
+Broker: Alpha Freight Mock
+Broker MC: MC 111111
+Load Number: FAKE-LOAD-201
+Carrier Pay: $2,900.00
+Pickup: Fake Origin City, ST 00000
+Pickup Date: 06/01/2026
+Pickup Time: 08:00-10:00
+Delivery: Fake Destination City, ST 00000
+Delivery Date: 06/02/2026
+Delivery Time: 13:00-15:00
+Equipment: 53 ft dry van
+Commodity: FAKE MACHINE PARTS
+Weight: 41,000 lbs
+Special Requirements: no touch
+
+--- PAGE 2 ---
+Alpha Rate Confirmation
+Load Number: FAKE-LOAD-201
+Terms and Charges
+Detention: $75.00 per fake hour after free time
+Layover: $250.00 by approval
+Late Fee: $125.00 if appointment missed
+Penalty: $300.00 for fake paperwork issue
+Lumper: $90.00 if required

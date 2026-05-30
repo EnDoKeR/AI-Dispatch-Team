@@ -1,0 +1,13 @@
+--- PAGE 1 ---
+Tablelane Rate Sheet
+Broker: Tablelane Transport Mock
+MC: MC 333333
+Order #: FAKE-ORDER-207
+Total Carrier Rate: $2,875.00
+Trailer: 53 ft dry van
+Product: FAKE CANNED GOODS
+Total Weight: 40,000 lbs
+
+Stop 1 | PU | Fake Conflict Origin, ST 00000 | 06/13/2026 | PU Appt 08:00-10:00
+Stop 1 Update | PU | Fake Conflict Origin, ST 00000 | 06/13/2026 | PU Appt 11:00-13:00
+Stop 2 | DEL | Fake Conflict Destination, ST 00000 | 06/14/2026 | DEL Appt 15:00-17:00

@@ -1,0 +1,24 @@
+--- PAGE 1 ---
+Tablelane Rate Sheet
+Broker: Tablelane Transport Mock
+MC: MC 333333
+Order #: FAKE-ORDER-206
+Total Carrier Rate: $2,930.00
+Trailer: 53 ft dry van
+Product: FAKE RETAIL FREIGHT
+Total Weight: 36,000 lbs
+
+Stop 1 Pickup
+Location: Fake Reference Origin, ST 00000
+Date: 06/11/2026
+PU Appt: 07:00-09:00
+PO Number: FAKE-PO-206
+Pickup Confirmation: FAKE-PUCONF-206
+
+Stop 2 Delivery
+Location: Fake Reference Destination, ST 00000
+Date: 06/12/2026
+DEL Appt: 12:00-14:00
+BOL Number: FAKE-BOL-206
+Delivery Confirmation: FAKE-DELCONF-206
+Customer Reference: FAKE-CUST-206

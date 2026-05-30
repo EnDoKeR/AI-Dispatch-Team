@@ -1,0 +1,16 @@
+--- PAGE 1 ---
+Northstar Docket
+Broker: Northstar Logistics Mock
+Docket MC: MC 222222
+Shipment #: FAKE-SHIP-209
+Original Rate: $2,800.00
+Revised Rate Confirmation
+Revised Carrier Pay: $3,050.00
+Updated Rate: $3,050.00
+Shipper: Fake Revised Origin, ST 00000
+Pickup Date: 06/17/2026
+Consignee: Fake Revised Destination, ST 00000
+Delivery Date: 06/18/2026
+Trailer Type: Step Deck
+Freight Description: FAKE OVERSIZED CRATES
+Gross Weight: 43,500 lbs

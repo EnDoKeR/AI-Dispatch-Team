@@ -1,0 +1,15 @@
+--- PAGE 1 ---
+Tablelane Rate Sheet
+Broker: Tablelane Transport Mock
+MC: MC 333333
+Order #: FAKE-ORDER-203
+Total Carrier Rate: $2,780.00
+Trailer: 53 ft dry van
+Product: FAKE PALLETIZED GOODS
+Total Weight: 42,500 lbs
+
+Stop | Type | Location | Date | Appt | Reference
+Stop 1 | PU | Fake Table Origin, ST 00000 | 06/05/2026 | PU Appt 08:00-10:00 | Pickup Confirmation: FAKE-PUCONF-203
+Stop 2 | DEL | Fake Table Destination, ST 00000 | 06/06/2026 | DEL Appt 13:00-15:00 | Delivery Confirmation: FAKE-DELCONF-203
+Appointment #: FAKE-APPT-203
+Load Notes: no touch
