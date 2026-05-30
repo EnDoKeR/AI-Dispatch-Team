@@ -11,7 +11,10 @@ from scripts.run_fake_ratecon_candidate_extraction import (
     main,
 )
 from tests.fixtures.document_ai.broker_templates.fixture_loader import FIXTURE_DIR as TEMPLATE_DIR
-from tests.fixtures.document_ai.ratecon_text.fixture_loader import FIXTURE_DIR
+from tests.fixtures.document_ai.ratecon_text.fixture_loader import (
+    FIXTURE_DIR,
+    HARD_LAYOUT_FIXTURE_DIR,
+)
 
 
 class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
@@ -22,6 +25,7 @@ class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
         first = summary["summaries"][0]
         self.assertIn("candidate_counts_by_field", first)
         self.assertIn("template_match_status", first)
+        self.assertIn("template_scoring_applied", first)
         self.assertIn("missing_fields", first)
 
     def test_summary_contains_selected_template_for_template_fixture(self):
@@ -47,6 +51,34 @@ class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
         self.assertNotIn("FAKE BROKER LLC", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
 
+    def test_include_hard_layouts_adds_hard_layout_fixtures(self):
+        summary = build_fake_candidate_extraction_summary(
+            FIXTURE_DIR,
+            TEMPLATE_DIR,
+            include_hard_layouts=True,
+        )
+        fixture_names = {
+            item["fixture"]
+            for item in summary["summaries"]
+        }
+
+        self.assertTrue(summary["include_hard_layouts"])
+        self.assertIn("repeated_headers_terms_ratecon.txt", fixture_names)
+        self.assertIn("unknown_hard_layout_ratecon.txt", fixture_names)
+
+    def test_input_directory_can_be_hard_layout_directory(self):
+        summary = build_fake_candidate_extraction_summary(
+            HARD_LAYOUT_FIXTURE_DIR,
+            TEMPLATE_DIR,
+        )
+        fixture_names = {
+            item["fixture"]
+            for item in summary["summaries"]
+        }
+
+        self.assertIn("table_like_stops_ratecon.txt", fixture_names)
+        self.assertNotIn("simple_clean_ratecon.txt", fixture_names)
+
     def test_main_writes_safe_json_summary(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "summary.json"
@@ -58,6 +90,7 @@ class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
                     str(FIXTURE_DIR),
                     "--template-dir",
                     str(TEMPLATE_DIR),
+                    "--include-hard-layouts",
                     "--output-json",
                     str(output_path),
                 ])
@@ -66,9 +99,22 @@ class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 0)
         self.assertTrue(payload["dry_run_only"])
+        self.assertTrue(payload["include_hard_layouts"])
         self.assertFalse(payload["raw_text_printed"])
         self.assertNotIn("FAKE BROKER LLC", output_path.name)
         self.assertIn("DRY RUN ONLY", buffer.getvalue())
+
+    def test_main_help_mentions_fake_only_safety(self):
+        buffer = io.StringIO()
+
+        with self.assertRaises(SystemExit) as raised:
+            with redirect_stdout(buffer):
+                main(["--help"])
+
+        self.assertEqual(raised.exception.code, 0)
+        output = " ".join(buffer.getvalue().lower().split())
+        self.assertIn("fake-only", output)
+        self.assertIn("does not read private", output)
 
 
 if __name__ == "__main__":

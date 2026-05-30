@@ -23,6 +23,7 @@ from app.document_ai.text_artifacts import build_text_extraction_artifact_for_ca
 
 
 DEFAULT_FIXTURE_DIR = REPO_ROOT / "tests" / "fixtures" / "document_ai" / "ratecon_text"
+DEFAULT_HARD_LAYOUT_FIXTURE_DIR = DEFAULT_FIXTURE_DIR / "hard_layouts"
 DEFAULT_TEMPLATE_DIR = REPO_ROOT / "tests" / "fixtures" / "document_ai" / "broker_templates"
 
 
@@ -32,6 +33,16 @@ def _candidate_counts(candidates):
 
 def _adjustment_counts(adjustments):
     return dict(sorted(Counter(adjustment["field_name"] for adjustment in adjustments).items()))
+
+
+def _fixture_paths(fixture_dir, include_hard_layouts=False):
+    paths = list(Path(fixture_dir).glob("*.txt"))
+    hard_layout_dir = Path(fixture_dir) / "hard_layouts"
+
+    if include_hard_layouts and hard_layout_dir.exists():
+        paths.extend(hard_layout_dir.glob("*.txt"))
+
+    return sorted(set(paths))
 
 
 def _safe_fixture_summary(path, registry):
@@ -59,6 +70,8 @@ def _safe_fixture_summary(path, registry):
         "template_match_status": template_selection["status"],
         "selected_template_id": template_selection["selected_template_id"],
         "template_match_confidence": template_selection["selected_confidence"],
+        "template_scoring_applied": extraction_result.get("template_scoring_applied", False),
+        "template_context_limited": extraction_result.get("template_context_limited", True),
         "candidate_counts_by_field": _candidate_counts(candidate_result["candidates"]),
         "boosted_candidate_counts_by_field": _adjustment_counts(
             extraction_result["scoring_adjustments"]
@@ -81,17 +94,19 @@ def _safe_fixture_summary(path, registry):
 def build_fake_candidate_extraction_summary(
     input_dir=DEFAULT_FIXTURE_DIR,
     template_dir=DEFAULT_TEMPLATE_DIR,
+    include_hard_layouts=False,
 ):
     fixture_dir = Path(input_dir)
     registry = BrokerTemplateRegistry.from_directory(template_dir)
     summaries = [
         _safe_fixture_summary(path, registry)
-        for path in sorted(fixture_dir.glob("*.txt"))
+        for path in _fixture_paths(fixture_dir, include_hard_layouts=include_hard_layouts)
     ]
 
     return {
         "fixture_dir": str(fixture_dir),
         "template_dir": str(template_dir),
+        "include_hard_layouts": bool(include_hard_layouts),
         "total_fixtures": len(summaries),
         "summaries": summaries,
         "dry_run_only": True,
@@ -113,6 +128,8 @@ def format_summary_lines(summary):
                 f"  template_match_status: {item['template_match_status']}",
                 f"  selected_template_id: {item['selected_template_id']}",
                 f"  template_match_confidence: {item['template_match_confidence']}",
+                f"  template_scoring_applied: {item['template_scoring_applied']}",
+                f"  template_context_limited: {item['template_context_limited']}",
                 f"  candidate_counts_by_field: {item['candidate_counts_by_field']}",
                 f"  boosted_candidate_counts_by_field: {item['boosted_candidate_counts_by_field']}",
                 f"  resolved_fields: {item['resolved_fields']}",
@@ -131,7 +148,10 @@ def format_summary_lines(summary):
 
 def main(argv=None):
     parser = argparse.ArgumentParser(
-        description="Run fake/anonymized RateCon candidate extraction.",
+        description=(
+            "Run fake/anonymized RateCon candidate extraction. "
+            "This fake-only CLI does not read private RateCon directories."
+        ),
     )
     parser.add_argument(
         "--input-dir",
@@ -148,9 +168,21 @@ def main(argv=None):
         default="",
         help="Optional path for safe summary JSON with no raw fixture text.",
     )
+    parser.add_argument(
+        "--include-hard-layouts",
+        action="store_true",
+        help=(
+            "Also process fake/anonymized hard-layout fixtures under the input "
+            "directory's hard_layouts folder."
+        ),
+    )
     args = parser.parse_args(argv)
 
-    summary = build_fake_candidate_extraction_summary(args.input_dir, args.template_dir)
+    summary = build_fake_candidate_extraction_summary(
+        args.input_dir,
+        args.template_dir,
+        include_hard_layouts=args.include_hard_layouts,
+    )
 
     for line in format_summary_lines(summary):
         print(line)
