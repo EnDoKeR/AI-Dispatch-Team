@@ -131,3 +131,48 @@ Stop diagnostics and return to process review if:
 - private text would need to be committed;
 - OCR is required;
 - the next step would create/link DispatchCases or write events.
+
+## Implementation Status
+
+Implemented safe diagnostics:
+
+```text
+app/market_intelligence/intake/ratecon_field_diagnostics.py
+app/market_intelligence/intake/ratecon_parser_coverage.py
+scripts/run_private_ratecon_redacted_diagnostics.py
+```
+
+Current command:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1
+```
+
+The command uses local extraction, runs redacted signal diagnostics, compares the signal counts to parser/intake coverage, and prints safe summaries only.
+
+Current safe output includes:
+
+- anonymized label;
+- extraction status;
+- character count;
+- page count;
+- signal counts by category;
+- parser field status by category;
+- missing and needs-check field names;
+- suspected parser gap field names;
+- result category;
+- generic warnings.
+
+Recommended next step:
+
+```text
+user runs redacted diagnostics locally and shares safe summary
+```
+
+Recommended follow-up:
+
+```text
+create anonymized synthetic RateCon examples from observed parser gap categories
+```
+
+Parser improvements should be based on fake/synthetic examples derived from the safe summaries. Do not improve parser patterns by committing private text or snippets.

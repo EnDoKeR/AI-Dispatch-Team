@@ -2139,3 +2139,89 @@ Not recommended next:
 - accounting/factoring implementation;
 - synthetic 100-200 load dataset;
 - reload-chain metadata/case wiring.
+
+## Redacted RateCon Field Diagnostics Closeout
+
+Completed:
+
+- redacted diagnostic process doc: `docs/RATECON_REDACTED_FIELD_DIAGNOSTICS.md`;
+- field-label signal detector: `app/market_intelligence/intake/ratecon_field_diagnostics.py`;
+- parser coverage diagnostic helper: `app/market_intelligence/intake/ratecon_parser_coverage.py`;
+- local private diagnostics CLI: `scripts/run_private_ratecon_redacted_diagnostics.py`;
+- README command reference.
+
+Current command:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1
+```
+
+Current status:
+
+- local/private/dry-run only;
+- inspects extracted PDF text in memory only;
+- prints label signal counts and parser coverage statuses only;
+- prints no raw extracted text, values, snippets, filenames, broker/customer/contact data, MCs, addresses, emails, phone numbers, reference numbers, or appointment details;
+- saves no extracted text;
+- creates no fixtures from private documents;
+- creates/links no DispatchCases;
+- writes no DispatchCase events;
+- adds no OCR, Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, reload-chain metadata, or synthetic 100-200 dataset work.
+
+Options evaluated:
+
+1. user runs redacted diagnostics on `RATECON_001` and shares safe summary
+2. anonymized synthetic RateCon scenario expansion from observed parser gaps
+3. parser field extraction improvements based on synthetic/fake patterns
+4. PDF extraction dependency refinement if diagnostics show poor text extraction
+5. OCR strategy audit later
+
+Recommended next target:
+
+```text
+user runs redacted diagnostics locally and shares safe summary
+```
+
+Conditions:
+
+- start with `--limit 1`;
+- share only anonymized label, extraction status, char/page counts, signal counts, field status categories, suspected parser gap field names, result category, and generic warnings;
+- do not share raw extracted text, private filenames, private values, document snippets, broker/customer/contact details, MCs, addresses, emails, phone numbers, reference numbers, or appointment details.
+
+Recommended follow-up target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed parser gaps
+```
+
+Use the safe diagnostic summary to create fake examples that reproduce the label patterns the parser missed. Parser improvements should be made against those synthetic examples, not against private text.
+
+Recommended later target:
+
+```text
+parser field extraction improvements based on synthetic/fake patterns
+```
+
+This should happen only after synthetic cases exist and tests define expected behavior.
+
+Recommended fallback:
+
+```text
+PDF extraction dependency refinement
+```
+
+Use this only if diagnostics show the text layer itself is poor. OCR remains a separate later audit.
+
+Not recommended next:
+
+- parser improvements using private text directly;
+- committing extracted text or private-derived fixtures;
+- printing raw diagnostics snippets;
+- OCR implementation;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase creation/linking/events;
+- DAT/API or Google Maps;
+- accounting/factoring implementation;
+- synthetic 100-200 load dataset;
+- reload-chain metadata/case wiring.

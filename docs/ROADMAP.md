@@ -487,11 +487,13 @@ Recommended order:
 56. Private PDF extraction inventory CLI is complete.
 57. Local-only PDF-to-dry-run helper is complete.
 58. Limited private PDF dry-run CLI is complete.
-59. Recommended next target: user runs private PDF dry-run locally with `--limit 1` and shares only safe summaries.
-60. Recommended fallback: anonymized RateCon synthetic scenario expansion from observed issues.
-61. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
-62. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
-63. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+59. Redacted RateCon field diagnostics are complete.
+60. Recommended next target: user runs redacted diagnostics locally with `--limit 1` and shares only safe summaries.
+61. Recommended follow-up: anonymized RateCon synthetic scenario expansion from observed parser gaps.
+62. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
+63. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
+64. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
+65. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1027,10 +1029,11 @@ Future capabilities:
 
 ## Current next step
 
-After local private PDF dry-run support:
+After redacted RateCon field diagnostics:
 
-1. User runs `py scripts/run_private_ratecon_pdf_dry_run.py --limit 1` locally.
+1. User runs `py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1` locally.
 2. User records only safe summary fields/categories.
-3. User shares no raw extracted text, filenames, broker/customer/contact details, addresses, MCs, reference numbers, or document snippets.
-4. If issues are found, expand anonymized synthetic scenarios with fake data only.
-5. Do not start OCR or dependency expansion without a separate strategy/audit block.
+3. User shares no raw extracted text, filenames, broker/customer/contact details, addresses, MCs, reference numbers, appointment details, or document snippets.
+4. If parser gaps are found, expand anonymized synthetic scenarios with fake data only.
+5. Improve parser patterns only after synthetic examples exist.
+6. Do not start OCR or dependency expansion without a separate strategy/audit block.
