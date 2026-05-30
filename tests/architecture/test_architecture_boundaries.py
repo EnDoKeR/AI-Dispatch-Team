@@ -759,6 +759,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "pdfplumber_layout_provider.py",
             DOCUMENT_AI_PACKAGE / "layout_pipeline.py",
             DOCUMENT_AI_PACKAGE / "layout_provider_comparison.py",
+            DOCUMENT_AI_PACKAGE / "layout_provider_diagnostics.py",
         ]
 
         for path in provider_files:
@@ -771,6 +772,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "pdfplumber_layout_provider.py",
             DOCUMENT_AI_PACKAGE / "layout_pipeline.py",
             DOCUMENT_AI_PACKAGE / "layout_provider_comparison.py",
+            DOCUMENT_AI_PACKAGE / "layout_provider_diagnostics.py",
         ]
         forbidden_fragments = [
             "event_logger",
@@ -929,6 +931,17 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("layout_field_delta_audit.md", source)
         self.assertIn("No raw text, filenames, paths, or private values included.", source)
         self.assertIn("FORBIDDEN_AUDIT_KEYS", source)
+        self.assertNotIn("DispatchCase", source)
+        self.assertNotIn("DecisionEngine", source)
+        self.assertNotIn("telegram", source)
+
+    def test_layout_provider_diagnostics_outputs_are_local_only_and_redacted(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "layout_provider_diagnostics.py")
+
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", source)
+        self.assertIn("layout_provider_diagnostics.md", source)
+        self.assertIn('"raw_text_included": False', source)
+        self.assertIn('"private_values_redacted": True', source)
         self.assertNotIn("DispatchCase", source)
         self.assertNotIn("DecisionEngine", source)
         self.assertNotIn("telegram", source)
