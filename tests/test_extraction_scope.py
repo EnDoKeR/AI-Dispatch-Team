@@ -20,10 +20,15 @@ FIXTURE_DIR = (
     / "document_ai"
     / "document_classification"
 )
+ELIGIBILITY_FIXTURE_DIR = FIXTURE_DIR / "eligibility_calibration"
 
 
 def fixture_text(name):
     return (FIXTURE_DIR / name).read_text(encoding="utf-8")
+
+
+def calibration_fixture_text(name):
+    return (ELIGIBILITY_FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
 def artifact_from_fixture_names(*names, document_id="DOC_SCOPE"):
@@ -40,6 +45,23 @@ def artifact_from_fixture_names(*names, document_id="DOC_SCOPE"):
         document_id=document_id,
         pages=pages,
         source_method="classification_fixture",
+    )
+
+
+def artifact_from_calibration_fixture_names(*names, document_id="DOC_SCOPE_CALIBRATION"):
+    pages = [
+        {
+            "page_number": index,
+            "text": calibration_fixture_text(name),
+            "source_method": "eligibility_calibration_fixture",
+        }
+        for index, name in enumerate(names, start=1)
+    ]
+    return build_text_extraction_artifact_for_candidates(
+        artifact_id=f"ART-{document_id}",
+        document_id=document_id,
+        pages=pages,
+        source_method="eligibility_calibration_fixture",
     )
 
 
@@ -130,6 +152,57 @@ class ExtractionScopeTests(unittest.TestCase):
 
     def test_tonu_does_not_create_stop_scope(self):
         artifact = artifact_from_fixture_names("fake_tonu_load_confirmation.txt")
+        classification = classify_document_from_text_artifact(artifact)
+
+        self.assertFalse(should_skip_ratecon_extraction(classification))
+        self.assertEqual(select_pages_for_ratecon_core(classification, artifact), [])
+        self.assertEqual(select_pages_for_stop_candidates(classification, artifact), [])
+        self.assertEqual(page_numbers(select_pages_for_rate_candidates(classification, artifact)), [1])
+
+    def test_calibrated_load_tender_with_billing_still_feeds_core(self):
+        artifact = artifact_from_calibration_fixture_names(
+            "fake_load_tender_with_billing_page.txt"
+        )
+        classification = classify_document_from_text_artifact(artifact)
+
+        self.assertFalse(should_skip_ratecon_extraction(classification))
+        self.assertEqual(page_numbers(select_pages_for_ratecon_core(classification, artifact)), [1])
+        self.assertEqual(page_numbers(select_pages_for_rate_candidates(classification, artifact)), [1])
+        self.assertEqual(page_numbers(select_pages_for_stop_candidates(classification, artifact)), [1])
+
+    def test_calibrated_terms_only_with_amounts_does_not_feed_rate_scope(self):
+        artifact = artifact_from_calibration_fixture_names(
+            "fake_terms_only_with_many_money_amounts.txt"
+        )
+        classification = classify_document_from_text_artifact(artifact)
+
+        self.assertTrue(should_skip_ratecon_extraction(classification))
+        self.assertEqual(select_pages_for_ratecon_core(classification, artifact), [])
+        self.assertEqual(select_pages_for_rate_candidates(classification, artifact), [])
+
+    def test_calibrated_billing_quickpay_only_does_not_feed_core_or_rate(self):
+        artifact = artifact_from_calibration_fixture_names("fake_billing_quickpay_only.txt")
+        classification = classify_document_from_text_artifact(artifact)
+
+        self.assertTrue(should_skip_ratecon_extraction(classification))
+        self.assertEqual(select_pages_for_ratecon_core(classification, artifact), [])
+        self.assertEqual(select_pages_for_rate_candidates(classification, artifact), [])
+
+    def test_calibrated_carrier_info_is_skipped_when_attached_to_main_document(self):
+        artifact = artifact_from_fixture_names(
+            "fake_rate_load_confirmation_main_page.txt",
+            "fake_driver_carrier_information_sheet.txt",
+        )
+        classification = classify_document_from_text_artifact(artifact)
+
+        self.assertFalse(should_skip_ratecon_extraction(classification))
+        self.assertEqual(page_numbers(select_pages_for_ratecon_core(classification, artifact)), [1])
+        self.assertEqual(page_numbers(select_pages_for_stop_candidates(classification, artifact)), [1])
+
+    def test_calibrated_tonu_feeds_rate_scope_not_stop_scope(self):
+        artifact = artifact_from_calibration_fixture_names(
+            "fake_truck_order_not_used_payment.txt"
+        )
         classification = classify_document_from_text_artifact(artifact)
 
         self.assertFalse(should_skip_ratecon_extraction(classification))
