@@ -92,6 +92,37 @@ def normalize_resolution_status(value):
     return FIELD_RESOLUTION_STATUS_NEEDS_REVIEW
 
 
+def _candidate_diagnostic_id(candidate):
+    if not isinstance(candidate, dict):
+        return ""
+
+    candidate_id = str(candidate.get("candidate_id") or "").strip()
+    if candidate_id:
+        return candidate_id
+
+    evidence_ref = str(candidate.get("evidence_ref") or "").strip()
+    if evidence_ref:
+        return evidence_ref
+
+    page_number = candidate.get("page_number", "")
+    line_number = candidate.get("line_number", "")
+    if page_number or line_number:
+        return f"p{page_number}-l{line_number}"
+
+    return ""
+
+
+def _candidate_diagnostic_ids(candidates):
+    return [
+        candidate_id
+        for candidate_id in [
+            _candidate_diagnostic_id(candidate)
+            for candidate in candidates or []
+        ]
+        if candidate_id
+    ]
+
+
 def build_field_resolution(
     field_name,
     status,
@@ -101,6 +132,9 @@ def build_field_resolution(
     reasons=None,
     evidence_refs=None,
     warnings=None,
+    conflict_candidate_ids=None,
+    template_id="",
+    template_version="",
 ):
     safe_selected = selected_candidate if isinstance(selected_candidate, dict) else {}
     safe_rejected = [
@@ -108,16 +142,41 @@ def build_field_resolution(
         for candidate in rejected_candidates or []
         if isinstance(candidate, dict)
     ]
+    normalized_status = normalize_resolution_status(status)
+    selected_candidate_id = _candidate_diagnostic_id(safe_selected)
+    rejected_candidate_ids = _candidate_diagnostic_ids(safe_rejected)
+    safe_conflict_candidate_ids = _normalize_list(conflict_candidate_ids)
+
+    if (
+        not safe_conflict_candidate_ids
+        and normalized_status == FIELD_RESOLUTION_STATUS_CONFLICT
+    ):
+        safe_conflict_candidate_ids = [
+            candidate_id
+            for candidate_id in [selected_candidate_id] + rejected_candidate_ids
+            if candidate_id
+        ]
 
     return {
         "field_name": str(field_name or "").strip(),
-        "status": normalize_resolution_status(status),
+        "status": normalized_status,
         "selected_candidate": safe_selected,
+        "selected_candidate_id": selected_candidate_id,
+        "selected_candidate_value": _candidate_value(safe_selected),
+        "selected_candidate_label": str(safe_selected.get("label") or "").strip(),
+        "selected_candidate_source": str(safe_selected.get("source") or "").strip(),
+        "selected_candidate_page": safe_selected.get("page_number", ""),
+        "selected_candidate_line": safe_selected.get("line_number", ""),
         "rejected_candidates": safe_rejected,
+        "rejected_candidate_ids": rejected_candidate_ids,
+        "conflict_candidate_ids": safe_conflict_candidate_ids,
         "confidence": str(confidence or "").strip(),
         "reasons": _normalize_list(reasons),
         "evidence_refs": _normalize_list(evidence_refs),
         "warnings": _normalize_list(warnings),
+        "warning_codes": _normalize_list(warnings),
+        "template_id": str(template_id or "").strip(),
+        "template_version": str(template_version or "").strip(),
     }
 
 

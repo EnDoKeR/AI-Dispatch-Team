@@ -20,10 +20,14 @@ from app.document_ai.ratecon_field_resolution import (
 class RateConFieldResolutionContractTests(unittest.TestCase):
     def test_resolved_field_with_one_good_candidate(self):
         candidate = build_field_candidate(
+            candidate_id="rate-p1-l4",
             field_name=FIELD_RATE,
             raw_value="$2,850.00",
             normalized_value="2850.00",
             confidence=CANDIDATE_CONFIDENCE_HIGH,
+            label="Carrier Pay",
+            page_number=1,
+            line_number=4,
             evidence_ref="p1-l4",
         )
 
@@ -38,6 +42,11 @@ class RateConFieldResolutionContractTests(unittest.TestCase):
 
         self.assertEqual(resolution["status"], FIELD_RESOLUTION_STATUS_RESOLVED)
         self.assertEqual(resolution["selected_candidate"]["normalized_value"], "2850.00")
+        self.assertEqual(resolution["selected_candidate_id"], "rate-p1-l4")
+        self.assertEqual(resolution["selected_candidate_value"], "2850.00")
+        self.assertEqual(resolution["selected_candidate_label"], "Carrier Pay")
+        self.assertEqual(resolution["selected_candidate_page"], 1)
+        self.assertEqual(resolution["selected_candidate_line"], 4)
         self.assertIn("p1-l4", resolution["evidence_refs"])
 
     def test_missing_field_resolution(self):
@@ -48,16 +57,21 @@ class RateConFieldResolutionContractTests(unittest.TestCase):
         )
 
         self.assertEqual(resolution["selected_candidate"], {})
+        self.assertEqual(resolution["selected_candidate_id"], "")
+        self.assertEqual(resolution["selected_candidate_value"], "")
         self.assertEqual(resolution["status"], FIELD_RESOLUTION_STATUS_MISSING)
+        self.assertIn("no_candidate", resolution["reasons"])
 
     def test_conflict_field_with_rejected_candidates(self):
         selected = build_field_candidate(
+            candidate_id="rate-p1-l1",
             field_name=FIELD_RATE,
             raw_value="$2,850.00",
             normalized_value="2850.00",
             confidence=CANDIDATE_CONFIDENCE_HIGH,
         )
         rejected = build_field_candidate(
+            candidate_id="rate-p1-l2",
             field_name=FIELD_RATE,
             raw_value="$3,050.00",
             normalized_value="3050.00",
@@ -74,6 +88,11 @@ class RateConFieldResolutionContractTests(unittest.TestCase):
 
         self.assertEqual(resolution["status"], FIELD_RESOLUTION_STATUS_CONFLICT)
         self.assertEqual(len(resolution["rejected_candidates"]), 1)
+        self.assertEqual(resolution["rejected_candidate_ids"], ["rate-p1-l2"])
+        self.assertEqual(
+            resolution["conflict_candidate_ids"],
+            ["rate-p1-l1", "rate-p1-l2"],
+        )
 
     def test_low_confidence_field(self):
         candidate = build_field_candidate(
@@ -93,6 +112,7 @@ class RateConFieldResolutionContractTests(unittest.TestCase):
 
         self.assertEqual(resolution["status"], FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE)
         self.assertIn("review_required", resolution["warnings"])
+        self.assertIn("review_required", resolution["warning_codes"])
 
     def test_resolution_result_serializes(self):
         result = build_ratecon_field_resolution_result(
