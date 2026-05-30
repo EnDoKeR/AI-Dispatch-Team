@@ -115,6 +115,44 @@ The next implementation should add a local-only private triage wrapper only if
 the user explicitly asks for it. That wrapper should use the same safe fields
 listed here and must not print raw text.
 
-After hard-layout resolver hardening, the next safe block is a local-only private
-measurement harness. It should not add OCR, Vision AI, cloud APIs, DispatchCase
-creation, event writes, or private value reporting.
+After hard-layout resolver hardening, the safe local measurement harness is:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md
+```
+
+Optional blank local review template:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md --write-value-review-template
+```
+
+Default output directory:
+
+```text
+.local_outputs/private_ratecon_measurement/
+```
+
+Generated safe outputs:
+
+- `safe_summary.json`
+- `safe_summary.csv`
+- `safe_aggregate.json`
+- `safe_aggregate.md`
+- `value_review_template.csv` when requested
+
+These files are local-only and ignored by Git.
+
+## Blocker Interpretation
+
+- Mostly `OCR_NEEDED`: plan a local OCR design checkpoint.
+- Mostly `DIGITAL_TEXT_EXTRACTION_GAP` or `LAYOUT_EXTRACTION_GAP`: plan
+  layout-aware digital extraction.
+- Mostly `TEMPLATE_GAP`: plan real broker template onboarding with
+  redacted/anonymized fixtures only.
+- Mostly `RESOLVER_GAP`: add more fake resolver scenarios.
+- Mostly high-confidence candidates: plan human review/evaluation corpus work
+  before any DispatchCase automation.
+
+Do not add OCR, Vision AI, cloud APIs, DispatchCase creation, event writes, or
+private value reporting in the measurement run.

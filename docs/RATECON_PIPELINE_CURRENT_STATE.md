@@ -56,6 +56,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - RateConfirmationIntake draft builder from resolved fields.
 - Validation that computes missing and needs-check fields.
 - Fake-only candidate/template dry-run CLI.
+- Local-only private measurement harness that reports safe aliases, counts,
+  field statuses, blocker categories, and aggregate summaries.
 
 ## Scaffolding Only
 
@@ -134,6 +136,7 @@ print raw private text:
 - `py scripts/run_private_ratecon_layout_diagnostics.py --limit 3`
 - `py scripts/export_ratecon_dry_run_csv.py --limit 3`
 - `py scripts/export_private_ratecon_value_review_csv.py --limit 3`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md`
 
 Private value-review CSV output is local-only and ignored.
 
@@ -164,10 +167,10 @@ Private value-review CSV output is local-only and ignored.
 
 ## Next Recommended Block
 
-Next safe block:
+Next safe block after measurement:
 
 ```text
-Safe private RateCon measurement harness.
+Analyze safe private measurement results and choose OCR design, layout-aware extraction design, template onboarding, or resolver hardening.
 ```
 
 That block should run local/private diagnostics only, produce safe summaries,

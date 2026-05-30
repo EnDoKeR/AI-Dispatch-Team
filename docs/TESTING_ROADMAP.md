@@ -119,6 +119,9 @@ Required coverage for candidate generators and resolvers:
 - hard-layout regression coverage for repeated headers, rate/accessorial traps,
   table-like stops, broker identity confusion, typed references, appointment
   conflicts, and buried requirements.
+- private measurement harness tests for safe aliases, redacted rows, aggregate
+  counts, blocker classification, output writers, confirmation-gated CLI runs,
+  and no raw text/private values in outputs.
 
 ## Broker Template Test Rule
 

@@ -85,6 +85,7 @@ Core architecture docs:
 * [RateCon Candidate Extraction](docs/RATECON_CANDIDATE_EXTRACTION.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
 * [RateCon Template Resolver Hardening](docs/RATECON_TEMPLATE_RESOLVER_HARDENING.md)
+* [Safe Private RateCon Measurement](docs/SAFE_PRIVATE_RATECON_MEASUREMENT.md)
 * [Legacy RateCon Path Audit](docs/LEGACY_PATH_AUDIT.md)
 * [Testing Roadmap](docs/TESTING_ROADMAP.md)
 * [Event Timeline Contract](docs/EVENT_TIMELINE_CONTRACT.md)
@@ -1185,6 +1186,7 @@ py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
 py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
 py scripts/run_fake_ratecon_candidate_extraction.py
 py scripts/run_fake_ratecon_candidate_extraction.py --include-hard-layouts
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md
 py scripts/export_ratecon_dry_run_csv.py --limit 3
 py scripts/export_private_ratecon_value_review_csv.py --limit 3
 py scripts/run_pasted_text_scenarios.py

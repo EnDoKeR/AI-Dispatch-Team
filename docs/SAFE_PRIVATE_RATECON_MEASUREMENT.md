@@ -157,6 +157,38 @@ Preferred path:
 Outputs may include safe JSON, safe CSV, safe Markdown summaries, and a
 local-only human value-review template. Generated files must not be committed.
 
+## Command
+
+Run locally only:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md
+```
+
+Optional local review template:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md --write-value-review-template
+```
+
+The CLI refuses to run unless `--confirm-private-local-run` is supplied.
+
+Default local output directory:
+
+```text
+.local_outputs/private_ratecon_measurement/
+```
+
+Generated files:
+
+- `safe_summary.json`
+- `safe_summary.csv`
+- `safe_aggregate.json`
+- `safe_aggregate.md`
+- `value_review_template.csv` when requested
+
+These outputs are local-only and ignored by Git.
+
 ## Raw Text Policy
 
 Raw extracted text may exist only in memory long enough to build safe candidate
@@ -226,3 +258,33 @@ Mostly high-confidence candidates:
 
 Vision AI is not the default next step. It should be considered only after
 deterministic and local routes have been measured.
+
+## Safe To Paste Back
+
+Safe to paste back:
+
+- aggregate counts;
+- per-alias field status;
+- missing field names;
+- needs-check field names;
+- conflict field names;
+- blocker categories;
+- route/status counts;
+- candidate counts by field;
+- review-required count;
+- baseline comparison status for `RATECON_001`, `RATECON_002`, and
+  `RATECON_003` aliases when applicable.
+
+Do not paste back:
+
+- raw text;
+- filenames;
+- broker/customer/contact names;
+- MC numbers;
+- rates;
+- pickup/delivery addresses;
+- dates/times;
+- load numbers;
+- PO/BOL/reference numbers;
+- local file paths;
+- private value-review notes.
