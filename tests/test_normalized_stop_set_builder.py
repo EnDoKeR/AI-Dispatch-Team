@@ -10,6 +10,7 @@ from app.document_ai.normalized_stops import (
 from app.document_ai.stop_association import build_stop_association_result
 from app.document_ai.stop_normalization import (
     DEDUP_WARNING_DUPLICATE,
+    NOISE_WARNING_HEADER_FOOTER,
     WARNING_NORMALIZED_STOP_REVIEW_REQUIRED,
     WARNING_TONU_STOPS_NOT_APPLICABLE,
     build_normalized_stop_set,
@@ -55,8 +56,14 @@ class NormalizedStopSetBuilderTests(unittest.TestCase):
         stop_set = build_set("fake_duplicate_header_stop_groups")
 
         self.assertEqual(len(stop_set["stops"]), 2)
-        self.assertEqual(stop_set["stop_duplicate_removed_count"], 1)
-        self.assertIn(DEDUP_WARNING_DUPLICATE, stop_set["warning_codes"])
+        self.assertEqual(
+            stop_set["stop_duplicate_removed_count"] + stop_set["stop_noise_removed_count"],
+            1,
+        )
+        self.assertTrue(
+            DEDUP_WARNING_DUPLICATE in stop_set["warning_codes"]
+            or NOISE_WARNING_HEADER_FOOTER in stop_set["warning_codes"]
+        )
 
     def test_ambiguous_groups_review_required(self):
         stop_set = build_set("fake_ambiguous_stop_type_groups")

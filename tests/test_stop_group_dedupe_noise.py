@@ -20,10 +20,15 @@ FIXTURE_DIR = (
     / "document_ai"
     / "stop_normalization"
 )
+CALIBRATION_DIR = FIXTURE_DIR / "calibration_patterns"
 
 
 def load_fixture(name):
     return json.loads((FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def load_calibration_fixture(name):
+    return json.loads((CALIBRATION_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
 class StopGroupDedupeNoiseTests(unittest.TestCase):
@@ -79,6 +84,20 @@ class StopGroupDedupeNoiseTests(unittest.TestCase):
         group = fixture["stop_groups"][0]
 
         self.assertFalse(is_likely_stop_noise(group))
+
+    def test_repeated_header_location_only_noise_removed(self):
+        fixture = load_calibration_fixture("fake_duplicate_stop_groups_repeated_header")
+        result = filter_stop_group_noise(fixture["stop_groups"])
+
+        self.assertEqual(result["removed_count"], 2)
+        self.assertEqual(result["kept_groups"], [])
+
+    def test_terms_billing_reference_only_noise_removed(self):
+        fixture = load_calibration_fixture("fake_terms_billing_noise_stop_like")
+        result = filter_stop_group_noise(fixture["stop_groups"])
+
+        self.assertEqual(result["removed_count"], 2)
+        self.assertEqual(result["kept_groups"], [])
 
 
 if __name__ == "__main__":

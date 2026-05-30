@@ -64,6 +64,7 @@ _TERMS_SECTIONS = {
     "DEDUCTIONS_PENALTIES",
 }
 _HEADER_FOOTER_TOKENS = {"header", "footer", "repeated_header", "page_footer"}
+_HEADER_FOOTER_SECTIONS = {"HEADER", "FOOTER"}
 _MEANINGFUL_STOP_FIELDS = {
     STOP_FIELD_LOCATION,
     STOP_FIELD_DATE,
@@ -159,7 +160,10 @@ def is_likely_stop_noise(stop_group):
     if section in _TERMS_SECTIONS and not _has_strong_location_date_evidence(stop_group):
         return True
 
-    if tokens & _HEADER_FOOTER_TOKENS and not _has_meaningful_stop_fields(stop_group):
+    if section in _HEADER_FOOTER_SECTIONS and not _has_strong_location_date_evidence(stop_group):
+        return True
+
+    if tokens & _HEADER_FOOTER_TOKENS and not _has_strong_location_date_evidence(stop_group):
         return True
 
     if not _has_meaningful_stop_fields(stop_group):
