@@ -38,8 +38,8 @@ Searches covered:
 
 | File or module | Current behavior | Risk | Action | Priority |
 | --- | --- | --- | --- | --- |
-| `scripts/import_ratecon.py` | Imports `gspread`, `pypdf`, and Google credentials at module load, reads `data/ratecons/test_ratecon.pdf`, extracts fields with direct regexes, appends a row to a Google Sheet, and prints extracted values. | This is a legacy prototype bypass. It can write externally, prints extracted values, has top-level side effects, and bypasses candidate/template/resolver/validation. | Deprecate immediately. Add an execution guard or explicit warning in the next mini-block so accidental execution cannot look like the official pipeline. Do not reuse this flow. | Critical |
-| `scripts/read_ratecon.py` | Reads `data/ratecons/test_ratecon.pdf`, extracts fields with direct regexes, and prints parsed values. | Local-only but unsafe as a production example. It prints extracted values and bypasses candidate/template/resolver/validation. | Mark as legacy diagnostic/non-production in the next mini-block. Keep only if needed as historical manual scratch, not official extraction. | High |
+| `scripts/import_ratecon.py` | Deprecated legacy prototype. It is blocked by default, imports optional PDF/Google libraries lazily, and requires `--allow-legacy-google-sheet-write` before any PDF read or Google Sheets write. | Still contains a legacy direct-regex-to-sheet flow if explicitly enabled. It bypasses candidate/template/resolver/validation. | Keep blocked by default. Do not reuse this flow. Remove later after any remaining manual dependency is retired. | Critical |
+| `scripts/read_ratecon.py` | Deprecated legacy prototype. It is blocked by default, imports `pypdf` lazily, and requires `--allow-legacy-value-print` before any PDF read or value printing. | Still contains a legacy direct-regex value-print path if explicitly enabled. It bypasses candidate/template/resolver/validation. | Keep blocked by default. Remove later after any remaining manual dependency is retired. | High |
 | `app/market_intelligence/intake/pasted_text_parser_adapter.py` | Uses label/regex heuristics to produce parser-shaped fields for dry-run/manual intake helpers. | It performs direct field assignment and can be mistaken for the official production extraction layer. Current usage is dry-run/testing oriented and does not create cases. | Keep temporarily as a compatibility/manual dry-run adapter. Document as superseded for production by candidate/template/resolver flow. Future work should route digital text artifacts through `app/document_ai` candidate extraction instead. | Medium |
 | `app/market_intelligence/intake/ratecon_text_dry_run.py` | Runs pasted text through the legacy parser adapter, normalizes to intake, builds summaries, and optionally creates link candidates. | It can produce `READY_FOR_REVIEW` status from dry-run parser output, but does not create/link cases or write events. | Keep as manual dry-run only. Docs and help text should continue to emphasize no private text storage and no DispatchCase creation. | Medium |
 | `app/market_intelligence/intake/ratecon_pdf_dry_run.py` | Extracts local PDF text with the local helper, feeds text into the text dry-run pipeline, and returns safe summaries. | It still depends on the legacy pasted-text adapter after extraction; not an official production RateCon extraction path. | Keep as local/private dry-run only. Do not use it as the canonical production parser. Future private reruns should compare it with the candidate/template path after that path is wired for local measurement. | Medium |
@@ -93,10 +93,10 @@ Legacy or local-only risk areas:
 
 Immediate small actions:
 
-1. Mark `scripts/import_ratecon.py` as a deprecated unsafe prototype and prevent
-   accidental top-level Google Sheets writes if feasible without broad rewrite.
-2. Mark `scripts/read_ratecon.py` as a deprecated local diagnostic, not official
-   extraction.
+1. Keep `scripts/import_ratecon.py` blocked by default and do not use it for new
+   extraction work.
+2. Keep `scripts/read_ratecon.py` blocked by default and do not use it for new
+   extraction work.
 3. Add or preserve help text on private/local scripts that says local-only,
    ignored outputs only, and no raw text in reports.
 
