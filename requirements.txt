@@ -3,3 +3,7 @@
 # Optional legacy/manual workflows may require packages such as pypdf,
 # gspread, google-auth, or geopy, but they are intentionally not project-wide
 # requirements until those workflows are accepted as active integrations.
+
+# First approved digital-text layout provider candidate. OCR, Vision,
+# PyMuPDF, Camelot, and cloud extraction dependencies remain out of scope.
+pdfplumber==0.11.9
