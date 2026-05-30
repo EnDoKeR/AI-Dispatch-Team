@@ -491,9 +491,14 @@ Recommended order:
 60. Recommended next target: user runs redacted diagnostics locally with `--limit 1` and shares only safe summaries.
 61. Recommended follow-up: anonymized RateCon synthetic scenario expansion from observed parser gaps.
 62. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
-63. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
-64. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
-65. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+63. Legacy `app/load_intake/` salvage/delete audit is complete.
+64. Safe legacy label candidates are documented and represented with synthetic diagnostics examples.
+65. Recommended next target: anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas.
+66. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
+67. Recommended later cleanup: legacy `app/load_intake/` deprecation/deletion block after impact-test cleanup.
+68. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
+69. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
+70. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1029,11 +1034,11 @@ Future capabilities:
 
 ## Current next step
 
-After redacted RateCon field diagnostics:
+After legacy load-intake salvage audit:
 
-1. User runs `py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1` locally.
-2. User records only safe summary fields/categories.
-3. User shares no raw extracted text, filenames, broker/customer/contact details, addresses, MCs, reference numbers, appointment details, or document snippets.
-4. If parser gaps are found, expand anonymized synthetic scenarios with fake data only.
-5. Improve parser patterns only after synthetic examples exist.
-6. Do not start OCR or dependency expansion without a separate strategy/audit block.
+1. Keep `app/load_intake/` isolated for now.
+2. Expand anonymized synthetic RateCon scenarios using fake data only.
+3. Include safe legacy label ideas and safe redacted-diagnostics gap categories.
+4. Improve parser patterns only after synthetic examples exist.
+5. Plan any `app/load_intake/` deletion as a separate cleanup block with test/docs updates.
+6. Do not start OCR, dependency expansion, Google Sheets reuse, or legacy parser reuse without a separate accepted block.

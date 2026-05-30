@@ -2225,3 +2225,85 @@ Not recommended next:
 - accounting/factoring implementation;
 - synthetic 100-200 load dataset;
 - reload-chain metadata/case wiring.
+
+## Legacy Load Intake Salvage Audit Closeout
+
+Completed:
+
+- legacy `app/load_intake/` salvage/delete audit: `docs/LOAD_INTAKE_LEGACY_SALVAGE_AUDIT.md`;
+- safe legacy label candidates documented;
+- synthetic legacy-label examples added: `tests/fixtures/legacy_ratecon_label_examples.py`;
+- redacted diagnostics tests cover the safe legacy label concepts;
+- deletion impact audit documented.
+
+Current status:
+
+- `app/load_intake/` remains in place;
+- no runtime behavior changed;
+- no legacy code is wired into current intake;
+- no legacy parser is used directly;
+- no Google Sheets behavior was added;
+- no private RateCons were processed;
+- no private text or private values were committed.
+
+Findings:
+
+- useful salvage exists only at the label-vocabulary level;
+- old parser/scoring/storage flow is unsafe for reuse;
+- deletion today would break `tests/test_load_intake_imports.py` and `tests/test_load_intake_parser_import.py`;
+- active `app/market_intelligence/intake/` code does not depend on `app/load_intake/`.
+
+Options evaluated:
+
+1. delete `app/load_intake/` in a dedicated cleanup block
+2. keep folder but mark archived/legacy
+3. migrate only safe label aliases into new redacted diagnostics/parser tests
+4. run private redacted diagnostics locally and share safe summary
+5. anonymized synthetic RateCon scenario expansion from observed issues
+
+Recommended next target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas
+```
+
+Why:
+
+- useful label aliases exist;
+- parser improvements should be driven by fake examples, not private text;
+- deletion should wait until safe label ideas are represented outside the legacy folder;
+- this keeps legacy code isolated and avoids runtime behavior changes.
+
+Recommended second target:
+
+```text
+parser field extraction improvements based on synthetic/fake patterns
+```
+
+Only after synthetic examples define expected behavior.
+
+Recommended later cleanup:
+
+```text
+legacy load_intake deprecation/deletion cleanup block
+```
+
+This should remove or rewrite legacy import tests and update docs before deleting the folder. Do not delete `app/load_intake/` without that focused cleanup.
+
+Useful parallel next step:
+
+```text
+user runs redacted diagnostics locally and shares safe summary
+```
+
+This can provide more safe field-gap categories for synthetic examples.
+
+Not recommended next:
+
+- direct parser changes from private text;
+- direct reuse of legacy regex implementation;
+- reuse of Google Sheets writer;
+- reuse of old decision/reload/zone/mileage/broker scoring;
+- deleting `app/load_intake/` without impact-test cleanup;
+- DispatchCase creation/linking/events;
+- OCR, Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, reload-chain metadata, or synthetic 100-200 dataset work.

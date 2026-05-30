@@ -597,3 +597,61 @@ Why:
 - deletion would break current legacy import tests;
 - the deletion cleanup is safe but should be explicit and focused;
 - parser improvements should happen through synthetic/fake examples, not legacy runtime reuse.
+
+## Closeout Decision
+
+Options evaluated:
+
+1. delete `app/load_intake/` in a dedicated cleanup block;
+2. keep folder but mark archived/legacy;
+3. migrate only safe label aliases into new redacted diagnostics/parser tests;
+4. run private redacted diagnostics locally and share safe summary;
+5. anonymized synthetic RateCon scenario expansion from observed issues.
+
+Decision:
+
+```text
+keep temporarily, salvage label aliases through synthetic examples, then plan deletion cleanup
+```
+
+Why:
+
+- safe label vocabulary exists and has already started moving into synthetic diagnostics examples;
+- legacy runtime behavior is unsafe for reuse;
+- active intake architecture does not depend on the legacy folder;
+- deletion would currently break two legacy import tests;
+- deleting the folder should be a later focused cleanup with test/docs updates.
+
+Recommended next target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas
+```
+
+Recommended later target:
+
+```text
+parser field extraction improvements based on synthetic/fake patterns
+```
+
+Recommended later cleanup:
+
+```text
+app/load_intake deprecation/deletion block
+```
+
+Deletion cleanup should include:
+
+- removing or rewriting `tests/test_load_intake_imports.py`;
+- removing or rewriting `tests/test_load_intake_parser_import.py`;
+- updating legacy docs;
+- confirming no active runtime imports;
+- running full validation.
+
+Still forbidden:
+
+- reusing legacy parser directly;
+- reusing old decision, reload, zone, mileage, broker, or Google Sheets behavior;
+- committing private text;
+- improving parser patterns from private text directly;
+- creating/linking DispatchCases or writing events.
