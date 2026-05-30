@@ -2,6 +2,12 @@ import json
 import re
 import unittest
 
+from app.market_intelligence.intake.pasted_text_parser_adapter import (
+    parse_pasted_text_to_parser_output,
+)
+from app.market_intelligence.intake.ratecon_core_fields import (
+    build_ratecon_core_field_summary,
+)
 from app.market_intelligence.intake.ratecon_field_diagnostics import (
     detect_ratecon_field_signals,
 )
@@ -27,7 +33,7 @@ REQUIRED_KEYS = {
 class AnonymizedRateConScenariosTests(unittest.TestCase):
     def test_fixtures_import(self):
         self.assertGreaterEqual(len(ANONYMIZED_RATECON_SCENARIOS), 12)
-        self.assertLessEqual(len(ANONYMIZED_RATECON_SCENARIOS), 30)
+        self.assertLessEqual(len(ANONYMIZED_RATECON_SCENARIOS), 40)
 
     def test_each_scenario_has_required_keys(self):
         for scenario in ANONYMIZED_RATECON_SCENARIOS:
@@ -134,6 +140,31 @@ class AnonymizedRateConScenariosTests(unittest.TestCase):
                 self.assertNotIn("Fake City", serialized)
                 self.assertNotIn("Fake Town", serialized)
                 self.assertNotIn("MC000000", serialized)
+
+    def test_user_table_scenarios_have_expected_core_policy_before_parser_hardening(self):
+        scenarios = [
+            scenario
+            for scenario in ANONYMIZED_RATECON_SCENARIOS
+            if scenario.get("expected_missing_core_fields_before_table_hardening")
+        ]
+
+        self.assertGreaterEqual(len(scenarios), 8)
+
+        for scenario in scenarios:
+            parsed = parse_pasted_text_to_parser_output(scenario["text"])
+            summary = build_ratecon_core_field_summary(parsed)
+
+            with self.subTest(scenario=scenario["scenario_id"]):
+                self.assertEqual(
+                    set(summary["missing_core_fields"]),
+                    set(
+                        scenario[
+                            "expected_missing_core_fields_before_table_hardening"
+                        ]
+                    ),
+                )
+                self.assertIn("loaded_miles", summary["deferred_fields"])
+                self.assertEqual(summary["miles_status"], "DEFERRED_GOOGLE_MAPS")
 
 
 if __name__ == "__main__":
