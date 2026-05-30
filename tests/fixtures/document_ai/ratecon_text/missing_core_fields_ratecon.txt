@@ -1,0 +1,13 @@
+TRUCKLOAD RATE CONFIRMATION
+Broker: FAKE BROKER LLC
+Load #: FAKE-LOAD-005
+
+Pickup:
+Fake Pickup City, IA 50000
+
+Delivery:
+Fake Delivery City, OK 73000
+Delivery Date: 06/12/2026
+
+Equipment: Reefer
+Special Requirements: temperature control, appointment required

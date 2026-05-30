@@ -1,0 +1,23 @@
+TRUCKLOAD RATE CONFIRMATION
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Carrier Name: FAKE CARRIER LLC
+Load #: FAKE-LOAD-001
+PO Number: FAKE-PO-001
+BOL Number: FAKE-BOL-001
+Total Carrier Pay: $2,850.00
+
+Pickup:
+Fake Pickup City, IL 60000
+Pickup Date: 05/31/2026
+Pickup Time: 08:00 AM - 12:00 PM
+
+Delivery:
+Fake Delivery City, TX 75201
+Delivery Date: 06/02/2026
+Delivery Time: Appt 09:30
+
+Equipment: Conestoga 53 ft
+Commodity: FAKE STEEL PARTS
+Weight: 42,500 lbs
+Special Requirements: tarp required, straps required, no touch

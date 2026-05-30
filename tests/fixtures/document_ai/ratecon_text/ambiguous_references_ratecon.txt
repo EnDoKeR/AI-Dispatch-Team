@@ -1,0 +1,25 @@
+Carrier Rate Confirmation from: FAKE BROKER LLC
+MC Number: 000000
+Shipment #: FAKE-SHIP-003
+Load Number: FAKE-LOAD-003
+PO #: FAKE-PO-003
+BOL #: FAKE-BOL-003
+Pickup Number: FAKE-PU-003
+Delivery Number: FAKE-DEL-003
+Customer Reference: FAKE-CUST-003
+Appointment Number: FAKE-APPT-003
+Rate: USD 2750
+
+Origin:
+Fake Start City, IN 46000
+Date: May 31, 2026
+Time: 8:00 AM - 11:00 AM
+
+Destination:
+Fake End City, NC 27000
+Date: June 2, 2026
+Time: 13:00-16:00
+
+Mode: Dry Van 53 ft
+Freight Description: FAKE PACKAGED GOODS
+Weight: 41000 lbs

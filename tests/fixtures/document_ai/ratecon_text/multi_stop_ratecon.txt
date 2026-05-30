@@ -1,0 +1,25 @@
+TRUCKLOAD RATE CONFIRMATION
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Load #: FAKE-LOAD-004
+Agreed Amount: $4,200.00
+
+Stop 1 Pickup:
+Fake First Pickup City, WI 53000
+Date: 2026-06-07
+Time Window: 08:00-10:00
+
+Stop 2 Pickup:
+Fake Second Pickup City, IL 61000
+Date: 2026-06-07
+Time Window: 13:00-15:00
+
+Stop 3 Delivery:
+Fake Final Delivery City, FL 33000
+Date: 2026-06-10
+Time Window: 09:00-12:00
+
+Equipment: Stepdeck
+Commodity Description: FAKE BUILDING MATERIALS
+Total Weight: 44000
+Special Requirements: appointment required, chains required

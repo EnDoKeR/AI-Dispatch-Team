@@ -1,0 +1,22 @@
+RATE CONFIRMATION
+Broker: FAKE BROKER LLC
+MC: 000000
+Load No: FAKE-LOAD-006
+Total Rate: $2,900.00
+Total Carrier Rate: $3,050.00
+Linehaul: $2,700.00
+Fuel Surcharge: $200.00
+
+Shipper Information:
+Address: Fake Conflict Pickup City, KY 40000
+Pickup Date: 06/14/2026
+Pick Up Time: 07:30
+
+Consignee Information:
+Address: Fake Conflict Delivery City, PA 19000
+Delivery Date: 06/16/2026
+Delivery Time: FCFS 08:00-14:00
+
+Trailer Type/Size: Flatbed 48 ft
+Commodity: FAKE PIPE
+Total Weight: 42000 lbs

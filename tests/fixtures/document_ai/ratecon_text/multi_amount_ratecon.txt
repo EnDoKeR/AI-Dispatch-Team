@@ -1,0 +1,23 @@
+RATE CONFIRMATION
+Logistics Company: FAKE BROKER LLC
+MC# 000000
+Order #: FAKE-ORDER-002
+Carrier Pay: $3,100.00
+Fuel Surcharge: $150.00
+Detention: $75.00 per hour after free time
+Lumper: $125.00 if required
+Quick Pay Fee: $45.00
+
+Shipper:
+Fake Origin City, OH 43000
+Pick Up Date: 06/03/2026
+Pick Up Time: FCFS 07:00-15:00
+
+Consignee:
+Fake Destination City, GA 30300
+Delivery Date: 06/05/2026
+Delivery Time: 10:00 AM
+
+Trailer Type: Flatbed
+Product: FAKE MACHINERY
+Gross Weight: 39000 lb
