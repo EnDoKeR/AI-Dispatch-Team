@@ -29,7 +29,7 @@ Before major feature growth, add coverage for:
 - safe extraction artifacts built from PDF triage metadata;
 - OCR fallback routing without invoking OCR in unit tests;
 - broker template parsing and template selection;
-- field candidate resolver behavior for duplicates, conflicts, and confidence;
+- expanded field candidate resolver behavior for broker-specific duplicates, conflicts, and confidence;
 - confidence/evidence propagation from extraction artifact to intake contract;
 - ReviewRequired gating for missing, low-confidence, and conflicting critical data;
 - DispatchCase creation from validated intake, with approval and idempotency gates;
@@ -96,6 +96,23 @@ Required future coverage:
 - no raw text by default;
 - safe redacted evidence;
 - manual review route when extraction is empty or unsupported.
+
+## RateCon Candidate Extraction Test Rule
+
+Candidate extraction tests must use fake/anonymized text artifacts only.
+
+Required coverage for candidate generators and resolvers:
+
+- money/rate candidates, including accessorial amounts that must not become final rate;
+- broker identity and broker MC candidates;
+- typed reference candidates;
+- pickup/delivery location, date, and time candidates;
+- equipment, commodity, weight, special requirement, and accessorial-term candidates;
+- multiple candidates for one field;
+- low-confidence candidate behavior;
+- conflict behavior;
+- intake draft handoff without DispatchCase creation;
+- fake-only CLI summaries with no raw fixture text.
 
 ## Persistence Test Rule
 

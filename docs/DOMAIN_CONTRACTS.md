@@ -455,11 +455,12 @@ Purpose:
 
 Owner module:
 
-- planned document AI / extraction package.
+- helper shape in `app/market_intelligence/intake/rate_confirmation_intake.py`;
+- candidate-resolution bridge in `app/document_ai/ratecon_intake_draft.py`.
 
 Current status:
 
-- `planned`
+- `partial`
 
 Required fields:
 
@@ -491,11 +492,12 @@ Purpose:
 
 Owner module:
 
-- planned extraction/candidate resolver package.
+- `app/document_ai/ratecon_candidates.py`
+- candidate generators: `app/document_ai/ratecon_candidate_generators.py`
 
 Current status:
 
-- `planned`
+- `implemented`
 
 Required fields:
 
@@ -519,6 +521,47 @@ Suggested test coverage:
 - confidence thresholds;
 - evidence reference coverage;
 - fake/anonymized fixtures only.
+
+## FieldResolution
+
+Purpose:
+
+- selected, missing, low-confidence, or conflicting field state after candidate resolution.
+
+Owner module:
+
+- `app/document_ai/ratecon_field_resolution.py`
+
+Current status:
+
+- `implemented`
+
+Required fields:
+
+- field name;
+- status;
+- selected candidate;
+- rejected candidates;
+- confidence;
+- reasons;
+- evidence refs;
+- warnings.
+
+Must not do:
+
+- create DispatchCases;
+- emit dispatch recommendations;
+- hide conflicts;
+- populate low-confidence values as final truth.
+
+Suggested test coverage:
+
+- single resolved field;
+- missing field;
+- low-confidence field;
+- conflict field;
+- serialization;
+- intake draft validation handoff.
 
 ## ExtractionArtifact
 

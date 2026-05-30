@@ -43,6 +43,12 @@ Current project support:
 - dependency-free document AI contracts;
 - safe PDF triage metadata and fake-only triage CLI;
 - extraction artifacts built from triage without raw text;
+- safe text artifacts for fake/anonymized candidate extraction;
+- candidate extraction contracts for RateCon field candidates;
+- dependency-free candidate generators for money, identity/reference, stops, and operational details;
+- conservative field resolution contracts and resolver;
+- RateConfirmationIntake draft builder from resolved candidates;
+- fake-only candidate extraction CLI;
 - local-only `pypdf` extraction helper;
 - private PDF extraction inventory CLI;
 - private PDF dry-run CLI;
@@ -57,8 +63,7 @@ Current project does not yet have:
 - OCR;
 - Vision AI;
 - broker template registry;
-- candidate resolver;
-- typed evidence object for every field;
+- typed evidence object for every production field;
 - DispatchCase creation from RateCon intake;
 - live document upload handling;
 - external paid extraction calls.
@@ -146,15 +151,16 @@ Rules:
 
 ## Candidate Extraction
 
-Future extractors should produce candidates, not final truth immediately.
+Extractors should produce candidates, not final truth immediately.
 
 FieldCandidate fields:
 
 - `field_name`
-- `candidate_value`
+- `raw_value`
 - `normalized_value`
 - `confidence`
-- `source_method`
+- `confidence_reasons`
+- `source`
 - `evidence_ref`
 - `warnings`
 
@@ -173,6 +179,18 @@ Rules:
 - evidence can include safe/redacted shape, not raw private text;
 - conflicting candidates should remain visible;
 - low-confidence critical candidates should route to review.
+- candidate extraction does not create DispatchCases;
+- candidate extraction does not emit dispatch recommendations;
+- regex is one candidate source, not final assignment.
+
+Current fake/anonymized candidate extraction is documented in
+`docs/RATECON_CANDIDATE_EXTRACTION.md`.
+
+Run:
+
+```powershell
+py scripts/run_fake_ratecon_candidate_extraction.py
+```
 
 ## Broker And Document Classification
 
