@@ -14,6 +14,10 @@ from app.document_ai.pdfplumber_layout_provider import (
     PDFPLUMBER_TABLE_SETTING_PROFILES,
     TABLE_PROFILE_LINES,
     TABLE_PROFILE_TEXT_STRICT,
+    _extract_tables,
+    _extract_words,
+    _group_words_into_lines,
+    _table_blocks,
     extract_pdfplumber_layout,
     get_pdfplumber_table_settings,
     normalize_pdfplumber_table_profile,
@@ -27,6 +31,32 @@ from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
 
 
 class PdfplumberLayoutProviderTests(unittest.TestCase):
+    class _FakeWordPage:
+        def extract_words(self, **_kwargs):
+            return [
+                {"text": "Pickup", "x0": 10, "x1": 50, "top": 20, "bottom": 30},
+                {"text": "Date", "x0": 60, "x1": 90, "top": 20, "bottom": 30},
+                {"text": "Delivery", "x0": 10, "x1": 70, "top": 60, "bottom": 70},
+            ]
+
+    class _FakeTable:
+        bbox = (10, 20, 210, 120)
+
+        def extract(self):
+            return [
+                ["Stop", "Date"],
+                ["Pickup", "<DATE>"],
+                ["Delivery", "<DATE>"],
+            ]
+
+    class _FakeTablePage:
+        def __init__(self):
+            self.table_settings_seen = None
+
+        def find_tables(self, table_settings=None):
+            self.table_settings_seen = table_settings
+            return [PdfplumberLayoutProviderTests._FakeTable()]
+
     def test_invalid_pdf_returns_safe_failure(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_invalid_pdf(temp_dir)
@@ -89,6 +119,40 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
 
         self.assertEqual(result["status"], STATUS_SUCCESS)
         self.assertIn("tables", result["artifact"]["pages"][0])
+
+    def test_mocked_words_convert_to_stable_lines(self):
+        warnings = []
+        raw_words = _extract_words(self._FakeWordPage(), page_number=2, warnings=warnings)
+        words, lines = _group_words_into_lines(raw_words, page_number=2)
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(len(words), 3)
+        self.assertEqual(len(lines), 2)
+        self.assertEqual(lines[0]["line_id"], "P2_L1")
+        self.assertEqual(lines[0]["page_number"], 2)
+        self.assertEqual(lines[0]["bbox"]["unit"], "points")
+        self.assertEqual(words[0]["line_id"], "P2_L1")
+
+    def test_mocked_tables_convert_to_cells_and_table_blocks(self):
+        page = self._FakeTablePage()
+        warnings = []
+
+        tables = _extract_tables(
+            page,
+            page_number=3,
+            warnings=warnings,
+            table_settings_profile=TABLE_PROFILE_LINES,
+        )
+        blocks = _table_blocks(tables, page_number=3)
+
+        self.assertEqual(warnings, [])
+        self.assertEqual(page.table_settings_seen["vertical_strategy"], "lines")
+        self.assertEqual(len(tables), 1)
+        self.assertEqual(len(tables[0]["cells"]), 6)
+        self.assertEqual(tables[0]["page_number"], 3)
+        self.assertEqual(tables[0]["cells"][0]["bbox"]["unit"], "points")
+        self.assertEqual(blocks[0]["block_type"], "table")
+        self.assertEqual(blocks[0]["page_number"], 3)
 
     def test_pdfplumber_table_settings_profiles_exist(self):
         self.assertIn(TABLE_PROFILE_LINES, PDFPLUMBER_TABLE_SETTING_PROFILES)

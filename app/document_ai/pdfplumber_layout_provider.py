@@ -7,6 +7,7 @@ from pathlib import Path
 import pdfplumber
 
 from app.document_ai.layout_artifacts import (
+    BLOCK_TYPE_TABLE,
     BLOCK_TYPE_TEXT,
     BLOCK_TYPE_UNKNOWN,
     build_bounding_box,
@@ -322,6 +323,24 @@ def _rect_blocks(page, page_number, warnings):
     return blocks
 
 
+def _table_blocks(tables, page_number):
+    blocks = []
+    for table in tables or []:
+        if not isinstance(table, dict):
+            continue
+        blocks.append(
+            build_layout_block(
+                block_id=f"{table.get('table_id', '')}_BLOCK",
+                text_redacted="",
+                bbox=table.get("bbox"),
+                line_ids=[],
+                page_number=page_number,
+                block_type=BLOCK_TYPE_TABLE,
+            )
+        )
+    return blocks
+
+
 def _page_has_extractable_text(page_artifact):
     if page_artifact.get("words"):
         return True
@@ -383,7 +402,11 @@ def extract_pdfplumber_layout(
                     page_warnings,
                     table_settings_profile=normalized_table_profile,
                 )
-                blocks = _page_text_block(lines, page_index) + _rect_blocks(page, page_index, page_warnings)
+                blocks = (
+                    _page_text_block(lines, page_index)
+                    + _table_blocks(tables, page_index)
+                    + _rect_blocks(page, page_index, page_warnings)
+                )
 
                 page_artifact = build_layout_page_artifact(
                     page_number=page_index,
