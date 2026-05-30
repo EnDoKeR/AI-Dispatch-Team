@@ -64,6 +64,36 @@ class AnonymizedRateConScenarioReportTests(unittest.TestCase):
         self.assertNotIn("rate", result["suspected_parser_gap_fields"])
         self.assertNotIn("reference_id", result["suspected_parser_gap_fields"])
 
+    def test_layout_shape_scenarios_reduce_targeted_parser_gaps(self):
+        expected_closed_gaps_by_scenario = {
+            "shape_total_usd_amount": {"rate", "reference_id"},
+            "shape_shipper_address_next_line": {
+                "pickup_location",
+                "pickup_date",
+                "delivery_location",
+                "delivery_date",
+            },
+            "shape_table_like_commodity_weight": {
+                "commodity",
+                "weight",
+                "equipment",
+            },
+        }
+
+        for scenario_id, closed_gaps in expected_closed_gaps_by_scenario.items():
+            scenario = next(
+                item
+                for item in ANONYMIZED_RATECON_SCENARIOS
+                if item["scenario_id"] == scenario_id
+            )
+            report = build_anonymized_ratecon_scenario_report([scenario])
+            result = report["scenario_results"][0]
+
+            with self.subTest(scenario=scenario_id):
+                self.assertFalse(
+                    closed_gaps.intersection(result["suspected_parser_gap_fields"])
+                )
+
     def test_report_contains_no_raw_scenario_text_or_values(self):
         report = build_anonymized_ratecon_scenario_report(
             ANONYMIZED_RATECON_SCENARIOS

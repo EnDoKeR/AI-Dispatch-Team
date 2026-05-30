@@ -27,11 +27,15 @@ CATEGORY_TO_PARSER_FIELD = {
 
 
 def _field_present(value):
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
     if isinstance(value, list):
         return bool(value)
     if isinstance(value, dict):
         return bool(value)
-    return bool(str(value or "").strip())
+    return True
 
 
 def _status_for_field(parser_output, missing_fields, needs_check_fields, field_name):

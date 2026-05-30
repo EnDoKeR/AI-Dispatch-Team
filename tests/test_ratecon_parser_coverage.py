@@ -31,6 +31,26 @@ class RateConParserCoverageTests(unittest.TestCase):
         self.assertEqual(report["extracted_field_status"]["broker_mc"], "yes")
         self.assertNotIn("broker_mc", report["suspected_parser_gap_fields"])
 
+    def test_zero_numeric_value_counts_as_extracted_for_status_only(self):
+        dry_run_result = {
+            "parser_output": {
+                "rate": 0,
+            },
+            "intake_summary": {
+                "missing_fields": [],
+                "needs_check_fields": [],
+            },
+            "status": "READY_FOR_REVIEW",
+        }
+
+        report = build_ratecon_parser_coverage_report(
+            "TOTAL: USD $0000.00",
+            dry_run_result=dry_run_result,
+        )
+
+        self.assertEqual(report["extracted_field_status"]["rate"], "yes")
+        self.assertNotIn("rate", report["suspected_parser_gap_fields"])
+
     def test_missing_labels_are_not_parser_gaps(self):
         text = "Rate: 3000"
 

@@ -98,6 +98,26 @@ Equipment: Conestoga
         self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
         self.assertEqual(parsed["field_confidence"]["reference_id"], "MEDIUM")
 
+    def test_total_usd_amount_with_decimal_extracts_rate(self):
+        text = """
+Broker Name: FAKE BROKER LLC
+Broker MC: MC000000
+TOTAL: USD $0000.00
+Load #: FAKE-SHAPE-001
+Pickup: Fake City, ST 00000
+Pickup Date: 2026-11-10
+Delivery: Fake Town, ST 00000
+Delivery Date: 2026-11-11
+Commodity: FAKE COMMODITY
+Weight: 40000 LBS
+Equipment: Conestoga
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["rate"], 0)
+        self.assertEqual(parsed["reference_id"], "FAKE-SHAPE-001")
+        self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
+
     def test_conflicting_reference_aliases_are_marked_low_confidence(self):
         text = """
 Broker: Synthetic Conflict Broker
@@ -159,6 +179,31 @@ Equipment: Conestoga
         self.assertEqual(parsed["delivery_time"], "09:00-11:00")
         self.assertEqual(parsed["field_confidence"]["pickup_location"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["delivery_location"], "MEDIUM")
+
+    def test_pickup_delivery_time_date_only_values_extract_dates(self):
+        text = """
+Broker Name: FAKE BROKER LLC
+Broker MC: MC000000
+Rate: $0000.00
+Load #: FAKE-SHAPE-002
+Shipper Information:
+Address: Fake City, ST 00000
+Pick Up Time: 2026-11-12
+Consignee Information:
+Address: Fake Town, ST 00000
+Delivery Time: 2026-11-13
+Commodity: FAKE PRODUCT
+Total Weight: 40000 LBS
+Trailer Type/Size: Flatbed 48
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-11-12")
+        self.assertEqual(parsed["pickup_time"], "")
+        self.assertEqual(parsed["delivery_date"], "2026-11-13")
+        self.assertEqual(parsed["delivery_time"], "")
 
     def test_pickup_delivery_label_variants_extract_locations(self):
         text = """
@@ -232,6 +277,27 @@ Trailer Type/Size: Conestoga 48
         self.assertEqual(parsed["field_confidence"]["commodity"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["weight"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["equipment"], "HIGH")
+
+    def test_table_like_commodity_weight_equipment_row_extracts(self):
+        text = """
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Total Carrier Pay: $0000.00
+Order #: FAKE-SHAPE-003
+Pickup Location: Fake City, ST 00000
+Pickup Date: 2026-11-16
+Delivery Location: Fake Town, ST 00000
+Delivery Date: 2026-11-17
+Commodity Description    FAKE TABLE PRODUCT    40000 LBS    Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["commodity"], "FAKE TABLE PRODUCT")
+        self.assertEqual(parsed["weight"], 40000)
+        self.assertEqual(parsed["equipment"], "Flatbed")
+        self.assertEqual(parsed["field_confidence"]["commodity"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["weight"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["equipment"], "MEDIUM")
 
     def test_tbd_commodity_and_weight_stay_missing_with_review_signal(self):
         text = """

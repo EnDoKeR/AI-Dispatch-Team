@@ -224,6 +224,20 @@ def numeric_weight_value(value):
     return numeric_value(match.group(0))
 
 
+def amount_value(value):
+    text = str(value or "").strip()
+
+    if value_needs_review(text):
+        return ""
+
+    match = re.search(r"\d[\d,]*(?:\.\d+)?", text)
+
+    if not match:
+        return numeric_value(text)
+
+    return numeric_value(match.group(0))
+
+
 def value_contains_equipment_term(value):
     text = str(value or "").strip().lower()
     return any(term in text for term in KNOWN_EQUIPMENT_TERMS)
@@ -273,7 +287,7 @@ def set_field(output, field_name, value, confidence):
         return
 
     if field_name == "rate":
-        normalized_value = numeric_value(value)
+        normalized_value = amount_value(value)
     elif field_name == "weight":
         normalized_value = numeric_weight_value(value)
     else:
@@ -348,6 +362,49 @@ def apply_block_address(output, active_block, label, value):
 
     if active_block == "delivery":
         set_field(output, "delivery_location", value, MEDIUM)
+        return True
+
+    return False
+
+
+def table_line_parts(line):
+    parts = [
+        part.strip()
+        for part in re.split(r"\s{2,}|\t+|\|", str(line or "").strip())
+        if part.strip()
+    ]
+
+    if len(parts) < 2:
+        return []
+
+    return parts
+
+
+def apply_table_like_line(output, line):
+    parts = table_line_parts(line)
+
+    if len(parts) < 2:
+        return False
+
+    first = normalize_label(parts[0])
+
+    if first in {"commodity", "commodity description", "product", "freight description"}:
+        set_field(output, "commodity", parts[1], MEDIUM)
+
+        if len(parts) >= 3:
+            set_field(output, "weight", parts[2], MEDIUM)
+
+        if len(parts) >= 4:
+            set_field(output, "equipment", parts[3], MEDIUM)
+
+        return True
+
+    if first in {"description", "freight"}:
+        set_field(output, "commodity", parts[1], LOW)
+
+        if len(parts) >= 3:
+            set_field(output, "weight", parts[2], LOW)
+
         return True
 
     return False
@@ -449,6 +506,9 @@ def parse_pasted_text_to_parser_output(text):
     active_block = ""
 
     for raw_line in str(text or "").splitlines():
+        if apply_table_like_line(output, raw_line):
+            continue
+
         label, value = split_label_value(raw_line)
 
         if not label:
