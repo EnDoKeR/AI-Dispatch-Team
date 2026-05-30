@@ -81,20 +81,28 @@ class PrivateMeasurementContractTests(unittest.TestCase):
             document_alias="RATECON_001",
             document_type="BILL_OF_LADING",
             ratecon_eligible=False,
+            extraction_relevant=False,
+            normal_load_movement=False,
             supplemental_only=True,
             page_role_counts={"BOL": 1},
             section_role_counts={"BOL_BODY": 1},
+            extraction_scope_counts={"NON_RATECON_SKIP": 1},
             classification_status="supplemental_only",
             classification_warning_codes=["supplemental_page_skipped_for_core_ratecon"],
+            skipped_by_scope=True,
         )
 
         payload = json.dumps(row)
 
         self.assertEqual(row["document_type"], "BILL_OF_LADING")
         self.assertFalse(row["ratecon_eligible"])
+        self.assertFalse(row["extraction_relevant"])
+        self.assertFalse(row["normal_load_movement"])
         self.assertTrue(row["supplemental_only"])
         self.assertEqual(row["page_role_counts"], {"BOL": 1})
         self.assertEqual(row["section_role_counts"], {"BOL_BODY": 1})
+        self.assertEqual(row["extraction_scope_counts"], {"NON_RATECON_SKIP": 1})
+        self.assertTrue(row["skipped_by_scope"])
         self.assertNotIn("raw_text", row)
         self.assertNotIn("FAKE BROKER LLC", payload)
 
@@ -106,17 +114,27 @@ class PrivateMeasurementContractTests(unittest.TestCase):
             critical_field_missing_counts={"rate": 1},
             document_type_counts={"RATE_CONFIRMATION": 1, "BILL_OF_LADING": 1},
             ratecon_eligible_count=1,
+            extraction_relevant_count=1,
+            normal_load_movement_count=1,
+            ocr_needed_count=1,
+            classification_status_counts={"ratecon_eligible": 1, "supplemental_only": 1},
             supplemental_only_count=1,
             page_role_counts={"MAIN_RATECONF": 1, "BOL": 1},
             section_role_counts={"RATE_SUMMARY": 1, "BOL_BODY": 1},
+            extraction_scope_counts={"RATECON_CORE_ALLOWED": 1, "NON_RATECON_SKIP": 1},
             eligible_critical_field_missing_counts={"rate": 1},
             eligible_critical_field_denominator=1,
+            normal_load_critical_field_missing_counts={"rate": 1},
+            normal_load_critical_field_denominator=1,
         )
 
         json.dumps(aggregate)
         self.assertFalse(aggregate["raw_text_saved"])
         self.assertTrue(aggregate["private_values_redacted"])
         self.assertEqual(aggregate["ratecon_eligible_count"], 1)
+        self.assertEqual(aggregate["extraction_relevant_count"], 1)
+        self.assertEqual(aggregate["normal_load_movement_count"], 1)
+        self.assertEqual(aggregate["ocr_needed_count"], 1)
         self.assertEqual(aggregate["supplemental_only_count"], 1)
 
     def test_output_policy_defaults_are_shareable_and_safe(self):

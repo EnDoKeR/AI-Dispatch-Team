@@ -67,6 +67,8 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertTrue(row["private_values_redacted"])
         self.assertEqual(row["document_type"], "RATE_CONFIRMATION")
         self.assertTrue(row["ratecon_eligible"])
+        self.assertTrue(row["extraction_relevant"])
+        self.assertTrue(row["normal_load_movement"])
 
     def test_conflicting_rate_text_exposes_conflict_without_values(self):
         registry = BrokerTemplateRegistry.from_directory(FIXTURE_DIR)
@@ -104,6 +106,8 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
 
         self.assertEqual(row["document_type"], "BILL_OF_LADING")
         self.assertFalse(row["ratecon_eligible"])
+        self.assertFalse(row["extraction_relevant"])
+        self.assertFalse(row["normal_load_movement"])
         self.assertTrue(row["supplemental_only"])
         self.assertEqual(row["candidate_counts_by_field"], {})
         self.assertEqual(row["missing_fields"], [])
@@ -132,7 +136,10 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
             row = measure_private_ratecon_pdf(pdf_path, "RATECON_MIXED")
 
         self.assertTrue(row["ratecon_eligible"])
+        self.assertTrue(row["extraction_relevant"])
+        self.assertTrue(row["normal_load_movement"])
         self.assertIn("MAIN_RATECONF", row["page_role_counts"])
+        self.assertIn("RATECON_CORE_ALLOWED", row["extraction_scope_counts"])
         self.assertGreater(row["candidate_counts_by_field"].get("rate", 0), 0)
 
     def test_tonu_document_is_classified_without_stop_missing_failure(self):
@@ -144,6 +151,8 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
 
         self.assertEqual(row["document_type"], "TRUCK_ORDER_NOT_USED")
         self.assertTrue(row["ratecon_eligible"])
+        self.assertTrue(row["extraction_relevant"])
+        self.assertFalse(row["normal_load_movement"])
         self.assertIn("pickup_location", row["non_applicable_fields"])
         self.assertIn("tonu_not_normal_load_movement", row["classification_warning_codes"])
 

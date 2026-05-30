@@ -74,6 +74,9 @@ class PrivateMeasurementOutputTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
 
         self.assertIn("document_alias", text)
+        self.assertIn("extraction_relevant", text)
+        self.assertIn("normal_load_movement", text)
+        self.assertIn("skipped_by_scope", text)
         self.assertNotIn("raw_text", text)
         self.assertNotIn("FAKE BROKER LLC", text)
 
@@ -96,6 +99,8 @@ class PrivateMeasurementOutputTests(unittest.TestCase):
             text = path.read_text(encoding="utf-8")
 
         self.assertIn("blocker_category_counts", text)
+        self.assertIn("normal_load_critical_field_denominator", text)
+        self.assertIn("classification_status_counts", text)
         self.assertNotIn("FAKE BROKER LLC", text)
         self.assertIn("no raw text or private values included", text.lower())
 

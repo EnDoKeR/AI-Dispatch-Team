@@ -11,6 +11,7 @@ from app.document_ai.broker_template_candidate_extraction import (
 from app.document_ai.broker_template_matcher import build_safe_template_selection_summary
 from app.document_ai.document_classification import (
     CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+    DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED,
     classify_document_from_text_artifact,
 )
 from app.document_ai.extraction_scope import (
@@ -239,7 +240,7 @@ def _merged_list(*values):
 
 
 def _non_applicable_fields_for_classification(classification_result):
-    if (classification_result or {}).get("document_type") == "TRUCK_ORDER_NOT_USED":
+    if (classification_result or {}).get("document_type") == DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED:
         return list(TONU_NON_APPLICABLE_FIELDS)
     if not (classification_result or {}).get("ratecon_eligible"):
         return list(CRITICAL_MEASUREMENT_FIELDS)
@@ -263,14 +264,32 @@ def _section_role_counts(classification_result):
     ])
 
 
+def _extraction_scope_counts(classification_result):
+    return count_values([
+        scope
+        for page in (classification_result or {}).get("page_results", [])
+        for section in page.get("section_summaries", [])
+        if isinstance(section, dict)
+        for scope in section.get("extraction_scopes", [])
+    ])
+
+
 def _classification_fields(classification_result):
     result = classification_result or {}
+    document_type = result.get("document_type", "UNKNOWN")
+    ratecon_eligible = result.get("ratecon_eligible", False)
     return {
-        "document_type": result.get("document_type", "UNKNOWN"),
-        "ratecon_eligible": result.get("ratecon_eligible", False),
+        "document_type": document_type,
+        "ratecon_eligible": ratecon_eligible,
+        "extraction_relevant": ratecon_eligible,
+        "normal_load_movement": (
+            bool(ratecon_eligible)
+            and document_type != DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED
+        ),
         "supplemental_only": result.get("supplemental_only", False),
         "page_role_counts": _page_role_counts(result),
         "section_role_counts": _section_role_counts(result),
+        "extraction_scope_counts": _extraction_scope_counts(result),
         "classification_status": result.get(
             "classification_status",
             CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
@@ -418,6 +437,7 @@ def measure_private_ratecon_pdf(
             conflict_fields=[],
             non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
             skipped_fields=_non_applicable_fields_for_classification(classification_result),
+            skipped_by_scope=True,
             warning_codes=all_warnings,
             blocker_categories=classify_private_ratecon_measurement_blockers(
                 triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
@@ -508,6 +528,7 @@ def measure_private_ratecon_pdf(
         ),
         non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
         skipped_fields=[],
+        skipped_by_scope=False,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

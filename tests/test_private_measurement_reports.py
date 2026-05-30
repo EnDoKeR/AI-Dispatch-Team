@@ -27,8 +27,10 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
                 document_type="RATE_CONFIRMATION",
                 ratecon_eligible=True,
+                classification_status="ratecon_eligible",
                 page_role_counts={"MAIN_RATECONF": 1},
                 section_role_counts={"RATE_SUMMARY": 1},
+                extraction_scope_counts={"RATECON_CORE_ALLOWED": 1},
                 template_status="unknown",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_RESOLVED),
@@ -44,6 +46,7 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 extraction_status=EXTRACTION_STATUS_EMPTY_TEXT,
                 document_type="UNKNOWN",
                 ratecon_eligible=False,
+                classification_status="unknown_review_required",
                 template_status="unknown",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_MISSING),
@@ -58,8 +61,10 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                 extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
                 document_type="RATE_CONFIRMATION",
                 ratecon_eligible=True,
+                classification_status="ratecon_eligible",
                 page_role_counts={"MAIN_RATECONF": 1},
                 section_role_counts={"RATE_SUMMARY": 1},
+                extraction_scope_counts={"RATECON_CORE_ALLOWED": 1},
                 template_status="matched",
                 field_statuses=[
                     build_field_status_summary("rate", FIELD_STATUS_CONFLICT),
@@ -76,13 +81,19 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())
 
         self.assertEqual(aggregate["document_count"], 3)
+        self.assertEqual(aggregate["total_documents"], 3)
         self.assertEqual(aggregate["text_extracted_count"], 2)
         self.assertEqual(aggregate["empty_text_count"], 1)
+        self.assertEqual(aggregate["ocr_needed_count"], 1)
         self.assertEqual(aggregate["review_required_count"], 3)
         self.assertEqual(aggregate["template_status_counts"]["unknown"], 2)
         self.assertEqual(aggregate["document_type_counts"]["RATE_CONFIRMATION"], 2)
         self.assertEqual(aggregate["ratecon_eligible_count"], 2)
+        self.assertEqual(aggregate["extraction_relevant_count"], 2)
+        self.assertEqual(aggregate["normal_load_movement_count"], 2)
+        self.assertEqual(aggregate["classification_status_counts"]["ratecon_eligible"], 2)
         self.assertEqual(aggregate["eligible_critical_field_denominator"], 2)
+        self.assertEqual(aggregate["normal_load_critical_field_denominator"], 2)
 
     def test_aggregate_counts_missing_conflict_and_needs_check_fields(self):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())
@@ -90,6 +101,7 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         self.assertEqual(aggregate["critical_field_missing_counts"]["rate"], 1)
         self.assertEqual(aggregate["critical_field_missing_counts"]["weight"], 1)
         self.assertEqual(aggregate["eligible_critical_field_missing_counts"]["weight"], 1)
+        self.assertEqual(aggregate["normal_load_critical_field_missing_counts"]["weight"], 1)
         self.assertNotIn("rate", aggregate["eligible_critical_field_missing_counts"])
         self.assertEqual(aggregate["conflict_counts_by_field"]["rate"], 1)
         self.assertEqual(aggregate["unresolved_counts_by_field"]["rate"], 1)
@@ -110,6 +122,30 @@ class PrivateMeasurementReportTests(unittest.TestCase):
 
         self.assertEqual(aggregate["non_applicable_counts_by_field"]["rate"], 1)
         self.assertEqual(aggregate["skipped_counts_by_field"]["pickup_location"], 1)
+
+    def test_tonu_is_extraction_relevant_but_not_normal_load_denominator(self):
+        rows = [
+            build_private_ratecon_measurement_row(
+                document_alias="DOC_TONU",
+                document_type="TRUCK_ORDER_NOT_USED",
+                ratecon_eligible=True,
+                missing_fields=["pickup_location", "rate"],
+            ),
+            build_private_ratecon_measurement_row(
+                document_alias="DOC_RATECON",
+                document_type="RATE_CONFIRMATION",
+                ratecon_eligible=True,
+                missing_fields=["weight"],
+            ),
+        ]
+
+        aggregate = build_private_ratecon_measurement_aggregate(rows)
+
+        self.assertEqual(aggregate["ratecon_eligible_count"], 2)
+        self.assertEqual(aggregate["extraction_relevant_count"], 2)
+        self.assertEqual(aggregate["normal_load_movement_count"], 1)
+        self.assertEqual(aggregate["tonu_count"], 1)
+        self.assertEqual(aggregate["normal_load_critical_field_missing_counts"], {"weight": 1})
 
     def test_aggregate_counts_blockers(self):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())

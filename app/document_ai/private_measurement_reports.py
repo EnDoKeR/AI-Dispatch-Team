@@ -2,6 +2,10 @@
 
 from collections import Counter
 
+from app.document_ai.document_classification import (
+    CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+    DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED,
+)
 from app.document_ai.private_measurement import (
     EXTRACTION_STATUS_EMPTY_TEXT,
     EXTRACTION_STATUS_TEXT_EXTRACTED,
@@ -142,6 +146,28 @@ def _eligible_rows(rows):
     ]
 
 
+def _extraction_relevant_rows(rows):
+    return [
+        row
+        for row in rows
+        if row.get("extraction_relevant") or row.get("ratecon_eligible")
+    ]
+
+
+def _normal_load_movement_rows(rows):
+    return [
+        row
+        for row in rows
+        if (
+            row.get("normal_load_movement")
+            or (
+                row.get("ratecon_eligible")
+                and row.get("document_type") != DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED
+            )
+        )
+    ]
+
+
 def build_private_ratecon_measurement_aggregate(rows):
     safe_rows = [
         row
@@ -151,9 +177,12 @@ def build_private_ratecon_measurement_aggregate(rows):
 
     extraction_status_counts = _count_by_key(safe_rows, "extraction_status")
     eligible_rows = _eligible_rows(safe_rows)
+    extraction_relevant_rows = _extraction_relevant_rows(safe_rows)
+    normal_load_rows = _normal_load_movement_rows(safe_rows)
 
     return build_aggregate_contract(
         document_count=len(safe_rows),
+        total_documents=len(safe_rows),
         triage_route_counts=_count_by_key(safe_rows, "triage_route"),
         extraction_status_counts=extraction_status_counts,
         template_status_counts=_count_by_key(safe_rows, "template_status"),
@@ -171,16 +200,33 @@ def build_private_ratecon_measurement_aggregate(rows):
         skipped_counts_by_field=_count_list_values(safe_rows, "skipped_fields"),
         document_type_counts=_count_by_key(safe_rows, "document_type"),
         ratecon_eligible_count=len(eligible_rows),
+        extraction_relevant_count=len(extraction_relevant_rows),
+        normal_load_movement_count=len(normal_load_rows),
+        tonu_count=sum(
+            1
+            for row in safe_rows
+            if row.get("document_type") == DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED
+        ),
         supplemental_only_count=sum(1 for row in safe_rows if row.get("supplemental_only")),
         non_ratecon_count=sum(
             1
             for row in safe_rows
             if not row.get("ratecon_eligible") and not row.get("supplemental_only")
         ),
+        unknown_review_required_count=sum(
+            1
+            for row in safe_rows
+            if row.get("classification_status") == CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED
+        ),
+        ocr_needed_count=extraction_status_counts.get(EXTRACTION_STATUS_EMPTY_TEXT, 0),
+        classification_status_counts=_count_by_key(safe_rows, "classification_status"),
         page_role_counts=_sum_mapping_values(safe_rows, "page_role_counts"),
         section_role_counts=_sum_mapping_values(safe_rows, "section_role_counts"),
+        extraction_scope_counts=_sum_mapping_values(safe_rows, "extraction_scope_counts"),
         eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
         eligible_critical_field_denominator=len(eligible_rows),
+        normal_load_critical_field_missing_counts=_critical_missing_counts(normal_load_rows),
+        normal_load_critical_field_denominator=len(normal_load_rows),
     )
 
 

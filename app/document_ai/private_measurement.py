@@ -162,9 +162,12 @@ def build_private_ratecon_measurement_row(
     template_confidence_bucket=CONFIDENCE_BUCKET_UNKNOWN,
     document_type="UNKNOWN",
     ratecon_eligible=False,
+    extraction_relevant=None,
+    normal_load_movement=None,
     supplemental_only=False,
     page_role_counts=None,
     section_role_counts=None,
+    extraction_scope_counts=None,
     classification_status="unknown_review_required",
     classification_warning_codes=None,
     candidate_counts_by_field=None,
@@ -176,11 +179,26 @@ def build_private_ratecon_measurement_row(
     conflict_fields=None,
     non_applicable_fields=None,
     skipped_fields=None,
+    skipped_by_scope=False,
     warning_codes=None,
     blocker_categories=None,
     intake_status="",
     review_required=False,
 ):
+    normalized_document_type = _text(document_type) or "UNKNOWN"
+    normalized_ratecon_eligible = _bool(ratecon_eligible)
+    normalized_extraction_relevant = (
+        normalized_ratecon_eligible
+        if extraction_relevant is None
+        else _bool(extraction_relevant)
+    )
+    normalized_normal_load_movement = (
+        normalized_ratecon_eligible
+        and normalized_document_type != "TRUCK_ORDER_NOT_USED"
+        if normal_load_movement is None
+        else _bool(normal_load_movement)
+    )
+
     return {
         "document_alias": _text(document_alias),
         "page_count": int(page_count or 0),
@@ -193,11 +211,14 @@ def build_private_ratecon_measurement_row(
         "selected_template_id": _text(selected_template_id),
         "template_source": _text(template_source),
         "template_confidence_bucket": _normalize_confidence_bucket(template_confidence_bucket),
-        "document_type": _text(document_type) or "UNKNOWN",
-        "ratecon_eligible": _bool(ratecon_eligible),
+        "document_type": normalized_document_type,
+        "ratecon_eligible": normalized_ratecon_eligible,
+        "extraction_relevant": normalized_extraction_relevant,
+        "normal_load_movement": normalized_normal_load_movement,
         "supplemental_only": _bool(supplemental_only),
         "page_role_counts": _normalize_mapping(page_role_counts),
         "section_role_counts": _normalize_mapping(section_role_counts),
+        "extraction_scope_counts": _normalize_mapping(extraction_scope_counts),
         "classification_status": _text(classification_status) or "unknown_review_required",
         "classification_warning_codes": _normalize_list(classification_warning_codes),
         "candidate_counts_by_field": _normalize_mapping(candidate_counts_by_field),
@@ -213,6 +234,7 @@ def build_private_ratecon_measurement_row(
         "conflict_fields": _normalize_list(conflict_fields),
         "non_applicable_fields": _normalize_list(non_applicable_fields),
         "skipped_fields": _normalize_list(skipped_fields),
+        "skipped_by_scope": _bool(skipped_by_scope),
         "warning_codes": _normalize_list(warning_codes),
         "blocker_categories": _normalize_list(blocker_categories),
         "intake_status": _text(intake_status),
@@ -225,6 +247,7 @@ def build_private_ratecon_measurement_row(
 
 def build_private_ratecon_measurement_aggregate(
     document_count=0,
+    total_documents=0,
     triage_route_counts=None,
     extraction_status_counts=None,
     template_status_counts=None,
@@ -242,17 +265,29 @@ def build_private_ratecon_measurement_aggregate(
     skipped_counts_by_field=None,
     document_type_counts=None,
     ratecon_eligible_count=0,
+    extraction_relevant_count=0,
+    normal_load_movement_count=0,
+    tonu_count=0,
     supplemental_only_count=0,
     non_ratecon_count=0,
+    unknown_review_required_count=0,
+    ocr_needed_count=0,
+    classification_status_counts=None,
     page_role_counts=None,
     section_role_counts=None,
+    extraction_scope_counts=None,
     eligible_critical_field_missing_counts=None,
     eligible_critical_field_denominator=0,
+    normal_load_critical_field_missing_counts=None,
+    normal_load_critical_field_denominator=0,
     generated_at="",
     measurement_version=MEASUREMENT_VERSION,
 ):
+    normalized_document_count = int(document_count or 0)
+    normalized_total_documents = int(total_documents or normalized_document_count or 0)
     return {
-        "document_count": int(document_count or 0),
+        "document_count": normalized_document_count,
+        "total_documents": normalized_total_documents,
         "triage_route_counts": _normalize_mapping(triage_route_counts),
         "extraction_status_counts": _normalize_mapping(extraction_status_counts),
         "template_status_counts": _normalize_mapping(template_status_counts),
@@ -270,14 +305,27 @@ def build_private_ratecon_measurement_aggregate(
         "skipped_counts_by_field": _normalize_mapping(skipped_counts_by_field),
         "document_type_counts": _normalize_mapping(document_type_counts),
         "ratecon_eligible_count": int(ratecon_eligible_count or 0),
+        "extraction_relevant_count": int(extraction_relevant_count or 0),
+        "normal_load_movement_count": int(normal_load_movement_count or 0),
+        "tonu_count": int(tonu_count or 0),
         "supplemental_only_count": int(supplemental_only_count or 0),
         "non_ratecon_count": int(non_ratecon_count or 0),
+        "unknown_review_required_count": int(unknown_review_required_count or 0),
+        "ocr_needed_count": int(ocr_needed_count or 0),
+        "classification_status_counts": _normalize_mapping(classification_status_counts),
         "page_role_counts": _normalize_mapping(page_role_counts),
         "section_role_counts": _normalize_mapping(section_role_counts),
+        "extraction_scope_counts": _normalize_mapping(extraction_scope_counts),
         "eligible_critical_field_missing_counts": _normalize_mapping(
             eligible_critical_field_missing_counts
         ),
         "eligible_critical_field_denominator": int(eligible_critical_field_denominator or 0),
+        "normal_load_critical_field_missing_counts": _normalize_mapping(
+            normal_load_critical_field_missing_counts
+        ),
+        "normal_load_critical_field_denominator": int(
+            normal_load_critical_field_denominator or 0
+        ),
         "generated_at": _text(generated_at),
         "measurement_version": _text(measurement_version or MEASUREMENT_VERSION),
         "raw_text_saved": False,
