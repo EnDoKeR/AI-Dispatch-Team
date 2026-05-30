@@ -116,6 +116,34 @@ deduplication/noise filtering did not reduce the raw group count. The next
 default block should harden stop field association and dedupe/noise filtering
 before adding Camelot, OCR, Vision, or another provider.
 
+## Calibration Rerun Result
+
+The stop calibration rerun added safe pattern diagnostics and broadened
+date/time signal attachment. It reported:
+
+- documents measured: 18;
+- layout attempted: 6;
+- raw stop groups: 112;
+- normalized stops: 112;
+- pickup / delivery / unknown stops: 45 / 37 / 30;
+- duplicate / noise removed: 0 / 0;
+- table row / section context merges: 0 / 0;
+- stop review required: 112;
+- date candidates generated / attached: 10 / 10;
+- time candidates generated / attached: 9 / 9;
+- missing date / time fields: 102 / 103;
+- pattern counts: `LOCATION_DATE_SPLIT`, `TABLE_CELL_OVER_GROUPING`,
+  `TABLE_ROW_NOT_MERGED`, `TIME_CANDIDATE_NOT_ATTACHED`, and
+  `PICKUP_DELIVERY_OVERCLASSIFIED`;
+- fusion worsened fields: none;
+- OCR-needed unchanged: 4.
+
+The result confirms that the next problem is not provider visibility. It is
+fragment normalization: provider artifacts are producing more stop-like evidence
+than the current normalizer can merge into logical pickup/delivery/stop rows.
+The next block should target row/section fragment merging and duplicate/noise
+reduction before moving to local value correctness evaluation.
+
 ## Review Packet
 
 Private measurement can write a local-only stop review packet:
@@ -162,6 +190,8 @@ After normalized stop measurement:
   stop field association.
 - If normalized stops match raw stop groups and no duplicates/noise are removed,
   harden stop deduplication and noise filtering.
+- If raw and normalized stop counts both increase after date/time calibration,
+  harden row/section fragment merging before reviewing private values.
 - If provider tables/cells exist but stop groups are poor, revisit provider
   table calibration or design a table-specific provider checkpoint.
 - If layout candidates are strong but correctness is unknown, build a local

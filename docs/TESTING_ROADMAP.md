@@ -184,6 +184,12 @@ Required coverage for candidate generators and resolvers:
 - normalized stop tests for stop-set contracts, raw group diagnostics,
   dedupe/noise filtering, sequencing/type resolution, field association,
   stop-set building, safe measurement reporting, and local-only review packets.
+- stop calibration tests for local-only pattern classification, table-cell
+  over-grouping, table-row-not-merged cases, date/time split from location,
+  generic pickup/delivery overclassification, and safe review diagnostics.
+- next stop grouping tests should assert that provider-style row, cell, section,
+  and line fragments merge into plausible logical stops before local value
+  correctness review begins.
 - resolver readiness tests for choosing among provider-derived stop groups,
   preserving unresolved/review status when layout evidence is ambiguous, and
   avoiding private values in evaluation output.

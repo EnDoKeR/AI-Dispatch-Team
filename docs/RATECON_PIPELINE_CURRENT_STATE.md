@@ -269,16 +269,24 @@ Private value-review CSV output is local-only and ignored.
   missing, and OCR-needed stayed at 4. This means the provider is useful, but
   stop correctness depends on stronger dedupe/noise filtering and field
   association.
+- The stop calibration rerun generated date/time diagnostics but exposed more
+  fragmentation: 112 raw groups became 112 normalized stops, duplicate/noise and
+  row/section merge counts remained zero, 102 date fields and 103 time fields
+  remained missing, and all stops still required review. The safe pattern counts
+  point to location/date split, table-cell over-grouping, row-not-merged, and
+  residual pickup/delivery overclassification. Fusion worsened fields stayed at
+  zero.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after the normalized stop rerun:
+Next safe block after the stop calibration rerun:
 
 ```text
-Stop field association and dedupe/noise hardening, followed by local-only
-correctness review/evaluation corpus.
+Deeper stop grouping/merge hardening for provider-created row, cell, section,
+and line fragments. Local-only correctness review should wait until normalized
+stop counts and date/time attachment are plausible.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

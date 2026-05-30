@@ -86,6 +86,54 @@ The calibration pass should classify safe error patterns into these categories:
 6. Re-run safe private measurement without printing private values.
 7. Decide the next block from safe aggregate/status deltas only.
 
+## Calibration Rerun Result
+
+After adding the first debug pass, table/section date-time attachment, generic
+stop type calibration, and expanded safe diagnostics, the shareable private
+rerun reported:
+
+- documents measured: 18;
+- layout attempted: 6;
+- raw stop groups: 112;
+- normalized stops: 112;
+- pickup / delivery / unknown stops: 45 / 37 / 30;
+- duplicate / noise removed: 0 / 0;
+- table row / section context merges: 0 / 0;
+- stop review required: 112;
+- date candidates generated / attached: 10 / 10;
+- time candidates generated / attached: 9 / 9;
+- missing date / time fields: 102 / 103;
+- stop pattern counts:
+  - `LOCATION_DATE_SPLIT`: 6;
+  - `TABLE_CELL_OVER_GROUPING`: 2;
+  - `TABLE_ROW_NOT_MERGED`: 1;
+  - `TIME_CANDIDATE_NOT_ATTACHED`: 3;
+  - `PICKUP_DELIVERY_OVERCLASSIFIED`: 2;
+- fusion worsened fields: none;
+- OCR-needed unchanged: 4.
+
+This is a partial improvement only. Date/time candidates now reach normalized
+stop diagnostics, and generic stop ambiguity is visible, but raw/normalized stop
+counts increased and merge/noise counts remain zero. The next block should
+harden grouping/merge logic using the newly exposed pattern counts before a
+local value correctness corpus is useful.
+
+## Current Decision Gate
+
+The next block is deeper stop grouping and merge hardening:
+
+- merge provider-created section/line/table fragments into one logical stop
+  when evidence points to the same row or stop context;
+- reduce one-stop-per-cell and split location/date/time patterns;
+- make duplicate/noise counters nonzero when repeated headers, terms, or
+  footer-like groups are safely identified;
+- keep no-regression fusion active;
+- keep all private value review local-only and ignored.
+
+Camelot is still not the default next step because `pdfplumber` sees tables,
+cells, words, and stop labels. OCR remains queued only for empty-text documents.
+Vision remains deferred.
+
 ## Non-Goals
 
 This block does not add:
@@ -102,4 +150,3 @@ This block does not add:
 - Telegram calls;
 - Event Timeline writes;
 - production automation claims.
-

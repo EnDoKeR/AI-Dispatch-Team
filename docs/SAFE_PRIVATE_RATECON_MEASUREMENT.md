@@ -439,6 +439,30 @@ stop resolver is not correctness-ready. The next blocker is reducing duplicate
 or noisy normalized stops and associating date/time/reference fields with the
 right stop in a reviewable way.
 
+The stop calibration rerun reported:
+
+- documents measured: 18
+- layout attempted: 6
+- raw stop groups: 112
+- normalized stops: 112
+- pickup / delivery / unknown stops: 45 / 37 / 30
+- duplicate / noise removed: 0 / 0
+- table row / section context merges: 0 / 0
+- stop review required: 112
+- date candidates generated / attached: 10 / 10
+- time candidates generated / attached: 9 / 9
+- missing date / time fields: 102 / 103
+- stop pattern counts include `LOCATION_DATE_SPLIT`,
+  `TABLE_CELL_OVER_GROUPING`, `TABLE_ROW_NOT_MERGED`,
+  `TIME_CANDIDATE_NOT_ATTACHED`, and `PICKUP_DELIVERY_OVERCLASSIFIED`
+- fusion worsened fields: none
+- OCR-needed unchanged: 4
+
+This means date/time evidence now reaches the diagnostics layer, but grouping is
+still too fragmented. Because `pdfplumber` is already producing layout evidence,
+the next default block is deeper stop grouping/merge hardening. Camelot, OCR,
+and Vision remain decision-gated.
+
 Layout diagnostic issue buckets:
 
 - `provider_no_tables`: tables were not detected.
