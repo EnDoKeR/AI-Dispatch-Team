@@ -875,6 +875,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
+            DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
 
         for path in fusion_files:
@@ -899,6 +900,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
+            DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
 
         for path in fusion_files:
@@ -916,6 +918,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "normalized_stops.py",
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
         forbidden_fragments = [
             "write_text",
@@ -966,9 +969,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("include_private_values_local_only=False", source)
         self.assertIn("LOCAL PRIVATE REVIEW ONLY", source)
         self.assertIn('"raw_text_included": False', source)
+        self.assertNotIn("print(", source)
         self.assertNotIn("DispatchCase", source)
         self.assertNotIn("DecisionEngine", source)
         self.assertNotIn("telegram", source)
+
+        classifier_source = source_text(DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py")
+        self.assertIn('"private_values_included": False', classifier_source)
+        self.assertIn('"raw_text_included": False', classifier_source)
+        self.assertNotIn("print(", classifier_source)
 
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
