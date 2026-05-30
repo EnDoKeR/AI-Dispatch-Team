@@ -202,3 +202,59 @@ miles_source = NOT_FROM_RATECON
 ```
 
 Previous batch findings that mention `broker_mc` or `equipment` as generic missing fields should be read as legacy/generic intake status, not current RateCon core failure by themselves.
+
+## Core-Field Policy Rerun by Codex
+
+Commands run locally after aligning RateCon success to the user's review table:
+
+```powershell
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py --limit 3
+py scripts/export_private_ratecon_value_review_csv.py --limit 3
+```
+
+The default safe-summary CSV path was locally locked, so the dry-run summary CSV and private value-review CSV were written to alternate ignored paths under `data/private_ratecons/dry_run_results/`. No CSV output is tracked.
+
+Safe rerun summary:
+
+| Label | Extraction | Chars | Pages | Result Category | Miles Status |
+| --- | --- | ---: | ---: | --- | --- |
+| RATECON_001 | TEXT_EXTRACTED | 4636 | 2 | NEEDS_FIELD_FIX | DEFERRED_GOOGLE_MAPS |
+| RATECON_002 | EMPTY_TEXT | 0 | 2 | BAD_TEXT_EXTRACTION | none |
+| RATECON_003 | TEXT_EXTRACTED | 10694 | 3 | NEEDS_FIELD_FIX | DEFERRED_GOOGLE_MAPS |
+
+Safe core-field status:
+
+| Label | Missing Core Fields | Optional Missing Fields | Deferred Fields |
+| --- | --- | --- | --- |
+| RATECON_001 | `customer_name`, `load_label`, `pickup_location`, `pickup_date`, `delivery_location`, `delivery_date`, `rate`, `weight` | `broker_mc`, `equipment` | `loaded_miles` |
+| RATECON_002 | none; extraction produced no text | none | none |
+| RATECON_003 | `customer_name`, `load_label`, `pickup_location`, `pickup_date`, `delivery_location`, `delivery_date`, `load_number`, `rate`, `commodity`, `weight` | `broker_mc`, `equipment` | `loaded_miles` |
+
+Low-confidence categories:
+
+- RATECON_001: none
+- RATECON_002: none; extraction produced no text
+- RATECON_003: `rate`, `special_requirements`
+
+Repeating parser gap categories after core-field alignment:
+
+- `customer_name` / generic broker identity signals
+- `rate`
+- `pickup_location`
+- `delivery_location`
+- `pickup_date`
+- `delivery_date`
+- `weight`
+
+Additional categories:
+
+- RATECON_003 still needs synthetic coverage for `load_number` and `commodity`.
+- RATECON_002 remains an extraction-quality issue, not a parser-pattern issue.
+
+CSV status:
+
+- Safe dry-run summary CSV wrote 3 rows to an ignored alternate output path.
+- Private value-review CSV wrote 3 rows to an ignored alternate output path.
+- The value-review CSV may contain local private extracted values for user review only and must not be committed or shared.
