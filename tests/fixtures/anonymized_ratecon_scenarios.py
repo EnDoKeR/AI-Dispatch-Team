@@ -845,4 +845,266 @@ Special Requirements: Tarps required; straps required; appointment required
             "special_requirements",
         ],
     },
+    {
+        "scenario_id": "shape_total_usd_amount",
+        "scenario_name": "Shape TOTAL USD amount",
+        "text": """
+Broker Name: FAKE BROKER LLC
+Broker MC: MC000000
+TOTAL: USD $0000.00
+Load #: FAKE-REF-019
+Pickup: Fake City, ST 00000
+Pickup Date: 2026-11-10
+Delivery: Fake Town, ST 00000
+Delivery Date: 2026-11-11
+Commodity: FAKE COMMODITY
+Weight: 40000 LBS
+Equipment: Conestoga
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_layout_shapes": {
+            "rate": ["TOTAL: USD $ <AMOUNT>"],
+            "reference_id": ["load #: <ID>"],
+        },
+    },
+    {
+        "scenario_id": "shape_shipper_address_next_line",
+        "scenario_name": "Shape shipper address on following line",
+        "text": """
+Broker Name: FAKE BROKER LLC
+Broker MC: MC000000
+Rate: $0000.00
+Load #: FAKE-REF-020
+Shipper Information:
+Address: Fake City, ST 00000
+Pick Up Time: 2026-11-12
+Consignee Information:
+Address: Fake Town, ST 00000
+Delivery Time: 2026-11-13
+Commodity: FAKE PRODUCT
+Total Weight: 40000 LBS
+Trailer Type/Size: Flatbed 48
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_layout_shapes": {
+            "pickup_location": ["shipper information -> Address: <LOCATION>"],
+            "delivery_location": ["consignee information -> Address: <LOCATION>"],
+        },
+    },
+    {
+        "scenario_id": "shape_trailer_before_shipper",
+        "scenario_name": "Shape trailer before shipper block",
+        "text": """
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Carrier Pay: $0000.00
+Reference #: FAKE-REF-021
+Trailer Type/Size: Conestoga 53
+Commodity Description: FAKE MACHINERY
+Total Weight: 39000 LBS
+Shipper Information:
+Address: Fake City, ST 00000
+Pickup Date: 2026-11-14
+Consignee Information:
+Address: Fake Town, ST 00000
+Delivery Date: 2026-11-15
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "equipment",
+            "commodity",
+            "weight",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "equipment",
+            "commodity",
+            "weight",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+        ],
+        "expected_layout_shapes": {
+            "equipment": ["trailer type/size: <EQUIPMENT>"],
+            "commodity": ["commodity description: <VALUE>"],
+            "weight": ["total weight: <WEIGHT>"],
+        },
+    },
+    {
+        "scenario_id": "shape_table_like_commodity_weight",
+        "scenario_name": "Shape commodity and weight table-like rows",
+        "text": """
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Total Carrier Pay: $0000.00
+Order #: FAKE-REF-022
+Pickup Location: Fake City, ST 00000
+Pickup Date: 2026-11-16
+Delivery Location: Fake Town, ST 00000
+Delivery Date: 2026-11-17
+Commodity Description: FAKE TABLE PRODUCT
+Total Weight: 40000 LBS
+Trailer Type: Flatbed
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": [],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+        ],
+        "expected_layout_shapes": {
+            "commodity": ["commodity description: <VALUE>"],
+            "weight": ["total weight: <WEIGHT>"],
+            "equipment": ["trailer type: <EQUIPMENT>"],
+        },
+    },
+    {
+        "scenario_id": "shape_multiple_amount_accessorials",
+        "scenario_name": "Shape multiple amounts and accessorials",
+        "text": """
+Broker: FAKE BROKER LLC
+Broker MC: MC000000
+Linehaul: $0000.00
+Fuel Surcharge: $000.00
+Detention: FAKE TERMS
+Lumper: FAKE TERMS
+Total Carrier Pay: $0000.00
+Load #: FAKE-REF-023
+Pickup: Fake City, ST 00000
+Pickup Date: 2026-11-18
+Delivery: Fake Town, ST 00000
+Delivery Date: 2026-11-19
+Commodity: FAKE FREIGHT
+Weight: 40000
+Equipment: Van
+""".strip(),
+        "expected_present_fields": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+            "special_requirements",
+        ],
+        "expected_missing_fields": [],
+        "expected_needs_check_fields": ["rate"],
+        "expected_signal_categories": [
+            "broker_name",
+            "broker_mc",
+            "rate",
+            "reference_id",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "commodity",
+            "weight",
+            "equipment",
+            "accessorials",
+        ],
+        "expected_layout_shapes": {
+            "rate": ["total carrier pay: <AMOUNT>"],
+            "accessorials": [
+                "linehaul: <AMOUNT>",
+                "fuel surcharge: <AMOUNT>",
+                "detention: <VALUE>",
+                "lumper: <VALUE>",
+            ],
+        },
+    },
 ]

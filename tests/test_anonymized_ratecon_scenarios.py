@@ -5,6 +5,9 @@ import unittest
 from app.market_intelligence.intake.ratecon_field_diagnostics import (
     detect_ratecon_field_signals,
 )
+from app.market_intelligence.intake.ratecon_layout_diagnostics import (
+    detect_ratecon_layout_shapes,
+)
 from tests.fixtures.anonymized_ratecon_scenarios import (
     ANONYMIZED_RATECON_SCENARIOS,
 )
@@ -24,7 +27,7 @@ REQUIRED_KEYS = {
 class AnonymizedRateConScenariosTests(unittest.TestCase):
     def test_fixtures_import(self):
         self.assertGreaterEqual(len(ANONYMIZED_RATECON_SCENARIOS), 12)
-        self.assertLessEqual(len(ANONYMIZED_RATECON_SCENARIOS), 18)
+        self.assertLessEqual(len(ANONYMIZED_RATECON_SCENARIOS), 30)
 
     def test_each_scenario_has_required_keys(self):
         for scenario in ANONYMIZED_RATECON_SCENARIOS:
@@ -93,6 +96,44 @@ class AnonymizedRateConScenariosTests(unittest.TestCase):
                 self.assertNotIn("FAKE-REF-", serialized)
                 self.assertNotIn("Fake City", serialized)
                 self.assertNotIn("Fake Town", serialized)
+
+    def test_layout_detector_emits_expected_placeholders(self):
+        scenarios_with_shapes = [
+            scenario
+            for scenario in ANONYMIZED_RATECON_SCENARIOS
+            if scenario.get("expected_layout_shapes")
+        ]
+
+        self.assertGreaterEqual(len(scenarios_with_shapes), 5)
+
+        for scenario in scenarios_with_shapes:
+            layout = detect_ratecon_layout_shapes(scenario["text"])
+
+            for category, expected_shapes in scenario["expected_layout_shapes"].items():
+                actual_shapes = [
+                    item["shape"]
+                    for item in layout["shapes_by_category"].get(category, [])
+                ]
+
+                for expected_shape in expected_shapes:
+                    with self.subTest(
+                        scenario=scenario["scenario_id"],
+                        category=category,
+                        shape=expected_shape,
+                    ):
+                        self.assertIn(expected_shape, actual_shapes)
+
+    def test_layout_detector_output_omits_fake_values(self):
+        for scenario in ANONYMIZED_RATECON_SCENARIOS:
+            layout = detect_ratecon_layout_shapes(scenario["text"])
+            serialized = json.dumps(layout)
+
+            with self.subTest(scenario=scenario["scenario_id"]):
+                self.assertNotIn("FAKE BROKER LLC", serialized)
+                self.assertNotIn("FAKE-REF-", serialized)
+                self.assertNotIn("Fake City", serialized)
+                self.assertNotIn("Fake Town", serialized)
+                self.assertNotIn("MC000000", serialized)
 
 
 if __name__ == "__main__":
