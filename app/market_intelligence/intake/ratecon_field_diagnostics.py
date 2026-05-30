@@ -50,12 +50,16 @@ SIGNAL_PATTERNS = {
     "pickup_date": [
         r"\bpick\s*up\s+date\b",
         r"\bpickup\s+date\b",
+        r"\bpick\s*up\s+time\b",
+        r"\bpickup\s+time\b",
         r"\bpick\s*up\s+appt\b",
         r"\bpickup\s+appt\b",
     ],
     "delivery_date": [
         r"\bdelivery\s+date\b",
         r"\bdeliver\s+date\b",
+        r"\bdelivery\s+time\b",
+        r"\bdeliver\s+time\b",
         r"\bdelivery\s+appt\b",
         r"\bdeliver\s+appt\b",
     ],
