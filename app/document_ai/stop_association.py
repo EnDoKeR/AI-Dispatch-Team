@@ -289,12 +289,9 @@ def build_stop_field_candidates_from_row(row, columns, table, stop_group_id, sto
     field_candidates = []
     table_id = _text((table or {}).get("table_id"))
     page_number = int((table or {}).get("page_number", 0) or 0)
-    for col_index, kind in sorted(columns.items()):
-        if kind not in {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME, STOP_FIELD_REFERENCE}:
-            continue
-        cell = row.get(col_index)
-        if not cell or not _text(cell.get("text_redacted")):
-            continue
+    seen_fields = set()
+
+    def add_candidate(kind, cell, confidence=0.9, reasons=None):
         field_candidates.append(
             build_stop_field_candidate(
                 stop_group_id=stop_group_id,
@@ -302,7 +299,7 @@ def build_stop_field_candidates_from_row(row, columns, table, stop_group_id, sto
                 stop_type=stop_type,
                 field_name=kind,
                 candidate_id=f"{table_id}_{_cell_ref(cell)}_{kind}",
-                confidence=0.9,
+                confidence=confidence,
                 evidence_ref={
                     "page_number": page_number,
                     "table_id": table_id,
@@ -310,9 +307,32 @@ def build_stop_field_candidates_from_row(row, columns, table, stop_group_id, sto
                     "evidence_type": "table_cell",
                 },
                 source=STOP_ASSOCIATION_SOURCE_TABLE_ROW,
-                reasons=["same_table_row_stop_association"],
+                reasons=reasons or ["same_table_row_stop_association"],
             )
         )
+        seen_fields.add(kind)
+
+    for col_index, kind in sorted(columns.items()):
+        if kind not in {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME, STOP_FIELD_REFERENCE}:
+            continue
+        cell = row.get(col_index)
+        if not cell or not _text(cell.get("text_redacted")):
+            continue
+        add_candidate(kind, cell)
+        signals = detect_stop_date_time_signals(cell.get("text_redacted", ""))
+        if signals["has_date"] and kind != STOP_FIELD_DATE and STOP_FIELD_DATE not in seen_fields:
+            add_candidate(STOP_FIELD_DATE, cell, confidence=0.82, reasons=["date_signal_in_stop_table_row"])
+        if signals["has_time"] and kind != STOP_FIELD_TIME and STOP_FIELD_TIME not in seen_fields:
+            add_candidate(STOP_FIELD_TIME, cell, confidence=0.82, reasons=["time_signal_in_stop_table_row"])
+
+    for col_index, cell in sorted((row or {}).items()):
+        if col_index in columns or not cell or not _text(cell.get("text_redacted")):
+            continue
+        signals = detect_stop_date_time_signals(cell.get("text_redacted", ""))
+        if signals["has_date"] and STOP_FIELD_DATE not in seen_fields:
+            add_candidate(STOP_FIELD_DATE, cell, confidence=0.72, reasons=["date_signal_in_unlabeled_stop_table_cell"])
+        if signals["has_time"] and STOP_FIELD_TIME not in seen_fields:
+            add_candidate(STOP_FIELD_TIME, cell, confidence=0.72, reasons=["time_signal_in_unlabeled_stop_table_cell"])
     return field_candidates
 
 
@@ -325,17 +345,29 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
     for page in (layout_artifact or {}).get("pages", []) or []:
         for table in page.get("tables", []) or []:
             columns = detect_stop_table_columns(table)
+            rows = _rows_by_index(table)
+            header_rows = set(table.get("header_rows") or [0])
+            has_row_datetime_signal = any(
+                (
+                    detect_stop_date_time_signals(cell.get("text_redacted", "")).get("has_date")
+                    or detect_stop_date_time_signals(cell.get("text_redacted", "")).get("has_time")
+                )
+                for row_index, row in rows.items()
+                if row_index not in header_rows
+                for cell in row.values()
+                if isinstance(cell, dict)
+            )
             stop_field_kinds = set(columns.values()) & {
                 STOP_FIELD_LOCATION,
                 STOP_FIELD_DATE,
                 STOP_FIELD_TIME,
                 STOP_FIELD_REFERENCE,
             }
-            if len(stop_field_kinds) < 2:
+            if len(stop_field_kinds) < 2 and not (
+                STOP_FIELD_LOCATION in stop_field_kinds and has_row_datetime_signal
+            ):
                 continue
 
-            rows = _rows_by_index(table)
-            header_rows = set(table.get("header_rows") or [0])
             for row_index in sorted(rows):
                 if row_index in header_rows:
                     continue
@@ -382,8 +414,26 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
     )
 
 
-_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
-_TIME_RE = re.compile(r"\b\d{1,2}:\d{2}(?:\s?(?:am|pm))?\b", re.IGNORECASE)
+_MONTH_NAMES = (
+    "jan|january|feb|february|mar|march|apr|april|may|jun|june|"
+    "jul|july|aug|august|sep|sept|september|oct|october|nov|november|dec|december"
+)
+_DATE_RE = re.compile(
+    rf"\b\d{{4}}[-/]\d{{1,2}}[-/]\d{{1,2}}\b"
+    rf"|\b\d{{1,2}}[/-]\d{{1,2}}[/-]\d{{2,4}}\b"
+    rf"|\b(?:{_MONTH_NAMES})\.?\s+\d{{1,2}},?\s+\d{{2,4}}\b",
+    re.IGNORECASE,
+)
+_TIME_RE = re.compile(
+    r"\b\d{1,2}:\d{2}(?:\s?(?:a\.?m\.?|p\.?m\.?|am|pm))?\b"
+    r"|\b\d{1,2}:\d{2}\s?[-/]\s?\d{1,2}:\d{2}\b",
+    re.IGNORECASE,
+)
+_APPOINTMENT_WINDOW_RE = re.compile(r"\b(?:fcfs|by\s+\d{1,2}:\d{2})\b", re.IGNORECASE)
+_DATETIME_ONLY_WORD_RE = re.compile(
+    r"\b(?:pickup|delivery|pu|so|date|time|appt|appointment|window|fcfs|by|at|from|to)\b",
+    re.IGNORECASE,
+)
 
 _STOP_SECTION_ROLES = {
     "PICKUP_SECTION",
@@ -466,12 +516,31 @@ def classify_stop_section(block_or_section):
     }
 
 
-def associate_nearby_date_time_to_stop(section_text):
+def detect_stop_date_time_signals(section_text):
     text = _text(section_text)
+    lowered = text.lower()
     return {
-        "has_date": bool(_DATE_RE.search(text)) or "<date>" in text.lower(),
-        "has_time": bool(_TIME_RE.search(text)) or "<time>" in text.lower(),
+        "has_date": bool(_DATE_RE.search(text)) or "<date>" in lowered,
+        "has_time": bool(_TIME_RE.search(text)) or "<time>" in lowered or bool(_APPOINTMENT_WINDOW_RE.search(text)),
+        "has_appointment_window": "<time>" in lowered or bool(_APPOINTMENT_WINDOW_RE.search(text)),
     }
+
+
+def associate_nearby_date_time_to_stop(section_text):
+    return {
+        key: value
+        for key, value in detect_stop_date_time_signals(section_text).items()
+        if key in {"has_date", "has_time"}
+    }
+
+
+def _looks_like_datetime_only_section_text(section_text):
+    text = _DATE_RE.sub(" ", _text(section_text))
+    text = _TIME_RE.sub(" ", text)
+    text = text.replace("<DATE>", " ").replace("<TIME>", " ")
+    text = _DATETIME_ONLY_WORD_RE.sub(" ", text)
+    remaining = re.sub(r"[^A-Za-z]+", " ", text).strip()
+    return not remaining
 
 
 def collect_stop_fields_within_section(block, page, stop_group_id, stop_type, stop_sequence):
@@ -484,7 +553,8 @@ def collect_stop_fields_within_section(block, page, stop_group_id, stop_type, st
         "evidence_type": "section_context",
     }
 
-    if section_text:
+    nearby = detect_stop_date_time_signals(section_text)
+    if section_text and not _looks_like_datetime_only_section_text(section_text):
         fields.append(
             build_stop_field_candidate(
                 stop_group_id=stop_group_id,
@@ -499,7 +569,6 @@ def collect_stop_fields_within_section(block, page, stop_group_id, stop_type, st
             )
         )
 
-    nearby = associate_nearby_date_time_to_stop(section_text)
     if nearby["has_date"]:
         fields.append(
             build_stop_field_candidate(

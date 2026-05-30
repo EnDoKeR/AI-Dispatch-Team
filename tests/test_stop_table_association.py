@@ -153,6 +153,41 @@ class StopTableAssociationTests(unittest.TestCase):
         self.assertEqual(len(result["stop_groups"]), 1)
         self.assertEqual(result["stop_groups"][0]["stop_type"], STOP_TYPE_PICKUP)
 
+    def test_date_and_time_signals_in_unlabeled_row_cells_attach_to_row(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "tables": [
+                        {
+                            "table_id": "P1_T1",
+                            "page_number": 1,
+                            "header_rows": [0],
+                            "cells": [
+                                {"row_index": 0, "col_index": 0, "text_redacted": "Stop"},
+                                {"row_index": 0, "col_index": 1, "text_redacted": "Location"},
+                                {"row_index": 0, "col_index": 2, "text_redacted": "Notes"},
+                                {"row_index": 1, "col_index": 0, "text_redacted": "Pickup"},
+                                {"row_index": 1, "col_index": 1, "text_redacted": "FAKE ORIGIN"},
+                                {"row_index": 1, "col_index": 2, "text_redacted": "Appt 02/01/2099 07:30-10:00"},
+                            ],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_tables(artifact)
+        fields = {
+            candidate["field_name"]
+            for group in result["stop_groups"]
+            for candidate in group["field_candidates"]
+        }
+
+        self.assertIn(STOP_FIELD_LOCATION, fields)
+        self.assertIn(STOP_FIELD_DATE, fields)
+        self.assertIn(STOP_FIELD_TIME, fields)
+
 
 if __name__ == "__main__":
     unittest.main()

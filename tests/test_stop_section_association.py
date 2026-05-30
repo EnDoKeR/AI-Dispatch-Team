@@ -44,6 +44,54 @@ class StopSectionAssociationTests(unittest.TestCase):
         self.assertTrue(nearby["has_date"])
         self.assertTrue(nearby["has_time"])
 
+    def test_common_date_time_formats_are_recognized(self):
+        examples = [
+            "Pickup Date 02/01/2099 Appt 07:30-10:00",
+            "Delivery Date 2-2-99 By 17:00",
+            "PU February 3, 2099 FCFS",
+        ]
+
+        for example in examples:
+            with self.subTest(example=example):
+                nearby = associate_nearby_date_time_to_stop(example)
+                self.assertTrue(nearby["has_date"])
+                self.assertTrue(nearby["has_time"])
+
+    def test_datetime_only_section_does_not_create_location_candidate(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "lines": [
+                        {
+                            "line_id": "pickup_appt",
+                            "text_redacted": "PU Date 02/01/2099 Appt 07:30-10:00",
+                            "section_role": "PICKUP_SECTION",
+                        }
+                    ],
+                    "blocks": [
+                        {
+                            "block_id": "pickup_appt_block",
+                            "block_type": "text",
+                            "section_role": "PICKUP_SECTION",
+                            "line_ids": ["pickup_appt"],
+                        }
+                    ],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_sections(artifact)
+        fields = {
+            candidate["field_name"]
+            for group in result["stop_groups"]
+            for candidate in group["field_candidates"]
+        }
+
+        self.assertIn(STOP_FIELD_DATE, fields)
+        self.assertIn(STOP_FIELD_TIME, fields)
+        self.assertNotIn(STOP_FIELD_LOCATION, fields)
+
     def test_header_date_is_not_used_as_stop_date(self):
         artifact = {
             "pages": [

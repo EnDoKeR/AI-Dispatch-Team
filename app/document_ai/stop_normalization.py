@@ -54,6 +54,7 @@ FIELD_WARNING_LOW_CONFIDENCE = "normalized_stop_field_low_confidence"
 WARNING_TONU_STOPS_NOT_APPLICABLE = "tonu_stops_not_applicable"
 WARNING_NORMALIZED_STOP_REVIEW_REQUIRED = "normalized_stop_review_required"
 WARNING_TABLE_ROW_GROUPS_MERGED = "table_row_stop_groups_merged"
+WARNING_SECTION_CONTEXT_GROUPS_MERGED = "section_context_stop_groups_merged"
 
 _SIGNATURE_SECTIONS = {"SIGNATURE_BLOCK", "CERTIFICATE_SIGNATURE_BLOCK"}
 _TERMS_SECTIONS = {
@@ -335,6 +336,78 @@ def merge_stop_groups_by_table_row(stop_groups):
         merged.append(first)
         merge_count += len(groups) - 1
         warnings.append(WARNING_TABLE_ROW_GROUPS_MERGED)
+
+    return {
+        "merged_groups": passthrough + merged,
+        "merge_count": merge_count,
+        "warning_codes": sorted(set(warnings)),
+    }
+
+
+def _section_context_merge_key(group):
+    if _text((group or {}).get("table_id")):
+        return None
+    if _text((group or {}).get("source")) == STOP_ASSOCIATION_SOURCE_TABLE_ROW:
+        return None
+    page_number = _text((group or {}).get("page_number"))
+    section = _section(group)
+    stop_type = _text((group or {}).get("stop_type")).lower()
+    sequence = _text((group or {}).get("stop_sequence"))
+    if not page_number or not section:
+        return None
+    if section in _PICKUP_SECTIONS | _DELIVERY_SECTIONS:
+        return (page_number, section, stop_type or STOP_TYPE_UNKNOWN, sequence or "section")
+    if section in _MULTI_STOP_SECTIONS and sequence:
+        return (page_number, section, stop_type or STOP_TYPE_UNKNOWN, sequence)
+    return None
+
+
+def merge_stop_groups_by_section_context(stop_groups):
+    """Merge split section/line groups that describe the same stop context."""
+
+    keyed = {}
+    passthrough = []
+    for group in stop_groups or []:
+        if not isinstance(group, dict):
+            continue
+        key = _section_context_merge_key(group)
+        if not key:
+            passthrough.append(group)
+            continue
+        keyed.setdefault(key, []).append(group)
+
+    merged = []
+    merge_count = 0
+    warnings = []
+    for key, groups in sorted(keyed.items()):
+        if len(groups) == 1:
+            merged.append(groups[0])
+            continue
+        first = dict(groups[0])
+        field_candidates = []
+        stop_types = []
+        reasons = []
+        group_warnings = []
+        source_group_ids = []
+        for group in groups:
+            field_candidates.extend(group.get("field_candidates", []) or [])
+            stop_types.append(group.get("stop_type", ""))
+            reasons.extend(normalize_list(group.get("reasons")))
+            group_warnings.extend(normalize_list(group.get("warning_codes")))
+            source_group_ids.append(group.get("stop_group_id", ""))
+        first["stop_group_id"] = f"section_{key[0]}_{key[1]}_{key[2]}_{key[3]}"
+        first["stop_type"] = _merge_stop_type(stop_types)
+        first["field_candidates"] = [
+            candidate for candidate in field_candidates if isinstance(candidate, dict)
+        ]
+        first["reasons"] = sorted(set(reasons + ["section_context_groups_merged"]))
+        first["warning_codes"] = sorted(
+            set(group_warnings + [WARNING_SECTION_CONTEXT_GROUPS_MERGED])
+        )
+        first["source_group_ids"] = [item for item in source_group_ids if item]
+        merged.append(first)
+        merge_count += len(groups) - 1
+        warnings.append(WARNING_SECTION_CONTEXT_GROUPS_MERGED)
 
     return {
         "merged_groups": passthrough + merged,
@@ -696,6 +769,7 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
                 "stop_noise_removed_count": 0,
                 "stop_duplicate_removed_count": 0,
                 "table_row_merge_count": 0,
+                "section_context_merge_count": 0,
                 "review_required_stop_count": 0,
             }
         )
@@ -703,7 +777,8 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
 
     noise = filter_stop_group_noise(raw_groups)
     table_row_merge = merge_stop_groups_by_table_row(noise["kept_groups"])
-    deduped = dedupe_stop_groups(table_row_merge["merged_groups"])
+    section_context_merge = merge_stop_groups_by_section_context(table_row_merge["merged_groups"])
+    deduped = dedupe_stop_groups(section_context_merge["merged_groups"])
     sequenced = assign_stop_sequence_order(deduped["kept_groups"])
     stops = [build_normalized_stop_from_group(group) for group in sequenced]
     warning_codes = sorted(
@@ -712,6 +787,7 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
             + diagnostics["warning_codes"]
             + noise["warning_codes"]
             + table_row_merge["warning_codes"]
+            + section_context_merge["warning_codes"]
             + deduped["warning_codes"]
             + [
                 WARNING_NORMALIZED_STOP_REVIEW_REQUIRED
@@ -732,6 +808,7 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
                 "stop_noise_removed_count": noise["removed_count"],
                 "stop_duplicate_removed_count": deduped["removed_count"],
                 "table_row_merge_count": table_row_merge["merge_count"],
+                "section_context_merge_count": section_context_merge["merge_count"],
                 "review_required_stop_count": sum(
                     1 for stop in stops if stop.get("review_required")
                 ),

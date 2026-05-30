@@ -10,8 +10,10 @@ from app.document_ai.normalized_stops import (
 )
 from app.document_ai.stop_association import build_stop_association_result
 from app.document_ai.stop_normalization import (
+    WARNING_SECTION_CONTEXT_GROUPS_MERGED,
     WARNING_TABLE_ROW_GROUPS_MERGED,
     build_normalized_stop_set,
+    merge_stop_groups_by_section_context,
     merge_stop_groups_by_table_row,
 )
 
@@ -98,6 +100,39 @@ class StopTableRowMergeTests(unittest.TestCase):
         fixture = _load(CALIBRATION_DIR / "fake_date_time_split_from_location.json")
 
         result = merge_stop_groups_by_table_row(fixture["stop_groups"])
+
+        self.assertEqual(result["merge_count"], 0)
+        self.assertEqual(len(result["merged_groups"]), 2)
+
+    def test_split_section_location_and_datetime_merge_to_one_stop(self):
+        fixture = _load(CALIBRATION_DIR / "fake_date_time_split_from_location.json")
+
+        stop_set = build_normalized_stop_set(
+            build_stop_association_result(stop_groups=fixture["stop_groups"]),
+            classification_result={"document_alias": "RATECON_FAKE", "normal_load_movement": True},
+        )
+        stop = stop_set["stops"][0]
+
+        self.assertEqual(len(stop_set["stops"]), 1)
+        self.assertEqual(stop_set["section_context_merge_count"], 1)
+        self.assertIn(WARNING_SECTION_CONTEXT_GROUPS_MERGED, stop_set["warning_codes"])
+        self.assertEqual(
+            _field_status(stop, NORMALIZED_STOP_FIELD_LOCATION),
+            NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+        )
+        self.assertEqual(
+            _field_status(stop, NORMALIZED_STOP_FIELD_DATE),
+            NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+        )
+        self.assertEqual(
+            _field_status(stop, NORMALIZED_STOP_FIELD_TIME),
+            NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+        )
+
+    def test_section_merge_helper_keeps_distinct_stop_types_separate(self):
+        fixture = _load(FIXTURE_DIR / "fake_table_pickup_delivery_groups.json")
+
+        result = merge_stop_groups_by_section_context(fixture["stop_groups"])
 
         self.assertEqual(result["merge_count"], 0)
         self.assertEqual(len(result["merged_groups"]), 2)
