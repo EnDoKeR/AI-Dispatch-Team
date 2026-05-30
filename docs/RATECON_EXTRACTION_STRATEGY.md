@@ -25,6 +25,7 @@ Document received
 -> broker/document classification
 -> candidate extraction
 -> broker templates
+-> template-aware field resolution
 -> optional Vision AI fallback later
 -> normalization
 -> validation
@@ -50,6 +51,8 @@ Current project support:
 - RateConfirmationIntake draft builder from resolved candidates;
 - fake-only candidate extraction CLI;
 - fake/anonymized broker template contracts, registry, matcher, template-aware scoring, and regression matrix;
+- hard-layout resolver tests for repeated headers, rate/accessorial traps, table-like stops,
+  header-only broker identity, typed references, conflicting appointments, and buried requirements;
 - local-only `pypdf` extraction helper;
 - private PDF extraction inventory CLI;
 - private PDF dry-run CLI;

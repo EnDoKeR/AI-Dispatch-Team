@@ -30,7 +30,8 @@ Before major feature growth, add coverage for:
 - expanded PDF triage with more mixed, encrypted, and broken PDF edge cases;
 - safe extraction artifact propagation into later evidence records;
 - OCR fallback routing without invoking OCR in unit tests;
-- template-specific resolver hardening for broker-specific duplicates, conflicts, and confidence;
+- additional template-specific resolver hardening as safe private measurement
+  reveals new fake/anonymized cases;
 - additional broker template unknown/conflict fallback regression cases;
 - confidence/evidence propagation from extraction artifact to intake contract;
 - ReviewRequired gating for missing, low-confidence, and conflicting critical data;
@@ -115,6 +116,9 @@ Required coverage for candidate generators and resolvers:
 - conflict behavior;
 - intake draft handoff without DispatchCase creation;
 - fake-only CLI summaries with no raw fixture text.
+- hard-layout regression coverage for repeated headers, rate/accessorial traps,
+  table-like stops, broker identity confusion, typed references, appointment
+  conflicts, and buried requirements.
 
 ## Broker Template Test Rule
 
@@ -128,6 +132,8 @@ Every broker template needs:
 - rate/accessorial safety test when money labels are present;
 - typed-reference coverage when reference labels are present;
 - proof that templates do not contain broker memory or business-risk fields.
+- proof that weak, conflicting, or unknown template matches cannot overboost
+  candidates or bypass validation.
 
 ## Persistence Test Rule
 

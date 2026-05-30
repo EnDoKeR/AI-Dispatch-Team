@@ -69,6 +69,11 @@ Match statuses:
 Unknown, conflict, and low-confidence matches must fall back to generic extraction
 or review. They must not overboost candidates.
 
+Template-aware scoring is now guarded by a trusted-match threshold. A template
+can match for identification purposes while still being too weak to apply strong
+candidate boosts. In that case the resolver records a template-match review
+signal and uses generic candidates.
+
 ## Field Label Rules
 
 Field label rules define labels for one candidate field.
@@ -124,6 +129,7 @@ Rules:
 - accessorial labels must not become main rate;
 - low-confidence template matches do not get trusted boosts;
 - conflicting templates do not get trusted boosts;
+- matched-but-untrusted templates do not get trusted boosts;
 - final resolution still goes through the conservative resolver.
 
 ## Validation Gate
@@ -157,9 +163,13 @@ Run:
 
 ```powershell
 py scripts/run_fake_ratecon_candidate_extraction.py
+py scripts/run_fake_ratecon_candidate_extraction.py --include-hard-layouts
 ```
 
 This prints safe summary fields only.
+
+Hard-layout resolver behavior is documented in
+`docs/RATECON_TEMPLATE_RESOLVER_HARDENING.md`.
 
 ## Rules For Adding New Fake Templates
 

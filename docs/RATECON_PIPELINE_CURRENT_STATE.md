@@ -50,6 +50,9 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   - equipment, weight, commodity, special requirements, accessorial terms.
 - BrokerTemplate contract, fake JSON fixtures, registry, matcher, and template-aware scoring.
 - Conservative field resolver and template-aware resolver wrapper.
+- Hard-layout resolver guards for multi-page terms, accessorial rate traps,
+  table-like stops, header-only broker identity, typed references, conflicting
+  appointment times, and buried special requirements.
 - RateConfirmationIntake draft builder from resolved fields.
 - Validation that computes missing and needs-check fields.
 - Fake-only candidate/template dry-run CLI.
@@ -103,6 +106,7 @@ Current relevant tests include:
   - `tests/test_broker_template_resolver_context.py`
   - `tests/test_broker_template_intake_context.py`
   - `tests/test_broker_template_regression_matrix.py`
+  - `tests/test_ratecon_hard_layout_regression_matrix.py`
 - Intake and validation:
   - `tests/test_ratecon_intake_draft.py`
   - `tests/test_rate_confirmation_intake.py`
@@ -151,9 +155,10 @@ Private value-review CSV output is local-only and ignored.
 
 - Some PDFs have no text layer and need future OCR/PDF route handling.
 - Template-specific fixtures are fake and do not prove real broker coverage.
-- Broker names in headers without explicit labels can still be missed.
-- Multi-page terms, repeated headers/footers, and table-like stop pairing need more fake fixtures.
-- Conflicting appointment times and references near wrong stops need resolver hardening.
+- Hard-layout behavior is tested on fake fixtures only and still needs safe
+  private measurement before production claims.
+- More fake layouts may be needed for unusual table extraction, repeated
+  headers, and multi-page terms once safe measurement shows the next gaps.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
@@ -162,10 +167,10 @@ Private value-review CSV output is local-only and ignored.
 Next safe block:
 
 ```text
-Template-specific resolver hardening with more fake/anonymized hard layouts.
+Safe private RateCon measurement harness.
 ```
 
-That block should add fake fixtures for multi-page terms, repeated headers,
-multiple rate-like amounts, table-like stops, missing broker MC, broker name in
-header only, references near wrong stops, pickup/delivery date association,
-conflicting appointment times, and special requirements buried in notes.
+That block should run local/private diagnostics only, produce safe summaries,
+compare field status against prior private results, and decide whether the next
+block should focus on deterministic layout extraction, local OCR design, or a
+future gated Vision fallback.

@@ -88,8 +88,9 @@ The intake draft is built only from resolved fields. Missing, low-confidence, an
 conflicting fields remain visible through `missing_fields` and
 `needs_check_fields`.
 
-The draft builder does not create DispatchCases, write events, call Telegram, or
-invent values.
+The draft builder can also preserve typed references, special requirements,
+accessorial terms, resolver warning context, and template metadata. It does not
+create DispatchCases, write events, call Telegram, or invent values.
 
 ## Candidate Families
 
@@ -117,6 +118,11 @@ Examples:
 - multiple strong rate candidates with different values become `conflict`;
 - generic stop labels can produce lower-confidence stop candidates;
 - missing fields remain missing rather than being guessed.
+
+Hard-layout resolver behavior for repeated headers, multi-page terms, table-like
+stops, header-only broker identity, typed references, conflicting appointments,
+and buried special requirements is documented in
+`docs/RATECON_TEMPLATE_RESOLVER_HARDENING.md`.
 
 ## Fake Fixture Policy
 
@@ -147,6 +153,7 @@ Run:
 
 ```powershell
 py scripts/run_fake_ratecon_candidate_extraction.py
+py scripts/run_fake_ratecon_candidate_extraction.py --include-hard-layouts
 ```
 
 The CLI reads only fake/anonymized text fixtures by default and prints:

@@ -10,6 +10,11 @@ This block added fake/anonymized PDF triage support and safe extraction artifact
 metadata. It did not run private RateCons and did not add OCR, Vision AI, cloud
 APIs, DispatchCase creation, or event writing.
 
+Since then, fake/anonymized candidate extraction, broker-template matching,
+template-aware scoring, conservative resolution, and hard-layout resolver tests
+have been added. Private reruns should measure that deterministic pipeline with
+safe summaries only; they should not claim production extraction accuracy.
+
 Before running private documents, use a local-only wrapper that prints only the
 safe triage summary fields listed below. Do not add raw text preview modes.
 
@@ -87,6 +92,17 @@ Future triage should compare:
 - whether a document is `mixed_pdf`;
 - whether warnings reveal extraction-quality issues separately from parser gaps.
 
+Future candidate/resolver measurement should compare:
+
+- candidate counts by field;
+- template match status and selected template ID when safe/anonymized;
+- whether template scoring was applied or limited;
+- resolved field names;
+- missing field names;
+- needs-check field names;
+- conflict field names;
+- generic warning categories.
+
 ## Local Output Rules
 
 Private value-review CSVs and private triage summaries remain local-only and
@@ -98,3 +114,7 @@ paste private values into tracked docs, tests, fixtures, or chat reports.
 The next implementation should add a local-only private triage wrapper only if
 the user explicitly asks for it. That wrapper should use the same safe fields
 listed here and must not print raw text.
+
+After hard-layout resolver hardening, the next safe block is a local-only private
+measurement harness. It should not add OCR, Vision AI, cloud APIs, DispatchCase
+creation, event writes, or private value reporting.
