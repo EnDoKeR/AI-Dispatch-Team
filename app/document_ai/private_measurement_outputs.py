@@ -62,6 +62,19 @@ SAFE_CSV_COLUMNS = [
     "fusion_conflict_fields",
     "prevented_regression_fields",
     "stop_group_count",
+    "raw_stop_group_count",
+    "normalized_stop_count",
+    "pickup_count",
+    "delivery_count",
+    "unknown_stop_count",
+    "stop_review_required_count",
+    "stop_group_quality_bucket",
+    "stop_noise_removed_count",
+    "stop_duplicate_removed_count",
+    "stop_field_status_counts_summary",
+    "normalized_stop_improved_fields",
+    "normalized_stop_conflict_fields",
+    "normalized_stop_missing_fields",
     "blocker_categories",
     "candidate_counts_summary",
     "warning_codes",
@@ -103,6 +116,20 @@ def _candidate_counts_summary(counts):
         f"{field_name}={count}"
         for field_name, count in sorted((counts or {}).items())
     )
+
+
+def _nested_counts_summary(counts):
+    parts = []
+    for field_name, status_counts in sorted((counts or {}).items()):
+        if not isinstance(status_counts, dict):
+            continue
+        statuses = ",".join(
+            f"{status}={count}"
+            for status, count in sorted(status_counts.items())
+        )
+        if statuses:
+            parts.append(f"{field_name}:{statuses}")
+    return ";".join(parts)
 
 
 def _safe_csv_row(row):
@@ -161,6 +188,21 @@ def _safe_csv_row(row):
         "fusion_conflict_fields": _join(row.get("fusion_conflict_fields", [])),
         "prevented_regression_fields": _join(row.get("prevented_regression_fields", [])),
         "stop_group_count": row.get("stop_group_count", 0),
+        "raw_stop_group_count": row.get("raw_stop_group_count", 0),
+        "normalized_stop_count": row.get("normalized_stop_count", 0),
+        "pickup_count": row.get("pickup_count", 0),
+        "delivery_count": row.get("delivery_count", 0),
+        "unknown_stop_count": row.get("unknown_stop_count", 0),
+        "stop_review_required_count": row.get("stop_review_required_count", 0),
+        "stop_group_quality_bucket": row.get("stop_group_quality_bucket", ""),
+        "stop_noise_removed_count": row.get("stop_noise_removed_count", 0),
+        "stop_duplicate_removed_count": row.get("stop_duplicate_removed_count", 0),
+        "stop_field_status_counts_summary": _nested_counts_summary(
+            row.get("stop_field_status_counts", {})
+        ),
+        "normalized_stop_improved_fields": _join(row.get("normalized_stop_improved_fields", [])),
+        "normalized_stop_conflict_fields": _join(row.get("normalized_stop_conflict_fields", [])),
+        "normalized_stop_missing_fields": _join(row.get("normalized_stop_missing_fields", [])),
         "blocker_categories": _join(row.get("blocker_categories", [])),
         "candidate_counts_summary": _candidate_counts_summary(
             row.get("candidate_counts_by_field", {})
@@ -275,6 +317,19 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
         f"- prevented_regression_counts_by_field: {aggregate.get('prevented_regression_counts_by_field', {})}",
         f"- prevented_regression_count: {aggregate.get('prevented_regression_count', 0)}",
         f"- stop_group_count_total: {aggregate.get('stop_group_count_total', 0)}",
+        f"- raw_stop_group_count_total: {aggregate.get('raw_stop_group_count_total', 0)}",
+        f"- normalized_stop_count_total: {aggregate.get('normalized_stop_count_total', 0)}",
+        f"- pickup_count_total: {aggregate.get('pickup_count_total', 0)}",
+        f"- delivery_count_total: {aggregate.get('delivery_count_total', 0)}",
+        f"- unknown_stop_count_total: {aggregate.get('unknown_stop_count_total', 0)}",
+        f"- stop_review_required_count_total: {aggregate.get('stop_review_required_count_total', 0)}",
+        f"- stop_group_quality_bucket_counts: {aggregate.get('stop_group_quality_bucket_counts', {})}",
+        f"- stop_noise_removed_count_total: {aggregate.get('stop_noise_removed_count_total', 0)}",
+        f"- stop_duplicate_removed_count_total: {aggregate.get('stop_duplicate_removed_count_total', 0)}",
+        f"- stop_field_status_counts: {aggregate.get('stop_field_status_counts', {})}",
+        f"- normalized_stop_improved_counts_by_field: {aggregate.get('normalized_stop_improved_counts_by_field', {})}",
+        f"- normalized_stop_conflict_counts_by_field: {aggregate.get('normalized_stop_conflict_counts_by_field', {})}",
+        f"- normalized_stop_missing_counts_by_field: {aggregate.get('normalized_stop_missing_counts_by_field', {})}",
         f"- blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"- critical_field_missing_counts: {aggregate.get('critical_field_missing_counts', {})}",
         f"- eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",

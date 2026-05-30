@@ -138,6 +138,28 @@ def _sum_mapping_values(rows, key):
     return dict(sorted(counter.items()))
 
 
+def _sum_nested_status_counts(rows, key):
+    totals = {}
+    for row in rows:
+        value = row.get(key, {})
+        if not isinstance(value, dict):
+            continue
+        for field_name, status_counts in value.items():
+            field = str(field_name or "").strip()
+            if not field or not isinstance(status_counts, dict):
+                continue
+            totals.setdefault(field, Counter())
+            for status, count in status_counts.items():
+                normalized_status = str(status or "").strip()
+                if normalized_status:
+                    totals[field][normalized_status] += int(count or 0)
+
+    return {
+        field_name: dict(sorted(counter.items()))
+        for field_name, counter in sorted(totals.items())
+    }
+
+
 def _eligible_rows(rows):
     return [
         row
@@ -279,6 +301,31 @@ def build_private_ratecon_measurement_aggregate(rows):
         prevented_regression_counts_by_field=_count_list_values(safe_rows, "prevented_regression_fields"),
         prevented_regression_count=sum(len(row.get("prevented_regression_fields", []) or []) for row in safe_rows),
         stop_group_count_total=sum(int(row.get("stop_group_count", 0) or 0) for row in safe_rows),
+        raw_stop_group_count_total=sum(int(row.get("raw_stop_group_count", 0) or 0) for row in safe_rows),
+        normalized_stop_count_total=sum(int(row.get("normalized_stop_count", 0) or 0) for row in safe_rows),
+        pickup_count_total=sum(int(row.get("pickup_count", 0) or 0) for row in safe_rows),
+        delivery_count_total=sum(int(row.get("delivery_count", 0) or 0) for row in safe_rows),
+        unknown_stop_count_total=sum(int(row.get("unknown_stop_count", 0) or 0) for row in safe_rows),
+        stop_review_required_count_total=sum(
+            int(row.get("stop_review_required_count", 0) or 0) for row in safe_rows
+        ),
+        stop_group_quality_bucket_counts=_count_by_key(safe_rows, "stop_group_quality_bucket"),
+        stop_noise_removed_count_total=sum(
+            int(row.get("stop_noise_removed_count", 0) or 0) for row in safe_rows
+        ),
+        stop_duplicate_removed_count_total=sum(
+            int(row.get("stop_duplicate_removed_count", 0) or 0) for row in safe_rows
+        ),
+        stop_field_status_counts=_sum_nested_status_counts(safe_rows, "stop_field_status_counts"),
+        normalized_stop_improved_counts_by_field=_count_list_values(
+            safe_rows, "normalized_stop_improved_fields"
+        ),
+        normalized_stop_conflict_counts_by_field=_count_list_values(
+            safe_rows, "normalized_stop_conflict_fields"
+        ),
+        normalized_stop_missing_counts_by_field=_count_list_values(
+            safe_rows, "normalized_stop_missing_fields"
+        ),
         eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
         eligible_critical_field_denominator=len(eligible_rows),
         normal_load_critical_field_missing_counts=_critical_missing_counts(normal_load_rows),

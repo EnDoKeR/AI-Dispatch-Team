@@ -30,6 +30,7 @@ from app.document_ai.private_measurement_pipeline import measure_private_ratecon
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
+from app.document_ai.stop_review_packet import write_stop_review_packet
 
 
 DEFAULT_TEMPLATE_DIR = REPO_ROOT / "tests" / "fixtures" / "document_ai" / "broker_templates"
@@ -217,6 +218,19 @@ def format_private_measurement_report(report):
         f"prevented_regression_counts_by_field: {aggregate.get('prevented_regression_counts_by_field', {})}",
         f"prevented_regression_count: {aggregate.get('prevented_regression_count', 0)}",
         f"stop_group_count_total: {aggregate.get('stop_group_count_total', 0)}",
+        f"raw_stop_group_count_total: {aggregate.get('raw_stop_group_count_total', 0)}",
+        f"normalized_stop_count_total: {aggregate.get('normalized_stop_count_total', 0)}",
+        f"pickup_count_total: {aggregate.get('pickup_count_total', 0)}",
+        f"delivery_count_total: {aggregate.get('delivery_count_total', 0)}",
+        f"unknown_stop_count_total: {aggregate.get('unknown_stop_count_total', 0)}",
+        f"stop_review_required_count_total: {aggregate.get('stop_review_required_count_total', 0)}",
+        f"stop_group_quality_bucket_counts: {aggregate.get('stop_group_quality_bucket_counts', {})}",
+        f"stop_noise_removed_count_total: {aggregate.get('stop_noise_removed_count_total', 0)}",
+        f"stop_duplicate_removed_count_total: {aggregate.get('stop_duplicate_removed_count_total', 0)}",
+        f"stop_field_status_counts: {aggregate.get('stop_field_status_counts', {})}",
+        f"normalized_stop_improved_counts_by_field: {aggregate.get('normalized_stop_improved_counts_by_field', {})}",
+        f"normalized_stop_conflict_counts_by_field: {aggregate.get('normalized_stop_conflict_counts_by_field', {})}",
+        f"normalized_stop_missing_counts_by_field: {aggregate.get('normalized_stop_missing_counts_by_field', {})}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
         f"normal_load_critical_field_missing_counts: {aggregate.get('normal_load_critical_field_missing_counts', {})}",
@@ -278,6 +292,19 @@ def format_private_measurement_report(report):
                 f"  fusion_conflict_fields: {row.get('fusion_conflict_fields', [])}",
                 f"  prevented_regression_fields: {row.get('prevented_regression_fields', [])}",
                 f"  stop_group_count: {row.get('stop_group_count', 0)}",
+                f"  raw_stop_group_count: {row.get('raw_stop_group_count', 0)}",
+                f"  normalized_stop_count: {row.get('normalized_stop_count', 0)}",
+                f"  pickup_count: {row.get('pickup_count', 0)}",
+                f"  delivery_count: {row.get('delivery_count', 0)}",
+                f"  unknown_stop_count: {row.get('unknown_stop_count', 0)}",
+                f"  stop_review_required_count: {row.get('stop_review_required_count', 0)}",
+                f"  stop_group_quality_bucket: {row.get('stop_group_quality_bucket', '')}",
+                f"  stop_noise_removed_count: {row.get('stop_noise_removed_count', 0)}",
+                f"  stop_duplicate_removed_count: {row.get('stop_duplicate_removed_count', 0)}",
+                f"  stop_field_status_counts: {row.get('stop_field_status_counts', {})}",
+                f"  normalized_stop_improved_fields: {row.get('normalized_stop_improved_fields', [])}",
+                f"  normalized_stop_conflict_fields: {row.get('normalized_stop_conflict_fields', [])}",
+                f"  normalized_stop_missing_fields: {row.get('normalized_stop_missing_fields', [])}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]
@@ -375,6 +402,8 @@ def main(argv=None):
     parser.add_argument("--enable-no-regression-fusion", action="store_true", default=True)
     parser.add_argument("--allow-layout-regression-for-debug", action="store_true")
     parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
+    parser.add_argument("--write-stop-review-packet", action="store_true")
+    parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -406,6 +435,12 @@ def main(argv=None):
     if args.compare_pdfplumber_table_profiles and args.layout_provider != "pdfplumber":
         _print_expected_config_error(
             "--compare-pdfplumber-table-profiles requires --layout-provider pdfplumber"
+        )
+        return 2
+
+    if args.include_private_stop_values_local_only and not args.write_stop_review_packet:
+        _print_expected_config_error(
+            "--include-private-stop-values-local-only requires --write-stop-review-packet"
         )
         return 2
 
@@ -463,6 +498,25 @@ def main(argv=None):
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
+        if not args.dry_run and args.write_stop_review_packet:
+            stop_sets = [
+                row.get("normalized_stop_set")
+                for row in report["rows"]
+                if row.get("normalized_stop_set")
+            ]
+            packet = write_stop_review_packet(
+                stop_sets,
+                output_dir=args.output_dir,
+                include_private_values_local_only=args.include_private_stop_values_local_only,
+            )
+            print(
+                "stop_review_packet_written: "
+                f"{{'csv': '{Path(packet['csv']).name}', "
+                f"'md': '{Path(packet['md']).name}', "
+                f"'row_count': {packet['row_count']}, "
+                f"'include_private_values_local_only': "
+                f"{packet['include_private_values_local_only']}}}"
+            )
         if not args.dry_run and args.layout_diagnostics:
             diagnostics_path = write_layout_provider_diagnostics_report(
                 _diagnostics_from_rows(report["rows"]),

@@ -1,10 +1,12 @@
 import io
+import io
 import inspect
 import json
 import tempfile
 import unittest
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
+from unittest.mock import patch
 
 from scripts import run_private_ratecon_measurement
 from scripts.run_private_ratecon_measurement import (
@@ -216,6 +218,9 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("fusion_attempted_count", output)
         self.assertIn("fusion_enabled", output)
         self.assertIn("stop_group_count", output)
+        self.assertIn("normalized_stop_count_total", output)
+        self.assertIn("stop_field_status_counts", output)
+        self.assertIn("normalized_stop_improved_fields", output)
         self.assertIn("prevented_regression_count", output)
         self.assertNotIn("FAKE BROKER LLC", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
@@ -350,6 +355,140 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertIn("requires --enable-layout-fusion", stderr.getvalue())
+
+    def test_cli_refuses_private_stop_values_without_packet_write(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--include-private-stop-values-local-only",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --write-stop-review-packet", stderr.getvalue())
+
+    def test_cli_writes_shareable_stop_review_packet_without_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "normalized_stop_set": {
+                        "document_alias": "RATECON_001",
+                        "stops": [
+                            {
+                                "stop_id": "STOP_001",
+                                "stop_type": "pickup",
+                                "sequence": 1,
+                                "fields": [
+                                    {
+                                        "field_name": "location",
+                                        "status": "resolved",
+                                        "confidence": "HIGH",
+                                        "selected_value": "FAKE_SECRET_STOP_VALUE",
+                                        "evidence_refs": [{"evidence_type": "table_cell", "page_number": 1}],
+                                        "warning_codes": [],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-stop-review-packet",
+                        ]
+                    )
+            md_text = (Path(output_dir) / "stop_review_packet.md").read_text(encoding="utf-8")
+            csv_text = (Path(output_dir) / "stop_review_packet.csv").read_text(encoding="utf-8")
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("stop_review_packet_written", console_output)
+        self.assertNotIn("FAKE_SECRET_STOP_VALUE", console_output)
+        self.assertNotIn("FAKE_SECRET_STOP_VALUE", md_text)
+        self.assertNotIn("FAKE_SECRET_STOP_VALUE", csv_text)
+        self.assertNotIn("selected_value_local_only", md_text)
+
+    def test_cli_local_private_stop_review_packet_never_prints_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "normalized_stop_set": {
+                        "document_alias": "RATECON_001",
+                        "stops": [
+                            {
+                                "stop_id": "STOP_001",
+                                "stop_type": "delivery",
+                                "sequence": 2,
+                                "fields": [
+                                    {
+                                        "field_name": "date",
+                                        "status": "resolved",
+                                        "confidence": "HIGH",
+                                        "selected_value": "FAKE_PRIVATE_DATE_VALUE",
+                                        "evidence_refs": [{"evidence_type": "table_cell", "page_number": 2}],
+                                        "warning_codes": [],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-stop-review-packet",
+                            "--include-private-stop-values-local-only",
+                        ]
+                    )
+            md_text = (Path(output_dir) / "stop_review_packet.md").read_text(encoding="utf-8")
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("LOCAL PRIVATE REVIEW ONLY", md_text)
+        self.assertIn("FAKE_PRIVATE_DATE_VALUE", md_text)
+        self.assertNotIn("FAKE_PRIVATE_DATE_VALUE", console_output)
 
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:

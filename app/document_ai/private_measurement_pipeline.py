@@ -235,6 +235,26 @@ def _candidate_count_deltas(text_counts, layout_counts):
     return improved, worsened, unchanged
 
 
+def _stop_field_status_counts(stop_set):
+    counts = {}
+    for stop in (stop_set or {}).get("stops", []) or []:
+        if not isinstance(stop, dict):
+            continue
+        for field in stop.get("fields", []) or []:
+            if not isinstance(field, dict):
+                continue
+            field_name = str(field.get("field_name") or "").strip()
+            status = str(field.get("status") or "").strip()
+            if not field_name or not status:
+                continue
+            counts.setdefault(field_name, {})
+            counts[field_name][status] = counts[field_name].get(status, 0) + 1
+    return {
+        field_name: dict(sorted(status_counts.items()))
+        for field_name, status_counts in sorted(counts.items())
+    }
+
+
 def _template_result_uses_adjusted_candidates(template_result):
     template_selection = (template_result or {}).get("template_selection_result", {})
     return (
@@ -311,6 +331,7 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "fused_candidate_result": None,
         "normalized_stop_set": None,
         "normalized_stop_flat_fields": {},
+        "stop_field_status_counts": {},
     }
 
 
@@ -481,6 +502,7 @@ def _layout_fusion_fields(
             "fusion_warning_codes": fusion_warnings,
             "normalized_stop_set": normalized_stop_set,
             "normalized_stop_flat_fields": normalized_flat_fields,
+            "stop_field_status_counts": _stop_field_status_counts(normalized_stop_set),
             "fused_candidate_result": _build_fused_candidate_result(
                 text_candidate_result,
                 layout_candidates,
@@ -1070,6 +1092,44 @@ def measure_private_ratecon_pdf(
         fusion_conflict_fields=fusion_fields.get("fusion_conflict_fields", []),
         prevented_regression_fields=fusion_fields.get("prevented_regression_fields", []),
         stop_group_count=fusion_fields.get("stop_group_count", 0),
+        raw_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("raw_stop_group_count", 0),
+        normalized_stop_count=len(
+            (fusion_fields.get("normalized_stop_set", {}) or {}).get("stops", []) or []
+        ),
+        pickup_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
+            "pickup_count", 0
+        ),
+        delivery_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
+            "delivery_count", 0
+        ),
+        unknown_stop_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
+            "unknown_count", 0
+        ),
+        stop_review_required_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("review_required_stop_count", 0),
+        stop_group_quality_bucket=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("stop_group_quality_bucket", ""),
+        stop_noise_removed_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("stop_noise_removed_count", 0),
+        stop_duplicate_removed_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("stop_duplicate_removed_count", 0),
+        stop_field_status_counts=fusion_fields.get("stop_field_status_counts", {}),
+        normalized_stop_improved_fields=(
+            fusion_fields.get("normalized_stop_flat_fields", {}) or {}
+        ).get("resolved_fields", []),
+        normalized_stop_conflict_fields=(
+            fusion_fields.get("normalized_stop_flat_fields", {}) or {}
+        ).get("conflict_fields", []),
+        normalized_stop_missing_fields=(
+            fusion_fields.get("normalized_stop_flat_fields", {}) or {}
+        ).get("missing_fields", []),
+        normalized_stop_set=fusion_fields.get("normalized_stop_set", {}),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
