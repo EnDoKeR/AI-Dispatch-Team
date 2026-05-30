@@ -443,3 +443,157 @@ Not safe to salvage:
 - old mileage, zone, broker, reload, score, or final decision behavior;
 - Google Sheets writer behavior;
 - direct parser-to-`MarketLoad` construction.
+
+## Deletion Impact Audit
+
+This section documents what would break if `app/load_intake/` were deleted today. This is an audit only; no files are deleted in this block.
+
+## Imports That Would Break
+
+The following tests directly import `app/load_intake` modules:
+
+```text
+tests/test_load_intake_imports.py
+tests/test_load_intake_parser_import.py
+```
+
+These tests would fail immediately if the folder were deleted.
+
+`tests/test_load_intake_imports.py` currently imports:
+
+```text
+app.load_intake.broker_engine
+app.load_intake.decision_engine
+app.load_intake.importer
+app.load_intake.market_models
+app.load_intake.mileage
+app.load_intake.parser
+app.load_intake.reload_engine
+app.load_intake.sheet_writer
+app.load_intake.zone_engine
+```
+
+It also protects the current lazy Google Sheets behavior in `sheet_writer.py`.
+
+`tests/test_load_intake_parser_import.py` imports:
+
+```text
+app.load_intake.parser
+```
+
+It verifies that `parser.Load` still points to the active `MarketLoad` compatibility constructor.
+
+## Scripts Impact
+
+`scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate legacy manual PDF-to-Google-Sheets flow with hardcoded local paths and external dependencies. Deleting `app/load_intake/` would not directly break this script, but this script should remain outside the new intake architecture and should be audited separately before use.
+
+`scripts/manual_test_sheet_connection.py` does not depend on `app/load_intake/`; it is a separate manual Google Sheets connectivity check.
+
+## Documentation Impact
+
+Current docs that mention `app/load_intake/` would need updates if the folder is deleted:
+
+```text
+docs/ARCHITECTURE_AUDIT.md
+docs/FOUNDATION_NEXT_TARGET_DECISION.md
+docs/LOAD_INTAKE_BOUNDARY_REVIEW.md
+docs/LEGACY_CANDIDATES.md
+docs/INTAKE_RECORD_MODEL.md
+docs/PRIVATE_RATECON_PARSER_AUDIT.md
+docs/PRIVATE_RATECON_SAMPLE_CHECKLIST.md
+docs/MANUAL_PASTED_TEXT_PARSER_ADAPTER_DESIGN.md
+docs/INTAKE_JSON_REPOSITORY_POLICY.md
+docs/LOAD_INTAKE_LEGACY_SALVAGE_AUDIT.md
+```
+
+Many newer tests mention `load_intake` only as a forbidden import string. Those tests should remain because new intake modules must not import the legacy path.
+
+## Google Sheets Manual Docs And Tests
+
+Google Sheets behavior is still represented in:
+
+```text
+app/load_intake/sheet_writer.py
+scripts/manual_test_sheet_connection.py
+tests/test_manual_sheet_connection_script.py
+tests/test_load_intake_imports.py
+```
+
+Deleting `app/load_intake/` would require removing or rewriting the `sheet_writer.py` compatibility checks in `tests/test_load_intake_imports.py`. It would not remove the separate manual sheet connection script.
+
+No active intake foundation should depend on Google Sheets. If Google Sheets work returns later, it should be an adapter/integration design block, not a legacy reuse.
+
+## Runtime Impact
+
+Current active runtime and foundation modules do not import `app/load_intake/`.
+
+Deletion should not affect:
+
+- current `app/market_intelligence/intake/` helpers;
+- redacted RateCon diagnostics;
+- private PDF dry-run CLIs;
+- DecisionEngine helpers/reports;
+- Event Timeline helpers/reports;
+- Telegram runtime behavior;
+- DispatchCase runtime behavior.
+
+Deletion would affect:
+
+- legacy import compatibility tests;
+- docs that describe legacy state;
+- any untracked/manual local use of `app/load_intake/importer.py` or `app/load_intake/parser.py`.
+
+## Recommended Deletion Steps If Approved Later
+
+Deletion should be a dedicated cleanup block, not mixed with parser improvements.
+
+Suggested deletion sequence:
+
+1. Confirm no active runtime imports:
+
+```powershell
+rg -n "app\.load_intake|from app.load_intake|import app.load_intake" app scripts tests docs README.md
+```
+
+2. Decide whether to keep a short archived note in docs.
+3. Remove or rewrite:
+
+```text
+tests/test_load_intake_imports.py
+tests/test_load_intake_parser_import.py
+```
+
+4. Delete:
+
+```text
+app/load_intake/
+```
+
+5. Update docs:
+
+```text
+docs/LEGACY_CANDIDATES.md
+docs/LOAD_INTAKE_BOUNDARY_REVIEW.md
+docs/FOUNDATION_NEXT_TARGET_DECISION.md
+docs/ROADMAP.md
+docs/LOAD_INTAKE_LEGACY_SALVAGE_AUDIT.md
+```
+
+6. Run compileall, full unittest discovery, `git diff --check`, and `git status`.
+
+## Deletion Recommendation
+
+Do not delete yet.
+
+Recommended next safe step:
+
+```text
+migrate only safe label aliases into synthetic diagnostics/parser tests first, then plan deletion
+```
+
+Why:
+
+- useful label ideas exist;
+- deletion would break current legacy import tests;
+- the deletion cleanup is safe but should be explicit and focused;
+- parser improvements should happen through synthetic/fake examples, not legacy runtime reuse.
