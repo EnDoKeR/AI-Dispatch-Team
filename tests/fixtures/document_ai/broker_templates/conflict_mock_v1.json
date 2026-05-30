@@ -1,0 +1,41 @@
+{
+  "template_id": "conflict_mock_v1",
+  "broker_key": "conflict_mock",
+  "display_name": "Conflict Mock",
+  "version": "1",
+  "active": true,
+  "description": "Fake overlapping template for conflict tests.",
+  "created_for_testing": true,
+  "match_rules": [
+    {
+      "keywords": ["Alpha Freight Mock", "Conflict Mock"],
+      "aliases": ["Alpha Mock"],
+      "exclude_keywords": [],
+      "mc_numbers": ["MC999999"],
+      "email_domains": ["conflict.example.invalid"],
+      "min_keyword_hits": 1,
+      "confidence_boost": 0.25,
+      "confidence_penalty": 0.0
+    }
+  ],
+  "field_label_rules": [
+    {"field_name": "rate", "labels": ["Carrier Pay", "Agreed Amount"], "negative_labels": ["Detention"], "confidence_boost": 0.2},
+    {"field_name": "load_number", "labels": ["Load Number", "Shipment #"], "confidence_boost": 0.15}
+  ],
+  "stop_section_rules": [
+    {
+      "pickup_labels": ["Pickup", "Shipper"],
+      "delivery_labels": ["Delivery", "Consignee"],
+      "generic_stop_labels": ["Stop"],
+      "appointment_labels": ["Appt"]
+    }
+  ],
+  "reference_type_rules": [
+    {"reference_type": "broker_load_number", "labels": ["Load Number"], "confidence_boost": 0.15}
+  ],
+  "known_accessorial_labels": ["Detention"],
+  "known_rate_labels": ["Carrier Pay", "Agreed Amount"],
+  "known_equipment_labels": ["Equipment"],
+  "known_special_requirement_labels": ["Special Requirements"],
+  "warnings": ["conflict_test_template"]
+}

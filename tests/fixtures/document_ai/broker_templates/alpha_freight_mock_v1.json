@@ -1,0 +1,47 @@
+{
+  "template_id": "alpha_freight_mock_v1",
+  "broker_key": "alpha_freight_mock",
+  "display_name": "Alpha Freight Mock",
+  "version": "1",
+  "active": true,
+  "description": "Fake clean digital-style RateCon layout.",
+  "created_for_testing": true,
+  "match_rules": [
+    {
+      "keywords": ["Alpha Freight Mock", "Alpha Rate Confirmation"],
+      "aliases": ["Alpha Mock"],
+      "exclude_keywords": ["Northstar Logistics Mock", "Tablelane Transport Mock"],
+      "mc_numbers": ["MC111111"],
+      "email_domains": ["alpha.example.invalid"],
+      "min_keyword_hits": 1,
+      "confidence_boost": 0.3,
+      "confidence_penalty": 0.0
+    }
+  ],
+  "field_label_rules": [
+    {"field_name": "rate", "labels": ["Carrier Pay"], "negative_labels": ["Detention", "Lumper"], "confidence_boost": 0.25},
+    {"field_name": "broker_mc", "labels": ["Broker MC"], "confidence_boost": 0.2},
+    {"field_name": "load_number", "labels": ["Load Number"], "confidence_boost": 0.2},
+    {"field_name": "equipment", "labels": ["Equipment"], "confidence_boost": 0.15},
+    {"field_name": "weight", "labels": ["Weight"], "confidence_boost": 0.15},
+    {"field_name": "commodity", "labels": ["Commodity"], "confidence_boost": 0.15}
+  ],
+  "stop_section_rules": [
+    {
+      "pickup_labels": ["Pickup"],
+      "delivery_labels": ["Delivery"],
+      "generic_stop_labels": ["Stop"],
+      "appointment_labels": ["Pickup Time", "Delivery Time"]
+    }
+  ],
+  "reference_type_rules": [
+    {"reference_type": "broker_load_number", "labels": ["Load Number"], "confidence_boost": 0.2},
+    {"reference_type": "po_number", "labels": ["PO Number"], "confidence_boost": 0.15},
+    {"reference_type": "bol_number", "labels": ["BOL Number"], "confidence_boost": 0.15}
+  ],
+  "known_accessorial_labels": ["Detention", "Lumper"],
+  "known_rate_labels": ["Carrier Pay"],
+  "known_equipment_labels": ["Equipment"],
+  "known_special_requirement_labels": ["Special Requirements"],
+  "warnings": []
+}

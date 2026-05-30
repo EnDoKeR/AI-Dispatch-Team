@@ -1,0 +1,48 @@
+{
+  "template_id": "northstar_logistics_mock_v1",
+  "broker_key": "northstar_logistics_mock",
+  "display_name": "Northstar Logistics Mock",
+  "version": "1",
+  "active": true,
+  "description": "Fake alternate-vocabulary RateCon layout.",
+  "created_for_testing": true,
+  "match_rules": [
+    {
+      "keywords": ["Northstar Logistics Mock", "Northstar Docket"],
+      "aliases": ["Northstar Mock"],
+      "exclude_keywords": ["Alpha Freight Mock", "Tablelane Transport Mock"],
+      "mc_numbers": ["MC222222"],
+      "email_domains": ["northstar.example.invalid"],
+      "min_keyword_hits": 1,
+      "confidence_boost": 0.3,
+      "confidence_penalty": 0.0
+    }
+  ],
+  "field_label_rules": [
+    {"field_name": "rate", "labels": ["Agreed Amount"], "negative_labels": ["Layover", "Quick Pay"], "confidence_boost": 0.25},
+    {"field_name": "broker_mc", "labels": ["Docket MC"], "confidence_boost": 0.2},
+    {"field_name": "load_number", "labels": ["Shipment #"], "confidence_boost": 0.2},
+    {"field_name": "equipment", "labels": ["Trailer Type"], "confidence_boost": 0.15},
+    {"field_name": "weight", "labels": ["Gross Weight"], "confidence_boost": 0.15},
+    {"field_name": "commodity", "labels": ["Freight Description"], "confidence_boost": 0.15}
+  ],
+  "stop_section_rules": [
+    {
+      "pickup_labels": ["Shipper"],
+      "delivery_labels": ["Consignee"],
+      "generic_stop_labels": ["Stop"],
+      "appointment_labels": ["Pickup #", "Delivery #"]
+    }
+  ],
+  "reference_type_rules": [
+    {"reference_type": "broker_load_number", "labels": ["Shipment #"], "confidence_boost": 0.2},
+    {"reference_type": "customer_reference", "labels": ["Customer Ref"], "confidence_boost": 0.15},
+    {"reference_type": "pickup_number", "labels": ["Pickup #"], "confidence_boost": 0.15},
+    {"reference_type": "delivery_number", "labels": ["Delivery #"], "confidence_boost": 0.15}
+  ],
+  "known_accessorial_labels": ["Layover", "Quick Pay"],
+  "known_rate_labels": ["Agreed Amount"],
+  "known_equipment_labels": ["Trailer Type"],
+  "known_special_requirement_labels": ["Driver Notes"],
+  "warnings": []
+}

@@ -1,0 +1,47 @@
+{
+  "template_id": "tablelane_transport_mock_v1",
+  "broker_key": "tablelane_transport_mock",
+  "display_name": "Tablelane Transport Mock",
+  "version": "1",
+  "active": true,
+  "description": "Fake table-heavy RateCon layout.",
+  "created_for_testing": true,
+  "match_rules": [
+    {
+      "keywords": ["Tablelane Transport Mock", "Tablelane Rate Sheet"],
+      "aliases": ["Tablelane Mock"],
+      "exclude_keywords": ["Alpha Freight Mock", "Northstar Logistics Mock"],
+      "mc_numbers": ["MC333333"],
+      "email_domains": ["tablelane.example.invalid"],
+      "min_keyword_hits": 1,
+      "confidence_boost": 0.3,
+      "confidence_penalty": 0.0
+    }
+  ],
+  "field_label_rules": [
+    {"field_name": "rate", "labels": ["Total Carrier Rate"], "negative_labels": ["Fee", "Penalty"], "confidence_boost": 0.25},
+    {"field_name": "load_number", "labels": ["Order #"], "confidence_boost": 0.2},
+    {"field_name": "equipment", "labels": ["Trailer"], "confidence_boost": 0.15},
+    {"field_name": "commodity", "labels": ["Product"], "confidence_boost": 0.15},
+    {"field_name": "weight", "labels": ["Total Weight"], "confidence_boost": 0.15}
+  ],
+  "stop_section_rules": [
+    {
+      "pickup_labels": ["Stop 1", "PU Appt"],
+      "delivery_labels": ["Stop 2", "DEL Appt"],
+      "generic_stop_labels": ["Stop"],
+      "appointment_labels": ["PU Appt", "DEL Appt"]
+    }
+  ],
+  "reference_type_rules": [
+    {"reference_type": "broker_load_number", "labels": ["Order #"], "confidence_boost": 0.2},
+    {"reference_type": "appointment_number", "labels": ["Appointment #"], "confidence_boost": 0.15},
+    {"reference_type": "pickup_number", "labels": ["Pickup Confirmation"], "confidence_boost": 0.15},
+    {"reference_type": "delivery_number", "labels": ["Delivery Confirmation"], "confidence_boost": 0.15}
+  ],
+  "known_accessorial_labels": ["Fee", "Penalty"],
+  "known_rate_labels": ["Total Carrier Rate"],
+  "known_equipment_labels": ["Trailer"],
+  "known_special_requirement_labels": ["Load Notes"],
+  "warnings": []
+}
