@@ -26,6 +26,7 @@ Before major feature growth, add coverage for:
 
 - RateCon parser regression corpus using fake/anonymized broker examples only;
 - PDF triage with digital text, image-like, mixed, encrypted, and broken PDFs;
+- safe extraction artifacts built from PDF triage metadata;
 - OCR fallback routing without invoking OCR in unit tests;
 - broker template parsing and template selection;
 - field candidate resolver behavior for duplicates, conflicts, and confidence;
@@ -90,6 +91,7 @@ contracts and should not make network or paid API calls in unit tests.
 Required future coverage:
 
 - triage route selection;
+- fake-only triage CLI summaries;
 - extraction artifact metadata;
 - no raw text by default;
 - safe redacted evidence;

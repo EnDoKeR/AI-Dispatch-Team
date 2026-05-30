@@ -40,6 +40,9 @@ Document received
 
 Current project support:
 
+- dependency-free document AI contracts;
+- safe PDF triage metadata and fake-only triage CLI;
+- extraction artifacts built from triage without raw text;
 - local-only `pypdf` extraction helper;
 - private PDF extraction inventory CLI;
 - private PDF dry-run CLI;
@@ -88,12 +91,15 @@ Rules:
 
 PDF triage should decide the route before extraction is attempted.
 
-Planned triage output:
+Current triage behavior and thresholds are documented in `docs/PDF_TRIAGE.md`.
+
+Triage output:
 
 - `page_count`
 - `char_count`
+- `chars_per_page`
 - `has_text_layer`
-- `image_like`
+- `likely_image_based`
 - `mixed_pdf`
 - `encrypted`
 - `broken`
