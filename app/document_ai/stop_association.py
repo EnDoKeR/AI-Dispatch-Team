@@ -2,7 +2,20 @@
 
 import re
 
-from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.ratecon_candidates import (
+    CANDIDATE_CONFIDENCE_HIGH,
+    CANDIDATE_CONFIDENCE_LOW,
+    CANDIDATE_CONFIDENCE_MEDIUM,
+    FIELD_DELIVERY_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_DELIVERY_TIME,
+    FIELD_PICKUP_DATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_PICKUP_TIME,
+    SOURCE_REGEX,
+    normalize_confidence,
+    normalize_list,
+)
 
 
 STOP_ASSOCIATION_SOURCE_TABLE_ROW = "table_row"
@@ -54,6 +67,15 @@ STOP_FIELD_NAMES = {
 }
 
 STOP_ASSOCIATION_VERSION = "stop_association_v1"
+
+_TEXT_STOP_FIELD_MAP = {
+    FIELD_PICKUP_LOCATION: (STOP_TYPE_PICKUP, STOP_FIELD_LOCATION),
+    FIELD_PICKUP_DATE: (STOP_TYPE_PICKUP, STOP_FIELD_DATE),
+    FIELD_PICKUP_TIME: (STOP_TYPE_PICKUP, STOP_FIELD_TIME),
+    FIELD_DELIVERY_LOCATION: (STOP_TYPE_DELIVERY, STOP_FIELD_LOCATION),
+    FIELD_DELIVERY_DATE: (STOP_TYPE_DELIVERY, STOP_FIELD_DATE),
+    FIELD_DELIVERY_TIME: (STOP_TYPE_DELIVERY, STOP_FIELD_TIME),
+}
 
 
 def _text(value):
@@ -549,3 +571,180 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
         stop_groups=stop_groups,
         warning_codes=sorted(set(warnings)),
     )
+
+
+def _full_stop_field_name(stop_type, field_name):
+    stop_type = _normalize_stop_type(stop_type)
+    field_name = _normalize_field_name(field_name)
+    if stop_type == STOP_TYPE_PICKUP and field_name in {
+        STOP_FIELD_LOCATION,
+        STOP_FIELD_DATE,
+        STOP_FIELD_TIME,
+    }:
+        return f"pickup_{field_name}"
+    if stop_type == STOP_TYPE_DELIVERY and field_name in {
+        STOP_FIELD_LOCATION,
+        STOP_FIELD_DATE,
+        STOP_FIELD_TIME,
+    }:
+        return f"delivery_{field_name}"
+    if field_name == STOP_FIELD_REFERENCE:
+        return "stop_reference"
+    return f"stop_{field_name}"
+
+
+def _candidate_confidence_score(candidate):
+    confidence = normalize_confidence((candidate or {}).get("confidence"))
+    if confidence == CANDIDATE_CONFIDENCE_HIGH:
+        return 0.9
+    if confidence == CANDIDATE_CONFIDENCE_MEDIUM:
+        return 0.65
+    if confidence == CANDIDATE_CONFIDENCE_LOW:
+        return 0.35
+    try:
+        return float((candidate or {}).get("confidence") or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _candidate_value(candidate):
+    return _text((candidate or {}).get("normalized_value") or (candidate or {}).get("raw_value")).lower()
+
+
+def _baseline_status_map(baseline_resolution_result):
+    if not isinstance(baseline_resolution_result, dict):
+        return {}
+    if isinstance(baseline_resolution_result.get("field_statuses"), dict):
+        return {
+            _text(field): _text(status)
+            for field, status in baseline_resolution_result["field_statuses"].items()
+        }
+    result = {}
+    for item in baseline_resolution_result.get("field_statuses", []) or []:
+        if isinstance(item, dict):
+            field_name = _text(item.get("field_name"))
+            if field_name:
+                result[field_name] = _text(item.get("status"))
+    return result
+
+
+def _text_stop_candidates(text_candidate_result):
+    candidates = []
+    for candidate in (text_candidate_result or {}).get("candidates", []) or []:
+        if not isinstance(candidate, dict):
+            continue
+        field_name = _text(candidate.get("field_name"))
+        if field_name not in _TEXT_STOP_FIELD_MAP:
+            continue
+        stop_type, stop_field = _TEXT_STOP_FIELD_MAP[field_name]
+        candidates.append(
+            {
+                "full_field_name": field_name,
+                "candidate_id": _text(candidate.get("candidate_id")) or field_name,
+                "confidence": _candidate_confidence_score(candidate),
+                "source": STOP_ASSOCIATION_SOURCE_TEXT_REGEX
+                if _text(candidate.get("source")) == SOURCE_REGEX
+                else STOP_ASSOCIATION_SOURCE_LABEL_VALUE,
+                "value": _candidate_value(candidate),
+            }
+        )
+    return candidates
+
+
+def _layout_stop_candidates(layout_stop_association_result):
+    candidates = []
+    for group in (layout_stop_association_result or {}).get("stop_groups", []) or []:
+        if not isinstance(group, dict):
+            continue
+        for candidate in group.get("field_candidates", []) or []:
+            if not isinstance(candidate, dict):
+                continue
+            candidates.append(
+                {
+                    "full_field_name": _full_stop_field_name(
+                        candidate.get("stop_type") or group.get("stop_type"),
+                        candidate.get("field_name"),
+                    ),
+                    "candidate_id": _text(candidate.get("candidate_id")),
+                    "confidence": float(candidate.get("confidence") or group.get("confidence") or 0.0),
+                    "source": candidate.get("source") or group.get("source"),
+                    "value": _candidate_value(candidate),
+                    "stop_group_id": candidate.get("stop_group_id") or group.get("stop_group_id"),
+                }
+            )
+    return candidates
+
+
+def fuse_stop_candidates(
+    text_candidate_result,
+    layout_stop_association_result,
+    baseline_resolution_result=None,
+):
+    """Fuse text and layout stop candidates without final field resolution."""
+
+    baseline_statuses = _baseline_status_map(baseline_resolution_result)
+    text_candidates = _text_stop_candidates(text_candidate_result)
+    layout_candidates = _layout_stop_candidates(layout_stop_association_result)
+    fields = sorted(
+        set(candidate["full_field_name"] for candidate in text_candidates)
+        | set(candidate["full_field_name"] for candidate in layout_candidates)
+        | set(baseline_statuses)
+    )
+
+    improved = []
+    worsened = []
+    unchanged = []
+    conflicts = []
+    unresolved = []
+    warnings = list((layout_stop_association_result or {}).get("warning_codes", []) or [])
+
+    for field_name in fields:
+        baseline_status = baseline_statuses.get(field_name, "")
+        field_text = [candidate for candidate in text_candidates if candidate["full_field_name"] == field_name]
+        field_layout = [
+            candidate for candidate in layout_candidates if candidate["full_field_name"] == field_name
+        ]
+        best_text = max(field_text, key=lambda candidate: candidate["confidence"], default=None)
+        best_layout = max(field_layout, key=lambda candidate: candidate["confidence"], default=None)
+
+        if best_text and best_layout:
+            if (
+                best_text.get("value")
+                and best_layout.get("value")
+                and best_text["value"] != best_layout["value"]
+                and best_text["confidence"] >= 0.75
+                and best_layout["confidence"] >= 0.75
+            ):
+                conflicts.append(field_name)
+                warnings.append(f"stop_fusion_conflict:{field_name}")
+            elif baseline_status in {"", "missing", "needs_review", "low_confidence"} and (
+                best_layout["confidence"] > best_text["confidence"]
+            ):
+                improved.append(field_name)
+            else:
+                unchanged.append(field_name)
+        elif best_layout:
+            if baseline_status in {"", "missing", "needs_review", "low_confidence"}:
+                improved.append(field_name)
+            elif baseline_status == "resolved" and best_layout["confidence"] < 0.6:
+                unchanged.append(field_name)
+            else:
+                unchanged.append(field_name)
+        elif best_text:
+            unchanged.append(field_name)
+        else:
+            unresolved.append(field_name)
+            if baseline_status == "resolved":
+                worsened.append(field_name)
+
+    return {
+        "stop_groups": (layout_stop_association_result or {}).get("stop_groups", []),
+        "improved_fields": sorted(set(improved)),
+        "worsened_fields": sorted(set(worsened)),
+        "unchanged_fields": sorted(set(unchanged)),
+        "conflict_stop_fields": sorted(set(conflicts)),
+        "unresolved_stop_fields": sorted(set(unresolved)),
+        "warning_codes": sorted(set(_text(warning) for warning in warnings if _text(warning))),
+        "association_version": STOP_ASSOCIATION_VERSION,
+        "fusion_version": "stop_candidate_fusion_v1",
+    }
