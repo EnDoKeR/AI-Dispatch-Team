@@ -2436,3 +2436,52 @@ Not recommended next:
 - DispatchCase creation/linking/events;
 - DAT/API or Google Maps;
 - synthetic 100-200 load dataset.
+
+## Batch 3 Redacted Layout Rerun Closeout
+
+Completed:
+
+- redacted layout-shape diagnostics are documented and available by CLI;
+- layout-shape output is placeholder-only and must not include private values;
+- synthetic scenarios now represent safe layout shapes without private document text;
+- parser hardening covers the first safe label-adjacent and table-like cases;
+- CSV export defaults to a batch size of 3 and remains local/ignored.
+
+Options evaluated:
+
+1. user reruns batch 3 and shares safe summaries
+2. more anonymized scenarios if gaps remain
+3. parser hardening follow-up if synthetic coverage still fails
+4. PDF extraction dependency refinement if `pypdf` layout is weak
+5. optional Google Sheets adapter later if CSV review is useful
+6. OCR audit later
+
+Recommended next target:
+
+```text
+user reruns batch 3 locally with updated diagnostics/parser/CSV and shares safe summaries only
+```
+
+Recommended follow-up if CSV review is useful:
+
+```text
+plan optional Google Sheets adapter later, after CSV review, without adding the API now
+```
+
+Recommended follow-up if parser gaps remain:
+
+```text
+create more anonymized synthetic RateCon scenarios before changing parser behavior
+```
+
+Not recommended next:
+
+- Google Sheets API;
+- OCR;
+- parser changes from raw private text;
+- committing private PDFs, extracted text, CSV outputs, or private summaries;
+- DispatchCase creation/linking/events;
+- Telegram upload handling;
+- Gmail/email;
+- DAT/API or Google Maps;
+- accounting/factoring implementation.

@@ -1068,3 +1068,10 @@ Then: more anonymized synthetic scenarios if gaps remain.
 ```
 
 This keeps private RateCon text out of tracked files and prevents deleted legacy runtime code from returning through parser improvements.
+
+Next decision after the rerun:
+
+- if safe summaries show parser gaps, add more anonymized synthetic scenarios before parser changes;
+- if CSV visual review is useful, plan an optional Google Sheets adapter later but do not add the API now;
+- if `pypdf` text order is weak, run a PDF extraction dependency refinement audit;
+- OCR remains a later separate audit only.
