@@ -771,3 +771,47 @@ Post-deletion docs cleanup should:
 - state that the legacy package was removed;
 - state that useful label vocabulary was preserved in synthetic examples;
 - state that old Google Sheets, parser-to-`MarketLoad`, and scoring flows are intentionally not part of the architecture.
+
+## Safe Label Preservation Verification
+
+Safe label knowledge is preserved outside `app/load_intake/` in:
+
+```text
+tests/fixtures/legacy_ratecon_label_examples.py
+tests/test_legacy_ratecon_label_examples.py
+docs/RATECON_REDACTED_FIELD_DIAGNOSTICS.md
+```
+
+The synthetic fixture/test coverage includes the required legacy label styles:
+
+```text
+TRUCKLOAD RATE CONFIRMATION
+Shipper Information
+Consignee Information
+TOTAL: USD $
+Pick Up Time
+Delivery Time
+Load #
+Carrier Name
+Trailer Type/Size
+Commodity Description
+Total Weight
+```
+
+The examples use fake values only, including:
+
+```text
+FAKE BROKER LLC
+MC000000
+FAKE-REF-001
+Fake City, ST
+```
+
+The redacted diagnostics tests verify:
+
+- synthetic label fixtures import;
+- fixture text contains legacy label styles;
+- diagnostics recognizes expected label categories;
+- diagnostics output does not return fake values, which also protects against returning private values later.
+
+This means legacy label knowledge is safe to keep even after the legacy package is deleted.
