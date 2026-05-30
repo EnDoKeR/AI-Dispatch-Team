@@ -359,11 +359,12 @@ Purpose:
 
 Owner module:
 
+- contract helper: `app/market_intelligence/intake/rate_confirmation_intake.py`
 - current adjacent modules: `app/market_intelligence/intake/record.py`, `ratecon_core_fields.py`, `ratecon_text_dry_run.py`, `ratecon_pdf_dry_run.py`
 
 Current status:
 
-- `planned`
+- `partial`: JSON-ready contract helper exists, but it is not wired into PDF parsing, case creation, or event writes.
 
 Required fields:
 
@@ -854,4 +855,3 @@ Recommended direction:
 - keep hard constraints separate from memory preferences;
 - preserve sample-size protection;
 - expose reasons in DecisionResult rather than only formatted messages.
-
