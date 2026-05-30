@@ -153,7 +153,7 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
             for candidate in extraction["adjusted_candidate_result"]["candidates"]
         )
 
-    def test_hard_layout_regression_matrix_baseline(self):
+    def test_hard_layout_regression_matrix_final_expectations(self):
         for case in MATRIX:
             with self.subTest(fixture=case["fixture"]):
                 extraction, resolution, intake = self._run_case(case["fixture"])
@@ -226,11 +226,20 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
         self.assertNotIn("broker_mc", intake["missing_fields"])
 
     def test_reference_candidates_remain_typed_when_labels_are_clear(self):
-        extraction, _, _ = self._run_case("references_near_wrong_stop_ratecon.txt")
+        extraction, resolution, intake = self._run_case("references_near_wrong_stop_ratecon.txt")
         reference_types = {
             candidate["value_type"]
             for candidate in extraction["adjusted_candidate_result"]["candidates"]
             if candidate["field_name"] == FIELD_REFERENCE
+        }
+        reference_resolution = resolve_ratecon_fields_with_template_context(
+            extraction,
+            field_names=[FIELD_REFERENCE],
+        )
+        reference_intake = build_ratecon_intake_from_resolution(reference_resolution)
+        intake_reference_types = {
+            reference["reference_type"]
+            for reference in reference_intake["references"]
         }
 
         self.assertIn("po_number", reference_types)
@@ -238,6 +247,26 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
         self.assertIn("pickup_confirmation", reference_types)
         self.assertIn("delivery_confirmation", reference_types)
         self.assertIn("customer_reference", reference_types)
+        self.assertIn("PICKUP_CONFIRMATION", intake_reference_types)
+        self.assertIn("DELIVERY_CONFIRMATION", intake_reference_types)
+        self.assertNotIn(FIELD_REFERENCE, resolution["missing_fields"])
+        self.assertFalse(intake["cases_created"])
+
+    def test_table_like_stop_locations_are_associated_with_correct_stop(self):
+        _, resolution, _ = self._run_case("table_like_stops_ratecon.txt")
+        by_field = {
+            item["field_name"]: item
+            for item in resolution["resolutions"]
+        }
+
+        self.assertEqual(
+            by_field["pickup_location"]["selected_candidate_value"],
+            "Fake Table Origin, ST 00000",
+        )
+        self.assertEqual(
+            by_field["delivery_location"]["selected_candidate_value"],
+            "Fake Table Destination, ST 00000",
+        )
 
     def test_revised_current_rate_is_selected_when_evidence_is_strong(self):
         _, resolution, _ = self._run_case("revised_rate_conflict_ratecon.txt")
@@ -261,15 +290,41 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
             extraction,
             field_names=[FIELD_PICKUP_TIME, FIELD_DELIVERY_TIME],
         )
+        time_intake = build_ratecon_intake_from_resolution(time_resolution)
 
         self.assertGreaterEqual(counts[FIELD_PICKUP_TIME], 2)
         self.assertIn(FIELD_PICKUP_TIME, time_resolution["conflict_fields"])
+        self.assertIn(
+            "pickup_time",
+            time_intake["extraction_context"]["conflict_fields"],
+        )
 
     def test_buried_special_requirements_are_detected(self):
         extraction, _, _ = self._run_case("buried_special_requirements_ratecon.txt")
         counts = self._candidate_counts(extraction)
+        special_resolution = resolve_ratecon_fields_with_template_context(
+            extraction,
+            field_names=[FIELD_SPECIAL_REQUIREMENT],
+        )
+        special_intake = build_ratecon_intake_from_resolution(special_resolution)
+        requirements = " ".join(special_intake["special_requirements"]).lower()
 
         self.assertGreaterEqual(counts[FIELD_SPECIAL_REQUIREMENT], 4)
+        self.assertIn("tarp required", requirements)
+        self.assertIn("driver assist", requirements)
+
+    def test_unknown_hard_layout_uses_generic_fallback_without_rate_resolution(self):
+        extraction, resolution, _ = self._run_case("unknown_hard_layout_ratecon.txt")
+        resolved_fields = self._resolved_fields(resolution)
+
+        self.assertEqual(
+            extraction["template_selection_result"]["status"],
+            TEMPLATE_SELECTION_STATUS_UNKNOWN,
+        )
+        self.assertFalse(extraction["template_scoring_applied"])
+        self.assertIn(FIELD_RATE, resolution["needs_check_fields"])
+        self.assertNotIn(FIELD_RATE, resolved_fields)
+        self.assertIn("generic_resolution_without_template", resolution["warnings"])
 
     def test_no_dispatch_recommendation_or_case_output(self):
         for case in MATRIX:
@@ -283,7 +338,15 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
                     }
                 )
 
-                for literal in ["ACCEPT", "REJECT", "DispatchCase"]:
+                json.dumps(payload)
+
+                for literal in [
+                    "ACCEPT",
+                    "REJECT",
+                    "DispatchCase",
+                    "telegram",
+                    "DecisionEngine",
+                ]:
                     self.assertNotIn(literal, payload)
 
 
