@@ -216,8 +216,140 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("fusion_attempted_count", output)
         self.assertIn("fusion_enabled", output)
         self.assertIn("stop_group_count", output)
+        self.assertIn("prevented_regression_count", output)
         self.assertNotIn("FAKE BROKER LLC", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
+
+    def test_report_includes_safe_layout_diagnostics_when_enabled(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        report = build_private_ratecon_measurement_report(
+            root,
+            limit=1,
+            layout_provider_name="pdfplumber",
+            enable_layout_candidates=True,
+            enable_layout_fusion=True,
+            layout_diagnostics=True,
+            pdfplumber_table_profile="lines",
+        )
+        output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("layout_quality_bucket_counts", output)
+        self.assertIn("layout_total_word_count", output)
+        self.assertIn("layout_stop_signal_counts", output)
+        self.assertIn("layout_likely_issue_bucket", output)
+        self.assertIn("layout_table_settings_profile", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
+
+    def test_cli_writes_safe_layout_diagnostics_report(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with redirect_stdout(buffer):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--confirm-private-local-run",
+                        "--layout-provider",
+                        "pdfplumber",
+                        "--enable-layout-candidates",
+                        "--layout-diagnostics",
+                        "--output-dir",
+                        output_dir,
+                        "--allow-custom-output-dir",
+                    ]
+                )
+            diagnostics_path = Path(output_dir) / "layout_provider_diagnostics.md"
+            exists = diagnostics_path.exists()
+            text = diagnostics_path.read_text(encoding="utf-8")
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertTrue(exists)
+        self.assertIn("layout_diagnostics_written", console_output)
+        self.assertNotIn(str(root), console_output)
+        self.assertNotIn(output_dir, console_output)
+        self.assertNotIn("FAKE BROKER LLC", text)
+
+    def test_cli_refuses_table_profile_comparison_without_pdfplumber(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--compare-pdfplumber-table-profiles",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --layout-provider pdfplumber", stderr.getvalue())
+
+    def test_report_can_compare_pdfplumber_table_profiles_safely(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        report = build_private_ratecon_measurement_report(
+            root,
+            limit=1,
+            layout_provider_name="pdfplumber",
+            enable_layout_candidates=True,
+            compare_pdfplumber_table_profiles_enabled=True,
+        )
+        output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("table_profile_comparison_count", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
+        self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
+
+    def test_cli_invalid_pdfplumber_table_profile_exits_safely(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with self.assertRaises(SystemExit) as raised:
+            with redirect_stderr(stderr):
+                main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--confirm-private-local-run",
+                        "--layout-provider",
+                        "pdfplumber",
+                        "--enable-layout-candidates",
+                        "--pdfplumber-table-profile",
+                        "not-a-profile",
+                    ]
+                )
+
+        self.assertEqual(raised.exception.code, 2)
+        self.assertIn("invalid choice", stderr.getvalue())
+
+    def test_cli_refuses_regression_debug_without_fusion(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--allow-layout-regression-for-debug",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --enable-layout-fusion", stderr.getvalue())
 
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:

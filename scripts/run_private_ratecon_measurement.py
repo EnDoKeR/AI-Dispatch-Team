@@ -10,6 +10,11 @@ if str(REPO_ROOT) not in sys.path:
 
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry, TemplateRegistryError
 from app.document_ai.layout_provider import get_available_layout_providers
+from app.document_ai.layout_provider_diagnostics import (
+    compare_pdfplumber_table_profiles,
+    write_layout_provider_diagnostics_report,
+)
+from app.document_ai.pdfplumber_layout_provider import PDFPLUMBER_TABLE_SETTING_PROFILES
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -105,7 +110,12 @@ def build_private_ratecon_measurement_report(
     layout_provider_name="",
     enable_layout_candidates=False,
     enable_layout_fusion=False,
+    enable_no_regression_fusion=True,
+    allow_layout_regression_for_debug=False,
     compare_layout_to_text_baseline=False,
+    layout_diagnostics=False,
+    compare_pdfplumber_table_profiles_enabled=False,
+    pdfplumber_table_profile="default",
 ):
     pdfs = discover_private_pdfs(input_dir)
     if limit and int(limit) > 0:
@@ -127,15 +137,35 @@ def build_private_ratecon_measurement_report(
             layout_provider_name=layout_provider_name,
             enable_layout_candidates=enable_layout_candidates,
             enable_layout_fusion=enable_layout_fusion,
+            enable_no_regression_fusion=enable_no_regression_fusion,
+            allow_layout_regression_for_debug=allow_layout_regression_for_debug,
             compare_layout_to_text_baseline=compare_layout_to_text_baseline,
+            pdfplumber_table_profile=pdfplumber_table_profile,
         )
         for path in pdfs
     ]
     aggregate = build_private_ratecon_measurement_aggregate(rows)
+    table_profile_comparisons = []
+    if compare_pdfplumber_table_profiles_enabled and layout_provider_name == "pdfplumber":
+        row_by_alias = {row.get("document_alias", ""): row for row in rows}
+        for path in pdfs:
+            alias = aliases[path]
+            row = row_by_alias.get(alias, {})
+            if row.get("layout_provider_status") != "success":
+                continue
+            table_profile_comparisons.append(
+                compare_pdfplumber_table_profiles(
+                    path,
+                    profiles=PDFPLUMBER_TABLE_SETTING_PROFILES,
+                    document_alias=alias,
+                )
+            )
 
     return {
         "rows": rows,
         "aggregate": aggregate,
+        "table_profile_comparisons": table_profile_comparisons,
+        "layout_diagnostics_enabled": bool(layout_diagnostics),
         "document_count": len(rows),
         "input_dir_included": False,
         "filenames_included": False,
@@ -172,11 +202,20 @@ def format_private_measurement_report(report):
         f"layout_success_count: {aggregate.get('layout_success_count', 0)}",
         f"layout_skipped_count: {aggregate.get('layout_skipped_count', 0)}",
         f"layout_failed_count: {aggregate.get('layout_failed_count', 0)}",
+        f"layout_quality_bucket_counts: {aggregate.get('layout_quality_bucket_counts', {})}",
+        f"layout_likely_issue_bucket_counts: {aggregate.get('layout_likely_issue_bucket_counts', {})}",
+        f"layout_total_word_count: {aggregate.get('layout_total_word_count', 0)}",
+        f"layout_total_line_count: {aggregate.get('layout_total_line_count', 0)}",
+        f"layout_total_table_count: {aggregate.get('layout_total_table_count', 0)}",
+        f"layout_total_table_cell_count: {aggregate.get('layout_total_table_cell_count', 0)}",
+        f"layout_stop_signal_counts: {aggregate.get('layout_stop_signal_counts', {})}",
         f"fusion_attempted_count: {aggregate.get('fusion_attempted_count', 0)}",
         f"fusion_improved_counts_by_field: {aggregate.get('fusion_improved_counts_by_field', {})}",
         f"fusion_worsened_counts_by_field: {aggregate.get('fusion_worsened_counts_by_field', {})}",
         f"fusion_unchanged_counts_by_field: {aggregate.get('fusion_unchanged_counts_by_field', {})}",
         f"fusion_conflict_counts_by_field: {aggregate.get('fusion_conflict_counts_by_field', {})}",
+        f"prevented_regression_counts_by_field: {aggregate.get('prevented_regression_counts_by_field', {})}",
+        f"prevented_regression_count: {aggregate.get('prevented_regression_count', 0)}",
         f"stop_group_count_total: {aggregate.get('stop_group_count_total', 0)}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
@@ -223,22 +262,72 @@ def format_private_measurement_report(report):
                 f"  layout_improved_fields: {row.get('layout_improved_fields', [])}",
                 f"  layout_worsened_fields: {row.get('layout_worsened_fields', [])}",
                 f"  layout_unchanged_fields: {row.get('layout_unchanged_fields', [])}",
+                f"  layout_quality_bucket: {row.get('layout_quality_bucket', '')}",
+                f"  layout_total_word_count: {row.get('layout_total_word_count', 0)}",
+                f"  layout_total_line_count: {row.get('layout_total_line_count', 0)}",
+                f"  layout_total_table_count: {row.get('layout_total_table_count', 0)}",
+                f"  layout_total_table_cell_count: {row.get('layout_total_table_cell_count', 0)}",
+                f"  layout_stop_signal_counts: {row.get('layout_stop_signal_counts', {})}",
+                f"  layout_likely_issue_bucket: {row.get('layout_likely_issue_bucket', '')}",
+                f"  layout_table_settings_profile: {row.get('layout_table_settings_profile', '')}",
                 f"  fusion_enabled: {row.get('fusion_enabled', False)}",
                 f"  fusion_attempted: {row.get('fusion_attempted', False)}",
                 f"  fusion_improved_fields: {row.get('fusion_improved_fields', [])}",
                 f"  fusion_worsened_fields: {row.get('fusion_worsened_fields', [])}",
                 f"  fusion_unchanged_fields: {row.get('fusion_unchanged_fields', [])}",
                 f"  fusion_conflict_fields: {row.get('fusion_conflict_fields', [])}",
+                f"  prevented_regression_fields: {row.get('prevented_regression_fields', [])}",
                 f"  stop_group_count: {row.get('stop_group_count', 0)}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]
         )
 
+    if report.get("table_profile_comparisons"):
+        lines.append("")
+        lines.append(
+            f"table_profile_comparison_count: {len(report.get('table_profile_comparisons', []))}"
+        )
+        for comparison in report.get("table_profile_comparisons", []):
+            lines.append(
+                "  {alias}: best_table={best_table}; best_stop_signal={best_stop}".format(
+                    alias=comparison.get("document_alias", ""),
+                    best_table=comparison.get("best_profile_by_table_count", ""),
+                    best_stop=comparison.get("best_profile_by_stop_signal_count", ""),
+                )
+            )
+
     lines.append("")
     lines.append("SAFE TO SHARE: aliases, counts, statuses, field names, blocker categories.")
     lines.append("DO NOT SHARE: raw text, filenames, broker names, MCs, rates, addresses, references, local paths.")
     return lines
+
+
+def _diagnostics_from_rows(rows):
+    diagnostics = []
+    for row in rows or []:
+        if not row.get("layout_provider_status"):
+            continue
+        diagnostics.append(
+            {
+                "document_alias": row.get("document_alias", ""),
+                "provider_name": row.get("layout_provider_name", "pdfplumber"),
+                "provider_status": row.get("layout_provider_status", ""),
+                "page_count": row.get("page_count", 0),
+                "pages": [],
+                "total_word_count": row.get("layout_total_word_count", 0),
+                "total_line_count": row.get("layout_total_line_count", 0),
+                "total_table_count": row.get("layout_total_table_count", 0),
+                "total_table_cell_count": row.get("layout_total_table_cell_count", 0),
+                "table_settings_profile": row.get("layout_table_settings_profile", ""),
+                "layout_quality_bucket": row.get("layout_quality_bucket", ""),
+                "stop_evidence_signals": row.get("layout_stop_signal_counts", {}),
+                "warning_codes": row.get("warning_codes", []),
+                "raw_text_included": False,
+                "private_values_redacted": True,
+            }
+        )
+    return diagnostics
 
 
 def main(argv=None):
@@ -276,6 +365,15 @@ def main(argv=None):
     parser.add_argument("--layout-provider", default="")
     parser.add_argument("--enable-layout-candidates", action="store_true")
     parser.add_argument("--enable-layout-fusion", action="store_true")
+    parser.add_argument("--layout-diagnostics", action="store_true")
+    parser.add_argument("--compare-pdfplumber-table-profiles", action="store_true")
+    parser.add_argument(
+        "--pdfplumber-table-profile",
+        default="default",
+        choices=PDFPLUMBER_TABLE_SETTING_PROFILES,
+    )
+    parser.add_argument("--enable-no-regression-fusion", action="store_true", default=True)
+    parser.add_argument("--allow-layout-regression-for-debug", action="store_true")
     parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
@@ -296,6 +394,18 @@ def main(argv=None):
     if args.enable_layout_fusion and not args.enable_layout_candidates:
         _print_expected_config_error(
             "--enable-layout-fusion requires --enable-layout-candidates"
+        )
+        return 2
+
+    if args.allow_layout_regression_for_debug and not args.enable_layout_fusion:
+        _print_expected_config_error(
+            "--allow-layout-regression-for-debug requires --enable-layout-fusion"
+        )
+        return 2
+
+    if args.compare_pdfplumber_table_profiles and args.layout_provider != "pdfplumber":
+        _print_expected_config_error(
+            "--compare-pdfplumber-table-profiles requires --layout-provider pdfplumber"
         )
         return 2
 
@@ -323,7 +433,12 @@ def main(argv=None):
             layout_provider_name=args.layout_provider,
             enable_layout_candidates=args.enable_layout_candidates,
             enable_layout_fusion=args.enable_layout_fusion,
+            enable_no_regression_fusion=args.enable_no_regression_fusion,
+            allow_layout_regression_for_debug=args.allow_layout_regression_for_debug,
             compare_layout_to_text_baseline=args.compare_layout_to_text_baseline,
+            layout_diagnostics=args.layout_diagnostics,
+            compare_pdfplumber_table_profiles_enabled=args.compare_pdfplumber_table_profiles,
+            pdfplumber_table_profile=args.pdfplumber_table_profile,
         )
 
         for line in format_private_measurement_report(report):
@@ -348,6 +463,13 @@ def main(argv=None):
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
+        if not args.dry_run and args.layout_diagnostics:
+            diagnostics_path = write_layout_provider_diagnostics_report(
+                _diagnostics_from_rows(report["rows"]),
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            print(f"layout_diagnostics_written: {Path(diagnostics_path).name}")
     except (
         PrivateMeasurementInputError,
         PrivateMeasurementOutputError,

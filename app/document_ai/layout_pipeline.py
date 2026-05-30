@@ -91,6 +91,7 @@ def build_layout_candidate_pipeline_result(
         "provider_status": (provider_result or {}).get("status", ""),
         "provider_page_count": int((provider_result or {}).get("page_count", 0) or 0),
         "provider_warning_codes": provider_warning_codes,
+        "table_settings_profile": (provider_result or {}).get("table_settings_profile", ""),
         "candidate_result": candidate_result,
         "candidate_counts_by_field": _candidate_field_counts(candidate_result),
         "warning_codes": combined_warnings,
@@ -108,11 +109,13 @@ def extract_layout_candidates_from_pdf(
     classification_result=None,
     document_id=None,
     include_artifact=False,
+    table_settings_profile="default",
 ):
     provider_result = extract_layout_artifact(
         pdf_path,
         provider_name=provider_name,
         document_id=document_id,
+        table_settings_profile=table_settings_profile,
     )
 
     if provider_result.get("status") != STATUS_SUCCESS:

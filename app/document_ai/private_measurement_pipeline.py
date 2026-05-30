@@ -23,6 +23,10 @@ from app.document_ai.extraction_scope import (
     should_skip_ratecon_extraction,
 )
 from app.document_ai.layout_pipeline import extract_layout_candidates_from_pdf
+from app.document_ai.layout_provider_diagnostics import (
+    build_layout_provider_diagnostics,
+    classify_layout_provider_diagnostic_issue,
+)
 from app.document_ai.candidate_fusion import (
     NO_REGRESSION_WARNING,
     PROTECTED_CRITICAL_FIELDS,
@@ -657,7 +661,19 @@ def _layout_measurement_fields(
     layout_provider_name="",
     enable_layout_candidates=False,
     compare_layout_to_text_baseline=False,
+    pdfplumber_table_profile="default",
 ):
+    empty_diagnostics = {
+        "layout_quality_bucket": "",
+        "layout_total_word_count": 0,
+        "layout_total_line_count": 0,
+        "layout_total_table_count": 0,
+        "layout_total_table_cell_count": 0,
+        "layout_stop_signal_counts": {},
+        "layout_likely_issue_bucket": "",
+        "layout_table_settings_profile": "",
+        "layout_provider_diagnostics": {},
+    }
     if not enable_layout_candidates:
         return {
             "layout_provider_status": "",
@@ -669,6 +685,7 @@ def _layout_measurement_fields(
             "layout_warning_codes": [],
             "layout_candidate_result": {},
             "layout_artifact": {},
+            **empty_diagnostics,
         }
 
     if route != DIGITAL_TEXT:
@@ -682,6 +699,7 @@ def _layout_measurement_fields(
             "layout_warning_codes": ["layout_provider_skipped_non_digital"],
             "layout_candidate_result": {},
             "layout_artifact": {},
+            **empty_diagnostics,
         }
 
     if not classification_fields.get("extraction_relevant"):
@@ -695,6 +713,7 @@ def _layout_measurement_fields(
             "layout_warning_codes": ["layout_provider_skipped_not_extraction_relevant"],
             "layout_candidate_result": {},
             "layout_artifact": {},
+            **empty_diagnostics,
         }
 
     if not classification_fields.get("normal_load_movement"):
@@ -708,6 +727,7 @@ def _layout_measurement_fields(
             "layout_warning_codes": ["layout_provider_skipped_not_normal_load_movement"],
             "layout_candidate_result": {},
             "layout_artifact": {},
+            **empty_diagnostics,
         }
 
     layout_result = extract_layout_candidates_from_pdf(
@@ -716,6 +736,7 @@ def _layout_measurement_fields(
         classification_result=classification_result,
         document_id=document_alias,
         include_artifact=True,
+        table_settings_profile=pdfplumber_table_profile,
     )
     candidate_result = layout_result.get("candidate_result") or {}
     layout_candidates = candidate_result.get("candidates", [])
@@ -723,6 +744,18 @@ def _layout_measurement_fields(
     improved, worsened, unchanged = ([], [], [])
     if compare_layout_to_text_baseline:
         improved, worsened, unchanged = _candidate_count_deltas(text_candidate_counts, layout_counts)
+    provider_diagnostics = build_layout_provider_diagnostics(
+        {
+            "document_alias": document_alias,
+            "provider_name": layout_result.get("provider_name", layout_provider_name),
+            "status": layout_result.get("provider_status", ""),
+            "artifact": layout_result.get("layout_artifact", {}),
+            "page_count": layout_result.get("provider_page_count", 0),
+            "warning_codes": layout_result.get("provider_warning_codes", []),
+            "table_settings_profile": layout_result.get("table_settings_profile", ""),
+        },
+        classification_result=classification_result,
+    )
 
     return {
         "layout_provider_status": layout_result.get("provider_status", ""),
@@ -734,6 +767,17 @@ def _layout_measurement_fields(
         "layout_warning_codes": layout_result.get("warning_codes", []),
         "layout_candidate_result": candidate_result,
         "layout_artifact": layout_result.get("layout_artifact", {}),
+        "layout_quality_bucket": provider_diagnostics.get("layout_quality_bucket", ""),
+        "layout_total_word_count": provider_diagnostics.get("total_word_count", 0),
+        "layout_total_line_count": provider_diagnostics.get("total_line_count", 0),
+        "layout_total_table_count": provider_diagnostics.get("total_table_count", 0),
+        "layout_total_table_cell_count": provider_diagnostics.get("total_table_cell_count", 0),
+        "layout_stop_signal_counts": provider_diagnostics.get("stop_evidence_signals", {}),
+        "layout_likely_issue_bucket": classify_layout_provider_diagnostic_issue(
+            provider_diagnostics
+        ),
+        "layout_table_settings_profile": provider_diagnostics.get("table_settings_profile", ""),
+        "layout_provider_diagnostics": provider_diagnostics,
     }
 
 
@@ -745,7 +789,10 @@ def measure_private_ratecon_pdf(
     layout_provider_name="",
     enable_layout_candidates=False,
     enable_layout_fusion=False,
+    enable_no_regression_fusion=True,
+    allow_layout_regression_for_debug=False,
     compare_layout_to_text_baseline=False,
+    pdfplumber_table_profile="default",
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -869,6 +916,7 @@ def measure_private_ratecon_pdf(
         layout_provider_name=layout_provider_name,
         enable_layout_candidates=enable_layout_candidates,
         compare_layout_to_text_baseline=compare_layout_to_text_baseline,
+        pdfplumber_table_profile=pdfplumber_table_profile,
     )
     baseline_resolution_result = resolve_ratecon_fields_with_template_context(template_result)
     fusion_fields = _layout_fusion_fields(
@@ -877,6 +925,13 @@ def measure_private_ratecon_pdf(
         baseline_resolution_result,
         document_type=classification_result.get("document_type", ""),
         enable_layout_fusion=enable_layout_fusion,
+        allow_layout_regression_for_debug=(
+            allow_layout_regression_for_debug or not enable_no_regression_fusion
+        ),
+    )
+    layout_likely_issue_bucket = classify_layout_provider_diagnostic_issue(
+        layout_fields.get("layout_provider_diagnostics", {}),
+        stop_group_count=fusion_fields.get("stop_group_count", 0),
     )
     resolution_template_result = template_result
     if fusion_fields.get("fused_candidate_result"):
@@ -963,12 +1018,21 @@ def measure_private_ratecon_pdf(
         layout_improved_fields=layout_fields.get("layout_improved_fields", []),
         layout_worsened_fields=layout_fields.get("layout_worsened_fields", []),
         layout_unchanged_fields=layout_fields.get("layout_unchanged_fields", []),
+        layout_quality_bucket=layout_fields.get("layout_quality_bucket", ""),
+        layout_total_word_count=layout_fields.get("layout_total_word_count", 0),
+        layout_total_line_count=layout_fields.get("layout_total_line_count", 0),
+        layout_total_table_count=layout_fields.get("layout_total_table_count", 0),
+        layout_total_table_cell_count=layout_fields.get("layout_total_table_cell_count", 0),
+        layout_stop_signal_counts=layout_fields.get("layout_stop_signal_counts", {}),
+        layout_likely_issue_bucket=layout_likely_issue_bucket,
+        layout_table_settings_profile=layout_fields.get("layout_table_settings_profile", ""),
         fusion_enabled=fusion_fields.get("fusion_enabled", False),
         fusion_attempted=fusion_fields.get("fusion_attempted", False),
         fusion_improved_fields=fusion_fields.get("fusion_improved_fields", []),
         fusion_worsened_fields=fusion_fields.get("fusion_worsened_fields", []),
         fusion_unchanged_fields=fusion_fields.get("fusion_unchanged_fields", []),
         fusion_conflict_fields=fusion_fields.get("fusion_conflict_fields", []),
+        prevented_regression_fields=fusion_fields.get("prevented_regression_fields", []),
         stop_group_count=fusion_fields.get("stop_group_count", 0),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
