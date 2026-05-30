@@ -144,3 +144,186 @@ def build_stop_association_result(
         "warning_codes": normalize_list(warning_codes),
         "association_version": STOP_ASSOCIATION_VERSION,
     }
+
+
+def _cell_text(cell):
+    return _text((cell or {}).get("text_redacted")).lower()
+
+
+def _cell_ref(cell):
+    return f"r{int((cell or {}).get('row_index', 0))}c{int((cell or {}).get('col_index', 0))}"
+
+
+def _rows_by_index(table):
+    rows = {}
+    for cell in (table or {}).get("cells", []) or []:
+        if not isinstance(cell, dict):
+            continue
+        rows.setdefault(int(cell.get("row_index", 0) or 0), {})[
+            int(cell.get("col_index", 0) or 0)
+        ] = cell
+    return rows
+
+
+def _sequence_from_text(value):
+    digits = "".join(char for char in _text(value) if char.isdigit())
+    return int(digits) if digits else ""
+
+
+def _column_kind(header_text):
+    text = _text(header_text).lower()
+    if any(token in text for token in ["stop", "seq", "#", "number"]):
+        return "sequence"
+    if any(token in text for token in ["type", "activity", "event"]):
+        return "type"
+    if any(token in text for token in ["location", "city", "state", "address", "shipper", "consignee"]):
+        return STOP_FIELD_LOCATION
+    if "date" in text:
+        return STOP_FIELD_DATE
+    if any(token in text for token in ["time", "appt", "appointment"]):
+        return STOP_FIELD_TIME
+    if any(token in text for token in ["ref", "reference", "po", "pickup #", "delivery #"]):
+        return STOP_FIELD_REFERENCE
+    return ""
+
+
+def detect_stop_table_columns(table):
+    """Return a column index -> semantic kind map for a likely stop table."""
+
+    rows = _rows_by_index(table)
+    header_rows = set((table or {}).get("header_rows") or [0])
+    header_index = min(header_rows) if header_rows else 0
+    header = rows.get(header_index, {})
+    columns = {
+        col_index: _column_kind(cell.get("text_redacted", ""))
+        for col_index, cell in header.items()
+    }
+    return {col_index: kind for col_index, kind in columns.items() if kind}
+
+
+def classify_stop_row(row, columns):
+    type_text = " ".join(
+        _cell_text(row.get(col_index))
+        for col_index, kind in columns.items()
+        if kind == "type"
+    )
+    location_text = " ".join(
+        _cell_text(row.get(col_index))
+        for col_index, kind in columns.items()
+        if kind == STOP_FIELD_LOCATION
+    )
+    combined = f"{type_text} {location_text}"
+    warnings = []
+
+    if any(token in combined for token in ["pickup", "pick", "pu", "shipper", "origin"]):
+        stop_type = STOP_TYPE_PICKUP
+        confidence = 0.9
+    elif any(token in combined for token in ["delivery", "deliver", "drop", "del", "so", "consignee", "destination"]):
+        stop_type = STOP_TYPE_DELIVERY
+        confidence = 0.9
+    else:
+        stop_type = STOP_TYPE_STOP
+        confidence = 0.55
+        warnings.append("ambiguous_stop_type")
+
+    sequence = ""
+    for col_index, kind in columns.items():
+        if kind == "sequence" and row.get(col_index):
+            sequence = _sequence_from_text(row[col_index].get("text_redacted", ""))
+            break
+
+    return {
+        "stop_type": stop_type,
+        "stop_sequence": sequence,
+        "confidence": confidence,
+        "warning_codes": warnings,
+    }
+
+
+def build_stop_field_candidates_from_row(row, columns, table, stop_group_id, stop_type, stop_sequence):
+    field_candidates = []
+    table_id = _text((table or {}).get("table_id"))
+    page_number = int((table or {}).get("page_number", 0) or 0)
+    for col_index, kind in sorted(columns.items()):
+        if kind not in {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME, STOP_FIELD_REFERENCE}:
+            continue
+        cell = row.get(col_index)
+        if not cell or not _text(cell.get("text_redacted")):
+            continue
+        field_candidates.append(
+            build_stop_field_candidate(
+                stop_group_id=stop_group_id,
+                stop_sequence=stop_sequence,
+                stop_type=stop_type,
+                field_name=kind,
+                candidate_id=f"{table_id}_{_cell_ref(cell)}_{kind}",
+                confidence=0.9,
+                evidence_ref={
+                    "page_number": page_number,
+                    "table_id": table_id,
+                    "cell_ref": _cell_ref(cell),
+                    "evidence_type": "table_cell",
+                },
+                source=STOP_ASSOCIATION_SOURCE_TABLE_ROW,
+                reasons=["same_table_row_stop_association"],
+            )
+        )
+    return field_candidates
+
+
+def build_stop_groups_from_layout_tables(layout_artifact, classification_result=None):
+    """Build stop groups from table rows without making final field decisions."""
+
+    del classification_result
+    stop_groups = []
+    warnings = []
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        for table in page.get("tables", []) or []:
+            columns = detect_stop_table_columns(table)
+            if len(set(columns.values()) & {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME}) < 1:
+                continue
+            if "type" not in set(columns.values()) and "sequence" not in set(columns.values()):
+                continue
+
+            rows = _rows_by_index(table)
+            header_rows = set(table.get("header_rows") or [0])
+            for row_index in sorted(rows):
+                if row_index in header_rows:
+                    continue
+                row = rows[row_index]
+                row_classification = classify_stop_row(row, columns)
+                table_id = _text(table.get("table_id"))
+                sequence = row_classification["stop_sequence"] or len(stop_groups) + 1
+                stop_group_id = f"{table_id}_row_{row_index}"
+                field_candidates = build_stop_field_candidates_from_row(
+                    row=row,
+                    columns=columns,
+                    table=table,
+                    stop_group_id=stop_group_id,
+                    stop_type=row_classification["stop_type"],
+                    stop_sequence=sequence,
+                )
+                if not field_candidates:
+                    continue
+                group_warnings = list(row_classification["warning_codes"])
+                warnings.extend(group_warnings)
+                stop_groups.append(
+                    build_stop_group_candidate(
+                        stop_group_id=stop_group_id,
+                        stop_sequence=sequence,
+                        stop_type=row_classification["stop_type"],
+                        source=STOP_ASSOCIATION_SOURCE_TABLE_ROW,
+                        page_number=table.get("page_number", page.get("page_number", "")),
+                        table_id=table_id,
+                        row_index=row_index,
+                        field_candidates=field_candidates,
+                        confidence=row_classification["confidence"],
+                        reasons=["layout_table_row_preserves_stop_field_association"],
+                        warning_codes=group_warnings,
+                    )
+                )
+
+    return build_stop_association_result(
+        stop_groups=stop_groups,
+        warning_codes=sorted(set(warnings)),
+    )
