@@ -2,13 +2,26 @@ import json
 import unittest
 
 from app.document_ai.ratecon_candidate_extraction import extract_ratecon_candidates
+from app.document_ai.broker_template_candidate_extraction import (
+    extract_ratecon_candidates_with_template_context,
+)
+from app.document_ai.broker_template_registry import BrokerTemplateRegistry
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_LOW,
+    FIELD_BROKER_MC,
+    FIELD_BROKER_NAME,
+    FIELD_DELIVERY_TIME,
+    FIELD_PICKUP_TIME,
     FIELD_RATE,
+    FIELD_REFERENCE,
+    FIELD_SPECIAL_REQUIREMENT,
     build_candidate_extraction_result,
     build_field_candidate,
 )
-from app.document_ai.ratecon_field_resolution import resolve_ratecon_fields
+from app.document_ai.ratecon_field_resolution import (
+    resolve_ratecon_fields,
+    resolve_ratecon_fields_with_template_context,
+)
 from app.document_ai.ratecon_intake_draft import build_ratecon_intake_from_resolution
 from app.market_intelligence.intake.rate_confirmation_intake import (
     STATUS_MISSING_FIELDS,
@@ -20,6 +33,7 @@ from app.market_intelligence.intake.rate_confirmation_validation import (
 from tests.fixtures.document_ai.ratecon_text.fixture_loader import (
     build_fixture_text_artifact,
 )
+from tests.fixtures.document_ai.broker_templates.fixture_loader import FIXTURE_DIR
 
 
 class RateConIntakeDraftTests(unittest.TestCase):
@@ -97,6 +111,88 @@ class RateConIntakeDraftTests(unittest.TestCase):
 
         self.assertEqual(validation["status"], STATUS_MISSING_FIELDS)
         self.assertIn("rate", validation["missing_fields"])
+
+    def test_missing_broker_mc_hard_layout_stays_optional(self):
+        artifact = build_fixture_text_artifact("missing_broker_mc_header_only_ratecon.txt")
+        registry = BrokerTemplateRegistry.from_directory(FIXTURE_DIR)
+        template_result = extract_ratecon_candidates_with_template_context(
+            artifact,
+            registry,
+        )
+        resolution_result = resolve_ratecon_fields_with_template_context(
+            template_result,
+            field_names=[FIELD_BROKER_NAME, FIELD_BROKER_MC],
+        )
+
+        intake = build_ratecon_intake_from_resolution(resolution_result)
+
+        self.assertEqual(intake["broker_name"], "Alpha Freight Mock")
+        self.assertNotIn("broker_mc", intake["missing_fields"])
+        self.assertIn("broker_mc", intake["extraction_context"]["missing_fields"])
+
+    def test_rate_conflict_preserved_in_extraction_context(self):
+        artifact = build_fixture_text_artifact("conflict_rate_ratecon.txt")
+        candidate_result = extract_ratecon_candidates(artifact)
+        resolution_result = resolve_ratecon_fields(candidate_result, field_names=[FIELD_RATE])
+
+        intake = build_ratecon_intake_from_resolution(resolution_result)
+
+        self.assertIn("rate", intake["needs_check_fields"])
+        self.assertIn("rate", intake["extraction_context"]["conflict_fields"])
+        self.assertEqual(
+            intake["extraction_context"]["resolution_status_by_field"]["rate"],
+            "conflict",
+        )
+
+    def test_stop_time_conflicts_are_visible_in_context(self):
+        artifact = build_fixture_text_artifact("conflicting_appointment_times_ratecon.txt")
+        candidate_result = extract_ratecon_candidates(artifact)
+        resolution_result = resolve_ratecon_fields(
+            candidate_result,
+            field_names=[FIELD_PICKUP_TIME, FIELD_DELIVERY_TIME],
+        )
+
+        intake = build_ratecon_intake_from_resolution(resolution_result)
+
+        self.assertIn("pickup_time", intake["extraction_context"]["needs_review_fields"])
+        self.assertIn("pickup_time", intake["extraction_context"]["conflict_fields"])
+        self.assertEqual(
+            intake["extraction_context"]["resolution_status_by_field"]["delivery_time"],
+            "resolved",
+        )
+
+    def test_typed_references_are_preserved_from_reference_resolution(self):
+        artifact = build_fixture_text_artifact("references_near_wrong_stop_ratecon.txt")
+        candidate_result = extract_ratecon_candidates(artifact)
+        resolution_result = resolve_ratecon_fields(
+            candidate_result,
+            field_names=[FIELD_REFERENCE],
+        )
+
+        intake = build_ratecon_intake_from_resolution(resolution_result)
+        reference_types = {
+            reference["reference_type"]
+            for reference in intake["references"]
+        }
+
+        self.assertIn("PO_NUMBER", reference_types)
+        self.assertIn("BOL_NUMBER", reference_types)
+        self.assertIn("PICKUP_CONFIRMATION", reference_types)
+        self.assertIn("DELIVERY_CONFIRMATION", reference_types)
+
+    def test_special_requirements_from_notes_are_preserved(self):
+        artifact = build_fixture_text_artifact("buried_special_requirements_ratecon.txt")
+        candidate_result = extract_ratecon_candidates(artifact)
+        resolution_result = resolve_ratecon_fields(
+            candidate_result,
+            field_names=[FIELD_SPECIAL_REQUIREMENT],
+        )
+
+        intake = build_ratecon_intake_from_resolution(resolution_result)
+        requirements = " ".join(intake["special_requirements"]).lower()
+
+        self.assertIn("tarp required", requirements)
+        self.assertIn("must call before pickup", requirements)
 
 
 if __name__ == "__main__":

@@ -1,6 +1,7 @@
 """Build RateConfirmationIntake drafts from resolved RateCon candidates."""
 
 from app.document_ai.ratecon_candidates import (
+    FIELD_ACCESSORIAL_TERM,
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_COMMODITY,
@@ -13,6 +14,8 @@ from app.document_ai.ratecon_candidates import (
     FIELD_PICKUP_LOCATION,
     FIELD_PICKUP_TIME,
     FIELD_RATE,
+    FIELD_REFERENCE,
+    FIELD_SPECIAL_REQUIREMENT,
     FIELD_WEIGHT,
 )
 from app.document_ai.ratecon_field_resolution import (
@@ -25,6 +28,7 @@ from app.document_ai.ratecon_field_resolution import (
 from app.market_intelligence.intake.rate_confirmation_intake import (
     CRITICAL_FIELDS,
     build_extracted_field_evidence,
+    build_reference,
     build_rate_confirmation_intake,
 )
 
@@ -47,6 +51,12 @@ FIELD_TO_INTAKE_KEY = {
     FIELD_COMMODITY: "commodity",
 }
 
+REFERENCE_FIELDS = {FIELD_REFERENCE}
+LIST_PRESERVATION_FIELDS = {
+    FIELD_SPECIAL_REQUIREMENT: "special_requirements",
+    FIELD_ACCESSORIAL_TERM: "accessorial_terms",
+}
+
 
 def _selected_value(resolution):
     candidate = resolution.get("selected_candidate", {})
@@ -67,6 +77,56 @@ def _candidate_source_method(resolution):
 def _append_once(values, value):
     if value and value not in values:
         values.append(value)
+
+
+def _intake_field_name(field_name):
+    return FIELD_TO_INTAKE_KEY.get(field_name, field_name)
+
+
+def _mapped_fields(values):
+    return [
+        _intake_field_name(str(value or "").strip())
+        for value in values or []
+        if str(value or "").strip()
+    ]
+
+
+def _resolution_candidates(resolution):
+    candidates = []
+    seen = set()
+
+    for candidate in [
+        resolution.get("selected_candidate", {}),
+        *resolution.get("rejected_candidates", []),
+    ]:
+        if not isinstance(candidate, dict):
+            continue
+
+        identity = (
+            str(candidate.get("candidate_id") or "").strip(),
+            str(candidate.get("field_name") or "").strip(),
+            str(candidate.get("value_type") or "").strip(),
+            str(candidate.get("normalized_value") or candidate.get("raw_value") or "").strip(),
+        )
+        if identity in seen:
+            continue
+
+        seen.add(identity)
+        candidates.append(candidate)
+
+    return candidates
+
+
+def _candidate_value(candidate):
+    if not isinstance(candidate, dict):
+        return ""
+
+    return str(candidate.get("normalized_value") or candidate.get("raw_value") or "").strip()
+
+
+def _candidate_value_type(candidate, default="unknown_reference"):
+    value_type = str(candidate.get("value_type") or "").strip()
+    return value_type or default
 
 
 def _evidence_for_resolution(document_id, field_name, resolution):
@@ -100,6 +160,37 @@ def _evidence_for_resolution(document_id, field_name, resolution):
     return evidence
 
 
+def _append_reference_candidates(source, resolution):
+    for candidate in _resolution_candidates(resolution):
+        value = _candidate_value(candidate)
+        if not value:
+            continue
+
+        source["references"].append(
+            build_reference(
+                reference_type=_candidate_value_type(candidate),
+                value=value,
+                source="candidate_resolution",
+                confidence=candidate.get("confidence", resolution.get("confidence", "")),
+                evidence_refs=[
+                    ref
+                    for ref in [
+                        str(candidate.get("candidate_id") or "").strip(),
+                        str(candidate.get("evidence_ref") or "").strip(),
+                    ]
+                    if ref
+                ],
+            )
+        )
+
+
+def _append_list_candidates(source, resolution, target_key):
+    for candidate in _resolution_candidates(resolution):
+        value = _candidate_value(candidate)
+        if value:
+            _append_once(source[target_key], value)
+
+
 def build_ratecon_intake_from_resolution(
     resolution_result,
     document_id="",
@@ -113,27 +204,73 @@ def build_ratecon_intake_from_resolution(
         "field_confidences": {},
         "evidence_refs": {},
         "field_evidence": [],
+        "references": [],
+        "special_requirements": [],
+        "accessorial_terms": [],
         "missing_fields": [],
         "needs_check_fields": [],
         "extractor_version": resolution_result.get("resolver_version", ""),
         "source_method": source_method,
         "parser_version": RATECON_INTAKE_DRAFT_BUILDER_VERSION,
-        "extraction_context": {},
+        "extraction_context": {
+            "conflict_fields": _mapped_fields(resolution_result.get("conflict_fields", [])),
+            "missing_fields": _mapped_fields(resolution_result.get("missing_fields", [])),
+            "needs_check_fields": _mapped_fields(
+                resolution_result.get("needs_check_fields", [])
+            ),
+            "low_confidence_fields": [],
+            "needs_review_fields": [],
+            "resolver_warnings": list(resolution_result.get("warnings", [])),
+            "resolution_status_by_field": {},
+        },
     }
 
     if "template_match_status" in resolution_result:
-        source["extraction_context"] = {
-            "extraction_template_id": resolution_result.get("selected_template_id", ""),
-            "extraction_template_version": "",
-            "template_match_confidence": resolution_result.get("template_match_confidence", 0.0),
-            "template_match_status": resolution_result.get("template_match_status", ""),
-            "template_context_used": bool(resolution_result.get("template_context_used", False)),
-        }
+        source["extraction_context"].update(
+            {
+                "extraction_template_id": resolution_result.get("selected_template_id", ""),
+                "extraction_template_version": "",
+                "template_match_confidence": resolution_result.get("template_match_confidence", 0.0),
+                "template_match_status": resolution_result.get("template_match_status", ""),
+                "template_context_used": bool(resolution_result.get("template_context_used", False)),
+            }
+        )
 
     for resolution in resolution_result.get("resolutions", []):
         field_name = str(resolution.get("field_name") or "").strip()
         intake_key = FIELD_TO_INTAKE_KEY.get(field_name)
         status = resolution.get("status")
+
+        if field_name:
+            source["extraction_context"]["resolution_status_by_field"][
+                _intake_field_name(field_name)
+            ] = status
+
+        if status == FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE:
+            _append_once(
+                source["extraction_context"]["low_confidence_fields"],
+                _intake_field_name(field_name),
+            )
+
+        if status in [
+            FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+            FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+            FIELD_RESOLUTION_STATUS_CONFLICT,
+        ]:
+            _append_once(
+                source["extraction_context"]["needs_review_fields"],
+                _intake_field_name(field_name),
+            )
+
+        if field_name in REFERENCE_FIELDS:
+            _append_reference_candidates(source, resolution)
+
+        if field_name in LIST_PRESERVATION_FIELDS:
+            _append_list_candidates(
+                source,
+                resolution,
+                LIST_PRESERVATION_FIELDS[field_name],
+            )
 
         if not intake_key:
             continue
