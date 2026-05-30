@@ -79,12 +79,12 @@ Use when the issue points to future PDF/OCR strategy instead of current manual t
 - table layout cannot be represented by pasted text safely;
 - private sample would require file processing.
 
-## Field Verification Checklist
+## Core Field Verification Checklist
 
-After each dry-run, verify:
+After each dry-run, verify the current RateCon core fields:
 
-- [ ] Did broker name extract?
-- [ ] Did broker MC extract?
+- [ ] Did customer extract?
+- [ ] Did LOAD/load label extract?
 - [ ] Did rate extract?
 - [ ] Did pickup location extract?
 - [ ] Did delivery location extract?
@@ -92,7 +92,26 @@ After each dry-run, verify:
 - [ ] Did delivery date/time extract?
 - [ ] Did commodity extract?
 - [ ] Did weight extract?
-- [ ] Was reference ID found?
+- [ ] Was load number/reference ID found?
+
+## Optional And Deferred Field Review
+
+Broker MC and equipment are useful but not required for current RateCon core success:
+
+- [ ] If broker MC is missing, is it listed as optional rather than core missing?
+- [ ] If equipment is missing, is it listed as optional rather than core missing?
+
+Loaded miles are deferred:
+
+- [ ] Is `loaded_miles` blank when not present?
+- [ ] Is `miles_status` `DEFERRED_GOOGLE_MAPS`?
+- [ ] Is `miles_source` `NOT_FROM_RATECON`?
+- [ ] Did missing loaded miles avoid causing a field-fix result?
+
+## Context Field Verification Checklist
+
+Also verify:
+
 - [ ] Were special requirements detected?
 - [ ] Were appointment windows represented?
 - [ ] Were detention/layover/lumper/accessorial notes represented as review context?

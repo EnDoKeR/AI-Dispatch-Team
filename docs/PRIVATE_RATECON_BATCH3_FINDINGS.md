@@ -175,3 +175,30 @@ Do not implement next:
 - Telegram upload handling;
 - Gmail/email;
 - DAT/API or Google Maps.
+
+## Product Policy Correction
+
+The user's RateCon review table is the source of truth for current core extraction.
+
+Current core fields:
+
+- `customer_name`
+- `load_label`
+- `pickup_location`
+- `pickup_date`
+- `delivery_location`
+- `delivery_date`
+- `load_number`
+- `rate`
+- `commodity`
+- `weight`
+
+Broker MC and equipment are optional for current RateCon core success. Loaded miles are deferred to a later Google Maps/mileage block:
+
+```text
+loaded_miles = ""
+miles_status = DEFERRED_GOOGLE_MAPS
+miles_source = NOT_FROM_RATECON
+```
+
+Previous batch findings that mention `broker_mc` or `equipment` as generic missing fields should be read as legacy/generic intake status, not current RateCon core failure by themselves.
