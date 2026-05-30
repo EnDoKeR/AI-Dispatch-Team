@@ -261,3 +261,185 @@ Recommended later sequence:
 3. Use redacted diagnostics and synthetic examples to improve new parser behavior.
 4. Create a deletion impact plan.
 5. Delete or archive `app/load_intake/` only in a dedicated cleanup block after tests and docs are updated.
+
+## Safe Legacy Parser Label Candidates
+
+The legacy parser contains useful label concepts, but not reusable implementation. These candidates may inform synthetic examples and redacted diagnostics only.
+
+Do not copy private document text into tests. Do not wire legacy parser code into runtime. Do not reuse old parser-to-decision behavior.
+
+### Broker Label Candidates
+
+Safe label ideas:
+
+- `TRUCKLOAD RATE CONFIRMATION`;
+- `Broker`;
+- `Broker Name`;
+- header/title area before carrier or contact details.
+
+Notes:
+
+- broker identity may appear in a header rather than a clean `Broker:` field;
+- future parser examples should use fake names such as `FAKE BROKER LLC`;
+- diagnostics should count label/header signals, not return broker names.
+
+### Broker MC Label Candidates
+
+Safe label ideas:
+
+- `MC`;
+- `MC #`;
+- `MC Number`;
+- `Broker MC`;
+- `Motor Carrier`.
+
+Notes:
+
+- legacy code did not robustly extract broker MC;
+- this should be represented with synthetic examples before parser changes.
+
+### Shipper / Pickup Label Candidates
+
+Safe label ideas:
+
+- `Shipper Information`;
+- `Pickup`;
+- `Pick Up`;
+- `Pickup Location`;
+- `Address`;
+- `Origin`.
+
+Notes:
+
+- legacy parser used `Shipper Information` plus `Address` concepts;
+- new diagnostics should count label signals only, never addresses.
+
+### Consignee / Delivery Label Candidates
+
+Safe label ideas:
+
+- `Consignee Information`;
+- `Delivery`;
+- `Deliver To`;
+- `Delivery Location`;
+- `Address`;
+- `Destination`.
+
+Notes:
+
+- legacy parser used `Consignee Information` plus `Address` concepts;
+- new diagnostics should count label signals only, never addresses.
+
+### Total / Rate Label Candidates
+
+Safe label ideas:
+
+- `TOTAL`;
+- `Total Rate`;
+- `Rate`;
+- `USD`;
+- `Linehaul`;
+- `Fuel Surcharge`;
+- `Accessorials`.
+
+Notes:
+
+- accessorial and linehaul labels should not automatically become total rate;
+- parser changes should distinguish total/rate from accessorial notes with synthetic examples.
+
+### Pickup / Delivery Time Label Candidates
+
+Safe label ideas:
+
+- `Pick Up Time`;
+- `Pickup Time`;
+- `Pickup Date`;
+- `Pickup Window`;
+- `Delivery Time`;
+- `Delivery Date`;
+- `Delivery Window`;
+- `Appointment`.
+
+Notes:
+
+- appointment windows should usually require review until parser confidence is clear.
+
+### Load / Reference Label Candidates
+
+Safe label ideas:
+
+- `Load #`;
+- `Load Number`;
+- `Reference`;
+- `Reference #`;
+- `Shipment ID`;
+- `Order #`;
+
+Notes:
+
+- reference values must never be printed in diagnostics;
+- parser tests should use fake values such as `FAKE-REF-001`.
+
+### Carrier Label Candidates
+
+Safe label ideas:
+
+- `Carrier Name`;
+- `Carrier`;
+- `Truck`;
+- `Driver`.
+
+Notes:
+
+- current intake records do not need carrier/driver identity as mandatory fields;
+- private carrier/driver names should not be committed.
+
+### Trailer / Equipment Label Candidates
+
+Safe label ideas:
+
+- `Trailer Type/Size`;
+- `Trailer Type`;
+- `Equipment`;
+- `Flatbed`;
+- `Conestoga`;
+- `Step Deck`;
+
+Notes:
+
+- equipment labels are useful for parser coverage and future synthetic tests.
+
+### Commodity / Weight Label Candidates
+
+Safe label ideas:
+
+- `Commodity Description`;
+- `Commodity`;
+- `Product`;
+- `Description`;
+- `Total Weight`;
+- `Weight`;
+- `WT`;
+- `LBS`;
+
+Notes:
+
+- legacy code had a narrow commodity pattern; do not reuse that pattern directly;
+- create synthetic examples for generic commodity/weight labels first.
+
+## Salvage Policy
+
+Safe to salvage:
+
+- label vocabulary;
+- generic label families;
+- structural lesson that real RateCons may place values after section headers rather than one-line `Label: Value` pairs.
+
+Not safe to salvage:
+
+- raw regex implementation without tests;
+- private text snippets;
+- PDF reader logic;
+- old mileage, zone, broker, reload, score, or final decision behavior;
+- Google Sheets writer behavior;
+- direct parser-to-`MarketLoad` construction.

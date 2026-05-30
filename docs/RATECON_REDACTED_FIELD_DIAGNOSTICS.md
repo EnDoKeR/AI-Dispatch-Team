@@ -89,6 +89,24 @@ The first diagnostic pass should count label-like signals for:
 
 Signal detection should count generic labels only, not values. Examples of allowed label concepts include words such as `broker`, `pickup`, `delivery`, `rate`, `weight`, `commodity`, `reference`, `equipment`, `detention`, `layover`, and `lumper`.
 
+Legacy `app/load_intake/` review found additional generic label concepts that may be useful for future synthetic examples:
+
+- `TRUCKLOAD RATE CONFIRMATION`;
+- `Shipper Information`;
+- `Consignee Information`;
+- `Address`;
+- `TOTAL`;
+- `USD`;
+- `Pick Up Time`;
+- `Delivery Time`;
+- `Load #`;
+- `Carrier Name`;
+- `Trailer Type/Size`;
+- `Commodity Description`;
+- `Total Weight`.
+
+These are label concepts only. Do not copy private lines, matched values, document snippets, or old parser regex behavior into active parser code without synthetic tests.
+
 ## Parser Coverage Comparison
 
 After signal detection, the coverage diagnostic may compare:
