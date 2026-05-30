@@ -84,3 +84,63 @@ The default CSV path returned a local permission/lock error. This should be hand
 PDF text extraction is working for two of three sampled documents. One sampled document produced `EMPTY_TEXT`, which belongs to PDF extraction refinement rather than parser hardening.
 
 The main parser gaps are still value extraction around detected labels and document layouts. Parser improvements must continue to be driven by fake/anonymized scenarios that represent safe categories and placeholder shapes only.
+
+## After Synthetic Parser Hardening Rerun
+
+Commands rerun locally:
+
+```powershell
+py scripts/run_private_ratecon_redacted_diagnostics.py --limit 3
+py scripts/run_private_ratecon_layout_diagnostics.py --limit 3
+py scripts/run_private_ratecon_pdf_dry_run.py --limit 3
+py scripts/export_ratecon_dry_run_csv.py --limit 3
+```
+
+Safe after summary:
+
+| Label | Extraction | Chars | Pages | Result Category | Missing Field Count |
+| --- | --- | ---: | ---: | --- | ---: |
+| RATECON_001 | TEXT_EXTRACTED | 4636 | 2 | NEEDS_FIELD_FIX | 9 |
+| RATECON_002 | EMPTY_TEXT | 0 | 2 | BAD_TEXT_EXTRACTION | 0 |
+| RATECON_003 | TEXT_EXTRACTED | 10694 | 3 | NEEDS_FIELD_FIX | 11 |
+
+Before/after missing field counts:
+
+| Label | Baseline Missing Count | After Missing Count | Change |
+| --- | ---: | ---: | ---: |
+| RATECON_001 | 10 | 9 | -1 |
+| RATECON_002 | 0 | 0 | 0 |
+| RATECON_003 | 11 | 11 | 0 |
+
+Improved extracted field status:
+
+- RATECON_001: `commodity` moved from missing/gap to extracted.
+
+Persistent parser gap categories:
+
+- `broker_name`
+- `broker_mc`
+- `rate`
+- `pickup_location`
+- `delivery_location`
+- `weight`
+- `equipment`
+
+Additional persistent categories:
+
+- RATECON_001: `delivery_date`, `special_requirements`
+- RATECON_003: `commodity`, `reference_id`
+
+Extractor category:
+
+- RATECON_002 remains `EMPTY_TEXT`; this should be handled by PDF extraction dependency refinement or later OCR strategy audit, not parser hardening.
+
+CSV export:
+
+- Default CSV export produced 3 rows after rerun.
+- Output remains in the ignored private dry-run results folder.
+- No raw extracted text or private values were saved to tracked files.
+
+Next interpretation:
+
+The first synthetic parser hardening round made a small measurable improvement on RATECON_001. Remaining gaps suggest the next parser round needs more fake/anonymized layout scenarios for identity, rate, stop/location, weight/equipment, and reference extraction before more parser code changes.
