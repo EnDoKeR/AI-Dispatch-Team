@@ -1,0 +1,36 @@
+{
+  "fixture_name": "fake_pickup_delivery_overclassified",
+  "expected_patterns": ["PICKUP_DELIVERY_OVERCLASSIFIED"],
+  "stop_groups": [
+    {
+      "stop_group_id": "generic_stop_1",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "MULTI_STOP_SECTION",
+      "field_candidates": [
+        {"candidate_id": "generic_stop_1_location", "field_name": "location", "evidence_ref": {"page_number": 1, "evidence_type": "section_context"}, "confidence": 0.75}
+      ],
+      "confidence": 0.55,
+      "warning_codes": ["generic_stop_label"]
+    },
+    {
+      "stop_group_id": "generic_stop_2",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "MULTI_STOP_SECTION",
+      "field_candidates": [
+        {"candidate_id": "generic_stop_2_location", "field_name": "location", "evidence_ref": {"page_number": 1, "evidence_type": "section_context"}, "confidence": 0.75}
+      ],
+      "confidence": 0.55,
+      "warning_codes": ["generic_stop_label"]
+    }
+  ],
+  "expected": {
+    "generic_stop_type": "unknown"
+  }
+}
+

@@ -1,0 +1,37 @@
+{
+  "fixture_name": "fake_date_time_split_from_location",
+  "expected_patterns": ["DATE_CANDIDATE_NOT_ATTACHED", "TIME_CANDIDATE_NOT_ATTACHED", "LOCATION_DATE_SPLIT"],
+  "stop_groups": [
+    {
+      "stop_group_id": "pickup_location_section",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "PICKUP_SECTION",
+      "field_candidates": [
+        {"candidate_id": "pickup_location_only", "field_name": "location", "evidence_ref": {"page_number": 1, "block_id": "P1_PICKUP", "evidence_type": "section_context"}, "confidence": 0.85}
+      ],
+      "confidence": 0.8,
+      "warning_codes": []
+    },
+    {
+      "stop_group_id": "pickup_datetime_line",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "PICKUP_SECTION",
+      "field_candidates": [
+        {"candidate_id": "pickup_date_split", "field_name": "date", "evidence_ref": {"page_number": 1, "block_id": "P1_PICKUP_TIME", "evidence_type": "section_context"}, "confidence": 0.85},
+        {"candidate_id": "pickup_time_split", "field_name": "time", "evidence_ref": {"page_number": 1, "block_id": "P1_PICKUP_TIME", "evidence_type": "section_context"}, "confidence": 0.85}
+      ],
+      "confidence": 0.75,
+      "warning_codes": []
+    }
+  ],
+  "expected": {
+    "normalized_stop_count_after_merge": 1
+  }
+}
+

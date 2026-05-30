@@ -1,0 +1,55 @@
+{
+  "fixture_name": "fake_one_stop_per_cell_bug",
+  "expected_patterns": ["TABLE_CELL_OVER_GROUPING", "TABLE_ROW_NOT_MERGED"],
+  "stop_groups": [
+    {
+      "stop_group_id": "delivery_row_location_cell",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "table_row",
+      "page_number": 1,
+      "section_role": "STOP_TABLE",
+      "table_id": "T_FAKE_ROUTE",
+      "row_index": 2,
+      "field_candidates": [
+        {"candidate_id": "delivery_location", "field_name": "location", "evidence_ref": {"table_id": "T_FAKE_ROUTE", "cell_ref": "r2c1"}, "confidence": 0.95}
+      ],
+      "confidence": 0.8,
+      "warning_codes": ["one_stop_per_cell"]
+    },
+    {
+      "stop_group_id": "delivery_row_date_cell",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "table_row",
+      "page_number": 1,
+      "section_role": "STOP_TABLE",
+      "table_id": "T_FAKE_ROUTE",
+      "row_index": 2,
+      "field_candidates": [
+        {"candidate_id": "delivery_date", "field_name": "date", "evidence_ref": {"table_id": "T_FAKE_ROUTE", "cell_ref": "r2c2"}, "confidence": 0.95}
+      ],
+      "confidence": 0.8,
+      "warning_codes": ["one_stop_per_cell"]
+    },
+    {
+      "stop_group_id": "delivery_row_reference_cell",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "table_row",
+      "page_number": 1,
+      "section_role": "STOP_TABLE",
+      "table_id": "T_FAKE_ROUTE",
+      "row_index": 2,
+      "field_candidates": [
+        {"candidate_id": "delivery_reference", "field_name": "reference", "evidence_ref": {"table_id": "T_FAKE_ROUTE", "cell_ref": "r2c3"}, "confidence": 0.85}
+      ],
+      "confidence": 0.8,
+      "warning_codes": ["one_stop_per_cell"]
+    }
+  ],
+  "expected": {
+    "normalized_stop_count_after_merge": 1
+  }
+}
+

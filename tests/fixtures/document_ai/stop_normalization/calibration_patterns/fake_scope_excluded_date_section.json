@@ -1,0 +1,33 @@
+{
+  "fixture_name": "fake_scope_excluded_date_section",
+  "expected_patterns": ["SCOPE_FILTER_EXCLUDED_DATE"],
+  "review_rows": [
+    {
+      "document_alias": "RATECON_FAKE",
+      "stop_id": "STOP_001",
+      "stop_type": "pickup",
+      "sequence": "1",
+      "field_name": "location",
+      "status": "resolved",
+      "confidence_bucket": "HIGH",
+      "evidence_type": "section_context",
+      "page_number": "1",
+      "warning_codes": "scope_filter_excluded_date",
+      "selected_value_local_only": "FAKE_LOCAL_ONLY_VALUE"
+    },
+    {
+      "document_alias": "RATECON_FAKE",
+      "stop_id": "STOP_001",
+      "stop_type": "pickup",
+      "sequence": "1",
+      "field_name": "date",
+      "status": "missing",
+      "confidence_bucket": "UNKNOWN",
+      "evidence_type": "",
+      "page_number": "1",
+      "warning_codes": "scope_filter_excluded_date",
+      "selected_value_local_only": ""
+    }
+  ]
+}
+

@@ -1,0 +1,36 @@
+{
+  "fixture_name": "fake_terms_billing_noise_stop_like",
+  "expected_patterns": ["TERMS_BILLING_NOISE"],
+  "stop_groups": [
+    {
+      "stop_group_id": "terms_stop_like",
+      "stop_sequence": 1,
+      "stop_type": "delivery",
+      "source": "section_block",
+      "page_number": 2,
+      "section_role": "LEGAL_TERMS",
+      "field_candidates": [
+        {"candidate_id": "terms_reference", "field_name": "reference", "evidence_ref": {"page_number": 2, "evidence_type": "section_context"}, "confidence": 0.5}
+      ],
+      "confidence": 0.4,
+      "warning_codes": ["terms"]
+    },
+    {
+      "stop_group_id": "billing_stop_like",
+      "stop_sequence": 2,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 3,
+      "section_role": "BILLING_INSTRUCTIONS",
+      "field_candidates": [
+        {"candidate_id": "billing_reference", "field_name": "reference", "evidence_ref": {"page_number": 3, "evidence_type": "section_context"}, "confidence": 0.5}
+      ],
+      "confidence": 0.4,
+      "warning_codes": ["billing"]
+    }
+  ],
+  "expected": {
+    "normalized_stop_count_after_noise_filter": 0
+  }
+}
+

@@ -1,0 +1,36 @@
+{
+  "fixture_name": "fake_duplicate_stop_groups_repeated_header",
+  "expected_patterns": ["DUPLICATE_STOP_GROUPS", "HEADER_FOOTER_NOISE"],
+  "stop_groups": [
+    {
+      "stop_group_id": "header_pickup_page_1",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "HEADER",
+      "field_candidates": [
+        {"candidate_id": "header_pickup_location_1", "field_name": "location", "evidence_ref": {"page_number": 1, "evidence_type": "section_context"}, "confidence": 0.4}
+      ],
+      "confidence": 0.4,
+      "warning_codes": ["repeated_header"]
+    },
+    {
+      "stop_group_id": "header_pickup_page_2",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 2,
+      "section_role": "HEADER",
+      "field_candidates": [
+        {"candidate_id": "header_pickup_location_2", "field_name": "location", "evidence_ref": {"page_number": 2, "evidence_type": "section_context"}, "confidence": 0.4}
+      ],
+      "confidence": 0.4,
+      "warning_codes": ["repeated_header"]
+    }
+  ],
+  "expected": {
+    "noise_removed_min": 1
+  }
+}
+
