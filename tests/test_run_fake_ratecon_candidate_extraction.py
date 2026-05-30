@@ -16,6 +16,13 @@ from tests.fixtures.document_ai.ratecon_text.fixture_loader import (
     HARD_LAYOUT_FIXTURE_DIR,
 )
 
+CLASSIFICATION_FIXTURE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "document_classification"
+)
+
 
 class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
     def test_summary_contains_candidate_counts(self):
@@ -115,6 +122,73 @@ class FakeRateConCandidateExtractionCliTests(unittest.TestCase):
         output = " ".join(buffer.getvalue().lower().split())
         self.assertIn("fake-only", output)
         self.assertIn("does not read private", output)
+
+    def test_classification_mode_classifies_fake_ratecon(self):
+        summary = build_fake_candidate_extraction_summary(
+            CLASSIFICATION_FIXTURE_DIR,
+            TEMPLATE_DIR,
+            classify_document=True,
+            show_page_roles=True,
+            show_section_roles=True,
+            respect_extraction_scope=True,
+        )
+        by_fixture = {
+            item["fixture"]: item
+            for item in summary["summaries"]
+        }
+
+        item = by_fixture["fake_rate_load_confirmation_main_page.txt"]
+        self.assertEqual(item["classification"]["document_type"], "RATE_LOAD_CONFIRMATION")
+        self.assertTrue(item["classification"]["ratecon_eligible"])
+        self.assertFalse(item["ratecon_extraction_skipped"])
+        self.assertIn("MAIN_RATECONF", item["classification"]["page_roles"])
+
+    def test_classification_mode_skips_fake_bol_and_supplemental_docs(self):
+        summary = build_fake_candidate_extraction_summary(
+            CLASSIFICATION_FIXTURE_DIR,
+            TEMPLATE_DIR,
+            classify_document=True,
+            show_page_roles=True,
+            show_section_roles=True,
+            respect_extraction_scope=True,
+        )
+        by_fixture = {
+            item["fixture"]: item
+            for item in summary["summaries"]
+        }
+
+        bol = by_fixture["fake_bol_scanned_like_text.txt"]
+        carrier_info = by_fixture["fake_driver_carrier_information_sheet.txt"]
+        certificate = by_fixture["fake_certificate_of_signature.txt"]
+
+        self.assertTrue(bol["ratecon_extraction_skipped"])
+        self.assertTrue(carrier_info["ratecon_extraction_skipped"])
+        self.assertTrue(certificate["ratecon_extraction_skipped"])
+        self.assertEqual(bol["candidate_counts_by_field"], {})
+        self.assertEqual(carrier_info["classification"]["document_type"], "DRIVER_CARRIER_INFO_SHEET")
+
+    def test_classification_cli_output_is_safe(self):
+        buffer = io.StringIO()
+
+        with redirect_stdout(buffer):
+            exit_code = main([
+                "--input-dir",
+                str(CLASSIFICATION_FIXTURE_DIR),
+                "--template-dir",
+                str(TEMPLATE_DIR),
+                "--classify-document",
+                "--show-page-roles",
+                "--show-section-roles",
+                "--respect-extraction-scope",
+            ])
+
+        output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("document_type", output)
+        self.assertIn("ratecon_extraction_skipped", output)
+        self.assertNotIn("Alpha Freight Mock", output)
+        self.assertNotIn("Broker MC", output)
 
 
 if __name__ == "__main__":
