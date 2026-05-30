@@ -2,6 +2,8 @@
 
 Date: 2026-05-29
 
+Status update: this is a historical boundary review. The legacy `app/load_intake/` package was later removed after a salvage/delete audit. Active intake work now lives under `app/market_intelligence/intake/`.
+
 Scope:
 
 - audit only
@@ -10,9 +12,9 @@ Scope:
 - no parser expansion
 - no Gmail/email, Google Sheets, Telegram upload, OCR, DAT/API, Google Maps, or scheduler work
 
-## Current Files
+## Historical Files
 
-`app/load_intake/` currently contains:
+Before deletion, `app/load_intake/` contained:
 
 ```text
 broker_engine.py
@@ -40,26 +42,26 @@ mileage.py          28
 broker_engine.py    32
 ```
 
-## Current Activity
+## Historical Activity
 
-`app/load_intake/` appears to be a legacy/prototype intake path, not the active Foundation Hardening runtime path.
+`app/load_intake/` was a legacy/prototype intake path, not the active Foundation Hardening runtime path.
 
-Current active architecture is still centered in:
+Current active intake architecture is centered in:
 
 ```text
-app/market_intelligence/
+app/market_intelligence/intake/
 ```
 
 Import scan findings:
 
-- `app/load_intake/importer.py` imports `parse_ratecon(...)` and `append_load(...)`.
-- `app/load_intake/parser.py` imports the main `MarketLoad` as `Load` for compatibility.
-- `app/load_intake/sheet_writer.py` lazy-imports `gspread` only when a sheet write is requested.
-- Current tests import `app/load_intake` modules to protect import safety.
-- No current `market_intelligence` production flow imports `app/load_intake`.
+- `app/load_intake/importer.py` imported `parse_ratecon(...)` and `append_load(...)`.
+- `app/load_intake/parser.py` imported the main `MarketLoad` as `Load` for compatibility.
+- `app/load_intake/sheet_writer.py` lazy-imported `gspread` only when a sheet write was requested.
+- Legacy tests imported `app/load_intake` modules to protect import safety before deletion.
+- No `market_intelligence` production flow imported `app/load_intake`.
 - `scripts/import_ratecon.py` is a standalone manual script and does not use `app/load_intake/importer.py`.
 
-Relevant protection tests:
+Historical protection tests:
 
 ```text
 tests/test_load_intake_imports.py
@@ -67,9 +69,11 @@ tests/test_load_intake_parser_import.py
 tests/test_manual_sheet_connection_script.py
 ```
 
+The two legacy import tests were removed with the package. `tests/test_manual_sheet_connection_script.py` remains because it covers a separate manual script and does not depend on the deleted package.
+
 ## Responsibility Mixing
 
-`app/load_intake/parser.py` currently mixes several responsibilities:
+`app/load_intake/parser.py` mixed several responsibilities:
 
 - PDF text extraction through `pypdf`
 - broker document field extraction
@@ -81,27 +85,30 @@ tests/test_manual_sheet_connection_script.py
 - reload score adjustment
 - `MarketLoad` creation
 
-`app/load_intake/importer.py` adds another mixed boundary:
+`app/load_intake/importer.py` added another mixed boundary:
 
 - scans `data/ratecons`
 - tracks imported files in `data/imported_loads.txt`
 - parses documents
 - writes loads to Google Sheets
 
-`app/load_intake/sheet_writer.py` is intentionally safer than before because it uses environment settings and delays external imports, but it is still a manual integration boundary.
+`app/load_intake/sheet_writer.py` was intentionally safer than before because it used environment settings and delayed external imports, but it was still a manual integration boundary.
 
 ## Boundary Decision
 
-For now, `app/load_intake/` should stay isolated.
+Deletion is complete. The old package should not be restored or reused.
 
-It should not be deleted yet because:
+Useful label ideas were preserved outside the deleted package in synthetic fixtures and redacted diagnostics docs. The following legacy behaviors are intentionally excluded from the current architecture:
 
-- it documents an early RateCon/manual intake idea
-- tests protect safe import behavior
-- it may contain useful parsing examples for future design
-- manual Google Sheets workflows still exist as legacy candidates
+- Google Sheets writing;
+- parser-to-`MarketLoad` construction;
+- dispatch decision scoring;
+- reload scoring;
+- mileage/zone scoring;
+- broker scoring;
+- direct parser-to-decision flow.
 
-It should not be expanded yet because:
+It should not be reintroduced because:
 
 - raw intake should not own dispatch decisions
 - PDF parsing should not write directly to Google Sheets

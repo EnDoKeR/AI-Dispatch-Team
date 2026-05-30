@@ -493,12 +493,14 @@ Recommended order:
 62. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
 63. Legacy `app/load_intake/` salvage/delete audit is complete.
 64. Safe legacy label candidates are documented and represented with synthetic diagnostics examples.
-65. Recommended next target: anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas.
-66. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
-67. Recommended later cleanup: legacy `app/load_intake/` deprecation/deletion block after impact-test cleanup.
-68. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
-69. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
-70. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
+65. Legacy `app/load_intake/` package and legacy-only import tests are removed.
+66. Active intake path remains `app/market_intelligence/intake/`.
+67. Recommended next target: anonymized synthetic RateCon scenario expansion from observed parser gaps and safe legacy label ideas.
+68. Recommended later target: parser field extraction improvements based on synthetic/fake patterns.
+69. Old Google Sheets, parser-to-`MarketLoad`, decision scoring, reload scoring, zone/mileage scoring, and broker scoring from the deleted package are intentionally not part of the architecture.
+70. Recommended later audit: PDF extraction dependency refinement before adding pdfplumber/PyMuPDF.
+71. Recommended later policy target: OCR strategy audit after text-layer extraction is evaluated.
+72. Avoid live automation, scheduler, dashboard, DAT/API, Google Maps, and RateCon expansion until the relevant foundation layer is ready.
 
 ---
 
@@ -1034,11 +1036,11 @@ Future capabilities:
 
 ## Current next step
 
-After legacy load-intake salvage audit:
+After legacy load-intake deletion cleanup:
 
-1. Keep `app/load_intake/` isolated for now.
-2. Expand anonymized synthetic RateCon scenarios using fake data only.
-3. Include safe legacy label ideas and safe redacted-diagnostics gap categories.
-4. Improve parser patterns only after synthetic examples exist.
-5. Plan any `app/load_intake/` deletion as a separate cleanup block with test/docs updates.
+1. Expand anonymized synthetic RateCon scenarios using fake data only.
+2. Include safe legacy label ideas and safe redacted-diagnostics gap categories.
+3. Improve parser patterns only after synthetic examples exist.
+4. Keep active intake work under `app/market_intelligence/intake/`.
+5. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
 6. Do not start OCR, dependency expansion, Google Sheets reuse, or legacy parser reuse without a separate accepted block.

@@ -2,11 +2,13 @@
 
 Date: 2026-05-30
 
-This audit reviews the legacy `app/load_intake/` prototype now that the current intake architecture lives under `app/market_intelligence/intake/`. It does not delete files, change runtime behavior, process private RateCons, add OCR/PDF parsing behavior, add Google Sheets behavior, create/link DispatchCases, write events, or wire legacy code into active flows.
+This audit reviews the legacy `app/load_intake/` prototype now that the current intake architecture lives under `app/market_intelligence/intake/`.
 
-## Current Legacy Files
+Status update: the legacy package was removed in the follow-up cleanup block after safe label knowledge was preserved and legacy-only import tests were removed. Earlier sections that discuss "current" legacy files document the pre-deletion audit state.
 
-`app/load_intake/` currently contains:
+## Historical Legacy Files
+
+Before deletion, `app/load_intake/` contained:
 
 ```text
 broker_engine.py
@@ -22,23 +24,23 @@ zone_engine.py
 
 ## Current Import Surface
 
-Direct legacy import tests:
+Historical direct legacy import tests:
 
 ```text
 tests/test_load_intake_imports.py
 tests/test_load_intake_parser_import.py
 ```
 
-Current test purpose:
+Historical test purpose:
 
 - verify legacy modules still import without immediate external side effects;
 - verify `sheet_writer.py` uses environment settings and stops before external imports when no Sheet ID is configured;
 - verify `parser.py` still exposes the current `MarketLoad` compatibility constructor as `Load`.
 
-Current app/script imports:
+Historical app/script imports:
 
-- `app/load_intake/importer.py` imports `parse_ratecon(...)` and `append_load(...)` inside the legacy folder.
-- `app/load_intake/parser.py` imports other legacy helper modules and current `app.market_intelligence.market_models.MarketLoad` as `Load`.
+- `app/load_intake/importer.py` imported `parse_ratecon(...)` and `append_load(...)` inside the legacy folder.
+- `app/load_intake/parser.py` imported other legacy helper modules and current `app.market_intelligence.market_models.MarketLoad` as `Load`.
 - No current `app/market_intelligence/intake/` module imports `app/load_intake`.
 - `scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate old manual PDF-to-Google-Sheets flow with similar regex ideas and live external dependencies.
 - `scripts/manual_test_sheet_connection.py` is a separate manual Google Sheets connectivity script and does not depend on `app/load_intake`.
@@ -241,26 +243,25 @@ These should be translated into synthetic/fake examples before any parser behavi
 
 ## Recommendation
 
-Recommended current state:
+Deletion cleanup result:
 
 ```text
-keep temporarily, mark as archived/legacy, salvage label ideas into docs/tests only
+removed after preserving safe label vocabulary
 ```
 
 Rationale:
 
-- the folder is still covered by import compatibility tests;
-- deletion would require test and docs cleanup;
 - the old parser includes useful label hints, but the runtime flow is unsafe for reuse;
-- the current intake architecture is stronger and should remain the source of future work.
+- safe label hints now live in synthetic fixtures/docs;
+- the current intake architecture is stronger and remains the source of future work.
 
-Recommended later sequence:
+Completed sequence:
 
 1. Document safe label candidates from legacy parser patterns.
 2. Create synthetic/fake label examples.
 3. Use redacted diagnostics and synthetic examples to improve new parser behavior.
 4. Create a deletion impact plan.
-5. Delete or archive `app/load_intake/` only in a dedicated cleanup block after tests and docs are updated.
+5. Delete `app/load_intake/` in a dedicated cleanup block after tests and docs are updated.
 
 ## Safe Legacy Parser Label Candidates
 
@@ -446,7 +447,7 @@ Not safe to salvage:
 
 ## Deletion Impact Audit
 
-This section documents what would break if `app/load_intake/` were deleted today. This is an audit only; no files are deleted in this block.
+This section documents what would have broken before deletion. The package and legacy-only import tests have since been removed.
 
 ## Imports That Would Break
 
@@ -583,19 +584,19 @@ docs/LOAD_INTAKE_LEGACY_SALVAGE_AUDIT.md
 
 ## Deletion Recommendation
 
-Do not delete yet.
+Deletion completed in the dedicated cleanup block.
 
 Recommended next safe step:
 
 ```text
-migrate only safe label aliases into synthetic diagnostics/parser tests first, then plan deletion
+expand anonymized synthetic RateCon scenarios from preserved label ideas
 ```
 
 Why:
 
 - useful label ideas exist;
-- deletion would break current legacy import tests;
-- the deletion cleanup is safe but should be explicit and focused;
+- legacy import tests were removed with the package;
+- the deletion cleanup was explicit and focused;
 - parser improvements should happen through synthetic/fake examples, not legacy runtime reuse.
 
 ## Closeout Decision
@@ -608,10 +609,10 @@ Options evaluated:
 4. run private redacted diagnostics locally and share safe summary;
 5. anonymized synthetic RateCon scenario expansion from observed issues.
 
-Decision:
+Decision after cleanup:
 
 ```text
-keep temporarily, salvage label aliases through synthetic examples, then plan deletion cleanup
+legacy package removed; continue with synthetic label-driven parser preparation
 ```
 
 Why:
@@ -619,8 +620,8 @@ Why:
 - safe label vocabulary exists and has already started moving into synthetic diagnostics examples;
 - legacy runtime behavior is unsafe for reuse;
 - active intake architecture does not depend on the legacy folder;
-- deletion would currently break two legacy import tests;
-- deleting the folder should be a later focused cleanup with test/docs updates.
+- legacy-only import tests were removed;
+- the folder was deleted in a focused cleanup with test/docs updates.
 
 Recommended next target:
 
@@ -633,20 +634,6 @@ Recommended later target:
 ```text
 parser field extraction improvements based on synthetic/fake patterns
 ```
-
-Recommended later cleanup:
-
-```text
-app/load_intake deprecation/deletion block
-```
-
-Deletion cleanup should include:
-
-- removing or rewriting `tests/test_load_intake_imports.py`;
-- removing or rewriting `tests/test_load_intake_parser_import.py`;
-- updating legacy docs;
-- confirming no active runtime imports;
-- running full validation.
 
 Still forbidden:
 
@@ -815,3 +802,33 @@ The redacted diagnostics tests verify:
 - diagnostics output does not return fake values, which also protects against returning private values later.
 
 This means legacy label knowledge is safe to keep even after the legacy package is deleted.
+
+## Deletion Status
+
+Completed cleanup:
+
+- removed the legacy `app/load_intake/` package;
+- removed legacy-only import tests:
+  - `tests/test_load_intake_imports.py`;
+  - `tests/test_load_intake_parser_import.py`;
+- kept `tests/test_manual_sheet_connection_script.py` because it covers a separate manual script and does not depend on the removed package;
+- preserved useful label vocabulary in synthetic fixtures and redacted diagnostics docs;
+- kept active intake work under `app/market_intelligence/intake/`.
+
+The following legacy behavior is intentionally not part of the current architecture:
+
+- Google Sheets writer flow;
+- parser-to-`MarketLoad` construction;
+- old decision scoring;
+- old reload scoring;
+- old mileage/zone scoring;
+- old broker scoring;
+- direct parser-to-decision flow.
+
+Current recommendation:
+
+```text
+expand anonymized synthetic RateCon scenarios from observed parser gaps and preserved safe label ideas
+```
+
+Parser improvements should happen only after fake/synthetic scenarios define expected behavior.

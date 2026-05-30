@@ -23,7 +23,7 @@ docs/INTAKE_RECORD_MODEL.md
 
 Current conclusion:
 
-- `app/load_intake/` remains isolated legacy/prototype code.
+- Historical note: `app/load_intake/` was isolated legacy/prototype code at the time of this early decision. It has since been removed after a dedicated salvage/delete cleanup.
 - Future RateCon/document intake should produce structured evidence, not dispatch decisions.
 - The JSON-ready record shape is now documented.
 
@@ -53,7 +53,7 @@ Why this is the safest next step:
 - It does not require PDF/OCR/Gmail/Telegram/Google Sheets integration.
 - It can be fully test-first.
 - It gives future parser work a stable output target.
-- It keeps `app/load_intake/` isolated instead of expanding legacy behavior.
+- It avoided expanding legacy behavior. The former `app/load_intake/` package was later removed after safe label knowledge was preserved.
 
 ## First Helper Scope
 
@@ -2236,9 +2236,11 @@ Completed:
 - redacted diagnostics tests cover the safe legacy label concepts;
 - deletion impact audit documented.
 
-Current status:
+Current status after deletion cleanup:
 
-- `app/load_intake/` remains in place;
+- `app/load_intake/` has been removed;
+- legacy-only import tests were removed;
+- active intake remains under `app/market_intelligence/intake/`;
 - no runtime behavior changed;
 - no legacy code is wired into current intake;
 - no legacy parser is used directly;
@@ -2250,13 +2252,13 @@ Findings:
 
 - useful salvage exists only at the label-vocabulary level;
 - old parser/scoring/storage flow is unsafe for reuse;
-- deletion today would break `tests/test_load_intake_imports.py` and `tests/test_load_intake_parser_import.py`;
-- active `app/market_intelligence/intake/` code does not depend on `app/load_intake/`.
+- safe label vocabulary is preserved in synthetic diagnostics fixtures/docs;
+- active `app/market_intelligence/intake/` code does not depend on deleted `app/load_intake/`.
 
 Options evaluated:
 
-1. delete `app/load_intake/` in a dedicated cleanup block
-2. keep folder but mark archived/legacy
+1. deletion cleanup completed
+2. keep removed legacy flow out of architecture
 3. migrate only safe label aliases into new redacted diagnostics/parser tests
 4. run private redacted diagnostics locally and share safe summary
 5. anonymized synthetic RateCon scenario expansion from observed issues
@@ -2271,8 +2273,8 @@ Why:
 
 - useful label aliases exist;
 - parser improvements should be driven by fake examples, not private text;
-- deletion should wait until safe label ideas are represented outside the legacy folder;
-- this keeps legacy code isolated and avoids runtime behavior changes.
+- safe label ideas are represented outside the deleted legacy folder;
+- this avoids runtime behavior changes and prevents legacy parser/scoring reuse.
 
 Recommended second target:
 
@@ -2281,14 +2283,6 @@ parser field extraction improvements based on synthetic/fake patterns
 ```
 
 Only after synthetic examples define expected behavior.
-
-Recommended later cleanup:
-
-```text
-legacy load_intake deprecation/deletion cleanup block
-```
-
-This should remove or rewrite legacy import tests and update docs before deleting the folder. Do not delete `app/load_intake/` without that focused cleanup.
 
 Useful parallel next step:
 
@@ -2304,6 +2298,6 @@ Not recommended next:
 - direct reuse of legacy regex implementation;
 - reuse of Google Sheets writer;
 - reuse of old decision/reload/zone/mileage/broker scoring;
-- deleting `app/load_intake/` without impact-test cleanup;
+- reintroducing deleted `app/load_intake/` runtime logic;
 - DispatchCase creation/linking/events;
 - OCR, Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, reload-chain metadata, or synthetic 100-200 dataset work.

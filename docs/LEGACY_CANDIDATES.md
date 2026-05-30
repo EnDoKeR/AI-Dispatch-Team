@@ -40,15 +40,15 @@ Recent full test discovery passed with 729 tests.
 
 ---
 
-## 1. `app/load_intake/`
+## 1. Removed: `app/load_intake/`
 
 Candidate status:
 
 ```text
-LEGACY / PROTOTYPE CANDIDATE
+REMOVED AFTER SALVAGE AUDIT
 ```
 
-Files:
+Removed files:
 
 ```text
 app/load_intake/broker_engine.py
@@ -62,7 +62,7 @@ app/load_intake/sheet_writer.py
 app/load_intake/zone_engine.py
 ```
 
-Why this is flagged:
+Why it was flagged:
 
 - `app/load_intake/market_models.py` has a separate simple `MarketLoad` model.
 - `app/market_intelligence/market_models.py` has the current main `MarketLoad` model.
@@ -70,25 +70,26 @@ Why this is flagged:
 - Current architecture says raw intake should parse and normalize data, not own final dispatch decisions.
 - Several `load_intake` modules depend on optional/manual integrations such as `pypdf`, `gspread`, and Google credentials.
 
-Recent safety work already done:
+Deletion cleanup completed:
 
-- `app/load_intake/parser.py` now imports `MarketLoad` safely as `Load`.
-- `app/load_intake/mileage.py` no longer fails to import when `geopy` is not installed.
-- `tests/test_load_intake_parser_import.py` protects parser import compatibility.
-- `tests/test_load_intake_imports.py` protects import compatibility for the current `app/load_intake` modules.
-- `app/load_intake/sheet_writer.py` now reads Google Sheet settings from environment variables and does not import `gspread` until a write is requested.
+- legacy package removed;
+- legacy-only import tests removed;
+- active intake remains under `app/market_intelligence/intake/`;
+- safe label vocabulary preserved in `tests/fixtures/legacy_ratecon_label_examples.py` and redacted diagnostics docs.
 
-Do not do yet:
+Do not reintroduce:
 
-- Do not delete `app/load_intake/`.
-- Do not merge this code into `market_intelligence` without a separate design step.
-- Do not add new dependencies only to support this path unless the workflow is confirmed active.
+- old Google Sheets writer behavior;
+- direct parser-to-`MarketLoad` construction;
+- old dispatch decision scoring;
+- old reload, mileage, zone, or broker scoring;
+- legacy parser code as runtime behavior.
 
 Safe next steps:
 
-1. Use `docs/LOAD_INTAKE_BOUNDARY_REVIEW.md` as the current boundary review.
-2. Decide whether the ratecon parser should become a clean intake-only parser.
-3. Keep decision logic in the decision layer, not in raw intake.
+1. Expand anonymized synthetic RateCon examples using fake data only.
+2. Improve the current parser only against accepted synthetic examples.
+3. Keep decision logic in DecisionEngine foundations, not in raw intake.
 
 ---
 
@@ -106,7 +107,6 @@ Files:
 scripts/manual_test_sheet_connection.py
 scripts/append_document_test_load.py
 scripts/import_ratecon.py
-app/load_intake/sheet_writer.py
 ```
 
 Why this is flagged:
@@ -230,9 +230,10 @@ Safe next steps:
 Use small documentation and safety blocks:
 
 1. Document legacy candidates. Completed by this file.
-2. Add import tests for remaining `app/load_intake` modules. Completed.
-3. Decide whether `app/load_intake/parser.py` should become a pure ratecon intake parser.
+2. Add import tests for remaining `app/load_intake` modules. Completed before deletion.
+3. Delete `app/load_intake/` after salvage/delete audit. Completed.
 4. Clean `.gitignore`. Completed.
-5. Plan encoding cleanup with tests.
+5. Expand anonymized synthetic RateCon scenarios using preserved safe label ideas.
+6. Plan encoding cleanup with tests.
 
 Do not add DAT/API, dashboard, auto-booking, Observer, or live automation as part of this cleanup.

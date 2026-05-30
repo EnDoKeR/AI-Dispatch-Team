@@ -101,9 +101,17 @@ Telegram outbox structured metadata audit
 
 Do not wire new metadata behavior until the audit defines a small compatibility path.
 
-### 4. Legacy intake remains intentionally isolated
+### 4. Legacy intake cleanup is complete
 
-`app/load_intake/` remains a legacy/prototype candidate. It should not be deleted or merged into `market_intelligence` until a separate RateCon/intake design exists.
+The legacy/prototype `app/load_intake/` package has been removed after a dedicated salvage/delete audit and impact-test cleanup.
+
+The active intake path is:
+
+```text
+app/market_intelligence/intake/
+```
+
+Safe legacy label vocabulary was preserved in synthetic fixtures and redacted diagnostics docs. The old Google Sheets, parser-to-`MarketLoad`, mileage/zone/reload/broker scoring, and direct parser-to-decision flow are intentionally not part of the current architecture.
 
 ### 5. Non-chain Telegram metadata foundation is complete enough
 
@@ -132,9 +140,9 @@ Manual Google Sheets testing remains in `scripts/manual_test_sheet_connection.py
 
 ## Recommended next targets
 
-1. `Legacy intake boundary review`
-   - Safe if kept audit-only.
-   - Important because `app/load_intake/` still mixes intake, scoring, and manual integrations.
+1. `Anonymized synthetic RateCon scenario expansion`
+   - Safe if based on fake data only.
+   - Important because parser improvements should be driven by synthetic examples, not private text or deleted legacy runtime code.
 
 2. `Reload-chain DispatchCase policy audit`
    - Important before any reload-chain metadata wiring.
@@ -156,4 +164,4 @@ Do not proceed yet with:
 - Google Maps mileage
 - RateCon parsing expansion
 - DAT/API or live board integration
-- deleting or merging `app/load_intake/`
+- reintroducing deleted `app/load_intake/` runtime logic
