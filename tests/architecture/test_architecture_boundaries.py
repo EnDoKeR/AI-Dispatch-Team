@@ -50,6 +50,10 @@ def string_literals(path):
     return values
 
 
+def source_text(path):
+    return path.read_text(encoding="utf-8-sig")
+
+
 def assert_no_import_prefix(test_case, path, forbidden_prefixes):
     imports = imported_modules(path)
 
@@ -347,6 +351,21 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
         assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_fake_candidate_extraction_cli_has_no_private_path_assumptions(self):
+        source = source_text(SCRIPTS / "run_fake_ratecon_candidate_extraction.py").lower()
+
+        forbidden_fragments = [
+            "data/private_ratecons",
+            "data\\private_ratecons",
+            "private_ratecons",
+            "run_private_ratecon",
+            "export_private_ratecon",
+        ]
+
+        for fragment in forbidden_fragments:
+            with self.subTest(fragment=fragment):
+                self.assertNotIn(fragment, source)
+
     def test_broker_template_modules_do_not_import_business_memory_or_output_layers(self):
         forbidden_prefixes = [
             "app.market_intelligence.decision_engine",
@@ -380,6 +399,44 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         for path in template_files:
             with self.subTest(path=str(path)):
                 assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_document_ai_modules_have_no_private_ratecon_path_coupling(self):
+        forbidden_fragments = [
+            "data/private_ratecons",
+            "data\\private_ratecons",
+            "private_ratecons",
+            "run_private_ratecon",
+            "export_private_ratecon",
+        ]
+
+        for path in python_files(DOCUMENT_AI_PACKAGE):
+            source = source_text(path).lower()
+            for fragment in forbidden_fragments:
+                with self.subTest(path=str(path), fragment=fragment):
+                    self.assertNotIn(fragment, source)
+
+    def test_hard_layout_fixture_helpers_do_not_import_private_flows(self):
+        forbidden_prefixes = [
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "scripts.run_private_ratecon_redacted_diagnostics",
+            "scripts.run_private_ratecon_layout_diagnostics",
+            "scripts.export_private_ratecon_value_review_csv",
+            "app.market_intelligence.intake.ratecon_pdf_dry_run",
+            "app.market_intelligence.intake.pdf_text_extraction",
+        ]
+        helper = (
+            ROOT
+            / "tests"
+            / "fixtures"
+            / "document_ai"
+            / "ratecon_text"
+            / "fixture_loader.py"
+        )
+
+        assert_no_import_prefix(self, helper, forbidden_prefixes)
+        source = source_text(helper).lower()
+        self.assertNotIn("data/private_ratecons", source)
+        self.assertNotIn("private_ratecons", source)
 
 
 if __name__ == "__main__":
