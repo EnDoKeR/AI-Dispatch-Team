@@ -22,6 +22,7 @@ resolver decides whether one value is safe enough to populate a draft intake fie
 fake/anonymized text artifact
 -> document/page/section classification
 -> extraction scope filtering
+-> optional synthetic layout artifact candidate scaffold
 -> FieldCandidate records
 -> CandidateExtractionResult
 -> optional broker template matching / template-aware scoring
@@ -103,6 +104,37 @@ Implemented fake/anonymized candidate families:
 - load number and typed reference candidates;
 - pickup/delivery location, date, and time candidates;
 - equipment, commodity, weight, special requirement, and accessorial-term candidates.
+
+Implemented synthetic layout candidate families:
+
+- layout-aware rate/payment candidates with table, section, and proximity
+  evidence;
+- layout-aware stop candidates for PU/SO sections, pickup/drop rows, route
+  details, and multi-stop tables;
+- layout-aware equipment, weight, commodity, dimensions, and special requirement
+  candidates.
+
+The layout scaffold uses synthetic JSON artifacts only. It does not add a real
+PDF layout provider, OCR, Vision, cloud APIs, or new PDF dependencies.
+
+## Layout Evidence
+
+Layout candidates can carry optional evidence fields in addition to the original
+candidate contract:
+
+- `layout_evidence_ref`
+- `layout_page_number`
+- `layout_bbox`
+- `layout_line_id`
+- `layout_block_id`
+- `layout_table_id`
+- `layout_cell_ref`
+- `layout_section_role`
+- `layout_page_role`
+- `layout_proximity_type`
+
+These fields are evidence for the resolver and diagnostics. They are not final
+field assignments and they do not create DispatchCases.
 
 ## Conservative Resolver Rules
 

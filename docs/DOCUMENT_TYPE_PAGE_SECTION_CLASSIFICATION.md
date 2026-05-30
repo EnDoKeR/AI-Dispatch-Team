@@ -167,9 +167,31 @@ Templates may improve candidate scoring inside allowed scopes. They must not ove
 
 ## Relationship to Layout-Aware Extraction
 
-This block remains text-based and dependency-free. It classifies pages and sections using deterministic labels and line patterns.
+Classification remains the gate before layout-aware extraction. Layout evidence
+must not replace page and section eligibility.
 
-If classification shows that many digital-text pages are still unresolved because table structure or coordinate context is needed, the next block should be a layout-aware digital extraction design checkpoint. That design may evaluate word/block/table evidence and dependencies separately.
+The current layout-aware scaffold is dependency-free and synthetic. It adds
+contracts and fake fixtures for:
+
+- word, line, block, table, and cell artifacts;
+- bounding boxes and reading-order variants;
+- label-value proximity;
+- table/section evidence;
+- rate/payment, stop, and operational-detail candidates.
+
+The intended sequence is:
+
+```text
+classification
+-> extraction scopes
+-> layout artifact
+-> layout-aware candidates
+-> conservative resolver
+```
+
+The scaffold proves candidate behavior with synthetic JSON fixtures only. A real
+PDF layout provider remains a future block after dependency and licensing
+review.
 
 ## Relationship to OCR and Vision
 

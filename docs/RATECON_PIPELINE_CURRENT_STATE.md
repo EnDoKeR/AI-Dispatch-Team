@@ -11,6 +11,7 @@ PDF triage
 -> safe text artifact
 -> document type / page role / section role classification
 -> extraction scope filtering
+-> layout artifact / layout-aware candidates (synthetic scaffold)
 -> generic candidates
 -> broker template matching
 -> template-aware scoring
@@ -32,6 +33,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Safe text artifact | `app/document_ai/text_artifacts.py` | Implemented for fake/anonymized candidate extraction |
 | Document/page/section classification | `app/document_ai/document_classification.py` | Implemented deterministic text classifier |
 | Extraction scope filtering | `app/document_ai/extraction_scope.py` | Implemented page selection before RateCon candidates |
+| Layout artifact scaffold | `app/document_ai/layout_artifacts.py`, `app/document_ai/layout_index.py`, `app/document_ai/layout_proximity.py` | Implemented dependency-free contracts and helpers with synthetic fixtures |
+| Layout-aware candidate scaffold | `app/document_ai/layout_candidate_extraction.py`, `app/document_ai/layout_rate_candidates.py`, `app/document_ai/layout_stop_candidates.py`, `app/document_ai/layout_operational_candidates.py` | Implemented for synthetic layout artifacts only |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -76,11 +79,18 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Safe measurement reports now separate extraction-relevant documents, normal
   load movement documents, TONU/payment confirmations, supplemental-only
   documents, unknown-review documents, and OCR-needed documents.
+- Dependency-free layout artifact contracts, synthetic layout fixtures, layout
+  indexing helpers, label-value proximity helpers, and layout-aware candidate
+  generators for rate/payment, stops, and operational details.
+- Fake-only layout candidate CLI:
+  `scripts/run_fake_layout_candidate_extraction.py`.
 
 ## Scaffolding Only
 
 - PDF triage route values for future OCR/Vision decisioning.
 - ExtractionArtifact method values for future `pdfplumber`, OCR, or Vision.
+- LayoutExtractionArtifact provider boundary for a future real digital-text PDF
+  layout provider. The current implementation uses synthetic JSON fixtures only.
 - Broker template structure for future real broker templates.
 - Event Timeline append points described in docs only.
 - DispatchCase creation from validated intake is not implemented.
@@ -92,7 +102,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Cloud extraction APIs.
 - Production private RateCon parser path.
 - Real broker templates.
-- Layout-aware word/block/table extraction.
+- Real PDF layout provider implementation.
 - Production real broker templates.
 - Broker template privacy review workflow beyond local-only overlay measurement.
 - Candidate field resolver for difficult layout pairing beyond current fake fixtures.
@@ -118,6 +128,18 @@ Current relevant tests include:
   - `tests/test_ratecon_identity_reference_candidates.py`
   - `tests/test_ratecon_stop_candidates.py`
   - `tests/test_ratecon_operational_detail_candidates.py`
+- Layout-aware synthetic scaffold:
+  - `tests/test_layout_artifacts.py`
+  - `tests/test_layout_artifact_fixtures.py`
+  - `tests/test_layout_index.py`
+  - `tests/test_layout_proximity.py`
+  - `tests/test_layout_candidate_adapter.py`
+  - `tests/test_layout_rate_candidates.py`
+  - `tests/test_layout_stop_candidates.py`
+  - `tests/test_layout_operational_candidates.py`
+  - `tests/test_layout_candidate_extraction.py`
+  - `tests/test_layout_resolver_readiness.py`
+  - `tests/test_run_fake_layout_candidate_extraction.py`
 - Broker templates:
   - `tests/test_broker_templates_contract.py`
   - `tests/test_broker_template_fixtures.py`
@@ -140,6 +162,7 @@ Current relevant tests include:
 
 - `py scripts/run_fake_pdf_triage_dry_run.py`
 - `py scripts/run_fake_ratecon_candidate_extraction.py`
+- `py scripts/run_fake_layout_candidate_extraction.py`
 
 These scripts use fake/anonymized fixtures and should not be pointed at private
 RateCons.
@@ -185,19 +208,21 @@ Private value-review CSV output is local-only and ignored.
 - Hard-layout behavior is tested on fake fixtures only and still needs safe
   private measurement before production claims.
 - Calibrated measurement still shows missing and conflicting fields on normal
-  load movement documents; the likely next checkpoint is layout-aware digital
-  extraction and field association, not OCR/Vision by default.
+- Calibrated measurement still shows missing and conflicting fields on normal
+  load movement documents. Dependency-free layout contracts and synthetic
+  candidate generators are now scaffolded, but a real digital-text layout
+  provider is not implemented yet.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after calibrated classification measurement:
+Next safe block after layout-aware synthetic scaffolding:
 
 ```text
-Layout-aware digital extraction design checkpoint for eligible digital-text documents.
+Real layout provider implementation and dependency review result.
 ```
 
-That block should still avoid OCR/Vision unless calibrated measurement shows
-deterministic text and layout-aware local routes are insufficient. OCR remains
-queued for empty-text documents, but it is not the next default block.
+That block should verify provider licensing, Windows install behavior, table and
+coordinate quality, and safe private measurement deltas before adding any
+project-wide dependency. OCR and Vision remain deferred.

@@ -138,6 +138,17 @@ Required coverage for candidate generators and resolvers:
   candidates and do not inflate missing critical field counts.
 - measurement report tests proving normal load movement, TONU, supplemental,
   unknown-review, and OCR-needed denominators stay separate.
+- layout artifact contract tests for bounding boxes, words, lines, blocks,
+  tables, cells, reading-order variants, and evidence refs.
+- synthetic layout fixture tests proving no private PDFs, screenshots, private
+  values, real broker names, or real MC numbers are committed.
+- layout index and label-value proximity tests for reading order, same-row,
+  below-label, section-following, and table-row evidence.
+- layout-aware candidate tests for rate/payment, stop association, operational
+  details, supplemental terms/billing filtering, TONU payment separation, and
+  resolver readiness.
+- fake-only layout CLI tests proving candidate counts are printed without raw
+  fixture text or private values.
 
 ## Broker Template Test Rule
 

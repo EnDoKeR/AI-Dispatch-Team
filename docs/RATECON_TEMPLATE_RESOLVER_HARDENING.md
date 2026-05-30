@@ -94,6 +94,27 @@ Rules:
 
 This layer does not calculate miles and does not call Google Maps.
 
+The layout-aware scaffold adds readiness tests showing that synthetic table-row
+evidence can preserve pickup/delivery association before the resolver runs. The
+resolver still treats multiple strong, different values as conflict/review
+signals. Multi-stop pickup rows are not collapsed into one final pickup value.
+
+## Layout Candidate Readiness
+
+Layout-aware candidates can include page, section, table, cell, bbox, and
+proximity evidence. The resolver does not treat that evidence as permission to
+be optimistic:
+
+- rate amounts from rate-summary sections can resolve when unambiguous;
+- legal/terms/quick-pay/accessorial amounts are not main rate candidates by
+  default;
+- TONU payments remain separate from normal linehaul rate;
+- low-confidence layout money routes to review;
+- conflicting table-derived stop values remain conflicts.
+
+Real provider extraction is not implemented in this hardening layer. Current
+layout readiness tests use synthetic fixtures only.
+
 ## Broker Identity
 
 Broker identity hardening separates broker templates from broker memory.

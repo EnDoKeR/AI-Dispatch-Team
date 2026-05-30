@@ -316,6 +316,29 @@ default block. The next likely block is layout-aware digital extraction and
 field association for the 6 normal load movement text documents, while TONU
 stays on a separate payment/status path.
 
+## Layout-Aware Scaffold Status
+
+The layout-aware digital extraction scaffold is dependency-free and fake-only.
+It adds:
+
+- `LayoutExtractionArtifact` contracts for pages, words, lines, blocks, tables,
+  cells, reading order variants, and evidence refs;
+- synthetic layout fixtures under
+  `tests/fixtures/document_ai/layout_artifacts/`;
+- layout indexing and label-value proximity helpers;
+- layout-aware rate/payment, stop, and operational-detail candidates;
+- a fake-only CLI:
+  `py scripts/run_fake_layout_candidate_extraction.py`.
+
+This scaffold does not read private PDFs and does not add a real layout
+provider. Safe private measurement should not use layout-aware provider output
+until a future provider implementation block has completed dependency review.
+
+When a provider exists, private measurement should compare only status deltas:
+candidate counts, field statuses, blocker categories, warning codes, and
+eligible denominators. It must still not print or save raw private text or
+private field values.
+
 ## How To Interpret Measurement
 
 Mostly `OCR_NEEDED`:
