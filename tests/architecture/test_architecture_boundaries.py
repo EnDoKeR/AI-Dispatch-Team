@@ -438,6 +438,88 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("data/private_ratecons", source)
         self.assertNotIn("private_ratecons", source)
 
+    def test_private_measurement_modules_do_not_import_business_or_cloud_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        private_measurement_files = [
+            DOCUMENT_AI_PACKAGE / "private_measurement.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_inputs.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
+        ]
+
+        for path in private_measurement_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_private_measurement_modules_do_not_emit_dispatch_recommendations(self):
+        forbidden_literals = {
+            "ACCEPT",
+            "REJECT",
+            "REVIEW_ONCE",
+            "BOOK",
+            "BLOCK",
+        }
+        private_measurement_files = [
+            DOCUMENT_AI_PACKAGE / "private_measurement.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
+        ]
+
+        for path in private_measurement_files:
+            literals = set(string_literals(path))
+            for literal in forbidden_literals:
+                with self.subTest(path=str(path), literal=literal):
+                    self.assertNotIn(literal, literals)
+
+    def test_private_measurement_output_writer_rejects_raw_text_fields(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py")
+
+        self.assertIn('"raw_text"', source)
+        self.assertIn("unsafe output field detected", source)
+
+    def test_private_measurement_cli_requires_explicit_confirmation(self):
+        path = SCRIPTS / "run_private_ratecon_measurement.py"
+        source = source_text(path)
+
+        assert_no_import_prefix(
+            self,
+            path,
+            [
+                "scripts.import_ratecon",
+                "scripts.read_ratecon",
+                "app.market_intelligence.dispatch_case",
+                "app.market_intelligence.decision_engine",
+                "app.market_intelligence.telegram",
+                "openai",
+                "pytesseract",
+                "easyocr",
+                "googleapiclient",
+            ],
+        )
+        self.assertIn("--confirm-private-local-run", source)
+        self.assertIn("Refusing to run", source)
+
 
 if __name__ == "__main__":
     unittest.main()
