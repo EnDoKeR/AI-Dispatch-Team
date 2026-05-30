@@ -8,7 +8,7 @@ making dispatch recommendations.
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
-    CANDIDATE_CONFIDENCE_MEDIUM,
+CANDIDATE_CONFIDENCE_MEDIUM,
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_COMMODITY,
@@ -59,6 +59,10 @@ CONFIDENCE_RANKS = {
     CANDIDATE_CONFIDENCE_LOW: 1,
 }
 MIN_RESOLVE_CONFIDENCE_RANK = CONFIDENCE_RANKS[CANDIDATE_CONFIDENCE_MEDIUM]
+REVIEW_WARNING_MARKERS = {
+    "template_negative_label_seen",
+    "accessorial_label_not_main_rate",
+}
 
 
 def _normalize_list(value):
@@ -198,11 +202,24 @@ def _resolution_for_field(field_name, candidates):
     best = sorted_candidates[0]
     best_rank = _candidate_confidence_rank(best)
     best_value = _candidate_value(best)
+    best_warnings = set(best.get("warnings", []))
     evidence_refs = [
         evidence_ref
         for evidence_ref in [_candidate_evidence_ref(best)]
         if evidence_ref
     ]
+
+    if best_warnings.intersection(REVIEW_WARNING_MARKERS):
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["candidate_warning_requires_review"],
+            evidence_refs=evidence_refs,
+            warnings=best.get("warnings", []),
+        )
 
     if best_rank < MIN_RESOLVE_CONFIDENCE_RANK:
         return build_field_resolution(
@@ -289,3 +306,38 @@ def resolve_ratecon_fields(candidate_result, field_names=None):
         warnings=candidate_result.get("warnings", []),
         resolver_version=RATECON_GENERIC_RESOLVER_VERSION,
     )
+
+
+def resolve_ratecon_fields_with_template_context(template_aware_result, field_names=None):
+    template_selection = template_aware_result.get("template_selection_result", {})
+    template_status = template_selection.get("status", "")
+    trusted_template = template_status == "matched"
+    candidate_result = (
+        template_aware_result.get("adjusted_candidate_result", {})
+        if trusted_template
+        else template_aware_result.get("base_candidate_result", {})
+    )
+    result = resolve_ratecon_fields(candidate_result, field_names=field_names)
+    warnings = list(result.get("warnings", []))
+    needs_check_fields = list(result.get("needs_check_fields", []))
+
+    if template_status in ["conflict", "low_confidence"]:
+        if "template_match" not in needs_check_fields:
+            needs_check_fields.append("template_match")
+        warnings.append(f"template_match_{template_status}")
+    elif not trusted_template:
+        warnings.append("generic_resolution_without_template")
+
+    result["needs_check_fields"] = needs_check_fields
+    result["warnings"] = sorted(set(warnings))
+    result["template_match_status"] = template_status
+    result["selected_template_id"] = (
+        template_selection.get("selected_template_id", "") if trusted_template else ""
+    )
+    result["selected_broker_key"] = (
+        template_selection.get("selected_broker_key", "") if trusted_template else ""
+    )
+    result["template_match_confidence"] = template_selection.get("selected_confidence", 0.0)
+    result["template_context_used"] = trusted_template
+
+    return result

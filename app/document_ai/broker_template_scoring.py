@@ -60,6 +60,28 @@ def _field_rules(template, field_name):
     ]
 
 
+def _stop_section_label_delta(candidate, template):
+    field_name = candidate.get("field_name", "")
+    context = _normalize(_candidate_text(candidate))
+    delta = 0.0
+    reasons = []
+
+    for rule in template.get("stop_section_rules", []):
+        if field_name.startswith("pickup_"):
+            labels = rule.get("pickup_labels", []) + rule.get("appointment_labels", [])
+        elif field_name.startswith("delivery_"):
+            labels = rule.get("delivery_labels", []) + rule.get("appointment_labels", [])
+        else:
+            labels = []
+
+        for label in labels:
+            if _normalize(label) and _normalize(label) in context:
+                delta += 0.1
+                _append_once(reasons, f"template_stop_label:{label}")
+
+    return delta, reasons
+
+
 def _append_once(values, value):
     if value and value not in values:
         values.append(value)
@@ -147,6 +169,11 @@ def _candidate_delta(candidate, template):
                 delta -= 0.3
                 _append_once(reasons, f"template_accessorial_label:{label}")
                 _append_once(warnings, "accessorial_label_not_main_rate")
+
+    stop_delta, stop_reasons = _stop_section_label_delta(candidate, template)
+    delta += stop_delta
+    for reason in stop_reasons:
+        _append_once(reasons, reason)
 
     return delta, reasons, warnings
 
