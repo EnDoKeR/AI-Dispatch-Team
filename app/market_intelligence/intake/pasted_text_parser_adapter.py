@@ -44,12 +44,20 @@ LABEL_MAPPINGS = {
     "total carrier pay": ("rate", HIGH),
     "carrier pay": ("rate", MEDIUM),
     "linehaul total": ("rate", MEDIUM),
+    "shipper": ("pickup_location", MEDIUM),
+    "shipper information": ("pickup_location", MEDIUM),
     "pickup": ("pickup_location", HIGH),
+    "pick up": ("pickup_location", HIGH),
+    "pu": ("pickup_location", MEDIUM),
     "pickup location": ("pickup_location", HIGH),
     "pickup date": ("pickup_date", HIGH),
     "pickup time": ("pickup_time", HIGH),
     "pickup window": ("pickup_time", MEDIUM),
+    "consignee": ("delivery_location", MEDIUM),
+    "consignee information": ("delivery_location", MEDIUM),
+    "receiver": ("delivery_location", MEDIUM),
     "delivery": ("delivery_location", HIGH),
+    "drop": ("delivery_location", MEDIUM),
     "delivery location": ("delivery_location", HIGH),
     "delivery date": ("delivery_date", HIGH),
     "delivery time": ("delivery_time", HIGH),
@@ -88,6 +96,41 @@ RATE_REVIEW_LABELS = {
     "lumper fee",
     "tonu",
     "tonu fee",
+}
+
+PICKUP_BLOCK_LABELS = {
+    "shipper",
+    "shipper information",
+    "pickup",
+    "pick up",
+    "pickup location",
+    "pu",
+}
+
+DELIVERY_BLOCK_LABELS = {
+    "consignee",
+    "consignee information",
+    "receiver",
+    "delivery",
+    "delivery location",
+    "drop",
+}
+
+BLOCK_ADDRESS_LABELS = {
+    "address",
+    "location",
+}
+
+DATETIME_LABELS = {
+    "pickup time": ("pickup_date", "pickup_time", HIGH),
+    "pick up time": ("pickup_date", "pickup_time", MEDIUM),
+    "pickup window": ("pickup_date", "pickup_time", MEDIUM),
+    "pickup appointment": ("pickup_date", "pickup_time", MEDIUM),
+    "pickup appt": ("pickup_date", "pickup_time", MEDIUM),
+    "delivery time": ("delivery_date", "delivery_time", HIGH),
+    "delivery window": ("delivery_date", "delivery_time", MEDIUM),
+    "delivery appointment": ("delivery_date", "delivery_time", MEDIUM),
+    "delivery appt": ("delivery_date", "delivery_time", MEDIUM),
 }
 
 
@@ -147,6 +190,20 @@ def parse_special_requirements(value):
     ]
 
 
+def extract_date_time_parts(value):
+    text = str(value or "").strip()
+    date_match = re.search(r"\b\d{4}-\d{2}-\d{2}\b", text)
+
+    if not date_match:
+        return "", text
+
+    date_text = date_match.group(0)
+    time_text = (text[: date_match.start()] + text[date_match.end() :]).strip()
+    time_text = re.sub(r"^[,\s-]+|[,\s-]+$", "", time_text)
+
+    return date_text, time_text
+
+
 def set_field(output, field_name, value, confidence):
     if value in ["", None]:
         return
@@ -178,7 +235,76 @@ def set_field(output, field_name, value, confidence):
     output["field_confidence"][field_name] = confidence
 
 
+def apply_datetime_label(output, label, value):
+    mapping = DATETIME_LABELS.get(label)
+
+    if not mapping:
+        return False
+
+    date_field, time_field, confidence = mapping
+    date_text, time_text = extract_date_time_parts(value)
+
+    if date_text:
+        set_field(output, date_field, date_text, confidence)
+
+    if time_text:
+        set_field(output, time_field, time_text, confidence)
+
+    if not date_text and not time_text:
+        set_field(output, time_field, value, confidence)
+
+    return True
+
+
+def block_for_label(label):
+    if label in PICKUP_BLOCK_LABELS:
+        return "pickup"
+
+    if label in DELIVERY_BLOCK_LABELS:
+        return "delivery"
+
+    return ""
+
+
+def apply_block_address(output, active_block, label, value):
+    if label not in BLOCK_ADDRESS_LABELS or not active_block:
+        return False
+
+    if active_block == "pickup":
+        set_field(output, "pickup_location", value, MEDIUM)
+        return True
+
+    if active_block == "delivery":
+        set_field(output, "delivery_location", value, MEDIUM)
+        return True
+
+    return False
+
+
+def is_multi_stop_label(label):
+    return bool(
+        re.fullmatch(r"(pu|pickup|pick up|drop|delivery|del)\s*\d+", label)
+        or re.fullmatch(r"stop\s*\d+", label)
+    )
+
+
+def apply_multi_stop_signal(output, label):
+    if not is_multi_stop_label(label):
+        return False
+
+    append_special_requirement(output, "MULTI_STOP_NEEDS_REVIEW")
+    append_special_requirement(output, "STOP_DETAILS_NEED_REVIEW")
+    output["field_confidence"]["special_requirements"] = LOW
+    return True
+
+
 def apply_label_value(output, label, value):
+    if apply_multi_stop_signal(output, label):
+        return
+
+    if apply_datetime_label(output, label, value):
+        return
+
     if label in SPECIAL_REQUIREMENT_LABELS:
         for requirement in parse_special_requirements(value):
             append_special_requirement(output, requirement)
@@ -241,11 +367,20 @@ def apply_ambiguous_context(output, text):
 def parse_pasted_text_to_parser_output(text):
     output = empty_parser_output()
     output["source_type"] = "manual_pasted_text"
+    active_block = ""
 
     for raw_line in str(text or "").splitlines():
         label, value = split_label_value(raw_line)
 
         if not label:
+            continue
+
+        next_block = block_for_label(label)
+
+        if next_block:
+            active_block = next_block
+
+        if apply_block_address(output, active_block, label, value):
             continue
 
         apply_label_value(output, label, value)

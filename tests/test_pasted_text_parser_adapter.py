@@ -131,6 +131,80 @@ Equipment: Flatbed
         self.assertEqual(parsed["field_confidence"]["pickup_time"], "MEDIUM")
         self.assertEqual(parsed["field_confidence"]["delivery_time"], "MEDIUM")
 
+    def test_shipper_and_consignee_blocks_extract_locations_conservatively(self):
+        text = """
+Broker: Synthetic Block Broker
+Broker MC: MC000000
+Rate: 3000
+Reference #: FAKE-BLOCK-001
+Shipper Information:
+Name: FAKE SHIPPER LLC
+Address: Fake City, ST 00000
+Pick Up Time: 2026-10-01 08:00-12:00
+Consignee Information:
+Name: FAKE CONSIGNEE LLC
+Address: Fake Town, ST 00000
+Delivery Time: 2026-10-03 09:00-11:00
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Conestoga
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-10-01")
+        self.assertEqual(parsed["pickup_time"], "08:00-12:00")
+        self.assertEqual(parsed["delivery_date"], "2026-10-03")
+        self.assertEqual(parsed["delivery_time"], "09:00-11:00")
+        self.assertEqual(parsed["field_confidence"]["pickup_location"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["delivery_location"], "MEDIUM")
+
+    def test_pickup_delivery_label_variants_extract_locations(self):
+        text = """
+Broker: Synthetic Location Broker
+Broker MC: MC000000
+Rate: 3100
+Reference #: FAKE-BLOCK-002
+PU: Fake City, ST
+Pickup Date: 2026-10-04
+Drop: Fake Town, ST
+Delivery Date: 2026-10-05
+Commodity: FAKE PRODUCT
+Weight: 39000
+Equipment: Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST")
+        self.assertEqual(parsed["field_confidence"]["pickup_location"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["delivery_location"], "MEDIUM")
+
+    def test_multi_stop_labels_create_review_signal_without_routing(self):
+        text = """
+Broker: Synthetic Multi Stop Broker
+Broker MC: MC000000
+Rate: 4300
+Reference #: FAKE-BLOCK-003
+PU1: Fake City, ST
+PU2: Fake City, ST
+Drop 1: Fake Town, ST
+Drop 2: Fake Town, ST
+Pickup Date: 2026-10-06
+Delivery Date: 2026-10-08
+Commodity: FAKE PRODUCT
+Weight: 41000
+Equipment: Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["pickup_location"], "")
+        self.assertEqual(parsed["delivery_location"], "")
+        self.assertIn("MULTI_STOP_NEEDS_REVIEW", parsed["special_requirements"])
+        self.assertIn("STOP_DETAILS_NEED_REVIEW", parsed["special_requirements"])
+        self.assertEqual(parsed["field_confidence"]["special_requirements"], "LOW")
+
     def test_special_requirements_extracted_as_list(self):
         self.assert_expected_fields("special_requirements")
         self.assert_expected_fields("conestoga_specific")
