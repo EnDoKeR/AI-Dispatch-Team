@@ -12,5 +12,5 @@ Equipment: Flatbed
 Commodity: FAKE STEEL PARTS
 Weight: 45,000 lbs
 
-Notes: tarp required, straps required, chains required, driver assist, no touch, appointment required, load bars
+Notes: tarp required, straps required, chains required, driver assist, no touch, appointment required, load bars, must call before pickup, check in with pickup number
 Accessorial: detention requires written approval

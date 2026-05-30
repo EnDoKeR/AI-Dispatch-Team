@@ -86,6 +86,21 @@ class RateConOperationalDetailCandidatesTests(unittest.TestCase):
             any("detention" in candidate["raw_value"].lower() for candidate in accessorial_terms)
         )
 
+    def test_buried_special_requirements_from_notes_are_preserved(self):
+        artifact = build_fixture_text_artifact("buried_special_requirements_ratecon.txt")
+
+        requirements = self._field_candidates(
+            generate_operational_detail_candidates(artifact),
+            FIELD_SPECIAL_REQUIREMENT,
+        )
+        values = {candidate["normalized_value"] for candidate in requirements}
+
+        self.assertIn("tarp required", values)
+        self.assertIn("straps required", values)
+        self.assertIn("chains required", values)
+        self.assertIn("must call before pickup", values)
+        self.assertIn("check in with pickup number", values)
+
     def test_missing_weight_is_not_invented(self):
         artifact = build_text_extraction_artifact_for_candidates(
             full_text=(

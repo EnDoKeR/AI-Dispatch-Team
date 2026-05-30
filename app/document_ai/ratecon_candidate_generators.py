@@ -140,7 +140,8 @@ EQUIPMENT_PATTERN = re.compile(
 SPECIAL_REQUIREMENT_PATTERN = re.compile(
     r"\b(?P<requirement>tarp required|no tarp|straps required|chains required|"
     r"appointment required|driver assist|team required|temperature control|"
-    r"load bars|no touch|hazmat)\b",
+    r"load bars|no touch|hazmat|must call before pickup|"
+    r"check in with pickup number|liftgate)\b",
     re.IGNORECASE,
 )
 
