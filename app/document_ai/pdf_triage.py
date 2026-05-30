@@ -1,6 +1,8 @@
 """Safe local PDF triage without OCR, Vision, or raw text output."""
 
+from contextlib import redirect_stderr
 from importlib import import_module
+from io import StringIO
 from pathlib import Path
 
 from app.document_ai.pdf_triage_contract import (
@@ -34,7 +36,8 @@ def _safe_pages(reader):
 
 def _extract_page_text(page, page_number, warnings):
     try:
-        return page.extract_text() or ""
+        with redirect_stderr(StringIO()):
+            return page.extract_text() or ""
     except Exception as exc:  # pragma: no cover - extractor-specific failure
         warnings.append(f"page_{page_number}_text_extract_failed:{exc.__class__.__name__}")
         return ""
@@ -116,7 +119,8 @@ def triage_pdf(path, document_id=None):
         )
 
     try:
-        reader = pdf_reader(str(file_path))
+        with redirect_stderr(StringIO()):
+            reader = pdf_reader(str(file_path))
     except Exception as exc:
         return build_pdf_triage_result(
             document_id=document_id or "",
