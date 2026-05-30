@@ -1,0 +1,14 @@
+{
+  "fixture_name": "fake_multi_stop_three_rows",
+  "stop_groups": [
+    {"stop_group_id": "group_stop_1", "stop_sequence": 1, "stop_type": "pickup", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_MULTI", "row_index": 1, "field_candidates": [{"candidate_id": "stop_1_location", "field_name": "location", "evidence_ref": {"table_id": "T_MULTI", "cell_ref": "r1c2"}, "confidence": 0.9}], "confidence": 0.9, "warning_codes": []},
+    {"stop_group_id": "group_stop_2", "stop_sequence": 2, "stop_type": "delivery", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_MULTI", "row_index": 2, "field_candidates": [{"candidate_id": "stop_2_location", "field_name": "location", "evidence_ref": {"table_id": "T_MULTI", "cell_ref": "r2c2"}, "confidence": 0.9}], "confidence": 0.9, "warning_codes": []},
+    {"stop_group_id": "group_stop_3", "stop_sequence": 3, "stop_type": "delivery", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_MULTI", "row_index": 3, "field_candidates": [{"candidate_id": "stop_3_location", "field_name": "location", "evidence_ref": {"table_id": "T_MULTI", "cell_ref": "r3c2"}, "confidence": 0.9}], "confidence": 0.9, "warning_codes": []}
+  ],
+  "expected": {
+    "normalized_stop_count": 3,
+    "pickup_count": 1,
+    "delivery_count": 2,
+    "preserve_multi_stop": true
+  }
+}

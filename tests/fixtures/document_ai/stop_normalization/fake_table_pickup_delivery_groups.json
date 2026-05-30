@@ -1,0 +1,45 @@
+{
+  "fixture_name": "fake_table_pickup_delivery_groups",
+  "stop_groups": [
+    {
+      "stop_group_id": "group_pickup_row",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "table_row",
+      "page_number": 1,
+      "section_role": "STOP_TABLE",
+      "table_id": "T_STOPS",
+      "row_index": 1,
+      "field_candidates": [
+        {"candidate_id": "pickup_location_row", "field_name": "location", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r1c2"}, "confidence": 0.95},
+        {"candidate_id": "pickup_date_row", "field_name": "date", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r1c3"}, "confidence": 0.95},
+        {"candidate_id": "pickup_time_row", "field_name": "time", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r1c4"}, "confidence": 0.9}
+      ],
+      "confidence": 0.95,
+      "warning_codes": []
+    },
+    {
+      "stop_group_id": "group_delivery_row",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "table_row",
+      "page_number": 1,
+      "section_role": "STOP_TABLE",
+      "table_id": "T_STOPS",
+      "row_index": 2,
+      "field_candidates": [
+        {"candidate_id": "delivery_location_row", "field_name": "location", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r2c2"}, "confidence": 0.95},
+        {"candidate_id": "delivery_date_row", "field_name": "date", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r2c3"}, "confidence": 0.95},
+        {"candidate_id": "delivery_time_row", "field_name": "time", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r2c4"}, "confidence": 0.9}
+      ],
+      "confidence": 0.95,
+      "warning_codes": []
+    }
+  ],
+  "expected": {
+    "normalized_stop_count": 2,
+    "pickup_count": 1,
+    "delivery_count": 1,
+    "review_required": false
+  }
+}

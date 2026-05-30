@@ -1,0 +1,11 @@
+{
+  "fixture_name": "fake_terms_payment_noise_groups",
+  "stop_groups": [
+    {"stop_group_id": "group_terms_date", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 3, "section_role": "LEGAL_TERMS", "table_id": "", "row_index": "", "field_candidates": [{"candidate_id": "terms_date", "field_name": "date", "evidence_ref": {"page_number": 3, "block_id": "B_TERMS"}, "confidence": 0.4}], "confidence": 0.35, "warning_codes": ["terms_noise"]},
+    {"stop_group_id": "group_quickpay_ref", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 3, "section_role": "QUICK_PAY", "table_id": "", "row_index": "", "field_candidates": [{"candidate_id": "quickpay_reference", "field_name": "reference", "evidence_ref": {"page_number": 3, "block_id": "B_PAY"}, "confidence": 0.4}], "confidence": 0.35, "warning_codes": ["payment_terms_noise"]}
+  ],
+  "expected": {
+    "normalized_stop_count": 0,
+    "noise_removed_count": 2
+  }
+}

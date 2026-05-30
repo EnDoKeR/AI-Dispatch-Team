@@ -1,0 +1,12 @@
+{
+  "fixture_name": "fake_signature_footer_noise_groups",
+  "stop_groups": [
+    {"stop_group_id": "group_signature_noise", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 2, "section_role": "SIGNATURE_BLOCK", "table_id": "", "row_index": "", "field_candidates": [], "confidence": 0.3, "warning_codes": ["signature"]},
+    {"stop_group_id": "group_footer_noise", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 2, "section_role": "UNKNOWN", "table_id": "", "row_index": "", "field_candidates": [], "confidence": 0.2, "warning_codes": ["page_footer"]},
+    {"stop_group_id": "group_pickup_real", "stop_sequence": 1, "stop_type": "pickup", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_STOPS", "row_index": 1, "field_candidates": [{"candidate_id": "pickup_location_real", "field_name": "location", "evidence_ref": {"table_id": "T_STOPS", "cell_ref": "r1c2"}, "confidence": 0.9}], "confidence": 0.9, "warning_codes": []}
+  ],
+  "expected": {
+    "noise_removed_count": 2,
+    "normalized_stop_count": 1
+  }
+}

@@ -1,0 +1,12 @@
+{
+  "fixture_name": "fake_ambiguous_stop_type_groups",
+  "stop_groups": [
+    {"stop_group_id": "group_unknown_1", "stop_sequence": 1, "stop_type": "unknown", "source": "section_block", "page_number": 1, "section_role": "MULTI_STOP_SECTION", "table_id": "", "row_index": "", "field_candidates": [{"candidate_id": "unknown_location_1", "field_name": "location", "evidence_ref": {"page_number": 1, "line_id": "L_STOP_1"}, "confidence": 0.6}], "confidence": 0.55, "warning_codes": ["ambiguous_stop_type"]},
+    {"stop_group_id": "group_unknown_2", "stop_sequence": 2, "stop_type": "unknown", "source": "section_block", "page_number": 1, "section_role": "MULTI_STOP_SECTION", "table_id": "", "row_index": "", "field_candidates": [{"candidate_id": "unknown_location_2", "field_name": "location", "evidence_ref": {"page_number": 1, "line_id": "L_STOP_2"}, "confidence": 0.6}], "confidence": 0.55, "warning_codes": ["ambiguous_stop_type"]}
+  ],
+  "expected": {
+    "normalized_stop_count": 2,
+    "unknown_count": 2,
+    "review_required": true
+  }
+}

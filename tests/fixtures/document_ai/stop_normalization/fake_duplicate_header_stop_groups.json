@@ -1,0 +1,56 @@
+{
+  "fixture_name": "fake_duplicate_header_stop_groups",
+  "stop_groups": [
+    {
+      "stop_group_id": "group_pickup_header_1",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "PICKUP_SECTION",
+      "table_id": "",
+      "row_index": "",
+      "field_candidates": [
+        {"candidate_id": "pickup_location_1", "field_name": "location", "evidence_ref": {"page_number": 1, "line_id": "L_PICK_1"}, "confidence": 0.9}
+      ],
+      "confidence": 0.85,
+      "warning_codes": []
+    },
+    {
+      "stop_group_id": "group_pickup_header_2",
+      "stop_sequence": 1,
+      "stop_type": "pickup",
+      "source": "section_block",
+      "page_number": 2,
+      "section_role": "PICKUP_SECTION",
+      "table_id": "",
+      "row_index": "",
+      "field_candidates": [
+        {"candidate_id": "pickup_location_1_dup", "field_name": "location", "evidence_ref": {"page_number": 2, "line_id": "L_PICK_1_DUP"}, "confidence": 0.7}
+      ],
+      "confidence": 0.65,
+      "warning_codes": ["repeated_header"]
+    },
+    {
+      "stop_group_id": "group_delivery_1",
+      "stop_sequence": 2,
+      "stop_type": "delivery",
+      "source": "section_block",
+      "page_number": 1,
+      "section_role": "DELIVERY_SECTION",
+      "table_id": "",
+      "row_index": "",
+      "field_candidates": [
+        {"candidate_id": "delivery_location_1", "field_name": "location", "evidence_ref": {"page_number": 1, "line_id": "L_DEL_1"}, "confidence": 0.9}
+      ],
+      "confidence": 0.85,
+      "warning_codes": []
+    }
+  ],
+  "expected": {
+    "normalized_stop_count": 2,
+    "pickup_count": 1,
+    "delivery_count": 1,
+    "duplicate_removed_count": 1
+  }
+}

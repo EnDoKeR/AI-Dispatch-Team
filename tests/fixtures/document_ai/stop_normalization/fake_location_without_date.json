@@ -1,0 +1,11 @@
+{
+  "fixture_name": "fake_location_without_date",
+  "stop_groups": [
+    {"stop_group_id": "group_pickup_no_date", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "table_id": "", "row_index": "", "field_candidates": [{"candidate_id": "pickup_location_no_date", "field_name": "location", "evidence_ref": {"page_number": 1, "block_id": "B_PICK"}, "confidence": 0.8}], "confidence": 0.8, "warning_codes": []}
+  ],
+  "expected": {
+    "normalized_stop_count": 1,
+    "missing_fields": ["date"],
+    "no_invented_date": true
+  }
+}
