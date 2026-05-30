@@ -7,6 +7,10 @@ from app.document_ai.stop_association import (
     STOP_FIELD_LOCATION,
     STOP_FIELD_REFERENCE,
     STOP_FIELD_TIME,
+    STOP_TYPE_DELIVERY,
+    STOP_TYPE_PICKUP,
+    STOP_TYPE_STOP,
+    STOP_TYPE_UNKNOWN,
 )
 
 
@@ -14,6 +18,8 @@ NOISE_WARNING_SIGNATURE = "stop_group_noise_signature_or_certificate"
 NOISE_WARNING_TERMS = "stop_group_noise_terms_or_billing"
 NOISE_WARNING_HEADER_FOOTER = "stop_group_noise_header_footer"
 DEDUP_WARNING_DUPLICATE = "duplicate_stop_group_removed"
+SEQUENCE_WARNING_INFERRED = "stop_sequence_inferred_from_layout_order"
+TYPE_WARNING_AMBIGUOUS = "stop_type_ambiguous_review_required"
 
 _SIGNATURE_SECTIONS = {"SIGNATURE_BLOCK", "CERTIFICATE_SIGNATURE_BLOCK"}
 _TERMS_SECTIONS = {
@@ -30,6 +36,10 @@ _MEANINGFUL_STOP_FIELDS = {
     STOP_FIELD_TIME,
     STOP_FIELD_REFERENCE,
 }
+
+_PICKUP_SECTIONS = {"PICKUP_SECTION"}
+_DELIVERY_SECTIONS = {"DELIVERY_SECTION"}
+_MULTI_STOP_SECTIONS = {"MULTI_STOP_SECTION", "STOP_TABLE"}
 
 
 def _text(value):
@@ -192,3 +202,152 @@ def dedupe_stop_groups(stop_groups):
         "removed_count": len(removed),
         "warning_codes": sorted(set(warnings)),
     }
+
+
+def _to_int_or_blank(value):
+    text = _text(value)
+    if not text:
+        return ""
+    try:
+        return int(text)
+    except ValueError:
+        digits = "".join(char for char in text if char.isdigit())
+        return int(digits) if digits else ""
+
+
+def resolve_stop_type(stop_group):
+    """Resolve stop type without forcing ambiguous groups into pickup/delivery."""
+
+    group = stop_group or {}
+    current = _text(group.get("stop_type")).lower()
+    section = _section(group)
+    warnings = []
+    reasons = []
+
+    if current in {STOP_TYPE_PICKUP, STOP_TYPE_DELIVERY, STOP_TYPE_STOP}:
+        reasons.append("explicit_stop_type")
+        return {
+            "stop_type": current,
+            "confidence": "HIGH",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
+
+    if section in _PICKUP_SECTIONS:
+        reasons.append("pickup_section_role")
+        return {
+            "stop_type": STOP_TYPE_PICKUP,
+            "confidence": "MEDIUM",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
+
+    if section in _DELIVERY_SECTIONS:
+        reasons.append("delivery_section_role")
+        return {
+            "stop_type": STOP_TYPE_DELIVERY,
+            "confidence": "MEDIUM",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
+
+    if section in _MULTI_STOP_SECTIONS:
+        warnings.append(TYPE_WARNING_AMBIGUOUS)
+        reasons.append("multi_stop_section_without_type")
+        return {
+            "stop_type": STOP_TYPE_UNKNOWN,
+            "confidence": "LOW",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
+
+    warnings.append(TYPE_WARNING_AMBIGUOUS)
+    return {
+        "stop_type": STOP_TYPE_UNKNOWN,
+        "confidence": "LOW",
+        "reasons": ["no_stop_type_signal"],
+        "warning_codes": warnings,
+    }
+
+
+def infer_stop_sequence(stop_group, surrounding_groups=None):
+    """Infer a sequence using explicit sequence, table row, then layout order."""
+
+    group = stop_group or {}
+    explicit = _to_int_or_blank(group.get("stop_sequence"))
+    if explicit != "":
+        return {
+            "sequence": explicit,
+            "confidence": "HIGH",
+            "reasons": ["explicit_stop_sequence"],
+            "warning_codes": [],
+        }
+
+    row_index = _to_int_or_blank(group.get("row_index"))
+    if row_index != "":
+        return {
+            "sequence": row_index,
+            "confidence": "MEDIUM",
+            "reasons": ["table_row_order"],
+            "warning_codes": [],
+        }
+
+    groups = [item for item in surrounding_groups or [] if isinstance(item, dict)]
+    ordered = _sort_groups_by_layout_order(groups)
+    for index, candidate in enumerate(ordered, start=1):
+        if candidate is group or candidate.get("stop_group_id") == group.get("stop_group_id"):
+            return {
+                "sequence": index,
+                "confidence": "LOW",
+                "reasons": ["page_order_fallback"],
+                "warning_codes": [SEQUENCE_WARNING_INFERRED],
+            }
+
+    return {
+        "sequence": "",
+        "confidence": "LOW",
+        "reasons": ["sequence_not_found"],
+        "warning_codes": [SEQUENCE_WARNING_INFERRED],
+    }
+
+
+def _sort_groups_by_layout_order(stop_groups):
+    return sorted(
+        [group for group in stop_groups or [] if isinstance(group, dict)],
+        key=lambda group: (
+            _to_int_or_blank(group.get("page_number")) or 999999,
+            _text(group.get("table_id")),
+            _to_int_or_blank(group.get("row_index")) or 999999,
+            _to_int_or_blank(group.get("stop_sequence")) or 999999,
+            _text(group.get("stop_group_id")),
+        ),
+    )
+
+
+def assign_stop_sequence_order(stop_groups):
+    groups = _sort_groups_by_layout_order(stop_groups)
+    sequenced = []
+
+    for index, group in enumerate(groups, start=1):
+        sequence_result = infer_stop_sequence(group, groups)
+        resolved_type = resolve_stop_type(group)
+        safe_group = dict(group)
+        safe_group["stop_sequence"] = sequence_result["sequence"] or index
+        safe_group["stop_type"] = resolved_type["stop_type"]
+        safe_group["warning_codes"] = sorted(
+            set(
+                normalize_list(safe_group.get("warning_codes"))
+                + sequence_result["warning_codes"]
+                + resolved_type["warning_codes"]
+            )
+        )
+        safe_group["reasons"] = sorted(
+            set(
+                normalize_list(safe_group.get("reasons"))
+                + sequence_result["reasons"]
+                + resolved_type["reasons"]
+            )
+        )
+        sequenced.append(safe_group)
+
+    return sequenced
