@@ -909,3 +909,245 @@ def classify_page_text(page_text, page_number=1):
         warning_codes=warnings,
         section_summaries=classify_sections_from_page_text(page_text, page_number),
     )
+
+
+def _unique_ordered(values):
+    result = []
+    for value in values:
+        text = _text(value)
+        if text and text not in result:
+            result.append(text)
+    return result
+
+
+def _all_page_roles(page_results):
+    roles = []
+    for page in page_results:
+        roles.extend(page.get("page_roles", []))
+    return _unique_ordered(roles) or [PAGE_ROLE_UNKNOWN]
+
+
+def _has_role(page_results, role):
+    return any(role in page.get("page_roles", []) for page in page_results)
+
+
+def _has_primary_role(page_results, role):
+    return any(page.get("primary_page_role") == role for page in page_results)
+
+
+def _has_section(page_results, section_role):
+    return any(
+        section.get("section_role") == section_role
+        for page in page_results
+        for section in page.get("section_summaries", [])
+    )
+
+
+def _document_confidence(page_results):
+    if not page_results:
+        return 0.0
+    return max(float(page.get("confidence", 0.0) or 0.0) for page in page_results)
+
+
+def classify_document_from_text_artifact(artifact):
+    """Classify a text artifact into safe document/page/section roles."""
+    pages = artifact.get("pages", []) if isinstance(artifact, dict) else []
+    document_alias = ""
+    if isinstance(artifact, dict):
+        document_alias = artifact.get("document_id") or artifact.get("artifact_id") or ""
+
+    page_results = []
+    for index, page in enumerate(pages or [], start=1):
+        if not isinstance(page, dict):
+            continue
+        page_results.append(
+            classify_page_text(
+                page.get("text", ""),
+                page_number=page.get("page_number", index),
+            )
+        )
+
+    full_text = _lower_text((artifact or {}).get("full_text", "") if isinstance(artifact, dict) else "")
+    char_count = int((artifact or {}).get("char_count", 0) or 0) if isinstance(artifact, dict) else 0
+    roles = _all_page_roles(page_results)
+    warnings = []
+    reasons = []
+
+    if not page_results or char_count <= 0:
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_UNKNOWN,
+            ratecon_eligible=False,
+            supplemental_only=False,
+            confidence=0.0,
+            reasons=["no extractable text available for classification"],
+            warning_codes=["ocr_required_or_empty_text", "unknown_document_review_required"],
+            page_roles=[PAGE_ROLE_UNKNOWN],
+            page_results=page_results,
+            classification_status=CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+        )
+
+    confidence = _document_confidence(page_results)
+
+    if (
+        "truck order not used confirmation" in full_text
+        or "tonu reference" in full_text
+        or "order not used confirmation" in full_text
+    ):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED,
+            ratecon_eligible=True,
+            supplemental_only=False,
+            confidence=confidence,
+            reasons=["TONU payment section detected"],
+            warning_codes=["tonu_not_normal_load_movement"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_primary_role(page_results, PAGE_ROLE_MAIN_RATECONF):
+        document_type = DOCUMENT_TYPE_RATE_CONFIRMATION
+        if "rate & load confirmation" in full_text:
+            document_type = DOCUMENT_TYPE_RATE_LOAD_CONFIRMATION
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=document_type,
+            ratecon_eligible=True,
+            supplemental_only=False,
+            confidence=confidence,
+            reasons=["main RateCon page detected"],
+            warning_codes=warnings,
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_primary_role(page_results, PAGE_ROLE_MAIN_TENDER):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_CARRIER_LOAD_TENDER,
+            ratecon_eligible=True,
+            supplemental_only=False,
+            confidence=confidence,
+            reasons=["carrier tender page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_primary_role(page_results, PAGE_ROLE_MAIN_LOAD_CONFIRMATION):
+        document_type = DOCUMENT_TYPE_ORDER_CONFIRMATION
+        if "load confirmation" in full_text and "order confirmation" not in full_text:
+            document_type = DOCUMENT_TYPE_LOAD_CONFIRMATION
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=document_type,
+            ratecon_eligible=True,
+            supplemental_only=False,
+            confidence=confidence,
+            reasons=["load or order confirmation page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_BOL):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_BILL_OF_LADING,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["BOL page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_CERTIFICATE_SIGNATURE):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_CERTIFICATE_OF_SIGNATURE,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["certificate signature page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_INSURANCE_CERTIFICATE):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_CERTIFICATE_OF_INSURANCE,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["insurance certificate page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_CARRIER_INFO) or _has_role(page_results, PAGE_ROLE_DRIVER_INFO):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_DRIVER_CARRIER_INFO_SHEET,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["driver or carrier information sheet detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_TERMS):
+        document_type = DOCUMENT_TYPE_TERMS_AND_CONDITIONS
+        if "carrier rate agreement" in full_text:
+            document_type = DOCUMENT_TYPE_CARRIER_RATE_AGREEMENT
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=document_type,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["terms or legal agreement page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_BILLING):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_BILLING_INSTRUCTIONS,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["billing-only page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_role(page_results, PAGE_ROLE_SIGNATURE):
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=DOCUMENT_TYPE_RATE_CONFIRMATION_SUPPLEMENT,
+            ratecon_eligible=False,
+            supplemental_only=True,
+            confidence=confidence,
+            reasons=["signature-only page detected"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    reasons.append("no eligible RateCon document type detected")
+    warnings.append("unknown_document_review_required")
+
+    return build_document_classification_result(
+        document_alias=document_alias,
+        document_type=DOCUMENT_TYPE_UNKNOWN,
+        ratecon_eligible=False,
+        supplemental_only=False,
+        confidence=confidence,
+        reasons=reasons,
+        warning_codes=warnings,
+        page_roles=roles,
+        page_results=page_results,
+        classification_status=CLASSIFICATION_STATUS_UNKNOWN_REVIEW_REQUIRED,
+    )
