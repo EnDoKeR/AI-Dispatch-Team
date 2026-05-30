@@ -1,0 +1,48 @@
+{
+  "artifact_id": "LAYOUT_ASSOC_TERMS_MONEY_NOISE",
+  "document_id": "FAKE_TERMS_MONEY_NOISE",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": ["terms_money_noise"],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L_TERMS1", "text_redacted": "Late paperwork fee $250.00 and quick pay discount 2 percent", "bbox": {"x0": 40, "y0": 300, "x1": 560, "y1": 318, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "LEGAL_TERMS", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_RATE", "text_redacted": "Main rate table", "bbox": {"x0": 40, "y0": 80, "x1": 340, "y1": 150, "unit": "points", "page_number": 1}, "line_ids": [], "page_number": 1, "block_type": "table", "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"block_id": "P1_B_TERMS", "text_redacted": "Legal terms with money amounts", "bbox": {"x0": 40, "y0": 280, "x1": 570, "y1": 390, "unit": "points", "page_number": 1}, "line_ids": ["P1_L_TERMS1"], "page_number": 1, "block_type": "text", "section_role": "LEGAL_TERMS", "warning_codes": []}
+      ],
+      "tables": [
+        {
+          "table_id": "P1_T_RATE",
+          "page_number": 1,
+          "bbox": {"x0": 40, "y0": 80, "x1": 340, "y1": 150, "unit": "points", "page_number": 1},
+          "header_rows": [0],
+          "source": "synthetic_fixture",
+          "confidence": "HIGH",
+          "warning_codes": [],
+          "cells": [
+            {"row_index": 0, "col_index": 0, "text_redacted": "Description", "bbox": {"x0": 45, "y0": 85, "x1": 175, "y1": 102, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 1, "text_redacted": "Amount", "bbox": {"x0": 185, "y0": 85, "x1": 330, "y1": 102, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 0, "text_redacted": "Total Carrier Pay", "bbox": {"x0": 45, "y0": 110, "x1": 175, "y1": 128, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 1, "text_redacted": "$2600.00", "bbox": {"x0": 185, "y0": 110, "x1": 330, "y1": 128, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"}
+          ]
+        }
+      ],
+      "page_roles": ["MAIN_RATECONF", "TERMS", "PAYMENT_SUMMARY"],
+      "section_roles": ["RATE_SUMMARY", "LEGAL_TERMS", "QUICK_PAY"],
+      "warning_codes": ["terms_money_noise"]
+    }
+  ]
+}
+

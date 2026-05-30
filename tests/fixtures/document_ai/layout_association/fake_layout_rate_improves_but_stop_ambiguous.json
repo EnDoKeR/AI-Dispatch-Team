@@ -1,0 +1,49 @@
+{
+  "artifact_id": "LAYOUT_ASSOC_RATE_IMPROVES_STOP_AMBIGUOUS",
+  "document_id": "FAKE_RATE_IMPROVES_STOP_AMBIGUOUS",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": ["stop_text_order_ambiguous"],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Rate And Load Confirmation", "bbox": {"x0": 40, "y0": 40, "x1": 250, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "HEADER", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Pickup / Delivery details appear in adjacent columns", "bbox": {"x0": 40, "y0": 240, "x1": 520, "y1": 260, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "MULTI_STOP_SECTION", "warning_codes": ["ambiguous_columns"]}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_RATE", "text_redacted": "Clear rate table", "bbox": {"x0": 40, "y0": 90, "x1": 340, "y1": 160, "unit": "points", "page_number": 1}, "line_ids": [], "page_number": 1, "block_type": "table", "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"block_id": "P1_B_STOPS", "text_redacted": "Ambiguous stop column block", "bbox": {"x0": 40, "y0": 220, "x1": 560, "y1": 360, "unit": "points", "page_number": 1}, "line_ids": ["P1_L2"], "page_number": 1, "block_type": "text", "section_role": "MULTI_STOP_SECTION", "warning_codes": ["ambiguous_stop_type"]}
+      ],
+      "tables": [
+        {
+          "table_id": "P1_T_RATE",
+          "page_number": 1,
+          "bbox": {"x0": 40, "y0": 90, "x1": 340, "y1": 160, "unit": "points", "page_number": 1},
+          "header_rows": [0],
+          "source": "synthetic_fixture",
+          "confidence": "HIGH",
+          "warning_codes": [],
+          "cells": [
+            {"row_index": 0, "col_index": 0, "text_redacted": "Rate Type", "bbox": {"x0": 45, "y0": 95, "x1": 160, "y1": 112, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 1, "text_redacted": "Amount", "bbox": {"x0": 170, "y0": 95, "x1": 330, "y1": 112, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 0, "text_redacted": "Total Carrier Pay", "bbox": {"x0": 45, "y0": 120, "x1": 160, "y1": 138, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 1, "text_redacted": "$2400.00", "bbox": {"x0": 170, "y0": 120, "x1": 330, "y1": 138, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"}
+          ]
+        }
+      ],
+      "page_roles": ["MAIN_RATECONF", "PAYMENT_SUMMARY", "STOP_DETAILS"],
+      "section_roles": ["HEADER", "RATE_SUMMARY", "MULTI_STOP_SECTION"],
+      "warning_codes": ["stop_text_order_ambiguous"]
+    }
+  ]
+}
+

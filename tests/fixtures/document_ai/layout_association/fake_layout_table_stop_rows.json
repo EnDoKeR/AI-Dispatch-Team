@@ -1,0 +1,59 @@
+{
+  "artifact_id": "LAYOUT_ASSOC_TABLE_STOP_ROWS",
+  "document_id": "FAKE_TABLE_STOP_ROWS",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [],
+      "blocks": [
+        {"block_id": "P1_B_STOPS", "text_redacted": "Stop table", "bbox": {"x0": 36, "y0": 160, "x1": 570, "y1": 260, "unit": "points", "page_number": 1}, "line_ids": [], "page_number": 1, "block_type": "table", "section_role": "STOP_TABLE", "warning_codes": []}
+      ],
+      "tables": [
+        {
+          "table_id": "P1_T_STOPS",
+          "page_number": 1,
+          "bbox": {"x0": 36, "y0": 160, "x1": 570, "y1": 260, "unit": "points", "page_number": 1},
+          "header_rows": [0],
+          "source": "synthetic_fixture",
+          "confidence": "HIGH",
+          "warning_codes": [],
+          "cells": [
+            {"row_index": 0, "col_index": 0, "text_redacted": "Stop", "bbox": {"x0": 40, "y0": 164, "x1": 80, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 1, "text_redacted": "Type", "bbox": {"x0": 84, "y0": 164, "x1": 145, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 2, "text_redacted": "Location", "bbox": {"x0": 150, "y0": 164, "x1": 320, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 3, "text_redacted": "Date", "bbox": {"x0": 325, "y0": 164, "x1": 405, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 4, "text_redacted": "Time", "bbox": {"x0": 410, "y0": 164, "x1": 490, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 5, "text_redacted": "Ref", "bbox": {"x0": 495, "y0": 164, "x1": 560, "y1": 180, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 0, "text_redacted": "1", "bbox": {"x0": 40, "y0": 188, "x1": 80, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 1, "text_redacted": "Pickup", "bbox": {"x0": 84, "y0": 188, "x1": 145, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 2, "text_redacted": "FAKE ORIGIN ALPHA", "bbox": {"x0": 150, "y0": 188, "x1": 320, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 3, "text_redacted": "2099-01-10", "bbox": {"x0": 325, "y0": 188, "x1": 405, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 4, "text_redacted": "08:00", "bbox": {"x0": 410, "y0": 188, "x1": 490, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 5, "text_redacted": "REF-PU-001", "bbox": {"x0": 495, "y0": 188, "x1": 560, "y1": 204, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 0, "text_redacted": "2", "bbox": {"x0": 40, "y0": 212, "x1": 80, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 1, "text_redacted": "Delivery", "bbox": {"x0": 84, "y0": 212, "x1": 145, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 2, "text_redacted": "FAKE DESTINATION OMEGA", "bbox": {"x0": 150, "y0": 212, "x1": 320, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 3, "text_redacted": "2099-01-11", "bbox": {"x0": 325, "y0": 212, "x1": 405, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 4, "text_redacted": "14:00", "bbox": {"x0": 410, "y0": 212, "x1": 490, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 5, "text_redacted": "REF-DEL-002", "bbox": {"x0": 495, "y0": 212, "x1": 560, "y1": 228, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"}
+          ]
+        }
+      ],
+      "page_roles": ["MAIN_RATECONF", "STOP_DETAILS"],
+      "section_roles": ["STOP_TABLE"],
+      "warning_codes": []
+    }
+  ]
+}
+

@@ -1,0 +1,49 @@
+{
+  "artifact_id": "LAYOUT_ASSOC_MCLEOD_PU_SO_CONTINUATION",
+  "document_id": "FAKE_MCLEOD_PU_SO_CONTINUATION",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 2,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L_PU1", "text_redacted": "PU 1  FAKE ORIGIN NORTH  2099-02-01  07:30", "bbox": {"x0": 48, "y0": 190, "x1": 520, "y1": 208, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "PICKUP_SECTION", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_PU", "text_redacted": "PU section", "bbox": {"x0": 40, "y0": 170, "x1": 560, "y1": 240, "unit": "points", "page_number": 1}, "line_ids": ["P1_L_PU1"], "page_number": 1, "block_type": "text", "section_role": "PICKUP_SECTION", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "STOP_DETAILS"],
+      "section_roles": ["PICKUP_SECTION"],
+      "warning_codes": []
+    },
+    {
+      "page_number": 2,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P2_L_SO1", "text_redacted": "SO 1  FAKE DESTINATION SOUTH  2099-02-02  15:00", "bbox": {"x0": 48, "y0": 90, "x1": 530, "y1": 108, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 1, "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"line_id": "P2_L_RATE", "text_redacted": "Total Carrier Pay  $3100.00", "bbox": {"x0": 48, "y0": 150, "x1": 300, "y1": 168, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 2, "section_role": "RATE_SUMMARY", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P2_B_SO", "text_redacted": "SO section", "bbox": {"x0": 40, "y0": 70, "x1": 560, "y1": 130, "unit": "points", "page_number": 2}, "line_ids": ["P2_L_SO1"], "page_number": 2, "block_type": "text", "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"block_id": "P2_B_RATE", "text_redacted": "Payment summary", "bbox": {"x0": 40, "y0": 140, "x1": 360, "y1": 185, "unit": "points", "page_number": 2}, "line_ids": ["P2_L_RATE"], "page_number": 2, "block_type": "text", "section_role": "RATE_SUMMARY", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "PAYMENT_SUMMARY", "STOP_DETAILS"],
+      "section_roles": ["DELIVERY_SECTION", "RATE_SUMMARY"],
+      "warning_codes": []
+    }
+  ]
+}
+
