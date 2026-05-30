@@ -13,6 +13,7 @@ from app.document_ai.normalized_stops import (
     NORMALIZED_STOP_FIELD_TIME,
     build_normalized_stop,
     build_normalized_stop_field,
+    build_normalized_stop_set as build_normalized_stop_set_contract,
 )
 from app.document_ai.stop_association import (
     STOP_ASSOCIATION_SOURCE_TABLE_ROW,
@@ -25,6 +26,12 @@ from app.document_ai.stop_association import (
     STOP_TYPE_STOP,
     STOP_TYPE_UNKNOWN,
 )
+from app.document_ai.stop_group_diagnostics import build_stop_group_diagnostics
+
+try:
+    from app.document_ai.document_classification import DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED
+except ImportError:  # pragma: no cover - defensive for isolated contract imports
+    DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED = "TRUCK_ORDER_NOT_USED"
 
 
 NOISE_WARNING_SIGNATURE = "stop_group_noise_signature_or_certificate"
@@ -36,6 +43,8 @@ TYPE_WARNING_AMBIGUOUS = "stop_type_ambiguous_review_required"
 FIELD_WARNING_CONFLICT = "normalized_stop_field_conflict"
 FIELD_WARNING_MISSING = "normalized_stop_field_missing"
 FIELD_WARNING_LOW_CONFIDENCE = "normalized_stop_field_low_confidence"
+WARNING_TONU_STOPS_NOT_APPLICABLE = "tonu_stops_not_applicable"
+WARNING_NORMALIZED_STOP_REVIEW_REQUIRED = "normalized_stop_review_required"
 
 _SIGNATURE_SECTIONS = {"SIGNATURE_BLOCK", "CERTIFICATE_SIGNATURE_BLOCK"}
 _TERMS_SECTIONS = {
@@ -552,3 +561,73 @@ def build_normalized_stop_from_group(stop_group):
         ),
         review_required=review_required,
     )
+
+
+def _is_tonu_or_non_normal(classification_result):
+    result = classification_result or {}
+    if result.get("document_type") == DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED:
+        return True
+    if result and result.get("normal_load_movement") is False:
+        return True
+    return False
+
+
+def build_normalized_stop_set(stop_association_result, classification_result=None):
+    raw_groups = [
+        group
+        for group in (stop_association_result or {}).get("stop_groups", []) or []
+        if isinstance(group, dict)
+    ]
+    diagnostics = build_stop_group_diagnostics(raw_groups)
+
+    if _is_tonu_or_non_normal(classification_result):
+        stop_set = build_normalized_stop_set_contract(
+            document_alias=(classification_result or {}).get("document_alias", ""),
+            stops=[],
+            warning_codes=[WARNING_TONU_STOPS_NOT_APPLICABLE],
+        )
+        stop_set.update(
+            {
+                "raw_stop_group_count": len(raw_groups),
+                "stop_group_quality_bucket": diagnostics["quality_bucket"],
+                "stop_noise_removed_count": 0,
+                "stop_duplicate_removed_count": 0,
+                "review_required_stop_count": 0,
+            }
+        )
+        return stop_set
+
+    noise = filter_stop_group_noise(raw_groups)
+    deduped = dedupe_stop_groups(noise["kept_groups"])
+    sequenced = assign_stop_sequence_order(deduped["kept_groups"])
+    stops = [build_normalized_stop_from_group(group) for group in sequenced]
+    warning_codes = sorted(
+        set(
+            normalize_list((stop_association_result or {}).get("warning_codes"))
+            + diagnostics["warning_codes"]
+            + noise["warning_codes"]
+            + deduped["warning_codes"]
+            + [
+                WARNING_NORMALIZED_STOP_REVIEW_REQUIRED
+                for stop in stops
+                if stop.get("review_required")
+            ]
+        )
+    )
+    stop_set = build_normalized_stop_set_contract(
+        document_alias=(classification_result or {}).get("document_alias", ""),
+        stops=stops,
+        warning_codes=warning_codes,
+    )
+    stop_set.update(
+        {
+            "raw_stop_group_count": len(raw_groups),
+            "stop_group_quality_bucket": diagnostics["quality_bucket"],
+            "stop_noise_removed_count": noise["removed_count"],
+            "stop_duplicate_removed_count": deduped["removed_count"],
+            "review_required_stop_count": sum(
+                1 for stop in stops if stop.get("review_required")
+            ),
+        }
+    )
+    return stop_set
