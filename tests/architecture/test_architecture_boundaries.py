@@ -150,6 +150,33 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=str(path)):
                 assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_repositories_do_not_invent_extraction_or_decision_status(self):
+        forbidden_status_literals = {
+            "READY_FOR_REVIEW",
+            "REVIEW_REQUIRED",
+            "MISSING_FIELDS",
+            "NEEDS_CHECK",
+            "ACCEPT",
+            "REJECT",
+        }
+        repository_files = [
+            INTAKE_PACKAGE / "repository.py",
+            MARKET_INTELLIGENCE / "intake_record_repository.py",
+            MARKET_INTELLIGENCE / "reload_watch_repository.py",
+            MARKET_INTELLIGENCE / "sqlite_memory_repository.py",
+        ]
+
+        for path in repository_files:
+            literals = set(string_literals(path))
+
+            for forbidden_literal in forbidden_status_literals:
+                with self.subTest(path=str(path), literal=forbidden_literal):
+                    self.assertNotIn(
+                        forbidden_literal,
+                        literals,
+                        f"{path} invents status literal {forbidden_literal}",
+                    )
+
     def test_telegram_presentation_modules_do_not_import_core_decision_or_case_layers(self):
         forbidden_prefixes = [
             "app.market_intelligence.decision_engine",
@@ -215,6 +242,22 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=str(path)):
                 assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_document_ai_modules_do_not_import_legacy_ratecon_paths(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.intake.pasted_text_parser_adapter",
+            "app.market_intelligence.intake.ratecon_text_dry_run",
+            "app.market_intelligence.intake.ratecon_pdf_dry_run",
+            "app.market_intelligence.intake.pdf_text_extraction",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "scripts.export_private_ratecon_value_review_csv",
+        ]
+
+        for path in python_files(DOCUMENT_AI_PACKAGE):
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
     def test_document_ai_modules_do_not_emit_dispatch_recommendations(self):
         forbidden_literals = {
             "ACCEPT",
@@ -241,6 +284,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "scripts.run_private_ratecon_redacted_diagnostics",
             "scripts.run_private_ratecon_layout_diagnostics",
             "scripts.export_private_ratecon_value_review_csv",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
             "app.market_intelligence.intake.ratecon_pdf_dry_run",
             "app.market_intelligence.intake.pdf_text_extraction",
             "app.market_intelligence.dispatch_case",
@@ -287,6 +332,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "scripts.run_private_ratecon_redacted_diagnostics",
             "scripts.run_private_ratecon_layout_diagnostics",
             "scripts.export_private_ratecon_value_review_csv",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
             "app.market_intelligence.intake.ratecon_pdf_dry_run",
             "app.market_intelligence.intake.pdf_text_extraction",
             "app.market_intelligence.dispatch_case",
