@@ -731,6 +731,87 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 with self.subTest(path=str(path), literal=literal):
                     self.assertNotIn(literal, literals)
 
+    def test_layout_provider_modules_do_not_import_business_output_or_disallowed_extractors(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "pypdf",
+            "fitz",
+            "camelot",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        provider_files = [
+            DOCUMENT_AI_PACKAGE / "layout_provider.py",
+            DOCUMENT_AI_PACKAGE / "pdfplumber_layout_provider.py",
+            DOCUMENT_AI_PACKAGE / "layout_pipeline.py",
+            DOCUMENT_AI_PACKAGE / "layout_provider_comparison.py",
+        ]
+
+        for path in provider_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_layout_provider_modules_do_not_write_timeline_or_private_outputs(self):
+        provider_files = [
+            DOCUMENT_AI_PACKAGE / "layout_provider.py",
+            DOCUMENT_AI_PACKAGE / "pdfplumber_layout_provider.py",
+            DOCUMENT_AI_PACKAGE / "layout_pipeline.py",
+            DOCUMENT_AI_PACKAGE / "layout_provider_comparison.py",
+        ]
+        forbidden_fragments = [
+            "event_logger",
+            "case_event",
+            "timeline",
+            "DispatchCase",
+            "DecisionEngine",
+            "telegram",
+            "private_ratecons",
+        ]
+
+        for path in provider_files:
+            source = source_text(path)
+            for fragment in forbidden_fragments:
+                with self.subTest(path=str(path), fragment=fragment):
+                    self.assertNotIn(fragment, source)
+
+    def test_only_pdfplumber_layout_dependency_was_added(self):
+        requirements = "\n".join(
+            line.strip().lower()
+            for line in source_text(ROOT / "requirements.txt").splitlines()
+            if line.strip() and not line.strip().startswith("#")
+        )
+
+        self.assertIn("pdfplumber==0.11.9", requirements)
+        for forbidden in [
+            "pymupdf",
+            "fitz",
+            "camelot",
+            "tesseract",
+            "paddleocr",
+            "pytesseract",
+            "easyocr",
+            "openai",
+            "boto3",
+            "azure",
+            "google-cloud",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, requirements)
+
     def test_fake_layout_candidate_cli_does_not_import_private_or_provider_flows(self):
         path = SCRIPTS / "run_fake_layout_candidate_extraction.py"
         forbidden_prefixes = [
