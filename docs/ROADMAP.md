@@ -1075,3 +1075,23 @@ Next decision after the rerun:
 - if CSV visual review is useful, plan an optional Google Sheets adapter later but do not add the API now;
 - if `pypdf` text order is weak, run a PDF extraction dependency refinement audit;
 - OCR remains a later separate audit only.
+
+Local rerun result:
+
+- private batch 3 was run locally with safe diagnostics only;
+- parser hardening from fake scenarios produced a small improvement on one extracted document;
+- one sampled document remained `EMPTY_TEXT`;
+- persistent parser gaps remain in identity, rate, stop/location, weight/equipment, and reference categories;
+- CSV export produced three safe rows and does not need Google Sheets API work yet.
+
+Recommended next:
+
+```text
+Add another round of anonymized synthetic RateCon scenarios for the persistent main-field gaps, then harden the parser against those fake scenarios only.
+```
+
+Possible parallel audit:
+
+```text
+PDF extraction dependency refinement for EMPTY_TEXT / weak layout, before any OCR work.
+```

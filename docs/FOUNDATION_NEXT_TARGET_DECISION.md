@@ -2485,3 +2485,52 @@ Not recommended next:
 - Gmail/email;
 - DAT/API or Google Maps;
 - accounting/factoring implementation.
+
+## Local Private Batch Parser Rerun Closeout
+
+Completed:
+
+- Codex ran the private batch 3 diagnostics locally with safe CLIs only;
+- baseline findings were recorded with anonymized labels and field/category status only;
+- fake/anonymized scenarios were added for observed gap categories;
+- parser improvements were made only against fake scenarios;
+- Codex reran the private batch locally after parser hardening;
+- CSV export produced 3 safe rows after rerun.
+
+Safe measured result:
+
+- RATECON_001 improved by one required field: `commodity` moved from missing/gap to extracted;
+- RATECON_002 remained `EMPTY_TEXT`;
+- RATECON_003 remained unchanged on required-field count;
+- persistent parser gaps remain around identity, rate, stop/location, weight/equipment, and reference categories.
+
+Options evaluated:
+
+1. more anonymized synthetic parser scenarios if gaps remain
+2. PDF extraction dependency refinement if `EMPTY_TEXT` or bad layout remains important
+3. optional local value review mode for user only, ignored outputs only
+4. optional Google Sheets adapter later, after CSV format is accepted
+5. OCR strategy audit later
+
+Recommended next target:
+
+```text
+more anonymized synthetic parser scenarios for persistent main-field gaps, then another parser hardening round
+```
+
+Recommended parallel audit if extraction quality matters:
+
+```text
+PDF extraction dependency refinement audit for EMPTY_TEXT / weak text layout
+```
+
+Not recommended next:
+
+- Google Sheets API;
+- OCR implementation;
+- local value review outputs in tracked files;
+- private-text fixtures;
+- DispatchCase creation/linking/events;
+- Telegram upload handling;
+- Gmail/email;
+- DAT/API or Google Maps.

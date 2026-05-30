@@ -144,3 +144,34 @@ CSV export:
 Next interpretation:
 
 The first synthetic parser hardening round made a small measurable improvement on RATECON_001. Remaining gaps suggest the next parser round needs more fake/anonymized layout scenarios for identity, rate, stop/location, weight/equipment, and reference extraction before more parser code changes.
+
+## Closeout Decision
+
+Recommended next parser target:
+
+```text
+more anonymized synthetic scenarios for persistent main-field parser gaps
+```
+
+Recommended extraction target:
+
+```text
+PDF extraction dependency refinement audit for EMPTY_TEXT / weak layout if extraction quality becomes the blocker
+```
+
+CSV review:
+
+- current safe CSV columns are sufficient for batch 3 visual review;
+- no Google Sheets API is needed yet;
+- any future sheet integration should be planned separately after CSV review is accepted.
+
+Do not implement next:
+
+- OCR;
+- Google Sheets API;
+- private-text fixtures;
+- local value review outputs in tracked files;
+- DispatchCase creation/linking/events;
+- Telegram upload handling;
+- Gmail/email;
+- DAT/API or Google Maps.
