@@ -155,6 +155,11 @@ def extract_layout_artifact(path, provider_name=PROVIDER_PDFPLUMBER, document_id
             safe_message="Requested layout provider dependency is not installed.",
         )
 
+    if provider == PROVIDER_PDFPLUMBER:
+        from app.document_ai.pdfplumber_layout_provider import extract_pdfplumber_layout
+
+        return extract_pdfplumber_layout(pdf_path, document_id=document_id)
+
     return build_layout_provider_result(
         provider_name=provider,
         status=STATUS_REVIEW_REQUIRED,
