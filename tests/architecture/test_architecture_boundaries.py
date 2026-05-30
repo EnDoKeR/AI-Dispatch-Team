@@ -520,6 +520,76 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("Refusing to run", source)
 
+    def test_private_template_modules_do_not_import_business_memory_or_cloud_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        private_template_files = [
+            DOCUMENT_AI_PACKAGE / "private_template_patterns.py",
+            DOCUMENT_AI_PACKAGE / "private_template_redaction.py",
+            DOCUMENT_AI_PACKAGE / "private_template_pattern_collector.py",
+            DOCUMENT_AI_PACKAGE / "private_template_pattern_families.py",
+            DOCUMENT_AI_PACKAGE / "private_template_drafts.py",
+            DOCUMENT_AI_PACKAGE / "private_template_overlay_comparison.py",
+        ]
+
+        for path in private_template_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_private_pattern_collector_does_not_persist_raw_text(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "private_template_pattern_collector.py")
+
+        self.assertNotIn("write_text", source)
+        self.assertNotIn("raw_text_saved", source)
+
+    def test_private_template_pattern_cli_requires_confirmation(self):
+        path = SCRIPTS / "run_private_ratecon_template_pattern_collection.py"
+        source = source_text(path)
+
+        assert_no_import_prefix(
+            self,
+            path,
+            [
+                "scripts.import_ratecon",
+                "scripts.read_ratecon",
+                "app.market_intelligence.dispatch_case",
+                "app.market_intelligence.decision_engine",
+                "app.market_intelligence.telegram",
+                "openai",
+                "pytesseract",
+                "easyocr",
+                "googleapiclient",
+            ],
+        )
+        self.assertIn("--confirm-private-local-run", source)
+        self.assertIn("Refusing to run", source)
+
+    def test_private_overlay_paths_are_gitignored(self):
+        gitignore = source_text(ROOT / ".gitignore")
+
+        self.assertIn(".local_private/", gitignore)
+        self.assertIn(".local_outputs/", gitignore)
+
 
 if __name__ == "__main__":
     unittest.main()
