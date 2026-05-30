@@ -24,6 +24,8 @@ SIGNAL_PATTERNS = {
     "broker_name": [
         r"\bbroker\b",
         r"\bbroker\s+name\b",
+        r"\bbill\s+to\b",
+        r"\bcustomer\b",
     ],
     "broker_mc": [
         r"\bbroker\s+mc\b",
@@ -32,7 +34,11 @@ SIGNAL_PATTERNS = {
     ],
     "rate": [
         r"\brate\b",
+        r"\btotal\b",
         r"\btotal\s+rate\b",
+        r"\btotal\s+carrier\s+pay\b",
+        r"\bcarrier\s+pay\b",
+        r"\blinehaul\s+total\b",
         r"\blinehaul\b",
     ],
     "pickup_location": [
@@ -54,6 +60,8 @@ SIGNAL_PATTERNS = {
         r"\bpickup\s+time\b",
         r"\bpick\s*up\s+appt\b",
         r"\bpickup\s+appt\b",
+        r"\bpick\s*up\s+window\b",
+        r"\bpickup\s+window\b",
     ],
     "delivery_date": [
         r"\bdelivery\s+date\b",
@@ -62,6 +70,8 @@ SIGNAL_PATTERNS = {
         r"\bdeliver\s+time\b",
         r"\bdelivery\s+appt\b",
         r"\bdeliver\s+appt\b",
+        r"\bdelivery\s+window\b",
+        r"\bdeliver\s+window\b",
     ],
     "weight": [
         r"\bweight\b",
@@ -78,13 +88,18 @@ SIGNAL_PATTERNS = {
         r"\breference\b",
         r"\bref\s*(#|no\.?|number)?\b",
         r"\bload\s*(#|no\.?|number)?\b",
+        r"\border\s*(#|no\.?|number)?\b",
         r"\bshipment\s*(id|#|number)?\b",
     ],
     "equipment": [
         r"\bequipment\b",
+        r"\bmode\b",
         r"\btrailer\b",
         r"\bflatbed\b",
         r"\bconestoga\b",
+        r"\breefer\b",
+        r"\bvan\b",
+        r"\bstep\s+deck\b",
     ],
     "special_requirements": [
         r"\bspecial\s+requirements\b",
