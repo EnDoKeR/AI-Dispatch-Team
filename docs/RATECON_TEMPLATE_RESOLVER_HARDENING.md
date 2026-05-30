@@ -216,3 +216,10 @@ extraction scopes before the resolver sees candidates. This means:
 If conflicts remain after classification, the next hardening should focus on
 layout-aware digital extraction and field association, not OCR or Vision by
 default.
+
+After calibration, safe private measurement identified 10 extraction-relevant
+documents out of 18, with 6 normal load movement documents and 4 TONU/payment
+confirmations. Resolver missing/conflict counts should be interpreted against
+those calibrated denominators. BOL, signature/certificate, driver/carrier
+information, billing-only, terms-only, unknown-review, and OCR-needed documents
+must not be counted as failed normal RateCon resolver cases.

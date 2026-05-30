@@ -129,8 +129,15 @@ Required coverage for candidate generators and resolvers:
 - document/page/section classification tests for RateCon, tender, BOL,
   terms-only, billing, carrier-info, signature, certificate, TONU, and unknown
   documents.
+- classification calibration tests proving carrier load tenders, load tenders,
+  order confirmations, load confirmations, and TONU payment confirmations are
+  extraction-relevant while BOL, certificate, billing-only, terms-only,
+  carrier-agreement-only, and driver/carrier-info-only documents remain
+  supplemental or non-RateCon.
 - extraction scope tests proving supplemental pages do not feed core RateCon
   candidates and do not inflate missing critical field counts.
+- measurement report tests proving normal load movement, TONU, supplemental,
+  unknown-review, and OCR-needed denominators stay separate.
 
 ## Broker Template Test Rule
 

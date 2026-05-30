@@ -124,6 +124,41 @@ Signature pages, accepted-by pages, and certificate-of-signature pages may conta
 
 Truck order not used documents can be rate or payment relevant, but they are not normal load movement documents. They may have TONU payment status without normal pickup/delivery fields. The classifier should identify them separately so missing stops do not look like failed normal RateCon extraction.
 
+## Calibrated Eligibility Rules
+
+The first private classification rerun found only 2 of 18 documents as
+RateCon-eligible, which was too strict for a corpus containing carrier load
+tenders, load tenders, order confirmations, and TONU payment confirmations.
+
+Eligibility is now based on extraction relevance, not completeness. A document
+can be eligible when it has a strong combination of load/order/tender identity,
+route or stop details, and rate/payment/equipment context, even if the broker
+template is unknown or the title is not exactly `Rate Confirmation`.
+
+Extraction-relevant types are:
+
+- `RATE_CONFIRMATION`
+- `RATE_LOAD_CONFIRMATION`
+- `LOAD_CONFIRMATION`
+- `ORDER_CONFIRMATION`
+- `CARRIER_LOAD_TENDER`
+- `LOAD_TENDER`
+- `TRUCK_ORDER_NOT_USED`
+
+The calibrated safe rerun showed, without printing private values:
+
+- total documents: 18
+- extraction-relevant documents: 10
+- normal load movement documents: 6
+- TONU/payment confirmations: 4
+- supplemental-only documents: 2
+- non-RateCon or unknown-review documents: 6
+- OCR-needed / empty-text documents: 4
+
+Critical pickup/delivery/equipment/weight denominator reporting should use
+normal load movement documents only. TONU documents remain extraction-relevant
+for payment/status, but normal movement fields are non-applicable when absent.
+
 ## Relationship to Broker Templates
 
 Broker templates describe document layout, labels, and extraction vocabulary. Classification decides whether a page or section is allowed to feed RateCon extraction at all.
@@ -162,4 +197,3 @@ Vision is not next by default. It should remain a gated fallback only after dete
 - No production automation claim.
 - No dispatch recommendation.
 - No autonomous booking or DispatchCase creation.
-

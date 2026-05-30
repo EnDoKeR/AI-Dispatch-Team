@@ -14,11 +14,21 @@ The latest safe private measurement showed:
 - 14 of 14 text-extracted documents had `TEMPLATE_GAP`.
 - 13 of 14 text-extracted documents had `RESOLVER_GAP`.
 
-That means OCR is needed later, but it is not the first measured blocker. The
-first digital-text blocker is that no private documents match the committed fake
-broker templates. Vision is also not first because deterministic local template
-and resolver paths have measurable gaps that should be tested before any gated
-Vision fallback.
+That initial result justified building a local-only overlay and redacted pattern
+collection workflow. A later classification-calibrated rerun showed that the
+template gap should be interpreted after document/page/section eligibility:
+
+- 10 of 18 documents were extraction-relevant;
+- 6 of 18 were normal load movement documents;
+- 4 of 18 were TONU/payment confirmations;
+- 2 of 18 were supplemental-only;
+- 6 of 18 were non-RateCon or unknown-review;
+- 4 of 18 were OCR-needed / empty-text.
+
+That means OCR is needed later, but it is still not the first measured blocker.
+Private overlay work remains useful for eligible documents, but the next default
+checkpoint after calibrated measurement is layout-aware digital extraction and
+field association for eligible digital-text documents.
 
 ## Overlay Concept
 
@@ -128,7 +138,9 @@ classifier.
 The safe measurement report separates:
 
 - total documents;
-- RateCon-eligible documents;
+- extraction-relevant documents;
+- normal load movement documents;
+- TONU/payment confirmations;
 - supplemental-only documents;
 - non-RateCon or unknown-review documents;
 - OCR-needed documents.

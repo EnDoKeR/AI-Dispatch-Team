@@ -186,8 +186,20 @@ Rules:
 - Terms and billing pages can support payment terms, deductions, accessorials,
   or special requirements, but should not create primary rate or stop evidence
   by default.
+- Carrier load tender, load tender, order confirmation, load confirmation, and
+  dispatch confirmation pages are extraction-relevant when load identity,
+  route/stop, and rate/payment/equipment signals are strong, even if the title
+  is not exactly `Rate Confirmation`.
+- TONU / truck-order-not-used documents are payment/status relevant but not
+  normal load movement documents; pickup/delivery/equipment/weight may be
+  non-applicable.
 - Unknown document types route to review.
 - Supplemental-only documents are not counted as missing RateCon fields.
+
+Candidate extraction should therefore be evaluated against the calibrated
+normal-load denominator, not every PDF in a packet. OCR-needed, supplemental,
+unknown-review, and TONU documents remain visible in safe measurement output but
+do not inflate normal RateCon missing-field rates.
 
 ## Future Extension Points
 

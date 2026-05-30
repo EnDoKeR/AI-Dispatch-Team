@@ -102,9 +102,11 @@ information sheets, signature certificates, billing pages, and terms-only pages
 do not inflate missing RateCon field counts. Their RateCon core fields are
 reported as `non_applicable_fields` and `skipped_fields`, not failed extraction.
 
-Critical-field missing rates are measured against `ratecon_eligible_count`, not
-the total document count. OCR-needed and supplemental-only documents stay visible
-in aggregate counts, but they are not treated as failed RateCon parses.
+Critical-field missing rates are measured against honest denominators, not the
+total document count. Normal pickup/delivery/equipment/weight field rates use
+`normal_load_movement_count`. TONU documents are counted separately as
+payment/status extraction relevant, and OCR-needed or supplemental-only
+documents stay visible without being treated as failed RateCon parses.
 
 ## What This Block Does Not Do
 
@@ -153,6 +155,12 @@ Safe shareable outputs:
 - character count;
 - triage route;
 - extraction status;
+- document type;
+- extraction-relevant status;
+- normal load movement status;
+- TONU count;
+- classification status counts;
+- page role, section role, and extraction scope counts;
 - template match status;
 - candidate counts by field;
 - field resolution status by field;
@@ -289,6 +297,24 @@ Known prior safe private results:
   core fields; low-confidence categories were rate and special requirements.
 
 These baseline notes are status-only. They do not contain private values.
+
+## Calibrated Classification Baseline
+
+The calibrated safe private rerun reported:
+
+- total documents: 18
+- `DIGITAL_TEXT`: 14
+- `OCR_NEEDED` / `EMPTY_TEXT`: 4
+- extraction-relevant documents: 10
+- normal load movement documents: 6
+- TONU/payment confirmations: 4
+- supplemental-only documents: 2
+- non-RateCon or unknown-review documents: 6
+
+This means OCR remains queued for empty-text documents, but it is not the next
+default block. The next likely block is layout-aware digital extraction and
+field association for the 6 normal load movement text documents, while TONU
+stays on a separate payment/status path.
 
 ## How To Interpret Measurement
 

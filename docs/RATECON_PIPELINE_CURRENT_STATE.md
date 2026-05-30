@@ -70,6 +70,12 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   classification before RateCon candidate extraction.
 - Private measurement rows and aggregates now separate eligible RateCon documents
   from supplemental-only, non-RateCon, unknown-review, and OCR-needed documents.
+- Classification eligibility has been calibrated so carrier load tenders, load
+  tenders, order confirmations, dispatch/load confirmations, and TONU payment
+  confirmations are extraction-relevant even when broker templates are unknown.
+- Safe measurement reports now separate extraction-relevant documents, normal
+  load movement documents, TONU/payment confirmations, supplemental-only
+  documents, unknown-review documents, and OCR-needed documents.
 
 ## Scaffolding Only
 
@@ -178,18 +184,20 @@ Private value-review CSV output is local-only and ignored.
 - Template-specific fixtures are fake and do not prove real broker coverage.
 - Hard-layout behavior is tested on fake fixtures only and still needs safe
   private measurement before production claims.
-- More fake layouts may be needed for unusual table extraction, repeated
-  headers, and multi-page terms once safe measurement shows the next gaps.
+- Calibrated measurement still shows missing and conflicting fields on normal
+  load movement documents; the likely next checkpoint is layout-aware digital
+  extraction and field association, not OCR/Vision by default.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after private template overlay support:
+Next safe block after calibrated classification measurement:
 
 ```text
-Run redacted private pattern collection, create local private template drafts, and compare safe baseline vs overlay measurement.
+Layout-aware digital extraction design checkpoint for eligible digital-text documents.
 ```
 
-That block should still avoid OCR/Vision unless measurement shows deterministic
-template/layout routes are insufficient.
+That block should still avoid OCR/Vision unless calibrated measurement shows
+deterministic text and layout-aware local routes are insufficient. OCR remains
+queued for empty-text documents, but it is not the next default block.

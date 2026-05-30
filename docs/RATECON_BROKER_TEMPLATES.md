@@ -18,6 +18,8 @@ Current flow:
 
 ```text
 fake/anonymized text artifact
+-> document/page/section classification
+-> extraction scope filtering
 -> generic candidates
 -> broker template match
 -> template candidate scoring
@@ -239,3 +241,9 @@ If classification marks a document as supplemental-only or non-RateCon, broker
 template matching is skipped for RateCon extraction. If classification marks the
 document eligible, templates may boost or penalize candidates from allowed pages
 and sections only. Validation and review gates still apply.
+
+Calibrated classification treats carrier load tenders, load tenders, load/order
+confirmations, dispatch confirmations, and TONU payment confirmations as
+extraction-relevant when identity, route/stop, and payment/equipment signals are
+strong. Template work should be measured against that calibrated eligible set,
+with normal load movement and TONU reported separately.

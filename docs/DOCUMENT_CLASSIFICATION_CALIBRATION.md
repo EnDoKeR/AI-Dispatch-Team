@@ -147,9 +147,40 @@ Critical field denominators must be honest:
   RateCon critical-field failure rates;
 - unknown documents remain visible as review-required classification gaps.
 
+## Calibrated Safe Rerun Result
+
+After calibration, the safe local private measurement rerun reported status-only
+counts:
+
+- total documents: 18
+- digital-text documents: 14
+- OCR-needed / empty-text documents: 4
+- extraction-relevant documents: 10
+- normal load movement documents: 6
+- TONU/payment confirmations: 4
+- supplemental-only documents: 2
+- non-RateCon or unknown-review documents: 6
+
+Document type counts were:
+
+- `BILL_OF_LADING`: 1
+- `CARRIER_LOAD_TENDER`: 2
+- `DRIVER_CARRIER_INFO_SHEET`: 1
+- `LOAD_CONFIRMATION`: 1
+- `LOAD_TENDER`: 1
+- `ORDER_CONFIRMATION`: 1
+- `RATE_CONFIRMATION`: 1
+- `TRUCK_ORDER_NOT_USED`: 4
+- `UNKNOWN`: 6
+
+The result confirms the original 2 of 18 eligible count was too strict. It also
+shows that 6 normal movement digital-text documents still have missing,
+low-confidence, or conflicting fields, so the likely next engineering checkpoint
+is layout-aware digital extraction and field association after this calibrated
+measurement baseline.
+
 ## Non-Goals
 
 This calibration does not add OCR, Vision AI, cloud APIs, layout dependencies,
 real broker templates, private fixtures, DispatchCase creation, DecisionEngine
 calls, Telegram calls, Event Timeline writes, or production automation claims.
-
