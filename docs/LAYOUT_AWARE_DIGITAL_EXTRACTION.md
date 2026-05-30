@@ -97,6 +97,7 @@ PDF triage
 -> extraction scope selection
 -> layout artifact
 -> layout-aware candidates
+-> candidate source fusion / stop association
 -> candidate scoring with evidence
 -> conservative resolver
 -> RateConfirmationIntake draft
@@ -117,9 +118,31 @@ The dependency-free scaffold has now been extended with a controlled
 - `scripts/run_private_ratecon_measurement.py` can use the provider only when
   explicitly invoked with `--layout-provider pdfplumber
   --enable-layout-candidates`.
+- Experimental layout/text fusion runs only when explicitly invoked with
+  `--enable-layout-fusion`.
 
 The provider is a local measurement tool. It is not a production automation
 claim and does not add OCR, Vision, PyMuPDF, Camelot, or cloud extraction.
+
+## Layout Evidence Fusion
+
+The first safe layout-provider rerun improved rate candidate coverage but left
+stop/location/date fields worsened or unresolved. Fusion now has explicit
+guardrails:
+
+- text and layout candidates are merged, not blindly replaced;
+- strong text baselines are preserved when layout evidence is weak;
+- layout rate evidence from rate-summary sections can improve rate fields;
+- terms, legal, quick-pay, deduction, and TONU amounts are not normal main rate
+  by default;
+- stop grouping uses table rows or pickup/delivery sections when those
+  structures are available;
+- conflicts remain review-required instead of being hidden.
+
+The first safe fusion rerun attempted fusion on 6 normal-load documents and
+produced 0 stop groups from current provider artifacts. Rate evidence improved,
+but stop/date/location association still needs provider-to-section/table
+calibration before adding another dependency.
 
 ## Layout Artifacts
 
@@ -192,7 +215,7 @@ This block does not add:
 Run locally only:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md
 ```
 
 Safe to share:
@@ -201,6 +224,8 @@ Safe to share:
 - layout attempted/success/failure/skipped counts;
 - candidate count deltas by field;
 - field names in improved/worsened/unchanged buckets;
+- fusion attempted counts;
+- stop group counts;
 - blocker counts.
 
 Do not share raw text, filenames, broker names, MC numbers, rates, addresses,
@@ -210,7 +235,8 @@ dates/times, load/reference numbers, local paths, or private notes.
 
 The scaffold block is successful when dependency-free layout contracts,
 synthetic layout fixtures, layout indexing helpers, label-value proximity
-helpers, layout-aware candidate generators, fake-only CLI validation, and the
-first explicit provider pilot exist. The next work should use safe measurement
-deltas to decide whether to harden resolver/layout association, evaluate a
-table-specific provider, or queue OCR design for empty-text documents.
+helpers, layout-aware candidate generators, fake-only CLI validation, the first
+explicit provider pilot, and opt-in fusion guardrails exist. The next work
+should use safe measurement deltas to calibrate provider-to-table/section
+structure and stop/date/location association before evaluating a table-specific
+provider or queuing OCR design for empty-text documents.

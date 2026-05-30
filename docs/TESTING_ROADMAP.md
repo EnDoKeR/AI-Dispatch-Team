@@ -173,6 +173,9 @@ Required coverage for candidate generators and resolvers:
 - layout provider pipeline tests proving provider failures do not crash,
   non-RateCon classifications skip core candidates, and safe measurement layout
   fields remain aliases/counts/statuses only.
+- layout fusion tests for safe field delta audits, candidate source priority,
+  stop contracts, table/section stop grouping, stop fusion, rate guardrails, and
+  operational detail fusion.
 
 ## Broker Template Test Rule
 

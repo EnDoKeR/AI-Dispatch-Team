@@ -23,6 +23,7 @@ fake/anonymized text artifact
 -> document/page/section classification
 -> extraction scope filtering
 -> optional synthetic layout artifact candidate scaffold
+-> optional candidate source fusion / stop association
 -> FieldCandidate records
 -> CandidateExtractionResult
 -> optional broker template matching / template-aware scoring
@@ -34,6 +35,26 @@ fake/anonymized text artifact
 
 This flow is deterministic, dependency-free, and tested only with fake/anonymized
 fixtures.
+
+## Candidate Source Fusion
+
+Layout provider candidates are fused with text candidates only behind explicit
+safe-measurement flags. Fusion rules:
+
+- preserve source identity for text regex, text section, layout table, layout
+  label-value, layout section, and broker-template candidates;
+- do not blindly replace text candidates with layout candidates;
+- preserve a strong text baseline when layout evidence is weak;
+- route conflicting strong evidence to review;
+- keep terms, billing, quick-pay, deduction, and TONU payment amounts from
+  becoming normal main-rate candidates;
+- group stops by table row or pickup/delivery section when layout structure
+  provides that evidence;
+- do not create DispatchCase records or emit ACCEPT/REJECT recommendations.
+
+Safe private fusion measurement currently shows rate evidence improvement but
+does not yet produce stop groups from provider artifacts, so stop/date/location
+association remains the next blocker.
 
 ## Contracts
 

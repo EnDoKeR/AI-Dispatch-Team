@@ -244,13 +244,18 @@ addresses, references, raw text, filenames, local paths, or private notes.
 Optional layout provider measurement:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md
 ```
 
 This runs the `pdfplumber` provider only on digital, extraction-relevant normal
 load movement documents. OCR-needed, supplemental-only, non-RateCon, unknown,
 and TONU/payment-only documents are skipped for core layout extraction and
 reported through safe status counts.
+
+Layout fusion is also explicit. Without `--enable-layout-fusion`, layout
+candidates are measured but do not feed the resolver. With the flag, text and
+layout candidates are fused conservatively and only safe field/status deltas are
+written.
 
 Collect redacted template patterns before drafting private templates:
 
@@ -347,6 +352,23 @@ The first safe private layout-provider rerun reported:
 
 These are status-only counts. They do not include private values, filenames,
 raw text, or local paths.
+
+The first safe private layout-fusion rerun reported:
+
+- documents measured: 18
+- layout attempted: 6
+- layout success: 6
+- layout skipped: 12
+- layout failed: 0
+- fusion attempted: 6
+- stop groups produced from provider artifacts: 0
+- OCR-needed unchanged: 4
+- rate evidence improved, while stop/location/date association remained the
+  main unresolved blocker
+
+These results keep OCR, Vision, Camelot, and new broker templates deferred. The
+next safe block should focus on provider-to-table/section structure and
+stop/date/location association using fake fixtures and safe deltas.
 
 ## Layout-Aware Scaffold Status
 

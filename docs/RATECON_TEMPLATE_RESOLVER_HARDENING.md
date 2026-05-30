@@ -244,3 +244,21 @@ confirmations. Resolver missing/conflict counts should be interpreted against
 those calibrated denominators. BOL, signature/certificate, driver/carrier
 information, billing-only, terms-only, unknown-review, and OCR-needed documents
 must not be counted as failed normal RateCon resolver cases.
+
+## Layout Fusion Guardrails
+
+The layout-provider pilot now feeds an opt-in fusion layer during safe
+measurement only. Resolver hardening expectations remain conservative:
+
+- layout candidates can improve missing or weak evidence when source, scope, and
+  confidence are stronger than baseline text evidence;
+- weak layout evidence cannot downgrade a strong text baseline;
+- conflicting strong text/layout evidence remains review-required;
+- rate-summary evidence can improve rate while terms, quick-pay, deductions,
+  and TONU payments stay out of normal main-rate resolution;
+- stop grouping must preserve pickup/delivery sequence and must not invent
+  missing dates or times.
+
+The first safe private fusion rerun improved rate evidence but produced no stop
+groups from provider artifacts. That points to provider-to-section/table
+calibration and stop association work, not OCR, Vision, or new broker templates.

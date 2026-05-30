@@ -11,7 +11,8 @@ PDF triage
 -> safe text artifact
 -> document type / page role / section role classification
 -> extraction scope filtering
--> layout artifact / layout-aware candidates (synthetic scaffold)
+-> layout artifact / layout-aware candidates
+-> optional candidate source fusion / stop association
 -> generic candidates
 -> broker template matching
 -> template-aware scoring
@@ -36,6 +37,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout artifact scaffold | `app/document_ai/layout_artifacts.py`, `app/document_ai/layout_index.py`, `app/document_ai/layout_proximity.py` | Implemented dependency-free contracts and helpers with synthetic fixtures |
 | Layout provider pilot | `app/document_ai/layout_provider.py`, `app/document_ai/pdfplumber_layout_provider.py`, `app/document_ai/layout_pipeline.py` | Implemented `pdfplumber` provider behind explicit safe measurement flags |
 | Layout-aware candidate scaffold | `app/document_ai/layout_candidate_extraction.py`, `app/document_ai/layout_rate_candidates.py`, `app/document_ai/layout_stop_candidates.py`, `app/document_ai/layout_operational_candidates.py` | Implemented for synthetic layout artifacts only |
+| Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -89,6 +91,10 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   behind `--layout-provider pdfplumber --enable-layout-candidates`.
 - Safe layout-provider measurement fields for provider status counts, layout
   candidate counts, evidence type counts, and candidate-count deltas.
+- Layout field delta audit, candidate source fusion contracts, stop association
+  contracts, table/section stop grouping, rate fusion guardrails, and
+  operational detail fusion.
+- Safe measurement flag `--enable-layout-fusion`, which remains off by default.
 
 ## Scaffolding Only
 
@@ -109,6 +115,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Production real broker templates.
 - Broker template privacy review workflow beyond local-only overlay measurement.
 - Candidate field resolver for difficult layout pairing beyond current fake fixtures.
+- Provider-to-table/section calibration for private PDFs where `pdfplumber`
+  does not expose stable stop groups.
 - DispatchCase creation from RateCon extraction.
 - Event writes from document extraction.
 - Telegram business logic for RateCon extraction.
@@ -147,6 +155,14 @@ Current relevant tests include:
   - `tests/test_pdfplumber_layout_provider.py`
   - `tests/test_layout_pipeline.py`
   - `tests/test_layout_provider_comparison.py`
+  - `tests/test_layout_field_delta_audit.py`
+  - `tests/test_candidate_fusion.py`
+  - `tests/test_stop_association.py`
+  - `tests/test_stop_table_association.py`
+  - `tests/test_stop_section_association.py`
+  - `tests/test_stop_candidate_fusion.py`
+  - `tests/test_rate_fusion.py`
+  - `tests/test_operational_fusion.py`
 - Broker templates:
   - `tests/test_broker_templates_contract.py`
   - `tests/test_broker_template_fixtures.py`
@@ -188,6 +204,7 @@ print raw private text:
 - `py scripts/export_private_ratecon_value_review_csv.py --limit 3`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
@@ -219,6 +236,9 @@ Private value-review CSV output is local-only and ignored.
   load movement documents. The first `pdfplumber` provider run succeeded on 6
   normal-load digital-text documents and produced candidate-count deltas, but it
   does not resolve final fields by itself.
+- The first layout-fusion rerun attempted fusion on 6 documents and produced no
+  stop groups from provider artifacts. Rate evidence improved, but
+  stop/location/date association remains unresolved.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
@@ -227,9 +247,11 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after the `pdfplumber` provider pilot:
 
 ```text
-Resolver/layout association hardening or table-provider evaluation, based on
-safe layout-provider measurement deltas.
+Provider-to-table/section calibration and stop/date/location association
+hardening, based on safe layout-fusion measurement deltas.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen
-only if `pdfplumber` table evidence is insufficient after safe measurement.
+only after the current `pdfplumber` provider artifacts and section/table
+structure have been calibrated against fake fixtures and safe measurement
+deltas.
