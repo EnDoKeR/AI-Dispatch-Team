@@ -8,7 +8,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from app.document_ai.broker_template_registry import BrokerTemplateRegistry
+from app.document_ai.broker_template_registry import BrokerTemplateRegistry, TemplateRegistryError
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -61,8 +61,28 @@ def _print_expected_error(reason):
     )
 
 
-def _load_registry(template_dir):
+def _load_registry(
+    template_dir,
+    private_template_dir=None,
+    allow_private_template_overlay=False,
+):
     path = Path(template_dir)
+    private_path = Path(private_template_dir) if private_template_dir else None
+
+    if private_path and not allow_private_template_overlay:
+        raise PrivateMeasurementInputError(
+            "private template overlay requires --allow-private-template-overlay"
+        )
+
+    if private_path and not private_path.exists():
+        raise PrivateMeasurementInputError("private template overlay directory does not exist")
+
+    if path.exists() and private_path:
+        return BrokerTemplateRegistry.from_directories(
+            [path],
+            private_dirs=[private_path],
+        )
+
     if path.exists():
         return BrokerTemplateRegistry.from_directory(path)
     return []
@@ -71,6 +91,8 @@ def _load_registry(template_dir):
 def build_private_ratecon_measurement_report(
     input_dir,
     template_dir=DEFAULT_TEMPLATE_DIR,
+    private_template_dir=None,
+    allow_private_template_overlay=False,
     alias_prefix="RATECON",
     limit=0,
     output_policy=None,
@@ -80,7 +102,11 @@ def build_private_ratecon_measurement_report(
         pdfs = pdfs[: int(limit)]
 
     aliases = build_safe_aliases(pdfs, prefix=alias_prefix)
-    registry = _load_registry(template_dir)
+    registry = _load_registry(
+        template_dir,
+        private_template_dir=private_template_dir,
+        allow_private_template_overlay=allow_private_template_overlay,
+    )
     policy = output_policy or build_safe_measurement_output_policy()
     rows = [
         measure_private_ratecon_pdf(path, aliases[path], registry, output_policy=policy)
@@ -122,6 +148,9 @@ def format_private_measurement_report(report):
                 f"  triage_route: {row.get('triage_route', '')}",
                 f"  extraction_status: {row.get('extraction_status', '')}",
                 f"  template_status: {row.get('template_status', '')}",
+                f"  selected_template: {row.get('selected_template_id', '')}",
+                f"  template_source: {row.get('template_source', '')}",
+                f"  template_confidence_bucket: {row.get('template_confidence_bucket', '')}",
                 f"  review_required: {row.get('review_required', False)}",
                 f"  blocker_categories: {row.get('blocker_categories', [])}",
                 f"  missing_fields: {row.get('missing_fields', [])}",
@@ -167,6 +196,9 @@ def main(argv=None):
     parser.add_argument("--write-csv", action="store_true")
     parser.add_argument("--write-md", action="store_true")
     parser.add_argument("--write-value-review-template", action="store_true")
+    parser.add_argument("--private-template-dir", default="")
+    parser.add_argument("--allow-private-template-overlay", action="store_true")
+    parser.add_argument("--redact-private-template-names", action="store_true", default=True)
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -187,6 +219,8 @@ def main(argv=None):
         report = build_private_ratecon_measurement_report(
             input_dir=args.input_dir,
             template_dir=args.template_dir,
+            private_template_dir=args.private_template_dir,
+            allow_private_template_overlay=args.allow_private_template_overlay,
             alias_prefix=args.alias_prefix,
             limit=args.limit,
             output_policy=policy,
@@ -214,7 +248,12 @@ def main(argv=None):
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
-    except (PrivateMeasurementInputError, PrivateMeasurementOutputError, FileNotFoundError) as exc:
+    except (
+        PrivateMeasurementInputError,
+        PrivateMeasurementOutputError,
+        TemplateRegistryError,
+        FileNotFoundError,
+    ) as exc:
         _print_expected_error(str(exc))
         return 2
 

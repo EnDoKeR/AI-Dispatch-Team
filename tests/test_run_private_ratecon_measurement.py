@@ -12,6 +12,7 @@ from scripts.run_private_ratecon_measurement import (
     format_private_measurement_report,
     main,
 )
+from tests.fixtures.document_ai.broker_templates.fixture_loader import load_template_fixture
 from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
     write_fake_empty_text_pdf,
     write_fake_text_pdf,
@@ -143,6 +144,64 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("safe_outputs_written", console_output)
         self.assertNotIn(str(root), console_output)
         self.assertNotIn(output_dir, console_output)
+
+    def test_cli_refuses_private_template_dir_without_allow_flag(self):
+        temp, root = self._fake_pdf_dir()
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with tempfile.TemporaryDirectory() as overlay_dir:
+            with redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--confirm-private-local-run",
+                        "--private-template-dir",
+                        overlay_dir,
+                    ]
+                )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("private template overlay requires", stderr.getvalue())
+
+    def test_cli_loads_private_overlay_and_redacts_template_identity(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        with tempfile.TemporaryDirectory() as overlay_dir:
+            private_template = dict(load_template_fixture("alpha_freight_mock_v1.json"))
+            private_template["template_id"] = "private_real_template_secret"
+            private_template["broker_key"] = "private_real_template_secret"
+            private_template["display_name"] = "PRIVATE REAL BROKER SECRET"
+            private_template["match_rules"] = [
+                {
+                    "keywords": ["TRUCKLOAD RATE CONFIRMATION"],
+                    "aliases": [],
+                    "exclude_keywords": [],
+                    "mc_numbers": [],
+                    "email_domains": [],
+                    "min_keyword_hits": 1,
+                    "confidence_boost": 0.8,
+                    "confidence_penalty": 0.0,
+                }
+            ]
+            Path(overlay_dir, "private_real_template_secret.json").write_text(
+                json.dumps(private_template),
+                encoding="utf-8",
+            )
+            report = build_private_ratecon_measurement_report(
+                root,
+                private_template_dir=overlay_dir,
+                allow_private_template_overlay=True,
+                limit=1,
+            )
+            output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("PRIVATE_TEMPLATE_001", output)
+        self.assertIn("private_local", output)
+        self.assertNotIn("PRIVATE REAL BROKER SECRET", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
 
     def test_cli_limit_controls_processed_rows(self):
         temp, root = self._fake_pdf_dir(count=2)
