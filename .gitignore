@@ -29,6 +29,16 @@ Thumbs.db
 tmp/
 temp/
 
+# Local-only generated reports / private measurement outputs
+.local_outputs/
+.local_outputs/**
+local_outputs/
+local_outputs/**
+private_outputs/
+private_outputs/**
+tmp_private_outputs/
+tmp_private_outputs/**
+
 # Private operational runtime data
 data/current_loads.json
 data/decision_history.jsonl
