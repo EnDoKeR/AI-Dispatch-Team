@@ -15,6 +15,118 @@ The project is no longer just a Telegram load alert bot. The architectural direc
 
 ---
 
+## Canonical Product Boundary
+
+Product goal:
+
+```text
+Help a dispatcher evaluate freight opportunities, documents, drivers, broker history, lane context, and outcomes through one auditable operating system.
+```
+
+The system is:
+
+- a dispatch operating intelligence layer;
+- a decision and evidence system;
+- a DispatchCase timeline system;
+- a memory and replay foundation;
+- a document/intake processing foundation;
+- a set of adapters for Telegram, CLI tools, future dashboards, and future external integrations.
+
+The system is not:
+
+- a Telegram bot with business rules hidden in messages;
+- an autonomous booking agent;
+- a PDF regex script that directly creates dispatch decisions;
+- a Google Sheets workflow as the core data model;
+- a live DAT/API integration yet;
+- an OCR/Vision pipeline yet;
+- an accounting/factoring submission tool yet.
+
+## Canonical Layer Model
+
+Current and future work should fit one of these layers:
+
+1. Adapters
+   - Telegram, CLI tools, future dashboards, future Gmail/Sheets/DAT/API/Maps adapters.
+   - They format, collect, preview, or transmit information.
+   - They do not own business logic.
+
+2. Intake
+   - Converts external or manual input into structured intake records.
+   - Includes manual JSON, pasted text, local PDF dry-runs, future email/upload adapters, and future live load sources.
+   - Intake does not decide whether a load should be accepted.
+
+3. Document AI / Parsing
+   - Produces field candidates, evidence, confidence, extraction artifacts, and validation warnings.
+   - Regex is only one candidate source.
+   - Future OCR/Vision must be gated by triage and explicit design.
+
+4. Domain Core
+   - Owns normalized domain objects such as load candidates, stops, references, money amounts, driver profiles, broker profiles, and RateConfirmationIntake records.
+   - Domain objects should be JSON-ready and replayable.
+
+5. Decision Engine
+   - Owns accept/reject/review recommendations.
+   - Produces structured DecisionResult output.
+   - It is independent from Telegram text, PDF extraction, repositories, and UI concerns.
+
+6. Memory
+   - Broker, driver, lane, and historical outcome context.
+   - Memory may add context, reasons, and review signals.
+   - Memory must not silently override hard constraints.
+
+7. Persistence
+   - JSONL, JSON repositories, SQLite, and future databases.
+   - Persistence stores facts and artifacts.
+   - Repositories do not invent business status.
+
+8. Event Timeline
+   - Records important state changes and evidence attachments.
+   - Provides replay/audit trace for DispatchCases and future search/session records.
+
+9. Notification / Output
+   - Telegram, CLI reports, future dashboards, and future sheet exports.
+   - Outputs should show structured recommendations and evidence clearly.
+
+10. Simulation / Backtesting
+   - Synthetic load board and replay tooling.
+   - Used before live load sources, DAT/API, or autonomous workflows.
+
+11. Future Integrations
+   - DAT/API, Google Maps mileage, Gmail/email, Google Sheets, OCR/Vision, accounting/factoring.
+   - Each requires a separate accepted adapter contract before runtime behavior is added.
+
+## Canonical Flow
+
+```text
+Document/Load Source
+-> Intake Record
+-> DocumentRecord / LoadCandidate
+-> parser/extractor
+-> normalized domain object
+-> DispatchCase
+-> DecisionEngine
+-> Event Timeline
+-> Telegram/UI output
+-> dispatcher feedback
+-> memory/replay/accounting
+```
+
+This flow is conceptual. Some current pieces are still dry-run or report-only. A parser can create structured evidence, but it must not create a final case or decision by itself.
+
+## Hard Architecture Rules
+
+- Telegram is an adapter, not business logic.
+- DecisionEngine is the only authority for accept/reject/review recommendations.
+- Parser/extractor code never makes dispatch decisions.
+- Repository code never invents business status.
+- Low-confidence or missing critical fields must route to review, not accept.
+- DispatchCase writes require explicit ownership policy and tests.
+- Private raw RateCon text must never be committed.
+- Future DAT/API, OCR/Vision, Google Maps, Gmail, Google Sheets, accounting, and factoring work must be adapter-first and separately approved.
+
+---
+
 ## 1. Core architecture principle
 
 The system must be designed in layers.
