@@ -3,6 +3,24 @@
 This roadmap defines the test coverage needed before the project grows from
 foundation helpers into a Dispatch Operating Intelligence System.
 
+## Official Test Command
+
+Run the canonical test suite from the project root with:
+
+```powershell
+py scripts/run_tests.py
+```
+
+Fallback:
+
+```powershell
+py -m unittest discover -s tests -p "test_*.py"
+```
+
+Do not use bare `py -m unittest discover`. It can discover zero tests from the
+repo root. `scripts/run_tests.py` pins discovery to `tests` and fails if the
+discovered test count is zero.
+
 ## Current Test Categories Found
 
 Current tests already cover:

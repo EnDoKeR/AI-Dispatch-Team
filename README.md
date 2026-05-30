@@ -1257,11 +1257,20 @@ reload_chain_scoring.py
 Current testing baseline:
 
 ~~~powershell
+py scripts/run_tests.py
 py -m compileall app scripts main.py
+~~~
+
+Fallback full discovery command:
+
+~~~powershell
 py -m unittest discover -s tests -p "test_*.py"
 ~~~
 
-Recent full test discovery passed with 1036 tests.
+Do not use bare `py -m unittest discover`. In this repository it can discover
+zero tests when run from the project root.
+
+Recent full test discovery passed with 1963 tests.
 
 See also:
 

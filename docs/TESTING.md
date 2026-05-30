@@ -38,6 +38,21 @@ Run these commands from the project root:
 cd C:\Projects\AI-Dispatch-Team
 ````
 
+Official full test suite:
+
+```powershell
+py scripts/run_tests.py
+```
+
+Fallback:
+
+```powershell
+py -m unittest discover -s tests -p "test_*.py"
+```
+
+Do not use bare `py -m unittest discover`; it can discover zero tests from the
+repo root.
+
 Compile check:
 
 ```powershell

@@ -64,11 +64,21 @@ Before moving risky logic:
 Standard checks:
 
 ~~~powershell
+py scripts/run_tests.py
 py -m compileall app scripts main.py
-py -m unittest discover -s tests -p "test_*.py"
 git --no-pager diff --check
 git status
 ~~~
+
+Fallback full discovery command:
+
+~~~powershell
+py -m unittest discover -s tests -p "test_*.py"
+~~~
+
+Do not use bare `py -m unittest discover` unless project discovery
+configuration is later changed. The official runner fails if discovery finds
+zero tests.
 
 ---
 
