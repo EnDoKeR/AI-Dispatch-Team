@@ -1120,7 +1120,7 @@ scripts/run_intake_record_dry_run.py
 scripts/run_intake_scenarios.py
 ~~~
 
-Legacy intake import paths remain as compatibility wrappers for existing tests and scripts.
+Older `market_intelligence` intake import paths remain as compatibility wrappers for existing tests and scripts. The deleted `app/load_intake/` prototype is not part of the active intake path.
 
 Manual intake dry-run commands:
 
@@ -1138,6 +1138,7 @@ py scripts/private_ratecon_inventory.py
 py scripts/run_private_ratecon_pdf_extraction_inventory.py --limit 3
 py scripts/run_private_ratecon_pdf_dry_run.py --limit 1
 py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1
+py scripts/export_ratecon_dry_run_csv.py
 py scripts/run_pasted_text_scenarios.py
 py scripts/run_decision_engine_scenarios.py
 py scripts/run_decision_engine_adapter_dry_run.py
