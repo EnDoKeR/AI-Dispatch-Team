@@ -29,6 +29,10 @@ def load_fixture(name):
     return json.loads((FIXTURE_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
+def load_calibration_fixture(name):
+    return json.loads((FIXTURE_DIR / "calibration_patterns" / f"{name}.json").read_text(encoding="utf-8"))
+
+
 def build_set(name, classification_result=None):
     fixture = load_fixture(name)
     return build_normalized_stop_set(
@@ -74,6 +78,18 @@ class NormalizedStopSetBuilderTests(unittest.TestCase):
         self.assertTrue(
             all(stop["stop_type"] == NORMALIZED_STOP_TYPE_UNKNOWN for stop in stop_set["stops"])
         )
+
+    def test_overclassified_pickup_delivery_groups_become_unknown_review(self):
+        fixture = load_calibration_fixture("fake_pickup_delivery_overclassified")
+        stop_set = build_normalized_stop_set(
+            build_stop_association_result(stop_groups=fixture["stop_groups"]),
+            classification_result={"document_alias": "RATECON_FAKE", "normal_load_movement": True},
+        )
+
+        self.assertEqual(stop_set["pickup_count"], 0)
+        self.assertEqual(stop_set["delivery_count"], 0)
+        self.assertEqual(stop_set["unknown_count"], 2)
+        self.assertEqual(stop_set["review_required_stop_count"], 2)
 
     def test_terms_and_signature_noise_removed(self):
         signature_set = build_set("fake_signature_footer_noise_groups")

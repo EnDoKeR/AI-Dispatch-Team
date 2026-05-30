@@ -48,6 +48,7 @@ NOISE_WARNING_HEADER_FOOTER = "stop_group_noise_header_footer"
 DEDUP_WARNING_DUPLICATE = "duplicate_stop_group_removed"
 SEQUENCE_WARNING_INFERRED = "stop_sequence_inferred_from_layout_order"
 TYPE_WARNING_AMBIGUOUS = "stop_type_ambiguous_review_required"
+TYPE_WARNING_OVERCLASSIFIED = "stop_type_overclassified_review_required"
 FIELD_WARNING_CONFLICT = "normalized_stop_field_conflict"
 FIELD_WARNING_MISSING = "normalized_stop_field_missing"
 FIELD_WARNING_LOW_CONFIDENCE = "normalized_stop_field_low_confidence"
@@ -433,8 +434,33 @@ def resolve_stop_type(stop_group):
     group = stop_group or {}
     current = _text(group.get("stop_type")).lower()
     section = _section(group)
+    tokens = _warning_tokens(group)
     warnings = []
     reasons = []
+
+    if current in {STOP_TYPE_PICKUP, STOP_TYPE_DELIVERY} and (
+        "generic_stop_label" in tokens or "ambiguous_stop_type" in tokens
+    ) and section in _MULTI_STOP_SECTIONS:
+        warnings.extend([TYPE_WARNING_AMBIGUOUS, TYPE_WARNING_OVERCLASSIFIED])
+        reasons.append("generic_multi_stop_type_not_trusted")
+        return {
+            "stop_type": STOP_TYPE_UNKNOWN,
+            "confidence": "LOW",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
+
+    if current == STOP_TYPE_STOP and (
+        "generic_stop_label" in tokens or "ambiguous_stop_type" in tokens or section in _MULTI_STOP_SECTIONS
+    ):
+        warnings.append(TYPE_WARNING_AMBIGUOUS)
+        reasons.append("generic_stop_type_not_specific")
+        return {
+            "stop_type": STOP_TYPE_UNKNOWN,
+            "confidence": "LOW",
+            "reasons": reasons,
+            "warning_codes": warnings,
+        }
 
     if current in {STOP_TYPE_PICKUP, STOP_TYPE_DELIVERY, STOP_TYPE_STOP}:
         reasons.append("explicit_stop_type")

@@ -12,6 +12,7 @@ from app.document_ai.stop_association import (
 from app.document_ai.stop_normalization import (
     SEQUENCE_WARNING_INFERRED,
     TYPE_WARNING_AMBIGUOUS,
+    TYPE_WARNING_OVERCLASSIFIED,
     assign_stop_sequence_order,
     infer_stop_sequence,
     resolve_stop_type,
@@ -69,6 +70,39 @@ class StopSequenceTypeResolutionTests(unittest.TestCase):
     def test_ambiguous_stays_unknown(self):
         fixture = load_fixture("fake_ambiguous_stop_type_groups")
         result = resolve_stop_type(fixture["stop_groups"][0])
+
+        self.assertEqual(result["stop_type"], STOP_TYPE_UNKNOWN)
+        self.assertIn(TYPE_WARNING_AMBIGUOUS, result["warning_codes"])
+
+    def test_generic_stop_labels_are_not_overclassified_as_pickup_delivery(self):
+        fixture = json.loads(
+            (
+                FIXTURE_DIR
+                / "calibration_patterns"
+                / "fake_pickup_delivery_overclassified.json"
+            ).read_text(encoding="utf-8")
+        )
+
+        results = [resolve_stop_type(group) for group in fixture["stop_groups"]]
+
+        self.assertEqual(
+            [result["stop_type"] for result in results],
+            [STOP_TYPE_UNKNOWN, STOP_TYPE_UNKNOWN],
+        )
+        self.assertTrue(
+            all(TYPE_WARNING_OVERCLASSIFIED in result["warning_codes"] for result in results)
+        )
+
+    def test_generic_stop_type_with_ambiguous_warning_stays_unknown(self):
+        group = build_stop_group_candidate(
+            "generic_stop",
+            stop_type="stop",
+            source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+            section_role="MULTI_STOP_SECTION",
+            warning_codes=["ambiguous_stop_type"],
+        )
+
+        result = resolve_stop_type(group)
 
         self.assertEqual(result["stop_type"], STOP_TYPE_UNKNOWN)
         self.assertIn(TYPE_WARNING_AMBIGUOUS, result["warning_codes"])
