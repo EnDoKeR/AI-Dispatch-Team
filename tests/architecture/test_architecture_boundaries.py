@@ -251,6 +251,55 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
         assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_ratecon_candidate_modules_do_not_import_decision_output_or_heavy_extractors(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "pypdf",
+            "pdfplumber",
+            "fitz",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "gspread",
+            "google.oauth",
+            "googleapiclient",
+        ]
+        candidate_files = [
+            DOCUMENT_AI_PACKAGE / "ratecon_candidates.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_candidate_generators.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_candidate_extraction.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_field_resolution.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_intake_draft.py",
+        ]
+
+        for path in candidate_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_fake_candidate_extraction_cli_does_not_import_private_ratecon_flows(self):
+        forbidden_prefixes = [
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "scripts.run_private_ratecon_redacted_diagnostics",
+            "scripts.run_private_ratecon_layout_diagnostics",
+            "scripts.export_private_ratecon_value_review_csv",
+            "app.market_intelligence.intake.ratecon_pdf_dry_run",
+            "app.market_intelligence.intake.pdf_text_extraction",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.telegram",
+            "openai",
+            "pytesseract",
+            "easyocr",
+        ]
+        path = SCRIPTS / "run_fake_ratecon_candidate_extraction.py"
+
+        assert_no_import_prefix(self, path, forbidden_prefixes)
+
 
 if __name__ == "__main__":
     unittest.main()
