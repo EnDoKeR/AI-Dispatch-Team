@@ -425,6 +425,15 @@ def table_line_parts(line):
     return parts
 
 
+def pipe_line_parts(line):
+    text = str(line or "").strip()
+
+    if "|" not in text:
+        return table_line_parts(text)
+
+    return [part.strip() for part in text.split("|")]
+
+
 def table_header_for_line(line):
     normalized = normalize_label(re.sub(r"[/|]", " ", str(line or "")))
 
@@ -436,6 +445,105 @@ def table_header_for_line(line):
         return "freight"
 
     return ""
+
+
+def user_review_table_headers(line):
+    parts = pipe_line_parts(line)
+    normalized_parts = [normalize_label(part) for part in parts]
+    normalized_line = " ".join(normalized_parts)
+
+    if (
+        "customer" in normalized_parts
+        and "load" in normalized_parts
+        and "pick up" in normalized_line
+        and "delivery" in normalized_line
+        and "rate" in normalized_line
+        and "commodity" in normalized_line
+        and "weight" in normalized_line
+    ):
+        return normalized_parts
+
+    return []
+
+
+def first_nonempty_part(value, separator="/"):
+    for part in str(value or "").split(separator):
+        text = part.strip()
+
+        if text:
+            return text
+
+    return ""
+
+
+def apply_rate_commodity_weight_cell(output, value):
+    parts = [part.strip() for part in str(value or "").split("/")]
+
+    if len(parts) < 3:
+        set_field(output, "rate", value, LOW)
+        return
+
+    rate, commodity, weight = parts[:3]
+
+    if rate:
+        set_field(output, "rate", rate, MEDIUM)
+
+    if commodity:
+        set_field(output, "commodity", commodity, MEDIUM)
+
+    if weight:
+        set_field(output, "weight", weight, MEDIUM)
+
+
+def apply_user_review_table_value(output, header, value):
+    if not str(value or "").strip():
+        return
+
+    if header == "customer":
+        set_field(output, "customer_name", value, MEDIUM)
+        return
+
+    if header == "load":
+        set_field(output, "load_label", value, MEDIUM)
+        return
+
+    if "pick" in header and "date" not in header:
+        set_field(output, "pickup_location", value, MEDIUM)
+        return
+
+    if "pick" in header and "date" in header:
+        set_field(output, "pickup_date", value, MEDIUM)
+        return
+
+    if "delivery" in header and "date" not in header:
+        set_field(output, "delivery_location", value, MEDIUM)
+        return
+
+    if "delivery" in header and "date" in header:
+        set_field(output, "delivery_date", value, MEDIUM)
+        return
+
+    if "load no" in header:
+        set_field(output, "reference_id", first_nonempty_part(value), MEDIUM)
+        return
+
+    if "rate" in header and "commodity" in header and "weight" in header:
+        apply_rate_commodity_weight_cell(output, value)
+
+
+def apply_user_review_table_row(output, headers, line):
+    if not headers:
+        return False
+
+    values = pipe_line_parts(line)
+
+    if len(values) < 2:
+        return False
+
+    for header, value in zip(headers, values):
+        apply_user_review_table_value(output, header, value)
+
+    return True
 
 
 def apply_active_table_line(output, active_table, line):
@@ -629,12 +737,30 @@ def parse_pasted_text_to_parser_output(text):
     output["source_type"] = "manual_pasted_text"
     active_block = ""
     active_table = ""
+    active_user_table_headers = []
     pending_label = ""
 
     for raw_line in str(text or "").splitlines():
         clean_line = str(raw_line or "").strip()
 
         if not clean_line:
+            pending_label = ""
+            active_user_table_headers = []
+            continue
+
+        if active_user_table_headers and apply_user_review_table_row(
+            output,
+            active_user_table_headers,
+            clean_line,
+        ):
+            active_user_table_headers = []
+            pending_label = ""
+            continue
+
+        user_headers = user_review_table_headers(clean_line)
+
+        if user_headers:
+            active_user_table_headers = user_headers
             pending_label = ""
             continue
 

@@ -141,11 +141,11 @@ class AnonymizedRateConScenariosTests(unittest.TestCase):
                 self.assertNotIn("Fake Town", serialized)
                 self.assertNotIn("MC000000", serialized)
 
-    def test_user_table_scenarios_have_expected_core_policy_before_parser_hardening(self):
+    def test_user_table_scenarios_have_expected_core_policy_after_parser_hardening(self):
         scenarios = [
             scenario
             for scenario in ANONYMIZED_RATECON_SCENARIOS
-            if scenario.get("expected_missing_core_fields_before_table_hardening")
+            if "expected_missing_core_fields_after_table_hardening" in scenario
         ]
 
         self.assertGreaterEqual(len(scenarios), 8)
@@ -159,7 +159,7 @@ class AnonymizedRateConScenariosTests(unittest.TestCase):
                     set(summary["missing_core_fields"]),
                     set(
                         scenario[
-                            "expected_missing_core_fields_before_table_hardening"
+                            "expected_missing_core_fields_after_table_hardening"
                         ]
                     ),
                 )

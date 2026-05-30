@@ -371,6 +371,54 @@ Commodity Description    FAKE TABLE PRODUCT    40000 LBS    Flatbed
         self.assertIn("ACCESSORIALS_PRESENT", parsed["special_requirements"])
         self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
 
+    def test_user_table_style_row_extracts_core_fields(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("user_table_all_core_present")["text"]
+        )
+
+        self.assertEqual(parsed["customer_name"], "FAKE BROKER LLC")
+        self.assertEqual(parsed["load_label"], "FAKE LOAD")
+        self.assertEqual(parsed["pickup_location"], "Fake City, ST 00000")
+        self.assertEqual(parsed["pickup_date"], "2026-12-01")
+        self.assertEqual(parsed["delivery_location"], "Fake Town, ST 00000")
+        self.assertEqual(parsed["delivery_date"], "2026-12-02")
+        self.assertEqual(parsed["reference_id"], "FAKE-REF-028")
+        self.assertEqual(parsed["rate"], 0)
+        self.assertEqual(parsed["commodity"], "FAKE PRODUCT")
+        self.assertEqual(parsed["weight"], 40000)
+
+    def test_user_table_missing_loaded_miles_stays_deferred(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("user_table_missing_loaded_miles_only")["text"]
+        )
+
+        self.assertEqual(parsed["loaded_miles"], "")
+        self.assertEqual(parsed["customer_name"], "FAKE BROKER LLC")
+        self.assertEqual(parsed["reference_id"], "FAKE-REF-029")
+
+    def test_user_table_combined_rate_commodity_weight_handles_missing_parts(self):
+        missing_commodity = parse_pasted_text_to_parser_output(
+            anonymized_fixture("user_table_missing_commodity")["text"]
+        )
+        missing_weight = parse_pasted_text_to_parser_output(
+            anonymized_fixture("user_table_missing_weight")["text"]
+        )
+
+        self.assertEqual(missing_commodity["rate"], 0)
+        self.assertEqual(missing_commodity["commodity"], "")
+        self.assertEqual(missing_commodity["weight"], 40000)
+        self.assertEqual(missing_weight["rate"], 0)
+        self.assertEqual(missing_weight["commodity"], "FAKE PRODUCT")
+        self.assertEqual(missing_weight["weight"], "")
+
+    def test_user_table_load_number_near_loaded_miles_extracts_reference_only(self):
+        parsed = parse_pasted_text_to_parser_output(
+            anonymized_fixture("user_table_load_number_loaded_miles_merged")["text"]
+        )
+
+        self.assertEqual(parsed["reference_id"], "FAKE-REF-035")
+        self.assertEqual(parsed["loaded_miles"], "")
+
     def test_tbd_commodity_and_weight_stay_missing_with_review_signal(self):
         text = """
 Broker: Synthetic TBD Broker
