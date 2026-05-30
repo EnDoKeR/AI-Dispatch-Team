@@ -1,6 +1,19 @@
 """Stop group normalization helpers for layout-backed RateCon extraction."""
 
 from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.normalized_stops import (
+    NORMALIZED_STOP_FIELD_DATE,
+    NORMALIZED_STOP_FIELD_LOCATION,
+    NORMALIZED_STOP_FIELD_NOTES,
+    NORMALIZED_STOP_FIELD_REFERENCE,
+    NORMALIZED_STOP_FIELD_STATUS_CONFLICT,
+    NORMALIZED_STOP_FIELD_STATUS_LOW_CONFIDENCE,
+    NORMALIZED_STOP_FIELD_STATUS_MISSING,
+    NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+    NORMALIZED_STOP_FIELD_TIME,
+    build_normalized_stop,
+    build_normalized_stop_field,
+)
 from app.document_ai.stop_association import (
     STOP_ASSOCIATION_SOURCE_TABLE_ROW,
     STOP_FIELD_DATE,
@@ -20,6 +33,9 @@ NOISE_WARNING_HEADER_FOOTER = "stop_group_noise_header_footer"
 DEDUP_WARNING_DUPLICATE = "duplicate_stop_group_removed"
 SEQUENCE_WARNING_INFERRED = "stop_sequence_inferred_from_layout_order"
 TYPE_WARNING_AMBIGUOUS = "stop_type_ambiguous_review_required"
+FIELD_WARNING_CONFLICT = "normalized_stop_field_conflict"
+FIELD_WARNING_MISSING = "normalized_stop_field_missing"
+FIELD_WARNING_LOW_CONFIDENCE = "normalized_stop_field_low_confidence"
 
 _SIGNATURE_SECTIONS = {"SIGNATURE_BLOCK", "CERTIFICATE_SIGNATURE_BLOCK"}
 _TERMS_SECTIONS = {
@@ -36,6 +52,17 @@ _MEANINGFUL_STOP_FIELDS = {
     STOP_FIELD_TIME,
     STOP_FIELD_REFERENCE,
 }
+_STOP_TO_NORMALIZED_FIELD = {
+    STOP_FIELD_LOCATION: NORMALIZED_STOP_FIELD_LOCATION,
+    STOP_FIELD_DATE: NORMALIZED_STOP_FIELD_DATE,
+    STOP_FIELD_TIME: NORMALIZED_STOP_FIELD_TIME,
+    STOP_FIELD_REFERENCE: NORMALIZED_STOP_FIELD_REFERENCE,
+}
+_REQUIRED_NORMALIZED_FIELDS = (
+    NORMALIZED_STOP_FIELD_LOCATION,
+    NORMALIZED_STOP_FIELD_DATE,
+    NORMALIZED_STOP_FIELD_TIME,
+)
 
 _PICKUP_SECTIONS = {"PICKUP_SECTION"}
 _DELIVERY_SECTIONS = {"DELIVERY_SECTION"}
@@ -351,3 +378,177 @@ def assign_stop_sequence_order(stop_groups):
         sequenced.append(safe_group)
 
     return sequenced
+
+
+def _confidence_value(value):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        text = _text(value).upper()
+        if text == "HIGH":
+            return 0.9
+        if text == "MEDIUM":
+            return 0.65
+        if text == "LOW":
+            return 0.35
+        return 0.0
+
+
+def _confidence_bucket(value):
+    numeric = _confidence_value(value)
+    if numeric >= 0.8:
+        return "HIGH"
+    if numeric >= 0.5:
+        return "MEDIUM"
+    if numeric > 0:
+        return "LOW"
+    return "UNKNOWN"
+
+
+def _candidate_evidence(candidate):
+    evidence = candidate.get("evidence_ref") if isinstance(candidate, dict) else {}
+    return evidence if isinstance(evidence, dict) else {}
+
+
+def associate_stop_fields(stop_group):
+    fields = {}
+    for candidate in (stop_group or {}).get("field_candidates", []) or []:
+        if not isinstance(candidate, dict):
+            continue
+        field_name = _STOP_TO_NORMALIZED_FIELD.get(
+            _text(candidate.get("field_name")),
+            NORMALIZED_STOP_FIELD_NOTES,
+        )
+        fields.setdefault(field_name, []).append(candidate)
+    return fields
+
+
+def resolve_stop_field(field_name, candidates):
+    safe_candidates = [candidate for candidate in candidates or [] if isinstance(candidate, dict)]
+    if not safe_candidates:
+        return build_normalized_stop_field(
+            field_name=field_name,
+            status=NORMALIZED_STOP_FIELD_STATUS_MISSING,
+            warning_codes=[FIELD_WARNING_MISSING],
+        )
+
+    candidate_ids = {
+        _text(candidate.get("candidate_id"))
+        for candidate in safe_candidates
+        if _text(candidate.get("candidate_id"))
+    }
+    if len(candidate_ids) > 1:
+        return build_normalized_stop_field(
+            field_name=field_name,
+            status=NORMALIZED_STOP_FIELD_STATUS_CONFLICT,
+            confidence="LOW",
+            evidence_refs=[_candidate_evidence(candidate) for candidate in safe_candidates],
+            reasons=["multiple_candidates_for_stop_field"],
+            warning_codes=[FIELD_WARNING_CONFLICT],
+        )
+
+    selected = max(safe_candidates, key=lambda candidate: _confidence_value(candidate.get("confidence")))
+    confidence = _confidence_bucket(selected.get("confidence"))
+    status = (
+        NORMALIZED_STOP_FIELD_STATUS_RESOLVED
+        if confidence in {"HIGH", "MEDIUM"}
+        else NORMALIZED_STOP_FIELD_STATUS_LOW_CONFIDENCE
+    )
+    warnings = [] if status == NORMALIZED_STOP_FIELD_STATUS_RESOLVED else [FIELD_WARNING_LOW_CONFIDENCE]
+    return build_normalized_stop_field(
+        field_name=field_name,
+        status=status,
+        selected_candidate_id=selected.get("candidate_id", ""),
+        confidence=confidence,
+        evidence_refs=[_candidate_evidence(selected)],
+        reasons=["same_group_stop_field_candidate"],
+        warning_codes=warnings,
+    )
+
+
+def mark_missing_stop_fields(fields, required_fields=None):
+    required = required_fields or _REQUIRED_NORMALIZED_FIELDS
+    by_name = {field.get("field_name"): field for field in fields or [] if isinstance(field, dict)}
+    for field_name in required:
+        if field_name not in by_name:
+            by_name[field_name] = build_normalized_stop_field(
+                field_name=field_name,
+                status=NORMALIZED_STOP_FIELD_STATUS_MISSING,
+                warning_codes=[FIELD_WARNING_MISSING],
+            )
+    ordered = []
+    for field_name in list(required) + sorted(
+        name for name in by_name if name not in set(required)
+    ):
+        ordered.append(by_name[field_name])
+    return ordered
+
+
+def compute_stop_completeness(normalized_stop):
+    fields = {
+        field.get("field_name"): field
+        for field in (normalized_stop or {}).get("fields", []) or []
+        if isinstance(field, dict)
+    }
+    required_count = len(_REQUIRED_NORMALIZED_FIELDS)
+    resolved_count = sum(
+        1
+        for field_name in _REQUIRED_NORMALIZED_FIELDS
+        if fields.get(field_name, {}).get("status") == NORMALIZED_STOP_FIELD_STATUS_RESOLVED
+    )
+    return {
+        "required_field_count": required_count,
+        "resolved_required_field_count": resolved_count,
+        "missing_required_fields": [
+            field_name
+            for field_name in _REQUIRED_NORMALIZED_FIELDS
+            if fields.get(field_name, {}).get("status") == NORMALIZED_STOP_FIELD_STATUS_MISSING
+        ],
+        "complete": resolved_count == required_count,
+    }
+
+
+def build_normalized_stop_from_group(stop_group):
+    type_result = resolve_stop_type(stop_group)
+    sequence_result = infer_stop_sequence(stop_group, [stop_group])
+    associated_fields = associate_stop_fields(stop_group)
+    fields = [
+        resolve_stop_field(field_name, candidates)
+        for field_name, candidates in associated_fields.items()
+    ]
+    fields = mark_missing_stop_fields(fields)
+    review_required = any(
+        field.get("status")
+        in {
+            NORMALIZED_STOP_FIELD_STATUS_CONFLICT,
+            NORMALIZED_STOP_FIELD_STATUS_LOW_CONFIDENCE,
+            NORMALIZED_STOP_FIELD_STATUS_MISSING,
+        }
+        for field in fields
+    ) or type_result["stop_type"] == STOP_TYPE_UNKNOWN
+
+    return build_normalized_stop(
+        stop_id=_text((stop_group or {}).get("stop_group_id")),
+        sequence=sequence_result["sequence"],
+        stop_type=type_result["stop_type"],
+        source_group_ids=[(stop_group or {}).get("stop_group_id", "")],
+        page_numbers=[(stop_group or {}).get("page_number", "")]
+        if (stop_group or {}).get("page_number") not in [None, ""]
+        else [],
+        section_roles=[(stop_group or {}).get("section_role", "")],
+        table_ids=[(stop_group or {}).get("table_id", "")],
+        row_indices=[(stop_group or {}).get("row_index", "")]
+        if (stop_group or {}).get("row_index") not in [None, ""]
+        else [],
+        fields=fields,
+        confidence=type_result["confidence"],
+        reasons=type_result["reasons"] + sequence_result["reasons"],
+        warning_codes=sorted(
+            set(
+                normalize_list((stop_group or {}).get("warning_codes"))
+                + type_result["warning_codes"]
+                + sequence_result["warning_codes"]
+            )
+        ),
+        review_required=review_required,
+    )
