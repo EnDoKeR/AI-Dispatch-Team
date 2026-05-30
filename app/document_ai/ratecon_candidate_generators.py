@@ -13,12 +13,16 @@ from app.document_ai.ratecon_candidates import (
     FIELD_DELIVERY_LOCATION,
     FIELD_DELIVERY_TIME,
     FIELD_ACCESSORIAL_TERM,
+    FIELD_COMMODITY,
+    FIELD_EQUIPMENT,
     FIELD_LOAD_NUMBER,
     FIELD_PICKUP_DATE,
     FIELD_PICKUP_LOCATION,
     FIELD_PICKUP_TIME,
     FIELD_REFERENCE,
     FIELD_RATE,
+    FIELD_SPECIAL_REQUIREMENT,
+    FIELD_WEIGHT,
     SOURCE_SECTION_PATTERN,
     SOURCE_LABEL_PATTERN,
     build_candidate_extraction_result,
@@ -107,6 +111,52 @@ TIME_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+WEIGHT_PATTERN = re.compile(
+    r"\b(?P<weight>\d{1,3}(?:,\d{3})+|\d{4,6})\s*(?P<unit>lbs?|pounds)?\b",
+    re.IGNORECASE,
+)
+
+EQUIPMENT_PATTERN = re.compile(
+    r"\b(?P<equipment>dry\s+van|reefer|flatbed|conestoga|step\s*deck|"
+    r"stepdeck|van|53\s*ft|48\s*ft)\b",
+    re.IGNORECASE,
+)
+
+SPECIAL_REQUIREMENT_PATTERN = re.compile(
+    r"\b(?P<requirement>tarp required|no tarp|straps required|chains required|"
+    r"appointment required|driver assist|team required|temperature control|"
+    r"load bars|no touch|hazmat)\b",
+    re.IGNORECASE,
+)
+
+COMMODITY_LABELS = (
+    "commodity",
+    "commodity description",
+    "product",
+    "freight",
+    "freight description",
+    "description",
+)
+
+WEIGHT_LABELS = (
+    "weight",
+    "gross weight",
+    "total weight",
+)
+
+EQUIPMENT_LABELS = (
+    "equipment",
+    "trailer type",
+    "trailer type/size",
+    "mode",
+)
+
+SPECIAL_REQUIREMENT_LABELS = (
+    "special requirements",
+    "requirements",
+    "notes",
+)
+
 
 def _artifact_pages(artifact):
     if isinstance(artifact, dict):
@@ -134,6 +184,10 @@ def _normalize_mc(value):
         return text
 
     return f"MC{text}" if text else ""
+
+
+def _normalize_weight(value):
+    return str(value or "").replace(",", "").strip()
 
 
 def _split_label_value(line):
@@ -513,4 +567,200 @@ def build_stop_candidate_result(artifact):
         missing_candidate_fields=missing,
         warnings=warnings,
         extractor_version="stop_candidates_v1",
+    )
+
+
+def generate_operational_detail_candidates(artifact):
+    candidates = []
+
+    for page in _artifact_pages(artifact):
+        page_number = page.get("page_number", "")
+        lines = str(page.get("text", "") or "").splitlines()
+
+        for line_index, line in enumerate(lines, start=1):
+            stripped = line.strip()
+            if not stripped:
+                continue
+
+            label, value = _split_label_value(stripped)
+            lower_label = label.lower()
+            lower_line = stripped.lower()
+            context_before, context_after = _line_context(lines, line_index - 1)
+
+            if value and lower_label in EQUIPMENT_LABELS:
+                candidates.append(
+                    build_field_candidate(
+                        candidate_id=f"equipment-p{page_number}-l{line_index}",
+                        field_name=FIELD_EQUIPMENT,
+                        raw_value=value,
+                        normalized_value=value,
+                        confidence=CANDIDATE_CONFIDENCE_HIGH,
+                        confidence_reasons=["equipment_label"],
+                        page_number=page_number,
+                        line_number=line_index,
+                        label=label,
+                        context_before=context_before,
+                        context_after=context_after,
+                        source=SOURCE_LABEL_PATTERN,
+                        value_type="equipment",
+                    )
+                )
+            elif any(text in lower_line for text in ["conestoga", "flatbed", "reefer"]):
+                match = EQUIPMENT_PATTERN.search(stripped)
+                if match:
+                    candidates.append(
+                        build_field_candidate(
+                            candidate_id=f"equipment-pattern-p{page_number}-l{line_index}",
+                            field_name=FIELD_EQUIPMENT,
+                            raw_value=match.group("equipment"),
+                            normalized_value=match.group("equipment"),
+                            confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                            confidence_reasons=["equipment_keyword"],
+                            page_number=page_number,
+                            line_number=line_index,
+                            label="equipment keyword",
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_LABEL_PATTERN,
+                            value_type="equipment",
+                        )
+                    )
+
+            if value and lower_label in COMMODITY_LABELS:
+                candidates.append(
+                    build_field_candidate(
+                        candidate_id=f"commodity-p{page_number}-l{line_index}",
+                        field_name=FIELD_COMMODITY,
+                        raw_value=value,
+                        normalized_value=value,
+                        confidence=CANDIDATE_CONFIDENCE_HIGH,
+                        confidence_reasons=["commodity_label"],
+                        page_number=page_number,
+                        line_number=line_index,
+                        label=label,
+                        context_before=context_before,
+                        context_after=context_after,
+                        source=SOURCE_LABEL_PATTERN,
+                        value_type="commodity",
+                    )
+                )
+
+            if lower_label in WEIGHT_LABELS or re.search(r"\b(?:lbs?|pounds)\b", lower_line):
+                for match_index, match in enumerate(WEIGHT_PATTERN.finditer(stripped), start=1):
+                    raw_weight = match.group("weight")
+                    unit = match.group("unit") or ""
+                    candidates.append(
+                        build_field_candidate(
+                            candidate_id=(
+                                f"weight-p{page_number}-l{line_index}-{match_index}"
+                            ),
+                            field_name=FIELD_WEIGHT,
+                            raw_value=f"{raw_weight} {unit}".strip(),
+                            normalized_value=_normalize_weight(raw_weight),
+                            confidence=CANDIDATE_CONFIDENCE_HIGH,
+                            confidence_reasons=["weight_label_or_unit"],
+                            page_number=page_number,
+                            line_number=line_index,
+                            label=label or "weight",
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_LABEL_PATTERN,
+                            value_type="weight",
+                        )
+                    )
+
+            if value and lower_label in SPECIAL_REQUIREMENT_LABELS:
+                for match_index, match in enumerate(
+                    SPECIAL_REQUIREMENT_PATTERN.finditer(value),
+                    start=1,
+                ):
+                    candidates.append(
+                        build_field_candidate(
+                            candidate_id=(
+                                f"special-requirement-p{page_number}-l{line_index}-{match_index}"
+                            ),
+                            field_name=FIELD_SPECIAL_REQUIREMENT,
+                            raw_value=match.group("requirement"),
+                            normalized_value=match.group("requirement").lower(),
+                            confidence=CANDIDATE_CONFIDENCE_HIGH,
+                            confidence_reasons=["special_requirement_label"],
+                            page_number=page_number,
+                            line_number=line_index,
+                            label=label,
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_LABEL_PATTERN,
+                            value_type="special_requirement",
+                        )
+                    )
+
+            for match_index, match in enumerate(
+                SPECIAL_REQUIREMENT_PATTERN.finditer(stripped),
+                start=1,
+            ):
+                if value and lower_label in SPECIAL_REQUIREMENT_LABELS:
+                    continue
+
+                candidates.append(
+                    build_field_candidate(
+                        candidate_id=(
+                            f"special-requirement-pattern-p{page_number}-l{line_index}-{match_index}"
+                        ),
+                        field_name=FIELD_SPECIAL_REQUIREMENT,
+                        raw_value=match.group("requirement"),
+                        normalized_value=match.group("requirement").lower(),
+                        confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                        confidence_reasons=["special_requirement_keyword"],
+                        page_number=page_number,
+                        line_number=line_index,
+                        label="special requirement keyword",
+                        context_before=context_before,
+                        context_after=context_after,
+                        source=SOURCE_LABEL_PATTERN,
+                        value_type="special_requirement",
+                    )
+                )
+
+            if any(label_text in lower_line for label_text in ACCESSORIAL_LABELS):
+                candidates.append(
+                    build_field_candidate(
+                        candidate_id=f"accessorial-term-p{page_number}-l{line_index}",
+                        field_name=FIELD_ACCESSORIAL_TERM,
+                        raw_value=stripped,
+                        normalized_value=stripped,
+                        confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                        confidence_reasons=["accessorial_term_label"],
+                        page_number=page_number,
+                        line_number=line_index,
+                        label="accessorial",
+                        context_before=context_before,
+                        context_after=context_after,
+                        source=SOURCE_LABEL_PATTERN,
+                        value_type="accessorial_term",
+                    )
+                )
+
+    return candidates
+
+
+def build_operational_detail_candidate_result(artifact):
+    candidates = generate_operational_detail_candidates(artifact)
+    present_fields = {candidate["field_name"] for candidate in candidates}
+    required_fields = [
+        FIELD_EQUIPMENT,
+        FIELD_WEIGHT,
+        FIELD_COMMODITY,
+    ]
+    missing = [
+        field_name for field_name in required_fields if field_name not in present_fields
+    ]
+    warnings = ["operational_detail_candidates_missing"] if missing else []
+
+    return build_candidate_extraction_result(
+        document_id=(artifact or {}).get("document_id", ""),
+        artifact_id=(artifact or {}).get("artifact_id", ""),
+        candidates=candidates,
+        missing_candidate_fields=missing,
+        warnings=warnings,
+        extractor_version="operational_detail_candidates_v1",
     )
