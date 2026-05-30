@@ -100,6 +100,9 @@ def _skip_non_money_number(context_text, match):
     if any(term in lower for term in ["pickup", "delivery", "stop", "date", "appt"]):
         return True
 
+    if any(term in lower for term in ["freight bill", "load number", "order id", "reference", "ref"]):
+        return True
+
     return False
 
 
@@ -303,7 +306,12 @@ def generate_layout_rate_candidates(layout_artifact):
                 row_cells = _table_row_cells(table, cell.get("row_index", 0))
                 label = _nearest_left_label(row_cells, cell)
                 row_text = " ".join(_text(row_cell.get("text_redacted")) for row_cell in row_cells)
-                if _skip_non_money_number(row_text, money_match):
+                if _skip_non_money_number(text, money_match):
+                    continue
+                if section_role in {"STOP_TABLE", "PICKUP_SECTION", "DELIVERY_SECTION"} and not (
+                    money_match.group("amount").strip().startswith("$")
+                    or money_match.group("amount").strip().upper().startswith("USD")
+                ):
                     continue
                 context = _classify_money_context(row_text, section_role)
                 candidates.append(

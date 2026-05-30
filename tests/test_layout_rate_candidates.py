@@ -47,6 +47,7 @@ class LayoutRateCandidateTests(unittest.TestCase):
 
         self.assertTrue(any(candidate["value_type"] == "total_charge" for candidate in candidates))
         self.assertTrue(any(candidate["normalized_value"] == "3500.00" for candidate in candidates))
+        self.assertFalse(any(candidate["raw_value"] == "300" for candidate in candidates))
 
     def test_terms_page_money_is_not_main_rate(self):
         artifact = _load_fixture("fake_terms_billing_signature_layout.json")
