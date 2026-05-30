@@ -6,8 +6,12 @@ from pathlib import Path
 
 from app.document_ai.classification_audit import (
     DEFAULT_CLASSIFICATION_AUDIT_REPORT,
+    DEFAULT_CLASSIFICATION_REVIEW_TEMPLATE,
+    CLASSIFICATION_REVIEW_COLUMNS,
     build_classification_audit_report,
+    build_classification_review_template_csv,
     write_classification_audit_report,
+    write_classification_review_template_csv,
 )
 
 
@@ -82,6 +86,44 @@ class ClassificationAuditTests(unittest.TestCase):
 
         self.assertNotIn("3200.00", payload)
         self.assertNotIn("MC 123456", payload)
+
+    def test_review_template_generates_safe_columns_and_blank_user_fields(self):
+        text = build_classification_review_template_csv(self._rows())
+        header = text.splitlines()[0].split(",")
+
+        self.assertEqual(header, CLASSIFICATION_REVIEW_COLUMNS)
+        self.assertIn("user_expected_document_type", text)
+        self.assertIn("user_notes_local_only_do_not_share", text)
+        self.assertNotIn("FAKE BROKER LLC", text)
+        self.assertNotIn("raw_text", text)
+        for line in text.splitlines()[1:]:
+            self.assertTrue(line.endswith(",,"))
+
+    def test_review_template_writer_uses_ignored_default_path(self):
+        self.assertEqual(
+            DEFAULT_CLASSIFICATION_REVIEW_TEMPLATE.as_posix(),
+            ".local_outputs/private_ratecon_measurement/classification_review_template.csv",
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = Path(temp_dir) / "classification_review_template.csv"
+            written = write_classification_review_template_csv(self._rows(), output_path=path)
+            text = written.read_text(encoding="utf-8")
+
+        self.assertIn("document_alias", text)
+        self.assertNotIn("raw_text", text)
+
+    def test_default_review_template_path_is_gitignored(self):
+        result = subprocess.run(
+            ["git", "check-ignore", str(DEFAULT_CLASSIFICATION_REVIEW_TEMPLATE)],
+            cwd=Path(__file__).resolve().parents[1],
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            check=False,
+        )
+
+        self.assertEqual(result.returncode, 0)
 
 
 if __name__ == "__main__":

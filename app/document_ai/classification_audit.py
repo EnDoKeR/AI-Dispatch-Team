@@ -6,6 +6,23 @@ from pathlib import Path
 DEFAULT_CLASSIFICATION_AUDIT_REPORT = Path(
     ".local_outputs/private_ratecon_measurement/classification_audit_report.md"
 )
+DEFAULT_CLASSIFICATION_REVIEW_TEMPLATE = Path(
+    ".local_outputs/private_ratecon_measurement/classification_review_template.csv"
+)
+
+CLASSIFICATION_REVIEW_COLUMNS = [
+    "document_alias",
+    "predicted_document_type",
+    "predicted_ratecon_eligible",
+    "predicted_supplemental_only",
+    "predicted_classification_status",
+    "page_role_counts",
+    "section_role_counts",
+    "warning_codes",
+    "user_expected_document_type",
+    "user_expected_ratecon_eligible",
+    "user_notes_local_only_do_not_share",
+]
 
 
 FORBIDDEN_AUDIT_KEYS = {
@@ -113,6 +130,49 @@ def write_classification_audit_report(rows, output_path=None):
     path = Path(output_path) if output_path else DEFAULT_CLASSIFICATION_AUDIT_REPORT
     path.parent.mkdir(parents=True, exist_ok=True)
     text = build_classification_audit_report(rows)
+    assert_safe_classification_audit_payload(text)
+    path.write_text(text, encoding="utf-8")
+    return path
+
+
+def _csv_escape(value):
+    text = str(value or "")
+    if any(char in text for char in [",", '"', "\n", "\r"]):
+        return '"' + text.replace('"', '""') + '"'
+    return text
+
+
+def build_classification_review_template_csv(rows):
+    lines = [",".join(CLASSIFICATION_REVIEW_COLUMNS)]
+
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        safe = _safe_row(row)
+        record = {
+            "document_alias": safe["document_alias"],
+            "predicted_document_type": safe["document_type"],
+            "predicted_ratecon_eligible": str(safe["ratecon_eligible"]),
+            "predicted_supplemental_only": str(safe["supplemental_only"]),
+            "predicted_classification_status": safe["classification_status"],
+            "page_role_counts": _list_text(safe["page_role_counts"]),
+            "section_role_counts": _list_text(safe["section_role_counts"]),
+            "warning_codes": _list_text(safe["warning_codes"]),
+            "user_expected_document_type": "",
+            "user_expected_ratecon_eligible": "",
+            "user_notes_local_only_do_not_share": "",
+        }
+        lines.append(
+            ",".join(_csv_escape(record[column]) for column in CLASSIFICATION_REVIEW_COLUMNS)
+        )
+
+    return "\n".join(lines) + "\n"
+
+
+def write_classification_review_template_csv(rows, output_path=None):
+    path = Path(output_path) if output_path else DEFAULT_CLASSIFICATION_REVIEW_TEMPLATE
+    path.parent.mkdir(parents=True, exist_ok=True)
+    text = build_classification_review_template_csv(rows)
     assert_safe_classification_audit_payload(text)
     path.write_text(text, encoding="utf-8")
     return path
