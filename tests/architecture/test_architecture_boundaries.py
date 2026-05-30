@@ -4,9 +4,12 @@ from pathlib import Path
 
 
 ROOT = Path(__file__).resolve().parents[2]
+APP = ROOT / "app"
 MARKET_INTELLIGENCE = ROOT / "app" / "market_intelligence"
 INTAKE_PACKAGE = MARKET_INTELLIGENCE / "intake"
 DECISION_ENGINE_PACKAGE = MARKET_INTELLIGENCE / "decision_engine"
+DOCUMENT_AI_PACKAGE = APP / "document_ai"
+SCRIPTS = ROOT / "scripts"
 
 
 def python_files(root):
@@ -189,6 +192,64 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
             with self.subTest(path=str(path)):
                 self.assertNotIn("dat_api", source)
+
+    def test_document_ai_modules_do_not_import_business_or_output_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "gspread",
+            "google.oauth",
+            "googleapiclient",
+            "googlemaps",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "smtplib",
+            "imaplib",
+        ]
+
+        for path in python_files(DOCUMENT_AI_PACKAGE):
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_document_ai_modules_do_not_emit_dispatch_recommendations(self):
+        forbidden_literals = {
+            "ACCEPT",
+            "REJECT",
+            "MATCH",
+            "REVIEW_ONCE",
+            "BLOCK",
+        }
+
+        for path in python_files(DOCUMENT_AI_PACKAGE):
+            literals = set(string_literals(path))
+
+            for forbidden_literal in forbidden_literals:
+                with self.subTest(path=str(path), literal=forbidden_literal):
+                    self.assertNotIn(
+                        forbidden_literal,
+                        literals,
+                        f"{path} emits dispatch recommendation literal {forbidden_literal}",
+                    )
+
+    def test_fake_pdf_triage_cli_does_not_import_private_ratecon_flows(self):
+        forbidden_prefixes = [
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "scripts.run_private_ratecon_redacted_diagnostics",
+            "scripts.run_private_ratecon_layout_diagnostics",
+            "scripts.export_private_ratecon_value_review_csv",
+            "app.market_intelligence.intake.ratecon_pdf_dry_run",
+            "app.market_intelligence.intake.pdf_text_extraction",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.telegram",
+        ]
+        path = SCRIPTS / "run_fake_pdf_triage_dry_run.py"
+
+        assert_no_import_prefix(self, path, forbidden_prefixes)
 
 
 if __name__ == "__main__":
