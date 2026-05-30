@@ -943,6 +943,124 @@ def _has_section(page_results, section_role):
     )
 
 
+def _has_tonu_confirmation_signal(text):
+    return (
+        (
+            "truck order not used" in text
+            or "tonu number" in text
+            or "tonu reference" in text
+            or "order not used confirmation" in text
+        )
+        and (
+            "confirmation" in text
+            or "payment status" in text
+            or "truck ordered not used payment" in text
+            or "tonu number" in text
+            or "tonu reference" in text
+        )
+    )
+
+
+def _has_transport_confirmation_signal(text, page_results):
+    identity_hits = _count_hits(
+        text,
+        [
+            "load number",
+            "load id",
+            "order number",
+            "order #",
+            "pro number",
+            "shipment #",
+            "tender id",
+            "tender number",
+            "freight bill",
+        ],
+    )
+    route_hits = _count_hits(
+        text,
+        [
+            "route details",
+            "stop #",
+            "stop 1",
+            "stop 2",
+            "pickup",
+            "delivery",
+            "drop",
+            "shipper",
+            "consignee",
+            "origin:",
+            "destination:",
+            "pu section",
+            "so section",
+        ],
+    )
+    payment_hits = _count_hits(
+        text,
+        [
+            "carrier pay",
+            "total carrier pay",
+            "agreed rate",
+            "agreed amount",
+            "payment summary",
+            "carrier freight pay",
+            "total charge",
+            "linehaul",
+        ],
+    )
+    equipment_hits = _count_hits(
+        text,
+        [
+            "equipment",
+            "trailer type",
+            "commodity",
+            "gross weight",
+            "weight:",
+        ],
+    )
+    main_role_present = any(
+        _has_role(page_results, role)
+        for role in [
+            PAGE_ROLE_MAIN_RATECONF,
+            PAGE_ROLE_MAIN_TENDER,
+            PAGE_ROLE_MAIN_LOAD_CONFIRMATION,
+        ]
+    )
+
+    if identity_hits >= 1 and route_hits >= 2 and (payment_hits >= 1 or equipment_hits >= 1):
+        return True
+
+    return bool(main_role_present and route_hits >= 2 and payment_hits >= 1)
+
+
+def _document_type_from_transport_confirmation(text, page_results):
+    if "carrier load tender" in text:
+        return DOCUMENT_TYPE_CARRIER_LOAD_TENDER
+
+    if "load tender" in text:
+        return DOCUMENT_TYPE_LOAD_TENDER
+
+    if "rate & load confirmation" in text:
+        return DOCUMENT_TYPE_RATE_LOAD_CONFIRMATION
+
+    if (
+        "load / order confirmation" in text
+        or "order confirmation" in text
+        or ("order number" in text and "pro number" in text)
+    ):
+        return DOCUMENT_TYPE_ORDER_CONFIRMATION
+
+    if "load confirmation" in text:
+        return DOCUMENT_TYPE_LOAD_CONFIRMATION
+
+    if _has_role(page_results, PAGE_ROLE_MAIN_TENDER):
+        return DOCUMENT_TYPE_CARRIER_LOAD_TENDER
+
+    if _has_role(page_results, PAGE_ROLE_MAIN_LOAD_CONFIRMATION):
+        return DOCUMENT_TYPE_ORDER_CONFIRMATION
+
+    return DOCUMENT_TYPE_RATE_CONFIRMATION
+
+
 def _document_confidence(page_results):
     if not page_results:
         return 0.0
@@ -989,11 +1107,7 @@ def classify_document_from_text_artifact(artifact):
 
     confidence = _document_confidence(page_results)
 
-    if (
-        "truck order not used confirmation" in full_text
-        or "tonu reference" in full_text
-        or "order not used confirmation" in full_text
-    ):
+    if _has_tonu_confirmation_signal(full_text):
         return build_document_classification_result(
             document_alias=document_alias,
             document_type=DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED,
@@ -1002,6 +1116,32 @@ def classify_document_from_text_artifact(artifact):
             confidence=confidence,
             reasons=["TONU payment section detected"],
             warning_codes=["tonu_not_normal_load_movement"],
+            page_roles=roles,
+            page_results=page_results,
+        )
+
+    if _has_transport_confirmation_signal(full_text, page_results):
+        warning_codes = list(warnings)
+        if any(
+            page.get("primary_page_role") in {
+                PAGE_ROLE_TERMS,
+                PAGE_ROLE_BILLING,
+                PAGE_ROLE_SIGNATURE,
+                PAGE_ROLE_CARRIER_INFO,
+                PAGE_ROLE_DRIVER_INFO,
+            }
+            for page in page_results
+        ):
+            warning_codes.append("eligible_transport_signals_override_supplemental_primary")
+
+        return build_document_classification_result(
+            document_alias=document_alias,
+            document_type=_document_type_from_transport_confirmation(full_text, page_results),
+            ratecon_eligible=True,
+            supplemental_only=False,
+            confidence=confidence,
+            reasons=["transport confirmation identity, route, and payment/equipment signals detected"],
+            warning_codes=warning_codes,
             page_roles=roles,
             page_results=page_results,
         )
