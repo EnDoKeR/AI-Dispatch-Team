@@ -1,0 +1,118 @@
+# Testing Roadmap
+
+This roadmap defines the test coverage needed before the project grows from
+foundation helpers into a Dispatch Operating Intelligence System.
+
+## Current Test Categories Found
+
+Current tests already cover:
+
+- load filtering, selection, duplicate handling, and simulated load flows;
+- market rules, quality/risk rules, and DecisionEngine comparison helpers;
+- DecisionResult contracts and report-only timeline previews;
+- DispatchCase factory/matcher/update helpers and event-builder compatibility;
+- event taxonomy, payload, normalizer, report, timeline contract, and dry-run CLIs;
+- intake records, parser contracts, parser confidence, intake repository/report,
+  RateCon dry-runs, PDF dry-run safety, redacted diagnostics, and CSV export;
+- IntakeCaseLinkCandidate helper/report;
+- Telegram formatting, duplicate keys, summary metadata, notifier metadata, sender
+  behavior, outbox logging, and search/watch formatting;
+- document AI scaffolding contracts;
+- architecture boundary tests for adapter/core/parser separation.
+
+## Missing Tests Before Future Development
+
+Before major feature growth, add coverage for:
+
+- RateCon parser regression corpus using fake/anonymized broker examples only;
+- PDF triage with digital text, image-like, mixed, encrypted, and broken PDFs;
+- OCR fallback routing without invoking OCR in unit tests;
+- broker template parsing and template selection;
+- field candidate resolver behavior for duplicates, conflicts, and confidence;
+- confidence/evidence propagation from extraction artifact to intake contract;
+- ReviewRequired gating for missing, low-confidence, and conflicting critical data;
+- DispatchCase creation from validated intake, with approval and idempotency gates;
+- Event Timeline append/read/idempotency over persisted case history;
+- broker memory scoring, sample-size protection, and reason reporting;
+- driver compatibility hard constraints vs soft preferences;
+- Telegram formatting safety for DecisionResult and review-required outputs;
+- duplicate alerts and notification idempotency;
+- missed-load and replay/backtesting reports;
+- SQLite persistence, migrations, and data compatibility;
+- future DAT/API adapter contract tests with fake responses only.
+
+## Business Rule Test Rule
+
+Every new business rule needs:
+
+- positive test;
+- negative test;
+- missing-data test;
+- low-confidence test;
+- regression test if the rule fixes a bug.
+
+Business rules must be tested in the domain or decision layer, not only through
+Telegram formatting or script output.
+
+## Parser Test Rule
+
+Every new broker/template needs:
+
+- fake or anonymized fixture text;
+- expected structured output;
+- expected missing fields;
+- expected needs-check fields;
+- confidence and evidence expectations;
+- coverage for ambiguous or conflicting candidates;
+- proof that no raw private text is committed.
+
+Private RateCon PDFs and extracted private text must never be committed as
+fixtures.
+
+## Event Timeline Test Rule
+
+Every new event writer needs:
+
+- event type taxonomy test;
+- payload contract test;
+- idempotency test;
+- JSON serialization test;
+- ordering/report test;
+- no private raw text in event payloads;
+- proof that runtime behavior changed only in the approved wiring block.
+
+## Document AI Test Rule
+
+Document AI tests should use fake PDFs, mocked extraction helpers, or synthetic
+artifact records. OCR/Vision tests must be routed through explicit adapter
+contracts and should not make network or paid API calls in unit tests.
+
+Required future coverage:
+
+- triage route selection;
+- extraction artifact metadata;
+- no raw text by default;
+- safe redacted evidence;
+- manual review route when extraction is empty or unsupported.
+
+## Persistence Test Rule
+
+Persistence and SQLite changes require:
+
+- schema/migration tests;
+- insert/read/update tests;
+- idempotency/duplicate tests;
+- replay/read-only report tests;
+- compatibility tests for existing records;
+- no business decision invention inside repositories.
+
+## Adapter Test Rule
+
+Adapters should be tested for formatting, transport boundaries, retries, and
+safe failure modes. They must not own dispatch decisions.
+
+Future DAT/API tests must use fake payloads and must prove:
+
+- core logic does not require a live DAT/API adapter;
+- credentials are not required for unit tests;
+- adapter output is normalized before decision logic sees it.
