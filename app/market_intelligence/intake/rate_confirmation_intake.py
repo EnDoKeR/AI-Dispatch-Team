@@ -446,6 +446,7 @@ def build_rate_confirmation_intake(
         "evidence_refs": normalize_dict(value_from(source, "evidence_refs", {})),
         "field_candidates": normalize_list(value_from(source, "field_candidates", [])),
         "field_evidence": normalize_list(value_from(source, "field_evidence", [])),
+        "extraction_context": normalize_dict(value_from(source, "extraction_context", {})),
         "parser_version": text(value_from(source, "parser_version", "")),
         "extractor_version": text(extractor_version or value_from(source, "extractor_version", "")),
         "source_method": text(source_method or value_from(source, "source_method", "")),

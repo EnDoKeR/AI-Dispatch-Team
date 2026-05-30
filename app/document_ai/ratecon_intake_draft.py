@@ -118,7 +118,17 @@ def build_ratecon_intake_from_resolution(
         "extractor_version": resolution_result.get("resolver_version", ""),
         "source_method": source_method,
         "parser_version": RATECON_INTAKE_DRAFT_BUILDER_VERSION,
+        "extraction_context": {},
     }
+
+    if "template_match_status" in resolution_result:
+        source["extraction_context"] = {
+            "extraction_template_id": resolution_result.get("selected_template_id", ""),
+            "extraction_template_version": "",
+            "template_match_confidence": resolution_result.get("template_match_confidence", 0.0),
+            "template_match_status": resolution_result.get("template_match_status", ""),
+            "template_context_used": bool(resolution_result.get("template_context_used", False)),
+        }
 
     for resolution in resolution_result.get("resolutions", []):
         field_name = str(resolution.get("field_name") or "").strip()
