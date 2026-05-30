@@ -59,7 +59,8 @@ Import scan findings:
 - `app/load_intake/sheet_writer.py` lazy-imported `gspread` only when a sheet write was requested.
 - Legacy tests imported `app/load_intake` modules to protect import safety before deletion.
 - No `market_intelligence` production flow imported `app/load_intake`.
-- `scripts/import_ratecon.py` is a standalone manual script and does not use `app/load_intake/importer.py`.
+- `scripts/import_ratecon.py` is a standalone deprecated script, is blocked by
+  default, and does not use `app/load_intake/importer.py`.
 
 Historical protection tests:
 

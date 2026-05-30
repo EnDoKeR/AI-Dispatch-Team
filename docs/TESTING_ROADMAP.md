@@ -17,7 +17,9 @@ Current tests already cover:
 - IntakeCaseLinkCandidate helper/report;
 - Telegram formatting, duplicate keys, summary metadata, notifier metadata, sender
   behavior, outbox logging, and search/watch formatting;
-- document AI scaffolding contracts;
+- document AI scaffolding contracts, PDF triage, safe extraction artifacts,
+  candidate extraction, broker template matching/scoring, conservative resolver,
+  and intake draft handoff;
 - architecture boundary tests for adapter/core/parser separation.
 
 ## Missing Tests Before Future Development
@@ -25,12 +27,11 @@ Current tests already cover:
 Before major feature growth, add coverage for:
 
 - RateCon parser regression corpus using fake/anonymized broker examples only;
-- PDF triage with digital text, image-like, mixed, encrypted, and broken PDFs;
-- safe extraction artifacts built from PDF triage metadata;
+- expanded PDF triage with more mixed, encrypted, and broken PDF edge cases;
+- safe extraction artifact propagation into later evidence records;
 - OCR fallback routing without invoking OCR in unit tests;
-- broker template parsing and template selection;
-- expanded field candidate resolver behavior for broker-specific duplicates, conflicts, and confidence;
-- broker template registry, matcher, scorer, unknown fallback, and conflict fallback;
+- template-specific resolver hardening for broker-specific duplicates, conflicts, and confidence;
+- additional broker template unknown/conflict fallback regression cases;
 - confidence/evidence propagation from extraction artifact to intake contract;
 - ReviewRequired gating for missing, low-confidence, and conflicting critical data;
 - DispatchCase creation from validated intake, with approval and idempotency gates;

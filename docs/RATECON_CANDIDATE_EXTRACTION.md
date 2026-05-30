@@ -1,8 +1,10 @@
 # RateCon Candidate Extraction
 
 This document describes the fake/anonymized candidate-based RateCon extraction layer.
-It does not implement OCR, Vision AI, broker templates, private PDF parsing,
-DispatchCase creation, Telegram output, Google Sheets, DAT/API, or event writes.
+It does not implement OCR, Vision AI, private PDF parsing, DispatchCase creation,
+Telegram output, Google Sheets, DAT/API, or event writes. Broker-template
+matching and scoring now live in the separate fake/anonymized layer documented
+in `docs/RATECON_BROKER_TEMPLATES.md`.
 
 ## Why This Layer Exists
 
@@ -20,6 +22,7 @@ resolver decides whether one value is safe enough to populate a draft intake fie
 fake/anonymized text artifact
 -> FieldCandidate records
 -> CandidateExtractionResult
+-> optional broker template matching / template-aware scoring
 -> FieldResolution records
 -> RateConFieldResolutionResult
 -> RateConfirmationIntake draft
@@ -165,11 +168,12 @@ OCR and Vision AI are not implemented in this layer. Later, they can plug in as
 additional candidate sources after PDF triage routes a document to the correct
 extractor.
 
-Future broker templates should add candidate generators and confidence
-boosts/penalties, not direct final assignment or dispatch decisions.
-
 The fake/anonymized broker template registry is documented in
 `docs/RATECON_BROKER_TEMPLATES.md`.
+
+Broker templates add matching, confidence boosts, and penalties around existing
+candidates. They do not directly assign final field values or make dispatch
+decisions.
 
 Future Event Timeline wiring can record:
 

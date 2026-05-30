@@ -486,7 +486,7 @@ It verifies that `parser.Load` still points to the active `MarketLoad` compatibi
 
 ## Scripts Impact
 
-`scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate legacy manual PDF-to-Google-Sheets flow with hardcoded local paths and external dependencies. Deleting `app/load_intake/` would not directly break this script, but this script should remain outside the new intake architecture and should be audited separately before use.
+`scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate deprecated manual PDF-to-Google-Sheets flow. It is now blocked by default and requires an explicit legacy flag before any PDF read or Google Sheets write. Deleting `app/load_intake/` did not directly affect this script, but this script remains outside the new intake architecture.
 
 `scripts/manual_test_sheet_connection.py` does not depend on `app/load_intake/`; it is a separate manual Google Sheets connectivity check.
 

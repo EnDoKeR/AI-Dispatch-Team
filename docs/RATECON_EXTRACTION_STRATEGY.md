@@ -1,6 +1,6 @@
 # RateCon Extraction Strategy
 
-This document defines the target future Rate Confirmation extraction architecture. It does not implement OCR, Vision AI, broker templates, external APIs, Google Sheets, DispatchCase writes, or parser behavior changes.
+This document defines the target future Rate Confirmation extraction architecture. It does not implement OCR, Vision AI, external APIs, Google Sheets, DispatchCase writes, or parser behavior changes.
 
 ## Strategic Correction
 
@@ -219,6 +219,11 @@ Broker templates should:
 
 Current fake/anonymized broker template behavior is documented in
 `docs/RATECON_BROKER_TEMPLATES.md`.
+
+The exact implemented pipeline checkpoint is documented in
+`docs/RATECON_PIPELINE_CURRENT_STATE.md`. If this strategy document and the
+checkpoint ever disagree, update the checkpoint first because it is the
+implementation map.
 
 ## Normalization And Validation
 

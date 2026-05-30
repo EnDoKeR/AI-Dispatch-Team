@@ -84,8 +84,12 @@ Safe current patterns:
 
 Legacy or local-only risk areas:
 
-- `scripts/import_ratecon.py` prints extracted values and writes to Google Sheets.
-- `scripts/read_ratecon.py` prints extracted values.
+- `scripts/import_ratecon.py` contains a deprecated Google Sheets write path, but
+  it is blocked by default and does not read a PDF or write externally without
+  `--allow-legacy-google-sheet-write`.
+- `scripts/read_ratecon.py` contains a deprecated value-print path, but it is
+  blocked by default and does not read a PDF or print values without
+  `--allow-legacy-value-print`.
 - `scripts/export_private_ratecon_value_review_csv.py` writes private values to a
   gitignored local CSV by design.
 

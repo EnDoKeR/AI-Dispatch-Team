@@ -79,10 +79,12 @@ Core architecture docs:
 * [Flow](docs/FLOW.md)
 * [Development Rulebook](docs/DEVELOPMENT_RULEBOOK.md)
 * [Domain Contracts](docs/DOMAIN_CONTRACTS.md)
+* [Current RateCon Pipeline State](docs/RATECON_PIPELINE_CURRENT_STATE.md)
 * [RateCon Extraction Strategy](docs/RATECON_EXTRACTION_STRATEGY.md)
 * [PDF Triage](docs/PDF_TRIAGE.md)
 * [RateCon Candidate Extraction](docs/RATECON_CANDIDATE_EXTRACTION.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
+* [Legacy RateCon Path Audit](docs/LEGACY_PATH_AUDIT.md)
 * [Testing Roadmap](docs/TESTING_ROADMAP.md)
 * [Event Timeline Contract](docs/EVENT_TIMELINE_CONTRACT.md)
 * [Telegram Output Safety](docs/TELEGRAM_OUTPUT_SAFETY.md)
@@ -1198,6 +1200,8 @@ py scripts/run_decision_result_timeline_preview.py
 ~~~
 
 This is dry-run only. It normalizes pasted JSON, one explicit JSON file, manually pasted text, or limited local private PDF text extraction into intake summaries, can optionally save JSON dry-run records to a gitignored local JSON repository, uses synthetic fixtures for intake/parser scenarios, and defines the internal parser output contract. The manual RateCon text dry-run command accepts sample text, `--text`, or safe stdin only; it saves no private text. The private PDF extraction inventory, PDF dry-run, and redacted diagnostics commands read local private PDFs only and print safe summaries with no raw extracted text or private values. The intake-to-case candidate report uses synthetic fixtures only and does not link or create cases. It does not run OCR, send Telegram, write Google Sheets, call Gmail/email APIs, or write DispatchCase events. Synthetic JSON examples live in `tests/fixtures/intake_sample_records/`; synthetic parser-shaped examples live in `tests/fixtures/parser_expected_outputs.py`; synthetic pasted-text examples live in `tests/fixtures/pasted_text_ratecon_examples.py`. Real RateCons must stay local/private; see `docs/RATECON_FIXTURE_SAFETY.md`.
+
+The current official RateCon architecture is documented in `docs/RATECON_PIPELINE_CURRENT_STATE.md`: PDF triage, safe extraction artifacts, fake/anonymized text artifacts, generic candidates, broker template matching, template-aware scoring, conservative resolution, RateConfirmationIntake drafts, and validation. Older `scripts/import_ratecon.py` and `scripts/read_ratecon.py` are deprecated prototypes and are blocked by default.
 
 DecisionEngine dry-run scenarios are synthetic-only. They validate the new result/signal/risk-flag foundation shape and do not change existing `MarketLoad`, Telegram, DispatchCase, or market snapshot behavior. The adapter dry-run command previews read-only normalization of existing load decision fields into `DecisionResult`; the comparison report checks that the adapter reflects current fields. The case event report command summarizes synthetic event records only, the builder compatibility command compares synthetic current-style builder outputs against the event taxonomy/base payload foundation, the normalizer report previews legacy-plus-normalized event wrapper output, the built-events normalization report runs current-style synthetic events through the wrapper/report layer, and the timeline preview command shows future `AI_DECISION_CREATED` payloads with nested DecisionResult data. These commands are not wired into runtime flow.
 

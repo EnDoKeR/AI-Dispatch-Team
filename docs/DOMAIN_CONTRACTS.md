@@ -905,7 +905,9 @@ Parser result shapes:
 
 Recommended direction:
 
-- introduce `RateConfirmationIntake`, `FieldCandidate`, `ExtractedFieldEvidence`, and `ExtractionArtifact` before more parser hardening;
+- continue routing new RateCon work through `RateConfirmationIntake`,
+  `FieldCandidate`, broker templates, field resolution, and `ExtractionArtifact`
+  contracts before more parser hardening;
 - keep private values local-only;
 - do not patch one regex parser into a hidden domain model.
 
