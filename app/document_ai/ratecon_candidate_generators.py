@@ -272,6 +272,16 @@ def _classify_money_line(line):
     }
 
 
+def _is_bare_number_amount(value):
+    text = str(value or "").strip()
+    return bool(re.fullmatch(r"\d{4,6}", text))
+
+
+def _has_money_context(line):
+    lower_line = line.lower()
+    return any(label in lower_line for label in STRONG_RATE_LABELS + ACCESSORIAL_LABELS)
+
+
 def generate_money_rate_candidates(artifact):
     candidates = []
 
@@ -284,9 +294,12 @@ def generate_money_rate_candidates(artifact):
                 continue
 
             for match_index, match in enumerate(MONEY_PATTERN.finditer(line), start=1):
+                raw_value = match.group("amount")
+                if _is_bare_number_amount(raw_value) and not _has_money_context(line):
+                    continue
+
                 classification = _classify_money_line(line)
                 context_before, context_after = _line_context(lines, line_index - 1)
-                raw_value = match.group("amount")
                 label = _label_from_line(line, match.start("amount"))
                 candidate_id = f"money-p{page_number}-l{line_index}-{match_index}"
 
