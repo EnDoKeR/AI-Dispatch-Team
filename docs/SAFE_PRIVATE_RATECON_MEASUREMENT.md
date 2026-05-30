@@ -44,6 +44,11 @@ Layout provider quality when explicitly enabled:
 - layout attempted/success/failure/skipped counts;
 - layout candidate counts by field;
 - layout evidence type counts;
+- layout quality bucket counts;
+- table and table-cell counts;
+- stop label signal counts;
+- likely issue bucket counts;
+- prevented regression counts;
 - candidate-count deltas versus text-only baseline;
 - improved/worsened/unchanged field-name buckets only.
 
@@ -244,7 +249,7 @@ addresses, references, raw text, filenames, local paths, or private notes.
 Optional layout provider measurement:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md
 ```
 
 This runs the `pdfplumber` provider only on digital, extraction-relevant normal
@@ -256,6 +261,16 @@ Layout fusion is also explicit. Without `--enable-layout-fusion`, layout
 candidates are measured but do not feed the resolver. With the flag, text and
 layout candidates are fused conservatively and only safe field/status deltas are
 written.
+
+Optional table-profile diagnostics:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-pdfplumber-table-profiles --compare-layout-to-text-baseline --write-json --write-csv --write-md
+```
+
+Use `--pdfplumber-table-profile default|lines|text|lines_strict|text_strict` to
+select a profile for the main run. Profile comparison writes only safe counts.
+It does not write table contents or private values.
 
 Collect redacted template patterns before drafting private templates:
 
@@ -370,6 +385,41 @@ These results keep OCR, Vision, Camelot, and new broker templates deferred. The
 next safe block should focus on provider-to-table/section structure and
 stop/date/location association using fake fixtures and safe deltas.
 
+The calibrated diagnostics and no-regression rerun reported:
+
+- documents measured: 18
+- layout attempted: 6
+- layout success: 6
+- layout skipped: 12
+- layout failed: 0
+- fusion attempted: 6
+- total tables: 22
+- total table cells: 710
+- stop label signals: pickup 37, delivery 44, stop 26, date 5, time 23
+- stop groups produced: 78
+- fusion worsened fields: none
+- OCR-needed unchanged: 4
+
+The no-regression guard prevents layout fusion from worsening protected critical
+fields by default. The safe diagnostic result indicates that `pdfplumber`
+produces useful table and stop evidence; the next blocker is resolver/evaluation
+readiness for stop/date/location fields, not Camelot, OCR, Vision, or broker
+template onboarding.
+
+Layout diagnostic issue buckets:
+
+- `provider_no_tables`: tables were not detected.
+- `provider_no_words`: word evidence is missing or too weak.
+- `provider_has_tables_but_no_stop_groups`: table evidence exists but grouping
+  did not use it.
+- `provider_has_stop_labels_but_no_groups`: labels exist but no groups were
+  created.
+- `scope_filter_excluded_pages`: classification/extraction scope removed likely
+  stop pages.
+- `association_logic_gap`: evidence exists but association/scoring remains weak.
+- `candidate_fusion_regression`: layout fusion worsened field status and needs
+  guardrail review.
+
 ## Layout-Aware Scaffold Status
 
 The layout-aware digital extraction scaffold started dependency-free and
@@ -412,6 +462,20 @@ Mostly `TEMPLATE_GAP`:
 Mostly `RESOLVER_GAP`:
 
 - add more fake/anonymized resolver scenarios and harden resolver rules.
+
+Tables and stop labels exist, but stop fields remain unresolved:
+
+- harden resolver scoring and build an evaluation corpus before changing
+  providers.
+
+No tables but strong words/lines:
+
+- extend line/section stop extraction; consider a table-provider design
+  checkpoint only after that measurement.
+
+Weak provider words/lines:
+
+- run an alternative layout provider review.
 
 Mostly high-confidence candidates:
 

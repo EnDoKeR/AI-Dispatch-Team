@@ -176,6 +176,14 @@ Required coverage for candidate generators and resolvers:
 - layout fusion tests for safe field delta audits, candidate source priority,
   stop contracts, table/section stop grouping, stop fusion, rate guardrails, and
   operational detail fusion.
+- layout provider diagnostics tests for quality buckets, safe stop-signal
+  counts, table-profile comparison, likely issue buckets, and local-only report
+  writing.
+- no-regression fusion tests proving protected critical fields cannot be
+  downgraded by weaker layout evidence unless an explicit debug path is used.
+- resolver readiness tests for choosing among provider-derived stop groups,
+  preserving unresolved/review status when layout evidence is ambiguous, and
+  avoiding private values in evaluation output.
 
 ## Broker Template Test Rule
 

@@ -144,6 +144,73 @@ produced 0 stop groups from current provider artifacts. Rate evidence improved,
 but stop/date/location association still needs provider-to-section/table
 calibration before adding another dependency.
 
+The calibrated diagnostics rerun showed the provider is producing usable layout
+structure:
+
+- documents measured: 18;
+- layout attempted: 6;
+- layout success: 6;
+- layout skipped: 12;
+- layout failed: 0;
+- OCR-needed unchanged: 4;
+- provider layout quality: `rich_layout` for all attempted documents;
+- total tables: 22;
+- total table cells: 710;
+- stop label signals: pickup 37, delivery 44, stop 26, date 5, time 23;
+- stop groups: 78;
+- fusion worsened fields: none.
+
+This changes the next decision. The immediate blocker is no longer basic
+provider conversion or a table-provider replacement. The next work should focus
+on resolver/evaluation readiness: deciding which stop groups and layout-backed
+candidates can safely improve unresolved stop/date/location fields without
+weakening existing text evidence.
+
+## pdfplumber Diagnostics
+
+Safe measurement can now emit local-only provider diagnostics. These diagnostics
+report counts and issue buckets only:
+
+- provider status;
+- page count;
+- word, line, table, and table-cell counts;
+- layout quality bucket;
+- stop label signal counts;
+- selected table settings profile;
+- likely issue bucket.
+
+Diagnostics never include raw text, line text, filenames, broker names, MC
+numbers, rates, addresses, dates/times, references, or local paths.
+
+The supported table settings profiles are:
+
+- `default`;
+- `lines`;
+- `text`;
+- `lines_strict`;
+- `text_strict`.
+
+`--compare-pdfplumber-table-profiles` compares these profiles with safe counts
+only. It is explicit because it re-runs provider extraction for comparison.
+
+Issue buckets are interpreted as follows:
+
+- `provider_no_tables`: pdfplumber produced words/lines but no tables; use
+  line/section extraction before choosing another table provider.
+- `provider_no_words`: provider output has no usable word evidence; review the
+  PDF route and consider alternative provider review or OCR only if the PDF is
+  empty-text/image-like.
+- `provider_has_tables_but_no_stop_groups`: table conversion exists but stop
+  grouping logic did not use it.
+- `provider_has_stop_labels_but_no_groups`: stop labels exist but association
+  logic did not build groups.
+- `scope_filter_excluded_pages`: classification/extraction scope removed pages
+  that appear to contain stop evidence.
+- `association_logic_gap`: layout evidence exists and grouping/scoring needs
+  hardening.
+- `candidate_fusion_regression`: fusion worsened a field and needs guardrail
+  review.
+
 ## Layout Artifacts
 
 The layout provider is intentionally deferred. This block defines normalized
@@ -215,17 +282,20 @@ This block does not add:
 Run locally only:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md
 ```
 
 Safe to share:
 
 - provider status counts;
 - layout attempted/success/failure/skipped counts;
+- table and table-cell counts;
+- stop label signal counts;
 - candidate count deltas by field;
 - field names in improved/worsened/unchanged buckets;
 - fusion attempted counts;
 - stop group counts;
+- prevented regression counts;
 - blocker counts.
 
 Do not share raw text, filenames, broker names, MC numbers, rates, addresses,
@@ -236,7 +306,9 @@ dates/times, load/reference numbers, local paths, or private notes.
 The scaffold block is successful when dependency-free layout contracts,
 synthetic layout fixtures, layout indexing helpers, label-value proximity
 helpers, layout-aware candidate generators, fake-only CLI validation, the first
-explicit provider pilot, and opt-in fusion guardrails exist. The next work
-should use safe measurement deltas to calibrate provider-to-table/section
-structure and stop/date/location association before evaluating a table-specific
-provider or queuing OCR design for empty-text documents.
+explicit provider pilot, diagnostics, stop signal detection, and no-regression
+fusion guardrails exist. Current safe diagnostics show `pdfplumber` is producing
+tables, cells, and stop signals, so Camelot remains decision-gated rather than
+the default next step. OCR remains queued only for OCR-needed documents, and
+Vision remains deferred until deterministic local routes are measured and
+insufficient.

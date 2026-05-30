@@ -21,6 +21,23 @@ That result means the next blocker is not another provider. It is how layout
 evidence is fused with existing text candidates and how stop-related evidence is
 associated before the resolver makes conservative decisions.
 
+The follow-up diagnostics and no-regression rerun changed the provider
+assessment:
+
+- layout attempted: 6;
+- layout success: 6;
+- provider quality: `rich_layout` on attempted documents;
+- total tables: 22;
+- total table cells: 710;
+- stop label signals: pickup 37, delivery 44, stop 26, date 5, time 23;
+- stop groups produced: 78;
+- fusion worsened fields: none.
+
+That means `pdfplumber` is producing enough structure for the next diagnostic
+step. The blocker is now resolver/evaluation readiness: selecting from stop
+groups and layout-backed field candidates without over-trusting ambiguous
+evidence.
+
 ## Why Not Add Another Provider Now
 
 Adding Camelot or another table provider before fusion would increase input
@@ -74,6 +91,24 @@ for example a same-row table value in a `RATE_SUMMARY` section or a pickup date
 inside a pickup section. Weak or contradictory layout evidence should not
 downgrade a resolved baseline field.
 
+## No-Regression Guard
+
+Layout fusion protects critical baseline fields by default. Protected fields
+include broker identity, load number, rate, pickup/delivery location/date/time,
+equipment, weight, and commodity.
+
+Default behavior:
+
+- do not downgrade resolved fields to missing;
+- do not downgrade resolved fields to low confidence because layout evidence is
+  weaker;
+- route strong source disagreement to conflict/review instead of hiding it;
+- reject weak layout candidates that would worsen a protected baseline field;
+- expose rejected field names and counts as safe diagnostics only.
+
+The explicit debug path `--allow-layout-regression-for-debug` exists for local
+diagnosis only. It must not be used to claim production readiness.
+
 ## Stop Association Model
 
 Stops should be grouped before final resolution. A stop group should carry:
@@ -123,6 +158,56 @@ sections:
   clearly load-specific;
 - no driver compatibility decision is made here.
 
+## Provider Diagnostics
+
+Safe measurement can add provider diagnostics with:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md
+```
+
+Optional table profile comparison:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-pdfplumber-table-profiles --compare-layout-to-text-baseline --write-json --write-csv --write-md
+```
+
+The supported `--pdfplumber-table-profile` values are `default`, `lines`,
+`text`, `lines_strict`, and `text_strict`. Diagnostics report only counts,
+status buckets, field names, evidence types, and aliases. They do not include
+raw text, filenames, broker names, MC numbers, rates, addresses, dates/times,
+references, or local paths.
+
+Issue buckets:
+
+- `provider_no_tables`: tables were not detected; continue line/section
+  extraction or evaluate table-specific providers only after measurement.
+- `provider_no_words`: provider output is too weak for deterministic layout
+  extraction; review route/provider options.
+- `provider_has_tables_but_no_stop_groups`: table conversion exists but
+  association missed it.
+- `provider_has_stop_labels_but_no_groups`: labels exist but grouping did not
+  connect them.
+- `scope_filter_excluded_pages`: classification scope excluded stop evidence.
+- `association_logic_gap`: stop groups/candidates exist but resolver scoring
+  still needs calibration.
+- `candidate_fusion_regression`: fusion guardrails need review.
+
+## Decision Gates
+
+Use safe diagnostics to decide the next block:
+
+- If tables and stop signals exist and stop groups improve, proceed to resolver
+  readiness and a human review/evaluation corpus.
+- If tables and stop signals exist but field statuses stay unresolved, harden
+  resolver scoring and evaluation fixtures before adding Camelot.
+- If no tables exist but words/lines are strong, extend line/section stop
+  extraction and consider a Camelot design checkpoint only after that evidence.
+- If provider output is weak, run an alternative layout provider review.
+- If OCR-needed remains isolated to empty-text documents, keep OCR queued for a
+  separate local OCR design checkpoint.
+- Vision remains a later gated fallback.
+
 ## Non-Goals
 
 This block does not:
@@ -138,4 +223,3 @@ This block does not:
 - call Telegram;
 - write Event Timeline events;
 - claim production readiness.
-
