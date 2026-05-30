@@ -60,6 +60,22 @@ class PrivateMeasurementContractTests(unittest.TestCase):
         self.assertNotIn("raw_text", row)
         self.assertNotIn("FAKE BROKER LLC", payload)
 
+    def test_measurement_row_supports_safe_template_summary_fields(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            template_status="matched",
+            selected_template_id="PRIVATE_TEMPLATE_001",
+            template_source="private_local",
+            template_confidence_bucket="high",
+        )
+
+        payload = json.dumps(row)
+
+        self.assertEqual(row["selected_template_id"], "PRIVATE_TEMPLATE_001")
+        self.assertEqual(row["template_source"], "private_local")
+        self.assertEqual(row["template_confidence_bucket"], "high")
+        self.assertNotIn("PRIVATE REAL BROKER", payload)
+
     def test_aggregate_serializes(self):
         aggregate = build_private_ratecon_measurement_aggregate(
             document_count=2,

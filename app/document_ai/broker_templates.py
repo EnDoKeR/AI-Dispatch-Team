@@ -180,6 +180,8 @@ def build_template_match_result(
     excluded_keywords=None,
     reasons=None,
     warnings=None,
+    template_source="",
+    is_private_local=False,
 ):
     return {
         "template_id": _text(template_id),
@@ -189,4 +191,6 @@ def build_template_match_result(
         "excluded_keywords": _normalize_list(excluded_keywords),
         "reasons": _normalize_list(reasons),
         "warnings": _normalize_list(warnings),
+        "template_source": _text(template_source),
+        "is_private_local": bool(is_private_local),
     }

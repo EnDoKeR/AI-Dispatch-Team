@@ -1,6 +1,10 @@
 """Deterministic broker template matching for fake/anonymized text artifacts."""
 
 from app.document_ai.broker_templates import build_template_match_result
+from app.document_ai.broker_templates import (
+    TEMPLATE_SOURCE_PRIVATE_LOCAL,
+    TEMPLATE_SOURCE_PRIVATE_LOCAL_DRAFT,
+)
 from app.document_ai.ratecon_candidates import FIELD_BROKER_MC, FIELD_BROKER_NAME
 
 
@@ -39,6 +43,61 @@ def _unique(values):
         result.append(text)
 
     return result
+
+
+def _confidence_bucket(confidence):
+    score = float(confidence or 0.0)
+    if score >= 0.75:
+        return "high"
+    if score >= MIN_TEMPLATE_CONFIDENCE:
+        return "medium"
+    if score > 0:
+        return "low"
+    return "none"
+
+
+def _is_private_match(match):
+    return bool(match.get("is_private_local")) or match.get("template_source") in [
+        TEMPLATE_SOURCE_PRIVATE_LOCAL,
+        TEMPLATE_SOURCE_PRIVATE_LOCAL_DRAFT,
+    ]
+
+
+def _private_template_alias(matches, template_id):
+    private_ids = sorted(
+        _text(match.get("template_id", ""))
+        for match in matches or []
+        if _is_private_match(match) and _text(match.get("template_id", ""))
+    )
+    for index, private_id in enumerate(private_ids, start=1):
+        if private_id == template_id:
+            return f"PRIVATE_TEMPLATE_{index:03d}"
+    return "PRIVATE_TEMPLATE_001" if template_id else ""
+
+
+def build_safe_template_selection_summary(template_selection):
+    """Return a shareable template summary without private identifiers."""
+    status = _text((template_selection or {}).get("status", "")) or TEMPLATE_SELECTION_STATUS_UNKNOWN
+    selected_id = _text((template_selection or {}).get("selected_template_id", ""))
+    selected_source = _text((template_selection or {}).get("selected_template_source", ""))
+    confidence = float((template_selection or {}).get("selected_confidence", 0.0) or 0.0)
+    matches = (template_selection or {}).get("matches", [])
+    is_private = selected_source in [TEMPLATE_SOURCE_PRIVATE_LOCAL, TEMPLATE_SOURCE_PRIVATE_LOCAL_DRAFT]
+
+    if status != TEMPLATE_SELECTION_STATUS_MATCHED or not selected_id:
+        safe_id = ""
+    elif is_private:
+        safe_id = _private_template_alias(matches, selected_id)
+    else:
+        safe_id = selected_id
+
+    return {
+        "template_status": status,
+        "selected_template_safe_id": safe_id,
+        "template_source": selected_source,
+        "template_confidence_bucket": _confidence_bucket(confidence),
+        "private_template_name_redacted": bool(is_private and safe_id),
+    }
 
 
 def _artifact_text(artifact):
@@ -157,6 +216,8 @@ def match_template(artifact, template, candidate_result=None):
         excluded_keywords=_unique(excluded_keywords),
         reasons=_unique(reasons),
         warnings=_unique(warnings),
+        template_source=template.get("source", ""),
+        is_private_local=template.get("is_private_local", False),
     )
 
 
@@ -179,6 +240,7 @@ def select_broker_template(artifact, templates, candidate_result=None):
     selected_confidence = selected.get("confidence", 0.0)
     selected_template_id = selected.get("template_id", "")
     selected_broker_key = selected.get("broker_key", "")
+    selected_template_source = selected.get("template_source", "")
     status = TEMPLATE_SELECTION_STATUS_UNKNOWN
 
     selected_reasons = set(selected.get("reasons", []))
@@ -202,6 +264,7 @@ def select_broker_template(artifact, templates, candidate_result=None):
         warnings.append("template_conflict")
         selected_template_id = ""
         selected_broker_key = ""
+        selected_template_source = ""
     else:
         status = TEMPLATE_SELECTION_STATUS_MATCHED
         reasons.append("template_selected")
@@ -209,6 +272,7 @@ def select_broker_template(artifact, templates, candidate_result=None):
     return {
         "selected_template_id": selected_template_id if status == TEMPLATE_SELECTION_STATUS_MATCHED else "",
         "selected_broker_key": selected_broker_key if status == TEMPLATE_SELECTION_STATUS_MATCHED else "",
+        "selected_template_source": selected_template_source if status == TEMPLATE_SELECTION_STATUS_MATCHED else "",
         "selected_confidence": selected_confidence,
         "matches": matches,
         "status": status,

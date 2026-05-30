@@ -8,6 +8,7 @@ from pathlib import Path
 from app.document_ai.broker_template_candidate_extraction import (
     extract_ratecon_candidates_with_template_context,
 )
+from app.document_ai.broker_template_matcher import build_safe_template_selection_summary
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
     DIGITAL_TEXT,
@@ -183,13 +184,6 @@ def _field_statuses(resolution_result, candidate_counts):
     return statuses
 
 
-def _safe_template_id(template_selection):
-    selected_template_id = str(template_selection.get("selected_template_id") or "").strip()
-    if "mock" in selected_template_id.lower():
-        return selected_template_id
-    return ""
-
-
 def _merged_list(*values):
     merged = []
     for value in values:
@@ -275,6 +269,7 @@ def measure_private_ratecon_pdf(
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
+    safe_template_summary = build_safe_template_selection_summary(template_selection)
     template_status = template_selection.get("status", "unknown")
     field_statuses = _field_statuses(resolution_result, candidate_counts)
     all_warnings = sorted(
@@ -296,7 +291,9 @@ def measure_private_ratecon_pdf(
         has_text_layer=triage_result.get("has_text_layer", False),
         likely_image_based=triage_result.get("likely_image_based", False),
         template_status=template_status,
-        selected_template_id=_safe_template_id(template_selection),
+        selected_template_id=safe_template_summary.get("selected_template_safe_id", ""),
+        template_source=safe_template_summary.get("template_source", ""),
+        template_confidence_bucket=safe_template_summary.get("template_confidence_bucket", ""),
         candidate_counts_by_field=candidate_counts,
         field_statuses=field_statuses,
         missing_fields=_merged_list(

@@ -155,6 +155,8 @@ def build_private_ratecon_measurement_row(
     likely_image_based=False,
     template_status="unknown",
     selected_template_id="",
+    template_source="",
+    template_confidence_bucket=CONFIDENCE_BUCKET_UNKNOWN,
     candidate_counts_by_field=None,
     field_statuses=None,
     missing_fields=None,
@@ -175,6 +177,8 @@ def build_private_ratecon_measurement_row(
         "likely_image_based": _bool(likely_image_based),
         "template_status": _text(template_status) or "unknown",
         "selected_template_id": _text(selected_template_id),
+        "template_source": _text(template_source),
+        "template_confidence_bucket": _normalize_confidence_bucket(template_confidence_bucket),
         "candidate_counts_by_field": _normalize_mapping(candidate_counts_by_field),
         "field_statuses": [
             status
