@@ -73,6 +73,52 @@ Equipment: Conestoga
         self.assert_expected_fields("appointment_window")
         self.assert_expected_fields("unusual_reference_label")
 
+    def test_identity_and_main_field_aliases_work(self):
+        text = """
+Bill To: Synthetic Alias Broker
+MC#: MC000000
+Total Carrier Pay: USD $3,450
+Load #: FAKE-ALIAS-001
+Pickup: Fake City, ST
+Pickup Date: 2026-10-01
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-02
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Conestoga
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["broker_name"], "Synthetic Alias Broker")
+        self.assertEqual(parsed["broker_mc"], "MC000000")
+        self.assertEqual(parsed["rate"], 3450)
+        self.assertEqual(parsed["reference_id"], "FAKE-ALIAS-001")
+        self.assertEqual(parsed["field_confidence"]["broker_name"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["broker_mc"], "MEDIUM")
+        self.assertEqual(parsed["field_confidence"]["rate"], "HIGH")
+        self.assertEqual(parsed["field_confidence"]["reference_id"], "MEDIUM")
+
+    def test_conflicting_reference_aliases_are_marked_low_confidence(self):
+        text = """
+Broker: Synthetic Conflict Broker
+Broker MC: MC000000
+Rate: 3000
+Load #: FAKE-CONFLICT-001
+Reference #: FAKE-CONFLICT-002
+Pickup: Fake City, ST
+Pickup Date: 2026-10-01
+Delivery: Fake Town, ST
+Delivery Date: 2026-10-02
+Commodity: FAKE PRODUCT
+Weight: 40000
+Equipment: Flatbed
+"""
+        parsed = parse_pasted_text_to_parser_output(text)
+
+        self.assertEqual(parsed["reference_id"], "FAKE-CONFLICT-001")
+        self.assertEqual(parsed["field_confidence"]["reference_id"], "LOW")
+        self.assertIn("REFERENCE_NEEDS_REVIEW", parsed["special_requirements"])
+
     def test_date_and_time_labels_extract_safely(self):
         parsed = parse_pasted_text_to_parser_output(
             fixture("appointment_window")["pasted_text"]

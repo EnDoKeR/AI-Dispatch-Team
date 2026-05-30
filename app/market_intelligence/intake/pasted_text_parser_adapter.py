@@ -31,11 +31,19 @@ PARSER_OUTPUT_FIELDS = [
 LABEL_MAPPINGS = {
     "broker": ("broker_name", HIGH),
     "broker name": ("broker_name", HIGH),
+    "bill to": ("broker_name", MEDIUM),
+    "customer": ("broker_name", MEDIUM),
     "broker mc": ("broker_mc", HIGH),
+    "mc#": ("broker_mc", MEDIUM),
+    "mc #": ("broker_mc", MEDIUM),
     "mc": ("broker_mc", MEDIUM),
     "mc number": ("broker_mc", MEDIUM),
     "rate": ("rate", HIGH),
+    "total": ("rate", HIGH),
     "total rate": ("rate", HIGH),
+    "total carrier pay": ("rate", HIGH),
+    "carrier pay": ("rate", MEDIUM),
+    "linehaul total": ("rate", MEDIUM),
     "pickup": ("pickup_location", HIGH),
     "pickup location": ("pickup_location", HIGH),
     "pickup date": ("pickup_date", HIGH),
@@ -49,8 +57,13 @@ LABEL_MAPPINGS = {
     "commodity": ("commodity", HIGH),
     "weight": ("weight", HIGH),
     "reference": ("reference_id", HIGH),
+    "reference #": ("reference_id", HIGH),
     "reference id": ("reference_id", HIGH),
+    "ref #": ("reference_id", MEDIUM),
+    "load #": ("reference_id", MEDIUM),
     "load number": ("reference_id", MEDIUM),
+    "order #": ("reference_id", MEDIUM),
+    "shipment #": ("reference_id", MEDIUM),
     "shipment id": ("reference_id", MEDIUM),
     "equipment": ("equipment", HIGH),
 }
@@ -96,7 +109,8 @@ def split_label_value(line):
 
 def numeric_value(value):
     text = str(value or "").strip()
-    cleaned = re.sub(r"[$,\s]", "", text)
+    cleaned = re.sub(r"\busd\b", "", text, flags=re.IGNORECASE)
+    cleaned = re.sub(r"[$,\s]", "", cleaned)
 
     if not cleaned:
         return ""
@@ -132,9 +146,28 @@ def set_field(output, field_name, value, confidence):
         return
 
     if field_name in {"rate", "weight"}:
-        output[field_name] = numeric_value(value)
+        normalized_value = numeric_value(value)
     else:
-        output[field_name] = str(value).strip()
+        normalized_value = str(value).strip()
+
+    existing_value = output.get(field_name, "")
+
+    if existing_value not in ["", None] and str(existing_value) != str(normalized_value):
+        if field_name == "rate":
+            output[field_name] = ""
+            append_special_requirement(output, "RATE_NEEDS_REVIEW")
+        elif field_name == "reference_id":
+            append_special_requirement(output, "REFERENCE_NEEDS_REVIEW")
+        elif field_name in {"broker_name", "broker_mc"}:
+            append_special_requirement(output, "BROKER_IDENTITY_NEEDS_REVIEW")
+        else:
+            append_special_requirement(output, f"{field_name.upper()}_NEEDS_REVIEW")
+
+        output["field_confidence"][field_name] = LOW
+        output["field_confidence"]["special_requirements"] = LOW
+        return
+
+    output[field_name] = normalized_value
 
     output["field_confidence"][field_name] = confidence
 

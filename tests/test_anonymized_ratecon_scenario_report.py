@@ -48,7 +48,21 @@ class AnonymizedRateConScenarioReportTests(unittest.TestCase):
             report["counts_by_gap_field"],
             report["suspected_parser_gap_fields"],
         )
-        self.assertGreater(report["counts_by_gap_field"].get("reference_id", 0), 0)
+        self.assertGreater(report["counts_by_gap_field"].get("pickup_location", 0), 0)
+
+    def test_identity_main_field_aliases_reduce_gaps_for_clean_header(self):
+        scenario = next(
+            item
+            for item in ANONYMIZED_RATECON_SCENARIOS
+            if item["scenario_id"] == "truckload_rate_confirmation_header"
+        )
+        report = build_anonymized_ratecon_scenario_report([scenario])
+        result = report["scenario_results"][0]
+
+        self.assertNotIn("broker_name", result["suspected_parser_gap_fields"])
+        self.assertNotIn("broker_mc", result["suspected_parser_gap_fields"])
+        self.assertNotIn("rate", result["suspected_parser_gap_fields"])
+        self.assertNotIn("reference_id", result["suspected_parser_gap_fields"])
 
     def test_report_contains_no_raw_scenario_text_or_values(self):
         report = build_anonymized_ratecon_scenario_report(
