@@ -11,20 +11,9 @@ from app.document_ai.broker_template_candidate_extraction import (
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
     DIGITAL_TEXT,
-    OCR_NEEDED,
     UNSUPPORTED,
 )
 from app.document_ai.private_measurement import (
-    BLOCKER_CONFLICTING_CRITICAL_FIELD,
-    BLOCKER_DIGITAL_TEXT_EXTRACTION_GAP,
-    BLOCKER_LOW_CONFIDENCE_CRITICAL_FIELD,
-    BLOCKER_MANUAL_REVIEW_REQUIRED,
-    BLOCKER_MISSING_CRITICAL_FIELD,
-    BLOCKER_OCR_NEEDED,
-    BLOCKER_PARSED_HIGH_CONFIDENCE_CANDIDATE,
-    BLOCKER_RESOLVER_GAP,
-    BLOCKER_TEMPLATE_GAP,
-    BLOCKER_UNSUPPORTED_OR_BROKEN_PDF,
     CONFIDENCE_BUCKET_HIGH,
     CONFIDENCE_BUCKET_LOW,
     CONFIDENCE_BUCKET_MEDIUM,
@@ -45,6 +34,9 @@ from app.document_ai.private_measurement import (
     build_private_ratecon_measurement_row,
     build_safe_measurement_output_policy,
 )
+from app.document_ai.private_measurement_blockers import (
+    classify_private_ratecon_measurement_blockers,
+)
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -61,18 +53,6 @@ from app.market_intelligence.intake.rate_confirmation_validation import (
 
 
 PRIVATE_RATECON_MEASUREMENT_PIPELINE_VERSION = "private_ratecon_measurement_pipeline_v1"
-
-CRITICAL_MEASUREMENT_FIELDS = (
-    "broker_name",
-    "broker_mc",
-    "rate",
-    "pickup_location",
-    "pickup_date",
-    "delivery_location",
-    "delivery_date",
-    "equipment",
-    "weight",
-)
 
 RESOLUTION_STATUS_TO_FIELD_STATUS = {
     FIELD_RESOLUTION_STATUS_RESOLVED: FIELD_STATUS_RESOLVED,
@@ -220,58 +200,6 @@ def _merged_list(*values):
     return merged
 
 
-def _blocker_categories(
-    triage_result,
-    extraction_status,
-    template_status="unknown",
-    resolution_result=None,
-    validation=None,
-):
-    blockers = []
-    resolution_result = resolution_result or {}
-    validation = validation or {}
-
-    if triage_result.get("recommended_route") == OCR_NEEDED:
-        blockers.append(BLOCKER_OCR_NEEDED)
-
-    if triage_result.get("recommended_route") == UNSUPPORTED or triage_result.get("broken"):
-        blockers.append(BLOCKER_UNSUPPORTED_OR_BROKEN_PDF)
-
-    if extraction_status == EXTRACTION_STATUS_EMPTY_TEXT:
-        blockers.append(BLOCKER_OCR_NEEDED)
-
-    if extraction_status == EXTRACTION_STATUS_TEXT_EXTRACTED:
-        missing_fields = set(resolution_result.get("missing_fields", []))
-        needs_fields = set(resolution_result.get("needs_check_fields", []))
-        conflict_fields = set(resolution_result.get("conflict_fields", []))
-
-        if missing_fields.intersection(CRITICAL_MEASUREMENT_FIELDS):
-            blockers.extend([BLOCKER_MISSING_CRITICAL_FIELD, BLOCKER_DIGITAL_TEXT_EXTRACTION_GAP])
-
-        if needs_fields.intersection(CRITICAL_MEASUREMENT_FIELDS):
-            blockers.extend([BLOCKER_LOW_CONFIDENCE_CRITICAL_FIELD, BLOCKER_RESOLVER_GAP])
-
-        if conflict_fields.intersection(CRITICAL_MEASUREMENT_FIELDS):
-            blockers.extend([BLOCKER_CONFLICTING_CRITICAL_FIELD, BLOCKER_MANUAL_REVIEW_REQUIRED])
-
-        if template_status in {"unknown", "conflict", "low_confidence"}:
-            blockers.append(BLOCKER_TEMPLATE_GAP)
-
-        if validation.get("review_required"):
-            blockers.append(BLOCKER_MANUAL_REVIEW_REQUIRED)
-
-        if not blockers:
-            blockers.append(BLOCKER_PARSED_HIGH_CONFIDENCE_CANDIDATE)
-
-    if extraction_status in [
-        EXTRACTION_STATUS_BROKEN_OR_UNSUPPORTED,
-        EXTRACTION_STATUS_EXTRACTION_FAILED,
-    ]:
-        blockers.append(BLOCKER_UNSUPPORTED_OR_BROKEN_PDF)
-
-    return sorted(set(blockers))
-
-
 def _base_triage_row(document_alias, triage_result, extraction_status, warnings=None):
     return build_private_ratecon_measurement_row(
         document_alias=document_alias,
@@ -283,7 +211,12 @@ def _base_triage_row(document_alias, triage_result, extraction_status, warnings=
         likely_image_based=triage_result.get("likely_image_based", False),
         template_status="unknown",
         warning_codes=warnings or triage_result.get("warnings", []),
-        blocker_categories=_blocker_categories(triage_result, extraction_status),
+        blocker_categories=classify_private_ratecon_measurement_blockers(
+            triage_route=triage_result.get("recommended_route", ""),
+            extraction_status=extraction_status,
+            broken=triage_result.get("broken", False),
+            likely_image_based=triage_result.get("likely_image_based", False),
+        ),
         review_required=True,
     )
 
@@ -379,12 +312,26 @@ def measure_private_ratecon_pdf(
             resolution_result.get("conflict_fields", []),
         ),
         warning_codes=all_warnings,
-        blocker_categories=_blocker_categories(
-            triage_result,
-            extraction_status,
-            template_status,
-            resolution_result=resolution_result,
-            validation=validation,
+        blocker_categories=classify_private_ratecon_measurement_blockers(
+            triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
+            extraction_status=extraction_status,
+            template_status=template_status,
+            missing_fields=_merged_list(
+                validation.get("missing_fields", []),
+                resolution_result.get("missing_fields", []),
+            ),
+            needs_check_fields=_merged_list(
+                validation.get("needs_check_fields", []),
+                resolution_result.get("needs_check_fields", []),
+            ),
+            conflict_fields=_merged_list(
+                validation.get("conflict_fields", []),
+                resolution_result.get("conflict_fields", []),
+            ),
+            review_required=validation.get("review_required", intake.get("review_required", True)),
+            candidate_counts_by_field=candidate_counts,
+            broken=triage_result.get("broken", False),
+            likely_image_based=triage_result.get("likely_image_based", False),
         ),
         intake_status=validation.get("status", intake.get("status", "")),
         review_required=validation.get("review_required", intake.get("review_required", True)),
