@@ -10,6 +10,12 @@ SUMMARY_IMPORT_FIELDS = [
     "source_type",
     "source_file_name",
     "received_at_utc",
+    "customer_name",
+    "load_label",
+    "load_number",
+    "loaded_miles",
+    "miles_status",
+    "miles_source",
     "broker_name",
     "broker_mc",
     "rate",
@@ -66,6 +72,8 @@ def build_human_summary_lines(record, status):
         "DRY RUN ONLY - no parser/storage/integration used",
         f"Status: {status}",
         f"Intake ID: {record['intake_id'] or 'MISSING'}",
+        f"Customer: {record['customer_name'] or record['broker_name'] or 'MISSING'}",
+        f"LOAD: {record['load_label'] or 'MISSING'}",
         f"Broker: {record['broker_name'] or 'MISSING'}",
         f"Broker MC: {record['broker_mc'] or 'MISSING'}",
         f"Rate: {record['rate'] or 'MISSING'}",
@@ -75,6 +83,7 @@ def build_human_summary_lines(record, status):
         f"Delivery date: {record['delivery_date'] or 'MISSING'}",
         f"Reference ID: {record['reference_id'] or 'MISSING'}",
         f"Equipment: {record['equipment'] or 'MISSING'}",
+        f"Miles status: {record['miles_status'] or 'DEFERRED_GOOGLE_MAPS'}",
     ]
 
     if record["special_requirements"]:

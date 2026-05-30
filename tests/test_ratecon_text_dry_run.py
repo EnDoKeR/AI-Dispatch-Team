@@ -12,6 +12,7 @@ from app.market_intelligence.intake.ratecon_text_dry_run import (
 CLEAN_TEXT = """
 Broker: Synthetic Manual Broker
 Broker MC: 000123
+Load: FAKE LOAD
 Rate: 3400
 Pickup: Dallas, TX
 Pickup Date: 2026-09-01
@@ -58,6 +59,29 @@ class RateConTextDryRunTests(unittest.TestCase):
         self.assertIn("rate", missing_fields)
         self.assertIn("pickup_location", missing_fields)
         self.assertEqual(result["status"], "MISSING_FIELDS")
+
+    def test_missing_optional_broker_mc_and_equipment_do_not_fail_core_policy(self):
+        text = """
+Broker: Synthetic Core Broker
+Load: FAKE LOAD
+Rate: 3400
+Pickup: Dallas, TX
+Pickup Date: 2026-09-01
+Delivery: Denver, CO
+Delivery Date: 2026-09-03
+Commodity: Synthetic steel
+Weight: 40000
+Reference: SYN-MANUAL-CORE
+""".strip()
+        result = run_ratecon_text_dry_run(text)
+
+        self.assertEqual(result["status"], "READY_FOR_REVIEW")
+        self.assertEqual(result["missing_core_fields"], [])
+        self.assertIn("broker_mc", result["optional_missing_fields"])
+        self.assertIn("equipment", result["optional_missing_fields"])
+        self.assertIn("loaded_miles", result["deferred_fields"])
+        self.assertEqual(result["miles_status"], "DEFERRED_GOOGLE_MAPS")
+        self.assertEqual(result["miles_source"], "NOT_FROM_RATECON")
 
     def test_low_confidence_appears_in_warnings(self):
         text = (

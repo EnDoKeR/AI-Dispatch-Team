@@ -22,6 +22,7 @@ from app.market_intelligence.intake.ratecon_pdf_dry_run import (
 CLEAN_TEXT = """
 Broker: Synthetic PDF Broker
 Broker MC: 000456
+Load: FAKE LOAD
 Rate: 3600
 Pickup: Dallas, TX
 Pickup Date: 2026-09-01
@@ -87,6 +88,42 @@ class RateConPdfDryRunTests(unittest.TestCase):
 
         self.assertEqual(result["status"], NEEDS_FIELD_FIX)
         self.assertIn("broker_mc", result["dry_run_result"]["intake_summary"]["missing_fields"])
+
+    def test_missing_optional_fields_do_not_make_pdf_result_needs_field_fix(self):
+        text = """
+Broker: Synthetic Optional PDF
+Load: FAKE LOAD
+Rate: 3600
+Pickup: Dallas, TX
+Pickup Date: 2026-09-01
+Delivery: Denver, CO
+Delivery Date: 2026-09-03
+Commodity: Synthetic steel
+Weight: 40000
+Reference: SYN-PDF-CORE
+""".strip()
+
+        with patch.object(
+            ratecon_pdf_dry_run,
+            "extract_pdf_text_local",
+            return_value=extraction_result(text),
+        ):
+            result = run_ratecon_pdf_dry_run("private.pdf")
+
+        self.assertEqual(result["status"], READY_FOR_REVIEW)
+        self.assertEqual(result["dry_run_result"]["missing_core_fields"], [])
+        self.assertIn(
+            "broker_mc",
+            result["dry_run_result"]["optional_missing_fields"],
+        )
+        self.assertIn(
+            "equipment",
+            result["dry_run_result"]["optional_missing_fields"],
+        )
+        self.assertEqual(
+            result["dry_run_result"]["miles_status"],
+            "DEFERRED_GOOGLE_MAPS",
+        )
 
     def test_empty_extraction_returns_bad_text_extraction(self):
         with patch.object(

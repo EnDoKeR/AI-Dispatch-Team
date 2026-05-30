@@ -10,19 +10,19 @@ from app.market_intelligence.intake.ratecon_text_dry_run import (
 
 
 CATEGORY_TO_PARSER_FIELD = {
-    "broker_name": "broker_name",
-    "broker_mc": "broker_mc",
-    "rate": "rate",
-    "pickup_location": "pickup_location",
-    "delivery_location": "delivery_location",
-    "pickup_date": "pickup_date",
-    "delivery_date": "delivery_date",
-    "weight": "weight",
-    "commodity": "commodity",
-    "reference_id": "reference_id",
-    "equipment": "equipment",
-    "special_requirements": "special_requirements",
-    "accessorials": "special_requirements",
+    "broker_name": ["broker_name", "customer_name"],
+    "broker_mc": ["broker_mc"],
+    "rate": ["rate"],
+    "pickup_location": ["pickup_location"],
+    "delivery_location": ["delivery_location"],
+    "pickup_date": ["pickup_date"],
+    "delivery_date": ["delivery_date"],
+    "weight": ["weight"],
+    "commodity": ["commodity"],
+    "reference_id": ["reference_id", "load_number"],
+    "equipment": ["equipment"],
+    "special_requirements": ["special_requirements"],
+    "accessorials": ["special_requirements"],
 }
 
 
@@ -38,14 +38,22 @@ def _field_present(value):
     return True
 
 
-def _status_for_field(parser_output, missing_fields, needs_check_fields, field_name):
-    if field_name in missing_fields:
+def _status_for_field(parser_output, missing_fields, needs_check_fields, field_names):
+    fields = list(field_names)
+
+    if all(field_name in missing_fields for field_name in fields):
         return "missing"
 
-    if field_name in needs_check_fields:
-        return "partial" if _field_present(parser_output.get(field_name)) else "missing"
+    if any(field_name in needs_check_fields for field_name in fields):
+        return "partial" if any(
+            _field_present(parser_output.get(field_name))
+            for field_name in fields
+        ) else "missing"
 
-    return "yes" if _field_present(parser_output.get(field_name)) else "no"
+    return "yes" if any(
+        _field_present(parser_output.get(field_name))
+        for field_name in fields
+    ) else "no"
 
 
 def _field_statuses(dry_run_result):

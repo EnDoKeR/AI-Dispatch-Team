@@ -29,6 +29,7 @@ class ManualRateConTextDryRunCliTests(unittest.TestCase):
         text = (
             "Broker: Synthetic Text Broker\n"
             "Broker MC: 000777\n"
+            "Load: FAKE LOAD\n"
             "Rate: 3100\n"
             "Pickup: Dallas, TX\n"
             "Pickup Date: 2026-09-01\n"

@@ -65,6 +65,7 @@ def _low_confidence_fields(dry_run_result):
 def _safe_summary(label, result):
     dry_run_result = result.get("dry_run_result") or {}
     intake_summary = dry_run_result.get("intake_summary", {})
+    core_summary = dry_run_result.get("ratecon_core_summary", {})
     link_candidate = dry_run_result.get("link_candidate") or {}
     extraction_metadata = result.get("extraction_metadata", {})
 
@@ -74,6 +75,14 @@ def _safe_summary(label, result):
         "char_count": extraction_metadata.get("char_count", 0),
         "page_count": extraction_metadata.get("page_count", 0),
         "intake_status": dry_run_result.get("status", ""),
+        "core_fields_present": bool(core_summary.get("core_fields_present", False)),
+        "missing_core_fields": list(core_summary.get("missing_core_fields", [])),
+        "optional_missing_fields": list(
+            core_summary.get("optional_missing_fields", [])
+        ),
+        "deferred_fields": list(core_summary.get("deferred_fields", [])),
+        "miles_status": str(core_summary.get("miles_status", "")),
+        "miles_source": str(core_summary.get("miles_source", "")),
         "missing_fields": list(intake_summary.get("missing_fields", [])),
         "needs_check_fields": list(intake_summary.get("needs_check_fields", [])),
         "low_confidence_fields": _low_confidence_fields(dry_run_result),
@@ -139,6 +148,12 @@ def format_private_pdf_dry_run_report(report):
                 f"  char_count: {item['char_count']}",
                 f"  page_count: {item['page_count']}",
                 f"  intake_status: {item['intake_status'] or 'none'}",
+                f"  core_fields_present: {item['core_fields_present']}",
+                f"  missing_core_fields: {format_list(item['missing_core_fields'])}",
+                f"  optional_missing_fields: {format_list(item['optional_missing_fields'])}",
+                f"  deferred_fields: {format_list(item['deferred_fields'])}",
+                f"  miles_status: {item['miles_status'] or 'none'}",
+                f"  miles_source: {item['miles_source'] or 'none'}",
                 f"  missing_fields: {format_list(item['missing_fields'])}",
                 f"  needs_check_fields: {format_list(item['needs_check_fields'])}",
                 f"  low_confidence_fields: {format_list(item['low_confidence_fields'])}",

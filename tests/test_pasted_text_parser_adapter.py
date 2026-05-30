@@ -349,7 +349,7 @@ Commodity Description    FAKE TABLE PRODUCT    40000 LBS    Flatbed
             ]
         )
 
-        self.assertEqual(parsed["broker_name"], "FAKE BROKER LLC")
+        self.assertEqual(parsed["customer_name"], "FAKE BROKER LLC")
         self.assertEqual(parsed["broker_mc"], "MC000000")
         self.assertEqual(parsed["rate"], 0)
         self.assertEqual(parsed["reference_id"], "FAKE-REF-026")

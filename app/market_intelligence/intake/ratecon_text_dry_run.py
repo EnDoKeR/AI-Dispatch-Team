@@ -9,6 +9,9 @@ from app.market_intelligence.intake.parser_contract import normalize_parser_outp
 from app.market_intelligence.intake.pasted_text_parser_adapter import (
     parse_pasted_text_to_parser_output,
 )
+from app.market_intelligence.intake.ratecon_core_fields import (
+    build_ratecon_core_field_summary,
+)
 from app.market_intelligence.intake.summary import build_intake_record_summary
 
 
@@ -40,6 +43,13 @@ def _build_warnings(text, parser_output):
     return warnings
 
 
+def _status_from_core_summary(core_summary):
+    if core_summary.get("ready_for_review"):
+        return "READY_FOR_REVIEW"
+
+    return "MISSING_FIELDS"
+
+
 def run_ratecon_text_dry_run(text, case_record=None, intake_id=""):
     parser_output = parse_pasted_text_to_parser_output(text)
     intake_record = normalize_parser_output(
@@ -47,6 +57,8 @@ def run_ratecon_text_dry_run(text, case_record=None, intake_id=""):
         intake_id=intake_id,
     )
     intake_summary = build_intake_record_summary(intake_record)
+    core_summary = build_ratecon_core_field_summary(intake_record)
+    status = _status_from_core_summary(core_summary)
     link_candidate = None
 
     if case_record is not None:
@@ -59,8 +71,15 @@ def run_ratecon_text_dry_run(text, case_record=None, intake_id=""):
         "parser_output": parser_output,
         "intake_record": intake_record,
         "intake_summary": intake_summary,
+        "ratecon_core_summary": core_summary,
         "link_candidate": link_candidate,
-        "status": intake_summary["status"],
+        "status": status,
+        "core_fields_present": core_summary["core_fields_present"],
+        "missing_core_fields": list(core_summary["missing_core_fields"]),
+        "optional_missing_fields": list(core_summary["optional_missing_fields"]),
+        "deferred_fields": list(core_summary["deferred_fields"]),
+        "miles_status": core_summary["miles_status"],
+        "miles_source": core_summary["miles_source"],
         "warnings": _build_warnings(text, parser_output),
         "dry_run_only": True,
         "private_text_saved": False,

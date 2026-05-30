@@ -114,7 +114,6 @@ class TestParserContractScenarios(unittest.TestCase):
             "@",
             "phone",
             "driver",
-            "customer",
             "real broker",
             "gmail",
             "contact",

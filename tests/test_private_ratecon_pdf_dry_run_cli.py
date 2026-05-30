@@ -41,12 +41,20 @@ def fake_runner(_path, anonymized_label=""):
                 "missing_fields": ["broker_mc"],
                 "needs_check_fields": ["broker_name"],
             },
+            "ratecon_core_summary": {
+                "core_fields_present": True,
+                "missing_core_fields": [],
+                "optional_missing_fields": ["broker_mc", "equipment"],
+                "deferred_fields": ["loaded_miles"],
+                "miles_status": "DEFERRED_GOOGLE_MAPS",
+                "miles_source": "NOT_FROM_RATECON",
+            },
             "link_candidate": {
                 "recommended_action": "NEEDS_REVIEW",
             },
-            "status": "MISSING_FIELDS",
+            "status": "READY_FOR_REVIEW",
         },
-        "status": "NEEDS_FIELD_FIX",
+        "status": "READY_FOR_REVIEW",
         "warnings": ["text_dry_run:low_confidence_broker_name"],
         "private_text_saved": False,
         "cases_created": False,
@@ -95,6 +103,9 @@ class PrivateRateConPdfDryRunCliTests(unittest.TestCase):
         self.assertNotIn("private_alpha", text)
         self.assertIn("broker_mc", text)
         self.assertIn("broker_name", text)
+        self.assertIn("missing_core_fields", text)
+        self.assertIn("optional_missing_fields", text)
+        self.assertIn("DEFERRED_GOOGLE_MAPS", text)
 
     def test_report_is_json_serializable(self):
         with tempfile.TemporaryDirectory() as temp_dir:
