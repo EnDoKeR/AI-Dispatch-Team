@@ -415,11 +415,12 @@ Purpose:
 
 Owner module:
 
-- planned document AI package; current docs only.
+- contract helper: `app/document_ai/document_record.py`
+- document type helper: `app/document_ai/document_types.py`
 
 Current status:
 
-- `planned`
+- `partial`: lightweight contract helper exists; no document storage or runtime linking is implemented.
 
 Required fields:
 
@@ -527,8 +528,9 @@ Purpose:
 
 Owner module:
 
+- contract helper: `app/document_ai/extraction_artifacts.py`
 - current adjacent: `pdf_text_extraction.py`;
-- planned document AI package.
+- planned richer document AI package.
 
 Current status:
 
