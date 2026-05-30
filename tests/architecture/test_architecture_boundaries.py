@@ -300,6 +300,40 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
         assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_broker_template_modules_do_not_import_business_memory_or_output_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "pypdf",
+            "pdfplumber",
+            "fitz",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "gspread",
+            "google.oauth",
+            "googleapiclient",
+        ]
+        template_files = [
+            DOCUMENT_AI_PACKAGE / "broker_templates.py",
+            DOCUMENT_AI_PACKAGE / "broker_template_registry.py",
+            DOCUMENT_AI_PACKAGE / "broker_template_matcher.py",
+            DOCUMENT_AI_PACKAGE / "broker_template_scoring.py",
+            DOCUMENT_AI_PACKAGE / "broker_template_candidate_extraction.py",
+        ]
+
+        for path in template_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
 
 if __name__ == "__main__":
     unittest.main()
