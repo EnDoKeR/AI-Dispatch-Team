@@ -871,6 +871,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "rate_fusion.py",
             DOCUMENT_AI_PACKAGE / "operational_fusion.py",
             DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py",
+            DOCUMENT_AI_PACKAGE / "normalized_stops.py",
+            DOCUMENT_AI_PACKAGE / "stop_normalization.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
         ]
 
         for path in fusion_files:
@@ -891,6 +895,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "rate_fusion.py",
             DOCUMENT_AI_PACKAGE / "operational_fusion.py",
             DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py",
+            DOCUMENT_AI_PACKAGE / "normalized_stops.py",
+            DOCUMENT_AI_PACKAGE / "stop_normalization.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
         ]
 
         for path in fusion_files:
@@ -905,6 +913,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_association.py",
             DOCUMENT_AI_PACKAGE / "rate_fusion.py",
             DOCUMENT_AI_PACKAGE / "operational_fusion.py",
+            DOCUMENT_AI_PACKAGE / "normalized_stops.py",
+            DOCUMENT_AI_PACKAGE / "stop_normalization.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
         ]
         forbidden_fragments = [
             "write_text",
@@ -946,8 +957,30 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("DecisionEngine", source)
         self.assertNotIn("telegram", source)
 
+    def test_normalized_stop_review_packets_are_local_only_and_redacted_by_default(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "stop_review_packet.py")
+
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", source)
+        self.assertIn("stop_review_packet.csv", source)
+        self.assertIn("stop_review_packet.md", source)
+        self.assertIn("include_private_values_local_only=False", source)
+        self.assertIn("LOCAL PRIVATE REVIEW ONLY", source)
+        self.assertIn('"raw_text_included": False', source)
+        self.assertNotIn("DispatchCase", source)
+        self.assertNotIn("DecisionEngine", source)
+        self.assertNotIn("telegram", source)
+
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
+        banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+
+        for path in fixture_dir.rglob("*"):
+            if path.is_file():
+                with self.subTest(path=str(path)):
+                    self.assertNotIn(path.suffix.lower(), banned_suffixes)
+
+    def test_stop_normalization_fixture_directory_contains_no_pdf_or_screenshots(self):
+        fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "stop_normalization"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 
         for path in fixture_dir.rglob("*"):
