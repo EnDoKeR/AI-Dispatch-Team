@@ -103,6 +103,24 @@ PDF triage
 -> validation / REVIEW_REQUIRED
 ```
 
+## Layout Provider Status
+
+The dependency-free scaffold has now been extended with a controlled
+`pdfplumber` provider pilot:
+
+- `app/document_ai/layout_provider.py` defines the provider boundary and safe
+  provider statuses.
+- `app/document_ai/pdfplumber_layout_provider.py` converts local digital-text
+  PDFs into normalized `LayoutExtractionArtifact` objects.
+- `app/document_ai/layout_pipeline.py` connects provider artifacts to
+  layout-aware candidate generation.
+- `scripts/run_private_ratecon_measurement.py` can use the provider only when
+  explicitly invoked with `--layout-provider pdfplumber
+  --enable-layout-candidates`.
+
+The provider is a local measurement tool. It is not a production automation
+claim and does not add OCR, Vision, PyMuPDF, Camelot, or cloud extraction.
+
 ## Layout Artifacts
 
 The layout provider is intentionally deferred. This block defines normalized
@@ -159,8 +177,6 @@ This block does not add:
 - OCR;
 - Vision AI;
 - cloud extraction APIs;
-- a new PDF library;
-- `pdfplumber`;
 - `PyMuPDF`;
 - `Camelot`;
 - real broker templates;
@@ -171,10 +187,30 @@ This block does not add:
 - Event Timeline writes;
 - production accuracy claims.
 
+## Safe Private Measurement With Layout Provider
+
+Run locally only:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md
+```
+
+Safe to share:
+
+- provider status counts;
+- layout attempted/success/failure/skipped counts;
+- candidate count deltas by field;
+- field names in improved/worsened/unchanged buckets;
+- blocker counts.
+
+Do not share raw text, filenames, broker names, MC numbers, rates, addresses,
+dates/times, load/reference numbers, local paths, or private notes.
+
 ## Success Criteria
 
-The block is successful when dependency-free layout contracts, synthetic layout
-fixtures, layout indexing helpers, label-value proximity helpers, layout-aware
-candidate generators, and fake-only CLI validation exist. Real provider
-implementation and private measurement with provider output belong to the next
-block after dependency and licensing review.
+The scaffold block is successful when dependency-free layout contracts,
+synthetic layout fixtures, layout indexing helpers, label-value proximity
+helpers, layout-aware candidate generators, fake-only CLI validation, and the
+first explicit provider pilot exist. The next work should use safe measurement
+deltas to decide whether to harden resolver/layout association, evaluate a
+table-specific provider, or queue OCR design for empty-text documents.

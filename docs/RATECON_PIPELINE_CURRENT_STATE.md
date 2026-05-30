@@ -34,6 +34,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Document/page/section classification | `app/document_ai/document_classification.py` | Implemented deterministic text classifier |
 | Extraction scope filtering | `app/document_ai/extraction_scope.py` | Implemented page selection before RateCon candidates |
 | Layout artifact scaffold | `app/document_ai/layout_artifacts.py`, `app/document_ai/layout_index.py`, `app/document_ai/layout_proximity.py` | Implemented dependency-free contracts and helpers with synthetic fixtures |
+| Layout provider pilot | `app/document_ai/layout_provider.py`, `app/document_ai/pdfplumber_layout_provider.py`, `app/document_ai/layout_pipeline.py` | Implemented `pdfplumber` provider behind explicit safe measurement flags |
 | Layout-aware candidate scaffold | `app/document_ai/layout_candidate_extraction.py`, `app/document_ai/layout_rate_candidates.py`, `app/document_ai/layout_stop_candidates.py`, `app/document_ai/layout_operational_candidates.py` | Implemented for synthetic layout artifacts only |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
@@ -84,13 +85,16 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   generators for rate/payment, stops, and operational details.
 - Fake-only layout candidate CLI:
   `scripts/run_fake_layout_candidate_extraction.py`.
+- First real digital-text layout provider pilot using `pdfplumber==0.11.9`,
+  behind `--layout-provider pdfplumber --enable-layout-candidates`.
+- Safe layout-provider measurement fields for provider status counts, layout
+  candidate counts, evidence type counts, and candidate-count deltas.
 
 ## Scaffolding Only
 
 - PDF triage route values for future OCR/Vision decisioning.
 - ExtractionArtifact method values for future `pdfplumber`, OCR, or Vision.
-- LayoutExtractionArtifact provider boundary for a future real digital-text PDF
-  layout provider. The current implementation uses synthetic JSON fixtures only.
+- LayoutExtractionArtifact provider boundary for additional future providers.
 - Broker template structure for future real broker templates.
 - Event Timeline append points described in docs only.
 - DispatchCase creation from validated intake is not implemented.
@@ -102,7 +106,6 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Cloud extraction APIs.
 - Production private RateCon parser path.
 - Real broker templates.
-- Real PDF layout provider implementation.
 - Production real broker templates.
 - Broker template privacy review workflow beyond local-only overlay measurement.
 - Candidate field resolver for difficult layout pairing beyond current fake fixtures.
@@ -140,6 +143,10 @@ Current relevant tests include:
   - `tests/test_layout_candidate_extraction.py`
   - `tests/test_layout_resolver_readiness.py`
   - `tests/test_run_fake_layout_candidate_extraction.py`
+  - `tests/test_layout_provider.py`
+  - `tests/test_pdfplumber_layout_provider.py`
+  - `tests/test_layout_pipeline.py`
+  - `tests/test_layout_provider_comparison.py`
 - Broker templates:
   - `tests/test_broker_templates_contract.py`
   - `tests/test_broker_template_fixtures.py`
@@ -180,6 +187,7 @@ print raw private text:
 - `py scripts/export_ratecon_dry_run_csv.py --limit 3`
 - `py scripts/export_private_ratecon_value_review_csv.py --limit 3`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
@@ -208,21 +216,20 @@ Private value-review CSV output is local-only and ignored.
 - Hard-layout behavior is tested on fake fixtures only and still needs safe
   private measurement before production claims.
 - Calibrated measurement still shows missing and conflicting fields on normal
-- Calibrated measurement still shows missing and conflicting fields on normal
-  load movement documents. Dependency-free layout contracts and synthetic
-  candidate generators are now scaffolded, but a real digital-text layout
-  provider is not implemented yet.
+  load movement documents. The first `pdfplumber` provider run succeeded on 6
+  normal-load digital-text documents and produced candidate-count deltas, but it
+  does not resolve final fields by itself.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after layout-aware synthetic scaffolding:
+Next safe block after the `pdfplumber` provider pilot:
 
 ```text
-Real layout provider implementation and dependency review result.
+Resolver/layout association hardening or table-provider evaluation, based on
+safe layout-provider measurement deltas.
 ```
 
-That block should verify provider licensing, Windows install behavior, table and
-coordinate quality, and safe private measurement deltas before adding any
-project-wide dependency. OCR and Vision remain deferred.
+OCR and Vision remain deferred. Camelot/table-provider evaluation should happen
+only if `pdfplumber` table evidence is insufficient after safe measurement.

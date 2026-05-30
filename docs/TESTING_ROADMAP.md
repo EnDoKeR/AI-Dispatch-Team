@@ -167,6 +167,12 @@ Required coverage for candidate generators and resolvers:
   resolver readiness.
 - fake-only layout CLI tests proving candidate counts are printed without raw
   fixture text or private values.
+- `pdfplumber` layout provider tests for fake digital PDFs, empty-text PDFs,
+  invalid PDFs, safe provider statuses, no raw text printing, and normalized
+  `LayoutExtractionArtifact` output.
+- layout provider pipeline tests proving provider failures do not crash,
+  non-RateCon classifications skip core candidates, and safe measurement layout
+  fields remain aliases/counts/statuses only.
 
 ## Broker Template Test Rule
 

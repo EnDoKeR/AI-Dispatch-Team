@@ -31,6 +31,13 @@ This decision does not make layout extraction production-ready. It only allows
 safe local measurement of whether digital-text layout evidence improves
 candidate coverage and field status.
 
+Implemented provider version in this block:
+
+- declared dependency: `pdfplumber==0.11.9`;
+- import check result: `pdfplumber.__version__ == "0.11.9"`;
+- provider module: `app/document_ai/pdfplumber_layout_provider.py`;
+- pipeline module: `app/document_ai/layout_pipeline.py`.
+
 ## Why Layout Provider Is Next
 
 The project already has:
@@ -129,3 +136,20 @@ generated private measurement outputs must remain ignored local files.
 
 Safe shared output remains limited to aliases, statuses, counts, field names,
 warning codes, blocker categories, and provider status counts.
+
+## Safe Private Measurement Result
+
+A local safe private rerun with the provider enabled reported status-only
+results:
+
+- documents measured: 18;
+- layout attempted: 6;
+- layout success: 6;
+- layout skipped: 12;
+- layout failures: 0;
+- OCR-needed documents remained 4 and were not processed by the layout provider.
+
+The provider improved candidate coverage for some fields but did not make final
+field resolution production-ready. Next work should focus on resolver/layout
+association hardening if layout candidates are useful but conflicts remain, or a
+table-specific provider decision if table evidence remains weak.

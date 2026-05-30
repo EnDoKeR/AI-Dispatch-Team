@@ -1,7 +1,9 @@
 # Layout Extraction Dependency Review
 
-This document records the dependency review criteria for a future layout
-provider. No dependency is added in the current layout-aware extraction scaffold.
+This document records the dependency review criteria for layout providers.
+`pdfplumber` is now the first approved digital-text provider pilot. OCR,
+Vision, PyMuPDF, Camelot, and cloud extraction dependencies remain out of
+scope.
 
 ## Current Position
 
@@ -10,8 +12,9 @@ existing optional `pypdf` paths. `pypdf` is not a project-wide requirement in
 `requirements.txt`; the file explicitly keeps optional/manual PDF and external
 integrations out of core requirements until accepted as active integrations.
 
-The current layout-aware block defines normalized contracts and synthetic tests
-only. Real PDF layout extraction remains a future provider implementation block.
+The current layout-aware implementation defines normalized contracts, synthetic
+tests, and a first `pdfplumber` provider pilot for local digital-text PDFs.
+Provider output remains measurement-only and review-gated.
 
 ## Provider Interface
 
@@ -56,8 +59,8 @@ It does not provide a complete normalized table/word/block layout artifact in
 the current project. It can remain the safe text path while layout provider
 contracts are developed.
 
-Decision status: keep existing optional/manual role. Do not add a new
-dependency in this block.
+Decision status: keep existing optional/manual role for text triage and text
+artifact construction.
 
 ## pypdf Candidate Role
 
@@ -93,8 +96,22 @@ Review needed before adoption:
 - whether it can run without rendering scanned pages into OCR;
 - safe handling of raw text and coordinates.
 
-Decision status: not added in this block. Needs verification before adding
-dependency.
+Decision status: selected as first provider pilot.
+
+Declared version:
+
+```text
+pdfplumber==0.11.9
+```
+
+Observed local import check:
+
+```text
+pdfplumber.__version__ == "0.11.9"
+```
+
+The provider must remain behind explicit CLI flags and safe measurement output.
+It does not add OCR and should fail safely on empty/scanned/broken PDFs.
 
 ## PyMuPDF Candidate Role
 
@@ -145,16 +162,14 @@ plan.
 
 ## Explicit Decision
 
-No dependency is added in this block.
+Only `pdfplumber==0.11.9` is added in this block.
 
-The current block will:
+The current block adds:
 
-- define layout contracts;
-- create synthetic layout fixtures;
-- build dependency-free layout indexes and proximity helpers;
-- generate layout-aware candidates from synthetic artifacts;
-- prove resolver readiness with fake data;
-- document the next provider implementation plan.
+- provider boundary contracts;
+- a `pdfplumber` layout provider;
+- a provider-to-layout-candidate pipeline;
+- safe private measurement flags for layout candidate counts/status deltas.
 
-Provider selection and implementation are deferred until the next block, after
-the normalized artifact contract and fake tests are in place.
+PyMuPDF, Camelot, OCR, Vision, cloud APIs, and OCR/ML extras remain deferred to
+separate decision blocks.

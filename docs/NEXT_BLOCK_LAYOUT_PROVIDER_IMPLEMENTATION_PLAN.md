@@ -1,11 +1,24 @@
-# Next Block: Layout Provider Implementation Plan
+# Layout Provider Implementation Plan
 
-This plan should be used after the dependency-free layout-aware extraction
-scaffold is validated with synthetic fixtures.
+This plan recorded the provider implementation checkpoint after the
+dependency-free layout-aware extraction scaffold. The first provider pilot is
+now implemented with `pdfplumber==0.11.9`; this document remains as the
+acceptance checklist and follow-up guide.
+
+## Current Implementation Result
+
+- provider boundary: `app/document_ai/layout_provider.py`
+- provider: `app/document_ai/pdfplumber_layout_provider.py`
+- provider-to-candidate pipeline: `app/document_ai/layout_pipeline.py`
+- safe comparison helper: `app/document_ai/layout_provider_comparison.py`
+- CLI flags:
+  `--layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline`
+- safe private rerun: 18 docs measured, 6 layout attempts, 6 successes, 12
+  skips, 0 provider failures, 4 OCR-needed unchanged.
 
 ## Objective
 
-Implement one local digital-text layout provider that returns normalized
+Implemented one local digital-text layout provider that returns normalized
 `LayoutExtractionArtifact` records for safe private measurement. The provider
 must preserve the current privacy model:
 
@@ -31,12 +44,11 @@ The next useful measurement needs real digital-text layout artifacts from local
 PDFs. That requires choosing and implementing a provider behind the normalized
 artifact interface.
 
-## Providers To Evaluate
+## Providers To Evaluate Later
 
-Evaluate these candidates before adding any dependency:
+Evaluate these candidates before adding any additional dependency:
 
 - current `pypdf` text path;
-- `pdfplumber`;
 - PyMuPDF;
 - Camelot or another table provider.
 
@@ -86,7 +98,7 @@ objects.
 
 ## Safe Private Measurement Plan
 
-After a provider is implemented:
+After a provider is implemented or tuned:
 
 1. Run it locally only on an explicitly provided private directory.
 2. Keep raw text in memory.
@@ -127,3 +139,7 @@ The provider block is complete only when:
 - safe private measurement can compare status-only deltas;
 - no private outputs or templates are staged;
 - no raw private text is printed or committed.
+
+Current status: criteria satisfied for the initial `pdfplumber` pilot. Further
+provider work should be driven by safe candidate/status deltas rather than by
+adding more dependencies speculatively.

@@ -38,6 +38,15 @@ Candidate quality:
 - candidate counts by field;
 - candidate coverage for critical fields.
 
+Layout provider quality when explicitly enabled:
+
+- layout provider status counts;
+- layout attempted/success/failure/skipped counts;
+- layout candidate counts by field;
+- layout evidence type counts;
+- candidate-count deltas versus text-only baseline;
+- improved/worsened/unchanged field-name buckets only.
+
 Classification quality:
 
 - document type;
@@ -115,7 +124,6 @@ This block does not add:
 - OCR;
 - Vision AI;
 - cloud APIs;
-- `pdfplumber`;
 - PyMuPDF;
 - Tesseract;
 - PaddleOCR;
@@ -233,6 +241,17 @@ Private overlay summaries use safe aliases such as `PRIVATE_TEMPLATE_001`. Do
 not share private template files, real broker names, MC numbers, rates,
 addresses, references, raw text, filenames, local paths, or private notes.
 
+Optional layout provider measurement:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md
+```
+
+This runs the `pdfplumber` provider only on digital, extraction-relevant normal
+load movement documents. OCR-needed, supplemental-only, non-RateCon, unknown,
+and TONU/payment-only documents are skipped for core layout extraction and
+reported through safe status counts.
+
 Collect redacted template patterns before drafting private templates:
 
 ```powershell
@@ -312,14 +331,27 @@ The calibrated safe private rerun reported:
 - non-RateCon or unknown-review documents: 6
 
 This means OCR remains queued for empty-text documents, but it is not the next
-default block. The next likely block is layout-aware digital extraction and
-field association for the 6 normal load movement text documents, while TONU
-stays on a separate payment/status path.
+default block. The layout provider pilot targets the 6 normal load movement
+digital-text documents, while TONU stays on a separate payment/status path.
+
+## pdfplumber Layout Provider Baseline
+
+The first safe private layout-provider rerun reported:
+
+- documents measured: 18
+- layout attempted: 6
+- layout success: 6
+- layout skipped: 12
+- layout failed: 0
+- OCR-needed unchanged: 4
+
+These are status-only counts. They do not include private values, filenames,
+raw text, or local paths.
 
 ## Layout-Aware Scaffold Status
 
-The layout-aware digital extraction scaffold is dependency-free and fake-only.
-It adds:
+The layout-aware digital extraction scaffold started dependency-free and
+fake-only. It adds:
 
 - `LayoutExtractionArtifact` contracts for pages, words, lines, blocks, tables,
   cells, reading order variants, and evidence refs;
@@ -330,9 +362,9 @@ It adds:
 - a fake-only CLI:
   `py scripts/run_fake_layout_candidate_extraction.py`.
 
-This scaffold does not read private PDFs and does not add a real layout
-provider. Safe private measurement should not use layout-aware provider output
-until a future provider implementation block has completed dependency review.
+The provider pilot adds `pdfplumber==0.11.9` behind explicit CLI flags. Safe
+private measurement uses provider output only for candidate counts, evidence
+type counts, and status-only deltas.
 
 When a provider exists, private measurement should compare only status deltas:
 candidate counts, field statuses, blocker categories, warning codes, and
