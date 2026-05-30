@@ -19,6 +19,10 @@ from app.document_ai.layout_provider_diagnostics import (
     classify_layout_provider_diagnostic_issue,
     compare_pdfplumber_table_profiles,
     compute_layout_quality_bucket,
+    detect_pickup_delivery_label_lines,
+    detect_stop_like_sections,
+    detect_stop_like_tables,
+    detect_stop_signals_from_layout,
     summarize_layout_tables,
     summarize_stop_label_signals,
     write_layout_provider_diagnostics_report,
@@ -355,6 +359,55 @@ class LayoutProviderDiagnosticsTests(unittest.TestCase):
         self.assertFalse(comparison["raw_text_included"])
         self.assertTrue(comparison["private_values_redacted"])
         self.assertNotIn("private.pdf", dumped)
+        self.assertNotIn("Pickup Date", dumped)
+
+    def test_detect_stop_signals_from_provider_artifact(self):
+        artifact = build_layout_extraction_artifact(
+            pages=[
+                build_layout_page_artifact(
+                    page_number=1,
+                    lines=[
+                        build_layout_line(
+                            "line_pickup",
+                            text_redacted="Pickup Date <DATE>",
+                            page_number=1,
+                            section_role="PICKUP_SECTION",
+                        ),
+                        build_layout_line(
+                            "line_delivery",
+                            text_redacted="Delivery Time <TIME>",
+                            page_number=1,
+                            section_role="DELIVERY_SECTION",
+                        ),
+                    ],
+                    blocks=[],
+                    tables=[
+                        build_layout_table(
+                            "table_1",
+                            cells=[
+                                build_layout_table_cell(0, 0, "Stop"),
+                                build_layout_table_cell(0, 1, "Date"),
+                                build_layout_table_cell(1, 0, "Pickup"),
+                                build_layout_table_cell(1, 1, "<DATE>"),
+                            ],
+                        )
+                    ],
+                )
+            ]
+        )
+
+        tables = detect_stop_like_tables(artifact)
+        lines = detect_pickup_delivery_label_lines(artifact)
+        sections = detect_stop_like_sections(artifact)
+        signals = detect_stop_signals_from_layout(artifact)
+        dumped = json.dumps(signals, sort_keys=True)
+
+        self.assertEqual(tables["stop_like_row_count"], 2)
+        self.assertEqual(lines["pickup_line_count"], 1)
+        self.assertEqual(lines["delivery_line_count"], 1)
+        self.assertEqual(sections["stop_section_count"], 2)
+        self.assertIn("stop_headers_found", signals["warning_codes"])
+        self.assertFalse(signals["raw_text_included"])
         self.assertNotIn("Pickup Date", dumped)
 
 

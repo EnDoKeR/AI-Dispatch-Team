@@ -361,6 +361,121 @@ def summarize_stop_label_signals(layout_artifact, classification_result=None):
     return signals
 
 
+def detect_stop_like_tables(layout_artifact):
+    summary = summarize_layout_tables(layout_artifact)
+    warnings = []
+    if summary["table_count"] > 0 and summary["table_stop_like_rows"] <= 0:
+        warnings.append("tables_found_but_no_stop_headers")
+    if summary["table_stop_like_rows"] > 0:
+        warnings.append("stop_headers_found")
+    return {
+        "table_count": summary["table_count"],
+        "table_cell_count": summary["table_cell_count"],
+        "stop_like_table_count": 1 if summary["table_stop_like_rows"] > 0 else 0,
+        "stop_like_row_count": summary["table_stop_like_rows"],
+        "warning_codes": warnings,
+        "raw_text_included": False,
+        "private_values_redacted": True,
+    }
+
+
+def detect_pickup_delivery_label_lines(layout_artifact):
+    refs = []
+    counts = {
+        "pickup_line_count": 0,
+        "delivery_line_count": 0,
+        "stop_line_count": 0,
+        "date_time_line_count": 0,
+    }
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        if not isinstance(page, dict):
+            continue
+        for line in page.get("lines", []) or []:
+            if not isinstance(line, dict):
+                continue
+            text = _text(line.get("text_redacted"))
+            signal_type = ""
+            if _contains_any(text, _PICKUP_LABELS):
+                counts["pickup_line_count"] += 1
+                signal_type = "pickup"
+            elif _contains_any(text, _DELIVERY_LABELS):
+                counts["delivery_line_count"] += 1
+                signal_type = "delivery"
+            elif _contains_any(text, _STOP_LABELS):
+                counts["stop_line_count"] += 1
+                signal_type = "stop"
+            if _contains_any(text, _DATE_LABELS) or _contains_any(text, _TIME_LABELS):
+                counts["date_time_line_count"] += 1
+                signal_type = signal_type or "date_time"
+            if signal_type:
+                refs.append(
+                    {
+                        "page_number": _int(line.get("page_number")),
+                        "line_id": _text(line.get("line_id")),
+                        "signal_type": signal_type,
+                    }
+                )
+    return {
+        **counts,
+        "line_refs": refs,
+        "raw_text_included": False,
+        "private_values_redacted": True,
+    }
+
+
+def detect_stop_like_sections(layout_artifact):
+    section_counts = {}
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        if not isinstance(page, dict):
+            continue
+        for collection_name in ("lines", "blocks"):
+            for item in page.get(collection_name, []) or []:
+                if not isinstance(item, dict):
+                    continue
+                role = _text(item.get("section_role")).upper()
+                if role in {
+                    "PICKUP_SECTION",
+                    "DELIVERY_SECTION",
+                    "MULTI_STOP_SECTION",
+                    "STOP_TABLE",
+                }:
+                    section_counts[role] = section_counts.get(role, 0) + 1
+    return {
+        "section_role_counts": section_counts,
+        "stop_section_count": sum(section_counts.values()),
+        "raw_text_included": False,
+        "private_values_redacted": True,
+    }
+
+
+def detect_stop_signals_from_layout(layout_artifact, classification_result=None):
+    signals = summarize_stop_label_signals(layout_artifact, classification_result)
+    tables = detect_stop_like_tables(layout_artifact)
+    lines = detect_pickup_delivery_label_lines(layout_artifact)
+    sections = detect_stop_like_sections(layout_artifact)
+    warnings = list(tables["warning_codes"])
+
+    label_count = (
+        signals["pickup_label_hits"]
+        + signals["delivery_label_hits"]
+        + signals["stop_label_hits"]
+    )
+    if label_count > 0 and tables["stop_like_row_count"] <= 0:
+        warnings.append("stop_labels_found_but_no_groups")
+    if sections["stop_section_count"] > 0:
+        warnings.append("stop_sections_found")
+
+    return {
+        "stop_evidence_signals": signals,
+        "table_signal_summary": tables,
+        "line_signal_summary": lines,
+        "section_signal_summary": sections,
+        "warning_codes": sorted(set(warnings)),
+        "raw_text_included": False,
+        "private_values_redacted": True,
+    }
+
+
 def _page_char_count(page):
     total = 0
     for collection_name in ("lines", "blocks"):
