@@ -116,6 +116,33 @@ class RateConStopCandidatesTests(unittest.TestCase):
             any("ambiguous_stop_section" in candidate["warnings"] for candidate in candidates)
         )
 
+    def test_table_like_stop_fixture_preserves_time_windows(self):
+        artifact = build_fixture_text_artifact("table_like_stops_ratecon.txt")
+        candidates = generate_stop_candidates(artifact)
+        pickup_times = self._field_candidates(candidates, FIELD_PICKUP_TIME)
+        delivery_times = self._field_candidates(candidates, FIELD_DELIVERY_TIME)
+
+        self.assertTrue(
+            any(candidate["raw_value"] == "PU Appt 08:00-10:00" for candidate in pickup_times)
+        )
+        self.assertTrue(
+            any(candidate["raw_value"] == "DEL Appt 13:00-15:00" for candidate in delivery_times)
+        )
+        self.assertFalse(
+            any(candidate["raw_value"] == "10:00" for candidate in pickup_times)
+        )
+
+    def test_conflicting_appointment_fixture_keeps_conflicting_windows(self):
+        artifact = build_fixture_text_artifact("conflicting_appointment_times_ratecon.txt")
+        candidates = generate_stop_candidates(artifact)
+        pickup_times = self._field_candidates(candidates, FIELD_PICKUP_TIME)
+        values = {candidate["raw_value"] for candidate in pickup_times}
+
+        self.assertIn("PU Appt 08:00-10:00", values)
+        self.assertIn("PU Appt 11:00-13:00", values)
+        self.assertNotIn("10:00", values)
+        self.assertNotIn("13:00", values)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -112,7 +112,8 @@ DATE_PATTERN = re.compile(
 )
 
 TIME_PATTERN = re.compile(
-    r"\b(?P<time>FCFS|Appt\s+\d{1,2}:\d{2}|"
+    r"\b(?P<time>FCFS|(?:PU\s+|DEL\s+)?Appt\s+\d{1,2}:\d{2}(?:\s?[AP]M)?"
+    r"(?:\s*-\s*\d{1,2}:\d{2}(?:\s?[AP]M)?)?|"
     r"\d{1,2}:\d{2}(?:\s?[AP]M)?(?:\s*-\s*\d{1,2}:\d{2}(?:\s?[AP]M)?)?)\b",
     re.IGNORECASE,
 )
