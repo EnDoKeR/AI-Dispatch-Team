@@ -30,6 +30,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Safe text artifact | `app/document_ai/text_artifacts.py` | Implemented for fake/anonymized candidate extraction |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
+| Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
+| Redacted pattern collection | `app/document_ai/private_template_pattern_collector.py`, `app/document_ai/private_template_pattern_families.py`, `scripts/run_private_ratecon_template_pattern_collection.py` | Implemented for safe local pattern grouping |
 | Broker template matching | `app/document_ai/broker_template_matcher.py` | Implemented deterministic fake-template matcher |
 | Template-aware scoring | `app/document_ai/broker_template_scoring.py`, `app/document_ai/broker_template_candidate_extraction.py` | Implemented candidate adjustment layer |
 | Conservative resolver | `app/document_ai/ratecon_field_resolution.py` | Implemented generic and template-aware resolution |
@@ -58,6 +60,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Fake-only candidate/template dry-run CLI.
 - Local-only private measurement harness that reports safe aliases, counts,
   field statuses, blocker categories, and aggregate summaries.
+- Local-only private broker template overlay loading with safe template aliases.
+- Redacted template pattern collection and local-only template draft skeletons.
 
 ## Scaffolding Only
 
@@ -74,7 +78,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Cloud extraction APIs.
 - Production private RateCon parser path.
 - Real broker templates.
-- Broker template privacy review workflow.
+- Production real broker templates.
+- Broker template privacy review workflow beyond local-only overlay measurement.
 - Candidate field resolver for difficult layout pairing beyond current fake fixtures.
 - DispatchCase creation from RateCon extraction.
 - Event writes from document extraction.
@@ -137,6 +142,8 @@ print raw private text:
 - `py scripts/export_ratecon_dry_run_csv.py --limit 3`
 - `py scripts/export_private_ratecon_value_review_csv.py --limit 3`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\path\to\private\ratecons" --confirm-private-local-run --write-json --write-csv --write-md`
+- `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
 Private value-review CSV output is local-only and ignored.
 
@@ -153,6 +160,8 @@ Private value-review CSV output is local-only and ignored.
 - Do not call DecisionEngine from document extraction.
 - Do not put extraction logic in Telegram modules.
 - BrokerTemplate is not BrokerProfile or broker memory.
+- Private broker templates must stay in ignored local paths and must not be
+  committed.
 
 ## Known Limitations
 
@@ -167,13 +176,11 @@ Private value-review CSV output is local-only and ignored.
 
 ## Next Recommended Block
 
-Next safe block after measurement:
+Next safe block after private template overlay support:
 
 ```text
-Analyze safe private measurement results and choose OCR design, layout-aware extraction design, template onboarding, or resolver hardening.
+Run redacted private pattern collection, create local private template drafts, and compare safe baseline vs overlay measurement.
 ```
 
-That block should run local/private diagnostics only, produce safe summaries,
-compare field status against prior private results, and decide whether the next
-block should focus on deterministic layout extraction, local OCR design, or a
-future gated Vision fallback.
+That block should still avoid OCR/Vision unless measurement shows deterministic
+template/layout routes are insufficient.

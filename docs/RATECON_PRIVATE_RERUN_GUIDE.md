@@ -133,6 +133,23 @@ PDF folder. Do not paste the real folder path back into chat. If the folder does
 not exist, or if the path still looks like an example placeholder, the CLI exits
 safely with a friendly error instead of a traceback.
 
+Redacted pattern collection for private template onboarding:
+
+```powershell
+py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts
+```
+
+Private overlay measurement:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md
+```
+
+Share only family IDs, aliases, counts, field names, statuses, blocker
+categories, and improvement/worse/unchanged status. Do not share template files
+that contain real broker data, filenames, broker names, MC numbers, rates,
+addresses, references, raw text, local paths, or private notes.
+
 Default output directory:
 
 ```text

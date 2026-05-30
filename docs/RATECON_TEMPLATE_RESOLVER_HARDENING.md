@@ -192,3 +192,10 @@ This hardening prepares the next block: safe private RateCon measurement. That
 future block should report only safe summaries such as triage route, candidate
 counts by field, template status, resolved/missing/needs-check/conflict field
 names, and generic warnings. It must not print raw text or private values.
+
+After measurement showed template gaps across all digital-text private docs, the
+next local-only layer is private broker template overlay support and redacted
+pattern collection. Private overlays may help template scoring, but resolver
+hardening rules remain unchanged: templates cannot invent values, cannot override
+field conflicts, cannot turn accessorial-only money into rate, and cannot bypass
+validation or review-required gates.

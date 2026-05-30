@@ -122,6 +122,10 @@ Required coverage for candidate generators and resolvers:
 - private measurement harness tests for safe aliases, redacted rows, aggregate
   counts, blocker classification, output writers, confirmation-gated CLI runs,
   and no raw text/private values in outputs.
+- private broker template overlay tests for ignored local paths, explicit CLI
+  confirmation, safe template aliases, private display-name redaction, redacted
+  pattern collection, family grouping, draft skeleton generation, and baseline
+  vs overlay status-only comparison.
 
 ## Broker Template Test Rule
 
@@ -137,6 +141,8 @@ Every broker template needs:
 - proof that templates do not contain broker memory or business-risk fields.
 - proof that weak, conflicting, or unknown template matches cannot overboost
   candidates or bypass validation.
+- proof that private local templates are never required by tests and that any
+  real template onboarding is represented by fake/anonymized committed fixtures.
 
 ## Persistence Test Rule
 

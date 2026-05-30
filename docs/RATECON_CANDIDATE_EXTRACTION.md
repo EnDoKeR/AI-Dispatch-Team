@@ -182,6 +182,13 @@ Broker templates add matching, confidence boosts, and penalties around existing
 candidates. They do not directly assign final field values or make dispatch
 decisions.
 
+Private broker template overlays are local-only measurement inputs. They can
+improve template matching and candidate scoring during a private run, but safe
+outputs must show only template aliases such as `PRIVATE_TEMPLATE_001`, source,
+confidence bucket, aliases, field names, statuses, and blockers. Private
+template files, real broker identifiers, raw text, and values must never be
+committed or pasted into chat.
+
 Future Event Timeline wiring can record:
 
 - PDF triaged;

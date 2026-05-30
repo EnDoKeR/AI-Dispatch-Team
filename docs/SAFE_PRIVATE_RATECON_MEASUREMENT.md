@@ -177,6 +177,22 @@ contains RateCon PDFs. Do not paste your real local folder path back into chat.
 If the folder does not exist, or if the input still looks like an example
 placeholder, the CLI exits safely with a friendly error instead of a traceback.
 
+Optional private template overlay measurement:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md
+```
+
+Private overlay summaries use safe aliases such as `PRIVATE_TEMPLATE_001`. Do
+not share private template files, real broker names, MC numbers, rates,
+addresses, references, raw text, filenames, local paths, or private notes.
+
+Collect redacted template patterns before drafting private templates:
+
+```powershell
+py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts
+```
+
 Default local output directory:
 
 ```text

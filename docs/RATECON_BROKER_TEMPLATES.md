@@ -198,3 +198,32 @@ Hard-layout resolver behavior is documented in
 10. Low-confidence template match must route to review/generic fallback.
 
 Real broker templates require a separate privacy-reviewed implementation block.
+
+## Private Local Overlay Workflow
+
+Private broker template overlays are supported only for local measurement. They
+must live in ignored paths such as:
+
+```text
+.local_private/broker_templates/
+```
+
+Collect redacted private template patterns first:
+
+```powershell
+py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts
+```
+
+Then run safe measurement with the private overlay explicitly enabled:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md
+```
+
+Safe overlay summaries may show `PRIVATE_TEMPLATE_001`, template source,
+confidence bucket, field names, statuses, blockers, and aliases. They must not
+show private template display names, real broker names, MC numbers, rates,
+addresses, references, raw text, filenames, or local paths.
+
+Private templates cannot bypass validation, create DispatchCases, call
+DecisionEngine, call Telegram, write events, or decide accept/reject.
