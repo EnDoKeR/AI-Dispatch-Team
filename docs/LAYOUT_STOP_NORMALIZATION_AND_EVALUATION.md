@@ -92,6 +92,47 @@ The default review packet is redacted/status-only. Any local-private value
 packet must be ignored, clearly marked local-only, never printed to console, and
 never pasted into chat or committed.
 
+## Safe Rerun Result
+
+The first safe private rerun with normalized stops reported:
+
+- documents measured: 18;
+- layout attempted: 6;
+- fusion attempted: 6;
+- raw stop groups: 78;
+- normalized stops: 78;
+- pickup / delivery / unknown stops: 43 / 32 / 0;
+- stop review required: 78;
+- duplicate / noise removed: 0 / 0;
+- stop field statuses: location resolved 78, date missing 78, time missing 76
+  and resolved 2, reference resolved 11;
+- fusion worsened fields: none;
+- OCR-needed unchanged: 4.
+
+This result is useful because it proves that normalized stop records can be
+created from provider artifacts. It is not correctness-ready because every
+normalized stop still requires review, date fields are still missing, and
+deduplication/noise filtering did not reduce the raw group count. The next
+default block should harden stop field association and dedupe/noise filtering
+before adding Camelot, OCR, Vision, or another provider.
+
+## Review Packet
+
+Private measurement can write a local-only stop review packet:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet
+```
+
+Default packet mode is shareable/status-only. It includes aliases, stop ids,
+stop type, sequence, field name, status, confidence bucket, evidence type, page
+number, and warning codes. It does not include stop values.
+
+`--include-private-stop-values-local-only` may be used only with
+`--write-stop-review-packet`. That mode is for local review only, is ignored by
+Git, is marked `LOCAL PRIVATE REVIEW ONLY - DO NOT COMMIT - DO NOT PASTE INTO
+CHAT`, and never prints values to console.
+
 ## Non-Goals
 
 This block does not add:
@@ -119,6 +160,8 @@ After normalized stop measurement:
   normalization.
 - If normalized stops are high but many fields remain review-required, harden
   stop field association.
+- If normalized stops match raw stop groups and no duplicates/noise are removed,
+  harden stop deduplication and noise filtering.
 - If provider tables/cells exist but stop groups are poor, revisit provider
   table calibration or design a table-specific provider checkpoint.
 - If layout candidates are strong but correctness is unknown, build a local

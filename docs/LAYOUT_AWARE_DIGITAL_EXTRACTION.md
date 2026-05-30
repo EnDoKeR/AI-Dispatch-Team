@@ -285,6 +285,12 @@ Run locally only:
 py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md
 ```
 
+To also write a shareable/status-only normalized stop review packet:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet
+```
+
 Safe to share:
 
 - provider status counts;
@@ -295,6 +301,10 @@ Safe to share:
 - field names in improved/worsened/unchanged buckets;
 - fusion attempted counts;
 - stop group counts;
+- normalized stop counts;
+- pickup/delivery/unknown counts;
+- stop field status counts;
+- duplicate/noise removed counts;
 - prevented regression counts;
 - blocker counts.
 
@@ -312,3 +322,10 @@ tables, cells, and stop signals, so Camelot remains decision-gated rather than
 the default next step. OCR remains queued only for OCR-needed documents, and
 Vision remains deferred until deterministic local routes are measured and
 insufficient.
+
+The first normalized stop rerun produced 78 normalized stops from 78 raw groups,
+with 43 pickup, 32 delivery, and 0 unknown stops. All 78 normalized stops still
+require review, no duplicate/noise groups were removed, and date fields remain
+missing. The next default work is stop field association plus dedupe/noise
+hardening, then local-only correctness review. Camelot, OCR, and Vision remain
+decision-gated.

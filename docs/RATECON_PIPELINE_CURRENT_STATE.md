@@ -38,6 +38,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout provider pilot | `app/document_ai/layout_provider.py`, `app/document_ai/pdfplumber_layout_provider.py`, `app/document_ai/layout_pipeline.py`, `app/document_ai/layout_provider_diagnostics.py` | Implemented `pdfplumber` provider, safe diagnostics, and table-profile comparison behind explicit safe measurement flags |
 | Layout-aware candidate scaffold | `app/document_ai/layout_candidate_extraction.py`, `app/document_ai/layout_rate_candidates.py`, `app/document_ai/layout_stop_candidates.py`, `app/document_ai/layout_operational_candidates.py` | Implemented for synthetic layout artifacts only |
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
+| Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -100,6 +101,9 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Configurable pdfplumber table settings profiles: `default`, `lines`, `text`,
   `lines_strict`, and `text_strict`.
 - No-regression fusion guardrails for protected critical fields.
+- Normalized stop set contracts, raw stop group diagnostics, conservative
+  dedupe/noise filtering, sequencing/type resolution, field association, and
+  local-only stop review packets.
 
 ## Scaffolding Only
 
@@ -169,6 +173,15 @@ Current relevant tests include:
   - `tests/test_stop_candidate_fusion.py`
   - `tests/test_rate_fusion.py`
   - `tests/test_operational_fusion.py`
+  - `tests/test_normalized_stops.py`
+  - `tests/test_stop_group_diagnostics.py`
+  - `tests/test_stop_normalization_fixtures.py`
+  - `tests/test_stop_group_dedupe_noise.py`
+  - `tests/test_stop_sequence_type_resolution.py`
+  - `tests/test_stop_field_association.py`
+  - `tests/test_normalized_stop_set_builder.py`
+  - `tests/test_normalized_stop_field_resolution.py`
+  - `tests/test_stop_review_packet.py`
 - Broker templates:
   - `tests/test_broker_templates_contract.py`
   - `tests/test_broker_template_fixtures.py`
@@ -212,6 +225,7 @@ print raw private text:
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-pdfplumber-table-profiles --compare-layout-to-text-baseline --write-json --write-csv --write-md`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet`
 - `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
@@ -249,16 +263,22 @@ Private value-review CSV output is local-only and ignored.
   cells, 78 stop groups, and no worsened fused fields. Stop/location/date fields
   still need resolver/evaluation calibration because many remain unchanged or
   unresolved.
+- The normalized stop rerun converted 78 raw stop groups into 78 normalized
+  stops with pickup / delivery / unknown counts of 43 / 32 / 0. All 78 stops
+  still require review, no duplicates/noise were removed, dates remained
+  missing, and OCR-needed stayed at 4. This means the provider is useful, but
+  stop correctness depends on stronger dedupe/noise filtering and field
+  association.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after the `pdfplumber` diagnostics and no-regression rerun:
+Next safe block after the normalized stop rerun:
 
 ```text
-Resolver readiness and evaluation corpus for layout-backed stop/date/location
-fields.
+Stop field association and dedupe/noise hardening, followed by local-only
+correctness review/evaluation corpus.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

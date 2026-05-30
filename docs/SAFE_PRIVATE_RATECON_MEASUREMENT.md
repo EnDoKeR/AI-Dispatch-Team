@@ -272,6 +272,18 @@ Use `--pdfplumber-table-profile default|lines|text|lines_strict|text_strict` to
 select a profile for the main run. Profile comparison writes only safe counts.
 It does not write table contents or private values.
 
+Optional normalized stop review packet:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet
+```
+
+Default stop review packets are status-only. They include aliases, stop ids,
+stop type, sequence, field name, status, confidence bucket, evidence type, page
+number, and warnings. They do not include private stop values. The
+`--include-private-stop-values-local-only` flag is explicit local review mode
+only, is ignored, must not be committed, and must not be pasted into chat.
+
 Collect redacted template patterns before drafting private templates:
 
 ```powershell
@@ -291,6 +303,7 @@ Generated files:
 - `safe_aggregate.json`
 - `safe_aggregate.md`
 - `value_review_template.csv` when requested
+- `stop_review_packet.csv` and `stop_review_packet.md` when requested
 
 These outputs are local-only and ignored by Git.
 
@@ -406,6 +419,26 @@ produces useful table and stop evidence; the next blocker is resolver/evaluation
 readiness for stop/date/location fields, not Camelot, OCR, Vision, or broker
 template onboarding.
 
+The first normalized stop rerun reported:
+
+- documents measured: 18
+- layout attempted: 6
+- fusion attempted: 6
+- raw stop groups: 78
+- normalized stops: 78
+- pickup / delivery / unknown stops: 43 / 32 / 0
+- stop review required: 78
+- duplicate / noise removed: 0 / 0
+- stop field statuses: location resolved 78, date missing 78, time missing 76
+  and resolved 2, reference resolved 11
+- fusion worsened fields: none
+- OCR-needed unchanged: 4
+
+This means provider visibility and no-regression guardrails are working, but the
+stop resolver is not correctness-ready. The next blocker is reducing duplicate
+or noisy normalized stops and associating date/time/reference fields with the
+right stop in a reviewable way.
+
 Layout diagnostic issue buckets:
 
 - `provider_no_tables`: tables were not detected.
@@ -467,6 +500,11 @@ Tables and stop labels exist, but stop fields remain unresolved:
 
 - harden resolver scoring and build an evaluation corpus before changing
   providers.
+
+Normalized stops are high but all review-required:
+
+- harden stop field association and stop dedupe/noise filtering;
+- use local-only review packets to check correctness before changing providers.
 
 No tables but strong words/lines:
 

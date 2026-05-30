@@ -178,6 +178,18 @@ status buckets, field names, evidence types, and aliases. They do not include
 raw text, filenames, broker names, MC numbers, rates, addresses, dates/times,
 references, or local paths.
 
+Normalized stop review packet:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet
+```
+
+The default packet is shareable/status-only. It reports aliases, stop ids, stop
+type, sequence, field names, statuses, confidence buckets, evidence types, page
+numbers, and warnings. It does not include private values. The explicit
+`--include-private-stop-values-local-only` mode is ignored, local review only,
+never printed to console, and must not be shared.
+
 Issue buckets:
 
 - `provider_no_tables`: tables were not detected; continue line/section
@@ -199,6 +211,10 @@ Use safe diagnostics to decide the next block:
 
 - If tables and stop signals exist and stop groups improve, proceed to resolver
   readiness and a human review/evaluation corpus.
+- If normalized stops are produced but all remain review-required, harden stop
+  field association before adding another provider.
+- If normalized stop counts match raw group counts and duplicate/noise removal
+  is zero, harden stop dedupe and noise filtering.
 - If tables and stop signals exist but field statuses stay unresolved, harden
   resolver scoring and evaluation fixtures before adding Camelot.
 - If no tables exist but words/lines are strong, extend line/section stop

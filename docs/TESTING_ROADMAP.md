@@ -181,6 +181,9 @@ Required coverage for candidate generators and resolvers:
   writing.
 - no-regression fusion tests proving protected critical fields cannot be
   downgraded by weaker layout evidence unless an explicit debug path is used.
+- normalized stop tests for stop-set contracts, raw group diagnostics,
+  dedupe/noise filtering, sequencing/type resolution, field association,
+  stop-set building, safe measurement reporting, and local-only review packets.
 - resolver readiness tests for choosing among provider-derived stop groups,
   preserving unresolved/review status when layout evidence is ambiguous, and
   avoiding private values in evaluation output.
