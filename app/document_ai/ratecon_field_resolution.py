@@ -591,7 +591,10 @@ def resolve_ratecon_fields(candidate_result, field_names=None):
 def resolve_ratecon_fields_with_template_context(template_aware_result, field_names=None):
     template_selection = template_aware_result.get("template_selection_result", {})
     template_status = template_selection.get("status", "")
-    trusted_template = template_status == "matched"
+    trusted_template = (
+        template_status == "matched"
+        and bool(template_aware_result.get("template_scoring_applied", False))
+    )
     candidate_result = (
         template_aware_result.get("adjusted_candidate_result", {})
         if trusted_template
@@ -605,6 +608,10 @@ def resolve_ratecon_fields_with_template_context(template_aware_result, field_na
         if "template_match" not in needs_check_fields:
             needs_check_fields.append("template_match")
         warnings.append(f"template_match_{template_status}")
+    elif template_status == "matched" and not trusted_template:
+        if "template_match" not in needs_check_fields:
+            needs_check_fields.append("template_match")
+        warnings.append("template_match_untrusted_for_resolution")
     elif not trusted_template:
         warnings.append("generic_resolution_without_template")
 

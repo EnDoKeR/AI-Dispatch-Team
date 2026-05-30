@@ -2,15 +2,19 @@ import json
 import unittest
 
 from app.document_ai.broker_template_candidate_extraction import (
+    TRUSTED_TEMPLATE_SCORING_CONFIDENCE,
     extract_ratecon_candidates_with_template_context,
 )
 from app.document_ai.broker_template_matcher import (
     TEMPLATE_SELECTION_STATUS_CONFLICT,
+    TEMPLATE_SELECTION_STATUS_LOW_CONFIDENCE,
     TEMPLATE_SELECTION_STATUS_MATCHED,
     TEMPLATE_SELECTION_STATUS_UNKNOWN,
 )
+from app.document_ai.broker_templates import build_broker_template
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry
 from app.document_ai.ratecon_candidates import FIELD_BROKER_MC, FIELD_BROKER_NAME
+from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from tests.fixtures.document_ai.broker_templates.fixture_loader import FIXTURE_DIR
 from tests.fixtures.document_ai.ratecon_text.fixture_loader import build_fixture_text_artifact
 
@@ -66,7 +70,101 @@ class BrokerTemplateCandidateExtractionTests(unittest.TestCase):
             TEMPLATE_SELECTION_STATUS_CONFLICT,
         )
         self.assertEqual(result["scoring_adjustments"], [])
+        self.assertFalse(result["template_scoring_applied"])
+        self.assertTrue(result["template_context_limited"])
         self.assertIn("template_conflict_no_scoring_applied", result["warnings"])
+
+    def test_matched_below_trusted_threshold_does_not_apply_scoring(self):
+        weak_matched_template = build_broker_template(
+            {
+                "template_id": "weak_matched_mock_v1",
+                "broker_key": "weak_matched_mock",
+                "display_name": "Weak Matched Mock",
+                "version": "1",
+                "created_for_testing": True,
+                "match_rules": [
+                    {
+                        "keywords": ["Weak Matched Mock"],
+                        "confidence_boost": 0.26,
+                    }
+                ],
+                "field_label_rules": [
+                    {
+                        "field_name": "rate",
+                        "labels": ["Carrier Pay"],
+                        "confidence_boost": 0.25,
+                    }
+                ],
+            }
+        )
+        artifact = build_text_extraction_artifact_for_candidates(
+            full_text="Weak Matched Mock\nCarrier Pay: $2,850.00\n",
+            source_name="weak_matched_mock_fake.txt",
+        )
+        result = extract_ratecon_candidates_with_template_context(
+            artifact,
+            BrokerTemplateRegistry([weak_matched_template]),
+        )
+
+        self.assertEqual(
+            result["template_selection_result"]["status"],
+            TEMPLATE_SELECTION_STATUS_MATCHED,
+        )
+        self.assertLess(
+            result["template_selection_result"]["selected_confidence"],
+            TRUSTED_TEMPLATE_SCORING_CONFIDENCE,
+        )
+        self.assertFalse(result["template_scoring_applied"])
+        self.assertTrue(result["template_context_limited"])
+        self.assertEqual(result["scoring_adjustments"], [])
+        self.assertEqual(
+            result["base_candidate_result"]["candidates"],
+            result["adjusted_candidate_result"]["candidates"],
+        )
+        self.assertIn(
+            "template_match_below_trusted_scoring_threshold",
+            result["warnings"],
+        )
+
+    def test_low_confidence_template_selection_does_not_apply_scoring(self):
+        weak_template = build_broker_template(
+            {
+                "template_id": "weak_low_confidence_mock_v1",
+                "broker_key": "weak_low_confidence_mock",
+                "display_name": "Weak Low Confidence Mock",
+                "version": "1",
+                "created_for_testing": True,
+                "match_rules": [
+                    {
+                        "keywords": ["Weak Low Confidence Mock"],
+                        "confidence_boost": 0.05,
+                    }
+                ],
+                "field_label_rules": [
+                    {
+                        "field_name": "rate",
+                        "labels": ["Carrier Pay"],
+                        "confidence_boost": 0.25,
+                    }
+                ],
+            }
+        )
+        artifact = build_text_extraction_artifact_for_candidates(
+            full_text="Weak Low Confidence Mock\nCarrier Pay: $2,850.00\n",
+            source_name="weak_low_confidence_mock_fake.txt",
+        )
+        result = extract_ratecon_candidates_with_template_context(
+            artifact,
+            BrokerTemplateRegistry([weak_template]),
+        )
+
+        self.assertEqual(
+            result["template_selection_result"]["status"],
+            TEMPLATE_SELECTION_STATUS_LOW_CONFIDENCE,
+        )
+        self.assertFalse(result["template_scoring_applied"])
+        self.assertTrue(result["template_context_limited"])
+        self.assertEqual(result["scoring_adjustments"], [])
 
     def test_header_only_template_identity_adds_broker_name_candidate(self):
         result = self._extract("missing_broker_mc_header_only_ratecon.txt")

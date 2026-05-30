@@ -18,6 +18,7 @@ from app.document_ai.ratecon_candidates import (
 
 
 TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION = "template_aware_candidate_extractor_v1"
+TRUSTED_TEMPLATE_SCORING_CONFIDENCE = 0.65
 
 
 def _templates_from_registry(registry_or_templates):
@@ -121,28 +122,38 @@ def extract_ratecon_candidates_with_template_context(artifact, registry_or_templ
         "scorer_version": "",
     }
     adjusted_candidate_result = base_candidate_result
+    template_scoring_applied = False
+    template_context_limited = True
 
     if template_selection["status"] == TEMPLATE_SELECTION_STATUS_MATCHED:
-        selected_template = _template_by_id(
-            templates,
-            template_selection.get("selected_template_id", ""),
+        selected_confidence = float(
+            template_selection.get("selected_confidence", 0.0) or 0.0
         )
-        scoring_result = apply_template_candidate_scoring(
-            base_candidate_result,
-            selected_template,
-        )
-        adjusted_candidates = _append_template_identity_candidates(
-            scoring_result["adjusted_candidates"],
-            selected_template,
-            template_selection,
-            artifact,
-        )
-        adjusted_candidate_result = _safe_adjusted_candidate_result(
-            base_candidate_result,
-            adjusted_candidates,
-            TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION,
-        )
-        warnings.extend(scoring_result.get("warnings", []))
+        if selected_confidence >= TRUSTED_TEMPLATE_SCORING_CONFIDENCE:
+            selected_template = _template_by_id(
+                templates,
+                template_selection.get("selected_template_id", ""),
+            )
+            scoring_result = apply_template_candidate_scoring(
+                base_candidate_result,
+                selected_template,
+            )
+            adjusted_candidates = _append_template_identity_candidates(
+                scoring_result["adjusted_candidates"],
+                selected_template,
+                template_selection,
+                artifact,
+            )
+            adjusted_candidate_result = _safe_adjusted_candidate_result(
+                base_candidate_result,
+                adjusted_candidates,
+                TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION,
+            )
+            warnings.extend(scoring_result.get("warnings", []))
+            template_scoring_applied = True
+            template_context_limited = False
+        else:
+            warnings.append("template_match_below_trusted_scoring_threshold")
     elif template_selection["status"] == TEMPLATE_SELECTION_STATUS_CONFLICT:
         warnings.append("template_conflict_no_scoring_applied")
     else:
@@ -153,6 +164,9 @@ def extract_ratecon_candidates_with_template_context(artifact, registry_or_templ
         "template_selection_result": template_selection,
         "adjusted_candidate_result": adjusted_candidate_result,
         "scoring_adjustments": scoring_result.get("adjustments", []),
+        "template_scoring_applied": template_scoring_applied,
+        "template_context_limited": template_context_limited,
+        "template_scoring_trust_threshold": TRUSTED_TEMPLATE_SCORING_CONFIDENCE,
         "warnings": sorted(set(warnings)),
         "extractor_version": TEMPLATE_AWARE_CANDIDATE_EXTRACTOR_VERSION,
     }

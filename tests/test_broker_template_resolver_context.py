@@ -1,6 +1,7 @@
 import unittest
 
 from app.document_ai.broker_template_candidate_extraction import (
+    TRUSTED_TEMPLATE_SCORING_CONFIDENCE,
     extract_ratecon_candidates_with_template_context,
 )
 from app.document_ai.broker_templates import build_broker_template
@@ -127,6 +128,68 @@ class BrokerTemplateResolverContextTests(unittest.TestCase):
 
         self.assertIn("template_match", resolution["needs_check_fields"])
         self.assertFalse(resolution["template_context_used"])
+        self.assertIn("template_match_low_confidence", resolution["warnings"])
+
+    def test_matched_below_trusted_threshold_adds_review_marker(self):
+        weak_matched_template = build_broker_template(
+            {
+                "template_id": "weak_matched_mock_v1",
+                "broker_key": "weak_matched_mock",
+                "display_name": "Weak Matched Mock",
+                "version": "1",
+                "created_for_testing": True,
+                "match_rules": [
+                    {
+                        "keywords": ["Weak Matched Mock"],
+                        "confidence_boost": 0.26,
+                    }
+                ],
+                "field_label_rules": [
+                    {
+                        "field_name": "rate",
+                        "labels": ["Carrier Pay"],
+                        "confidence_boost": 0.2,
+                    }
+                ],
+            }
+        )
+        registry = BrokerTemplateRegistry([weak_matched_template])
+        artifact = build_text_extraction_artifact_for_candidates(
+            full_text="Weak Matched Mock\nCarrier Pay: $2,850.00\n",
+            source_name="weak_matched_mock_fake.txt",
+        )
+        template_result = extract_ratecon_candidates_with_template_context(
+            artifact,
+            registry,
+        )
+
+        resolution = resolve_ratecon_fields_with_template_context(
+            template_result,
+            field_names=[FIELD_RATE],
+        )
+
+        self.assertLess(
+            template_result["template_selection_result"]["selected_confidence"],
+            TRUSTED_TEMPLATE_SCORING_CONFIDENCE,
+        )
+        self.assertFalse(template_result["template_scoring_applied"])
+        self.assertFalse(resolution["template_context_used"])
+        self.assertEqual(resolution["selected_template_id"], "")
+        self.assertIn("template_match", resolution["needs_check_fields"])
+        self.assertIn("template_match_untrusted_for_resolution", resolution["warnings"])
+
+    def test_conflict_template_context_is_not_used_for_resolution(self):
+        template_result = self._template_aware("template_conflict_ratecon.txt")
+
+        resolution = resolve_ratecon_fields_with_template_context(
+            template_result,
+            field_names=[FIELD_RATE],
+        )
+
+        self.assertFalse(template_result["template_scoring_applied"])
+        self.assertFalse(resolution["template_context_used"])
+        self.assertIn("template_match", resolution["needs_check_fields"])
+        self.assertIn("template_match_conflict", resolution["warnings"])
 
     def test_accessorial_amounts_are_not_selected_as_main_rate(self):
         artifact = build_fixture_text_artifact("multi_amount_ratecon.txt")
