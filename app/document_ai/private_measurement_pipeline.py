@@ -67,7 +67,13 @@ from app.document_ai.rate_fusion import fuse_rate_candidates
 from app.document_ai.ratecon_candidates import (
     FIELD_ACCESSORIAL_TERM,
     FIELD_COMMODITY,
+    FIELD_DELIVERY_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_DELIVERY_TIME,
     FIELD_EQUIPMENT,
+    FIELD_PICKUP_DATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_PICKUP_TIME,
     FIELD_RATE,
     FIELD_SPECIAL_REQUIREMENT,
     FIELD_WEIGHT,
@@ -86,6 +92,10 @@ from app.document_ai.stop_association import (
     build_stop_groups_from_layout_sections,
     build_stop_groups_from_layout_tables,
     fuse_stop_candidates,
+)
+from app.document_ai.stop_normalization import (
+    build_normalized_stop_set,
+    flat_field_updates_from_normalized_stop_set,
 )
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.market_intelligence.intake.rate_confirmation_validation import (
@@ -299,6 +309,8 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "stop_group_count": 0,
         "fusion_warning_codes": [],
         "fused_candidate_result": None,
+        "normalized_stop_set": None,
+        "normalized_stop_flat_fields": {},
     }
 
 
@@ -338,6 +350,7 @@ def _layout_fusion_fields(
     layout_fields,
     baseline_resolution_result,
     document_type="",
+    classification_result=None,
     enable_layout_fusion=False,
     allow_layout_regression_for_debug=False,
 ):
@@ -357,6 +370,14 @@ def _layout_fusion_fields(
     table_stops = build_stop_groups_from_layout_tables(layout_artifact)
     section_stops = build_stop_groups_from_layout_sections(layout_artifact)
     stop_association = _combine_stop_association_results(table_stops, section_stops)
+    normalized_stop_set = build_normalized_stop_set(
+        stop_association,
+        classification_result=classification_result
+        or {"document_type": document_type, "normal_load_movement": True},
+    )
+    normalized_flat_fields = flat_field_updates_from_normalized_stop_set(
+        normalized_stop_set
+    )
     stop_fusion = fuse_stop_candidates(
         text_candidate_result,
         stop_association,
@@ -392,6 +413,11 @@ def _layout_fusion_fields(
         set(stop_fusion.get("improved_fields", []))
         | set(operational_fusion.get("improved_fields", []))
         | ({FIELD_RATE} if rate_fusion.get("did_improve_baseline") else set())
+        | {
+            field
+            for field in normalized_flat_fields.get("resolved_fields", [])
+            if baseline_statuses.get(field) != FIELD_RESOLUTION_STATUS_RESOLVED
+        }
     )
     worsened = sorted(
         set(stop_fusion.get("worsened_fields", []))
@@ -402,11 +428,17 @@ def _layout_fusion_fields(
         set(stop_fusion.get("unchanged_fields", []))
         | set(operational_fusion.get("unchanged_fields", []))
         | ({FIELD_RATE} if rate_fusion.get("fused_status") == "resolved" and not rate_fusion.get("did_improve_baseline") else set())
+        | {
+            field
+            for field in normalized_flat_fields.get("resolved_fields", [])
+            if baseline_statuses.get(field) == FIELD_RESOLUTION_STATUS_RESOLVED
+        }
     )
     conflicts = sorted(
         set(stop_fusion.get("conflict_stop_fields", []))
         | set(operational_fusion.get("conflict_fields", []))
         | ({FIELD_RATE} if rate_fusion.get("fused_status") == "conflict" else set())
+        | set(normalized_flat_fields.get("conflict_fields", []))
     )
     allowed_fields = set(improved) | set(conflicts)
     if rate_fusion.get("selected_candidate_id") and rate_fusion.get("did_improve_baseline"):
@@ -417,6 +449,7 @@ def _layout_fusion_fields(
             stop_fusion.get("warning_codes", [])
             + rate_fusion.get("warning_codes", [])
             + operational_fusion.get("warning_codes", [])
+            + normalized_stop_set.get("warning_codes", [])
         )
     )
     guard_result = apply_no_regression_guard(
@@ -446,6 +479,8 @@ def _layout_fusion_fields(
             "prevented_regression_fields": prevented_regressions,
             "stop_group_count": len(stop_association.get("stop_groups", [])),
             "fusion_warning_codes": fusion_warnings,
+            "normalized_stop_set": normalized_stop_set,
+            "normalized_stop_flat_fields": normalized_flat_fields,
             "fused_candidate_result": _build_fused_candidate_result(
                 text_candidate_result,
                 layout_candidates,
@@ -924,6 +959,7 @@ def measure_private_ratecon_pdf(
         layout_fields,
         baseline_resolution_result,
         document_type=classification_result.get("document_type", ""),
+        classification_result=classification_result,
         enable_layout_fusion=enable_layout_fusion,
         allow_layout_regression_for_debug=(
             allow_layout_regression_for_debug or not enable_no_regression_fusion

@@ -1,6 +1,14 @@
 """Stop group normalization helpers for layout-backed RateCon extraction."""
 
-from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.ratecon_candidates import (
+    FIELD_DELIVERY_DATE,
+    FIELD_DELIVERY_LOCATION,
+    FIELD_DELIVERY_TIME,
+    FIELD_PICKUP_DATE,
+    FIELD_PICKUP_LOCATION,
+    FIELD_PICKUP_TIME,
+    normalize_list,
+)
 from app.document_ai.normalized_stops import (
     NORMALIZED_STOP_FIELD_DATE,
     NORMALIZED_STOP_FIELD_LOCATION,
@@ -72,6 +80,14 @@ _REQUIRED_NORMALIZED_FIELDS = (
     NORMALIZED_STOP_FIELD_DATE,
     NORMALIZED_STOP_FIELD_TIME,
 )
+_FLAT_STOP_FIELD_MAP = {
+    ("pickup", NORMALIZED_STOP_FIELD_LOCATION): FIELD_PICKUP_LOCATION,
+    ("pickup", NORMALIZED_STOP_FIELD_DATE): FIELD_PICKUP_DATE,
+    ("pickup", NORMALIZED_STOP_FIELD_TIME): FIELD_PICKUP_TIME,
+    ("delivery", NORMALIZED_STOP_FIELD_LOCATION): FIELD_DELIVERY_LOCATION,
+    ("delivery", NORMALIZED_STOP_FIELD_DATE): FIELD_DELIVERY_DATE,
+    ("delivery", NORMALIZED_STOP_FIELD_TIME): FIELD_DELIVERY_TIME,
+}
 
 _PICKUP_SECTIONS = {"PICKUP_SECTION"}
 _DELIVERY_SECTIONS = {"DELIVERY_SECTION"}
@@ -631,3 +647,58 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
         }
     )
     return stop_set
+
+
+def flat_field_updates_from_normalized_stop_set(stop_set):
+    """Return safe flat-field status hints from the first pickup/delivery stops."""
+
+    stops = sorted(
+        [stop for stop in (stop_set or {}).get("stops", []) or [] if isinstance(stop, dict)],
+        key=lambda stop: (
+            int(stop.get("sequence") or 999999),
+            _text(stop.get("stop_id")),
+        ),
+    )
+    selected_by_type = {}
+    extra_stop_count = 0
+    for stop in stops:
+        stop_type = _text(stop.get("stop_type"))
+        if stop_type in {"pickup", "delivery"} and stop_type not in selected_by_type:
+            selected_by_type[stop_type] = stop
+        else:
+            extra_stop_count += 1
+
+    resolved_fields = []
+    conflict_fields = []
+    missing_fields = []
+    review_required_fields = []
+    mapped_stop_ids = []
+    for stop_type, stop in selected_by_type.items():
+        mapped_stop_ids.append(stop.get("stop_id", ""))
+        for field in stop.get("fields", []) or []:
+            if not isinstance(field, dict):
+                continue
+            flat_field = _FLAT_STOP_FIELD_MAP.get((stop_type, field.get("field_name")))
+            if not flat_field:
+                continue
+            status = field.get("status")
+            if status == NORMALIZED_STOP_FIELD_STATUS_RESOLVED:
+                resolved_fields.append(flat_field)
+            elif status == NORMALIZED_STOP_FIELD_STATUS_CONFLICT:
+                conflict_fields.append(flat_field)
+            elif status == NORMALIZED_STOP_FIELD_STATUS_MISSING:
+                missing_fields.append(flat_field)
+            else:
+                review_required_fields.append(flat_field)
+
+    return {
+        "resolved_fields": sorted(set(resolved_fields)),
+        "conflict_fields": sorted(set(conflict_fields)),
+        "missing_fields": sorted(set(missing_fields)),
+        "review_required_fields": sorted(set(review_required_fields)),
+        "mapped_stop_ids": [item for item in mapped_stop_ids if item],
+        "extra_stop_count": extra_stop_count,
+        "review_required": bool((stop_set or {}).get("warning_codes"))
+        or bool(conflict_fields)
+        or bool(review_required_fields),
+    }
