@@ -63,6 +63,29 @@ REVIEW_WARNING_MARKERS = {
     "template_negative_label_seen",
     "accessorial_label_not_main_rate",
 }
+RATE_CONTEXT_REVIEW_WARNING = "needs_rate_context_review"
+RATE_CURRENT_LABELS = (
+    "revised rate confirmation",
+    "revised carrier pay",
+    "revised rate",
+    "updated rate",
+    "current rate",
+)
+RATE_ORIGINAL_LABELS = (
+    "original rate",
+    "previous rate",
+    "prior rate",
+)
+RATE_STRONG_LABELS = (
+    "carrier pay",
+    "total carrier rate",
+    "agreed amount",
+    "linehaul",
+    "total rate",
+    "carrier rate",
+    "freight charge",
+    "rate",
+)
 
 
 def _normalize_list(value):
@@ -216,6 +239,43 @@ def _candidate_value(candidate):
     return str(candidate.get("normalized_value") or candidate.get("raw_value") or "").strip()
 
 
+def _candidate_context(candidate):
+    return " ".join(
+        str(candidate.get(key) or "").strip().lower()
+        for key in [
+            "label",
+            "context_before",
+            "context_after",
+        ]
+        if str(candidate.get(key) or "").strip()
+    )
+
+
+def _candidate_has_context(candidate, markers):
+    context = _candidate_context(candidate)
+    return any(marker in context for marker in markers)
+
+
+def _candidate_label_or_previous_context(candidate):
+    return " ".join(
+        str(candidate.get(key) or "").strip().lower()
+        for key in [
+            "label",
+            "context_before",
+        ]
+        if str(candidate.get(key) or "").strip()
+    )
+
+
+def _candidate_has_label_or_previous_context(candidate, markers):
+    context = _candidate_label_or_previous_context(candidate)
+    return any(marker in context for marker in markers)
+
+
+def _candidate_warning_set(candidate):
+    return set(_normalize_list(candidate.get("warnings", [])))
+
+
 def _candidate_evidence_ref(candidate):
     candidate_id = str(candidate.get("candidate_id") or "").strip()
     if candidate_id:
@@ -245,7 +305,23 @@ def _group_candidates(candidate_result):
     return grouped
 
 
-def _resolution_for_field(field_name, candidates):
+def _strong_candidates(candidates):
+    return [
+        candidate
+        for candidate in candidates
+        if _candidate_confidence_rank(candidate) >= MIN_RESOLVE_CONFIDENCE_RANK
+    ]
+
+
+def _candidate_values(candidates):
+    return {
+        _candidate_value(candidate)
+        for candidate in candidates
+        if _candidate_value(candidate)
+    }
+
+
+def _resolution_for_rate(field_name, candidates):
     if not candidates:
         return build_field_resolution(
             field_name=field_name,
@@ -260,8 +336,161 @@ def _resolution_for_field(field_name, candidates):
     )
     best = sorted_candidates[0]
     best_rank = _candidate_confidence_rank(best)
-    best_value = _candidate_value(best)
-    best_warnings = set(best.get("warnings", []))
+    best_warnings = _candidate_warning_set(best)
+    evidence_refs = [
+        evidence_ref
+        for evidence_ref in [_candidate_evidence_ref(best)]
+        if evidence_ref
+    ]
+
+    strong_candidates = _strong_candidates(sorted_candidates)
+    strong_values = _candidate_values(strong_candidates)
+    current_candidates = [
+        candidate
+        for candidate in strong_candidates
+        if _candidate_has_label_or_previous_context(candidate, RATE_CURRENT_LABELS)
+    ]
+
+    if current_candidates:
+        current_values = _candidate_values(current_candidates)
+        selected_current = sorted(
+            current_candidates,
+            key=lambda candidate: (
+                _candidate_confidence_rank(candidate),
+                _candidate_value(candidate),
+            ),
+            reverse=True,
+        )[0]
+
+        if len(current_values) == 1:
+            reasons = ["selected_revised_current_rate_candidate"]
+            if any(
+                _candidate_has_label_or_previous_context(candidate, RATE_ORIGINAL_LABELS)
+                for candidate in sorted_candidates
+            ):
+                reasons.append("rejected_original_prior_rate_candidate")
+
+            return build_field_resolution(
+                field_name=field_name,
+                status=FIELD_RESOLUTION_STATUS_RESOLVED,
+                selected_candidate=selected_current,
+                rejected_candidates=[
+                    candidate
+                    for candidate in sorted_candidates
+                    if candidate is not selected_current
+                ],
+                confidence=selected_current.get("confidence", ""),
+                reasons=reasons,
+                evidence_refs=[
+                    ref
+                    for ref in [_candidate_evidence_ref(selected_current)]
+                    if ref
+                ],
+                warnings=selected_current.get("warnings", []),
+            )
+
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_CONFLICT,
+            selected_candidate=selected_current,
+            rejected_candidates=[
+                candidate
+                for candidate in sorted_candidates
+                if candidate is not selected_current
+            ],
+            confidence=selected_current.get("confidence", ""),
+            reasons=["multiple_revised_current_rate_values"],
+            evidence_refs=_candidate_diagnostic_ids(current_candidates),
+            warnings=["field_conflict_requires_review"],
+            conflict_candidate_ids=_candidate_diagnostic_ids(current_candidates),
+        )
+
+    if best_warnings.intersection(REVIEW_WARNING_MARKERS):
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["candidate_warning_requires_review"],
+            evidence_refs=evidence_refs,
+            warnings=best.get("warnings", []),
+        )
+
+    if (
+        best_warnings.intersection({RATE_CONTEXT_REVIEW_WARNING})
+        and not _candidate_has_context(best, RATE_STRONG_LABELS)
+    ):
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["rate_context_requires_review"],
+            evidence_refs=evidence_refs,
+            warnings=best.get("warnings", []) + ["field_requires_review"],
+        )
+
+    if best_rank < MIN_RESOLVE_CONFIDENCE_RANK:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["best_candidate_below_threshold"],
+            evidence_refs=evidence_refs,
+            warnings=["field_requires_review"],
+        )
+
+    if len(strong_values) > 1:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_CONFLICT,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["multiple_strong_candidate_values"],
+            evidence_refs=[
+                ref
+                for ref in [_candidate_evidence_ref(candidate) for candidate in strong_candidates]
+                if ref
+            ],
+            warnings=["field_conflict_requires_review"],
+        )
+
+    return build_field_resolution(
+        field_name=field_name,
+        status=FIELD_RESOLUTION_STATUS_RESOLVED,
+        selected_candidate=best,
+        rejected_candidates=sorted_candidates[1:],
+        confidence=best.get("confidence", ""),
+        reasons=["selected_highest_confidence_candidate"],
+        evidence_refs=evidence_refs,
+        warnings=best.get("warnings", []),
+    )
+
+
+def _resolution_for_field(field_name, candidates):
+    if field_name == FIELD_RATE:
+        return _resolution_for_rate(field_name, candidates)
+
+    if not candidates:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_MISSING,
+            reasons=["no_candidate"],
+        )
+
+    sorted_candidates = sorted(
+        candidates,
+        key=lambda candidate: (_candidate_confidence_rank(candidate), _candidate_value(candidate)),
+        reverse=True,
+    )
+    best = sorted_candidates[0]
+    best_rank = _candidate_confidence_rank(best)
+    best_warnings = _candidate_warning_set(best)
     evidence_refs = [
         evidence_ref
         for evidence_ref in [_candidate_evidence_ref(best)]
@@ -292,16 +521,8 @@ def _resolution_for_field(field_name, candidates):
             warnings=["field_requires_review"],
         )
 
-    strong_candidates = [
-        candidate
-        for candidate in sorted_candidates
-        if _candidate_confidence_rank(candidate) >= MIN_RESOLVE_CONFIDENCE_RANK
-    ]
-    strong_values = {
-        _candidate_value(candidate)
-        for candidate in strong_candidates
-        if _candidate_value(candidate)
-    }
+    strong_candidates = _strong_candidates(sorted_candidates)
+    strong_values = _candidate_values(strong_candidates)
 
     if len(strong_values) > 1:
         return build_field_resolution(

@@ -37,6 +37,7 @@ MATRIX = [
         "template_id": "alpha_freight_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": [],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -45,6 +46,7 @@ MATRIX = [
         "template_id": "northstar_logistics_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": [],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -53,6 +55,7 @@ MATRIX = [
         "template_id": "tablelane_transport_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": ["equipment"],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -61,6 +64,7 @@ MATRIX = [
         "template_id": "alpha_freight_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": ["broker_name", "broker_mc"],
+        "needs": [],
         "conflicts": [],
         "forbidden_resolved": ["broker_mc"],
     },
@@ -70,6 +74,7 @@ MATRIX = [
         "template_id": "northstar_logistics_mock_v1",
         "resolved": ["broker_name", "rate", "pickup_location", "delivery_location"],
         "missing": [],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -78,6 +83,7 @@ MATRIX = [
         "template_id": "tablelane_transport_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": ["equipment"],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -86,6 +92,7 @@ MATRIX = [
         "template_id": "tablelane_transport_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": ["equipment"],
+        "needs": [],
         "conflicts": [],
     },
     {
@@ -94,24 +101,27 @@ MATRIX = [
         "template_id": "alpha_freight_mock_v1",
         "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": [],
+        "needs": [],
         "conflicts": [],
     },
     {
         "fixture": "revised_rate_conflict_ratecon.txt",
         "status": TEMPLATE_SELECTION_STATUS_MATCHED,
         "template_id": "northstar_logistics_mock_v1",
-        "resolved": ["pickup_location", "delivery_location"],
+        "resolved": ["rate", "pickup_location", "delivery_location"],
         "missing": [],
-        "conflicts": ["rate"],
-        "forbidden_resolved": ["rate"],
+        "needs": [],
+        "conflicts": [],
     },
     {
         "fixture": "unknown_hard_layout_ratecon.txt",
         "status": TEMPLATE_SELECTION_STATUS_UNKNOWN,
         "template_id": "",
-        "resolved": ["rate", "pickup_location", "delivery_location"],
+        "resolved": ["pickup_location", "delivery_location"],
         "missing": ["broker_name", "broker_mc", "load_number"],
+        "needs": ["rate"],
         "conflicts": [],
+        "forbidden_resolved": ["rate"],
     },
 ]
 
@@ -157,6 +167,8 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
                     self.assertIn(field_name, resolved_fields)
                 for field_name in case["missing"]:
                     self.assertIn(field_name, resolution["missing_fields"])
+                for field_name in case["needs"]:
+                    self.assertIn(field_name, resolution["needs_check_fields"])
                 for field_name in case["conflicts"]:
                     self.assertIn(field_name, resolution["conflict_fields"])
                 for field_name in case.get("forbidden_resolved", []):
@@ -215,6 +227,21 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
         self.assertIn("po_number", reference_types)
         self.assertIn("bol_number", reference_types)
         self.assertIn("customer_reference", reference_types)
+
+    def test_revised_current_rate_is_selected_when_evidence_is_strong(self):
+        _, resolution, _ = self._run_case("revised_rate_conflict_ratecon.txt")
+        rate_resolution = [
+            item
+            for item in resolution["resolutions"]
+            if item["field_name"] == FIELD_RATE
+        ][0]
+
+        self.assertEqual(rate_resolution["status"], "resolved")
+        self.assertEqual(rate_resolution["selected_candidate_value"], "3050.00")
+        self.assertIn(
+            "selected_revised_current_rate_candidate",
+            rate_resolution["reasons"],
+        )
 
     def test_conflicting_appointment_candidates_are_visible(self):
         extraction, _, _ = self._run_case("conflicting_appointment_times_ratecon.txt")

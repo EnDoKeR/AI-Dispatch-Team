@@ -3,6 +3,8 @@ import unittest
 from app.document_ai.ratecon_candidate_extraction import extract_ratecon_candidates
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_LOW,
+    CANDIDATE_CONFIDENCE_MEDIUM,
+    FIELD_ACCESSORIAL_TERM,
     FIELD_DELIVERY_DATE,
     FIELD_DELIVERY_LOCATION,
     FIELD_PICKUP_DATE,
@@ -16,6 +18,7 @@ from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
     FIELD_RESOLUTION_STATUS_MISSING,
+    FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
     FIELD_RESOLUTION_STATUS_RESOLVED,
     resolve_ratecon_fields,
 )
@@ -75,6 +78,62 @@ class RateConFieldResolverTests(unittest.TestCase):
         self.assertEqual(rate_resolution["status"], FIELD_RESOLUTION_STATUS_CONFLICT)
         self.assertIn(FIELD_RATE, result["conflict_fields"])
         self.assertIn(FIELD_RATE, result["needs_check_fields"])
+
+    def test_revised_current_rate_is_preferred_when_explicit(self):
+        artifact = build_fixture_text_artifact("revised_rate_conflict_ratecon.txt")
+        candidate_result = extract_ratecon_candidates(artifact)
+
+        result = resolve_ratecon_fields(candidate_result, field_names=[FIELD_RATE])
+        rate_resolution = result["resolutions"][0]
+
+        self.assertEqual(rate_resolution["status"], FIELD_RESOLUTION_STATUS_RESOLVED)
+        self.assertEqual(rate_resolution["selected_candidate_value"], "3050.00")
+        self.assertIn(
+            "selected_revised_current_rate_candidate",
+            rate_resolution["reasons"],
+        )
+        self.assertNotIn(FIELD_RATE, result["conflict_fields"])
+
+    def test_ambiguous_rate_context_requires_review(self):
+        candidate_result = build_candidate_extraction_result(
+            candidates=[
+                build_field_candidate(
+                    field_name=FIELD_RATE,
+                    raw_value="$2,400.00",
+                    normalized_value="2400.00",
+                    confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                    label="Amount Due Carrier",
+                    warnings=["needs_rate_context_review"],
+                )
+            ],
+        )
+
+        result = resolve_ratecon_fields(candidate_result, field_names=[FIELD_RATE])
+        rate_resolution = result["resolutions"][0]
+
+        self.assertEqual(rate_resolution["status"], FIELD_RESOLUTION_STATUS_NEEDS_REVIEW)
+        self.assertIn("rate_context_requires_review", rate_resolution["reasons"])
+        self.assertIn(FIELD_RATE, result["needs_check_fields"])
+
+    def test_accessorial_only_amounts_do_not_resolve_rate(self):
+        candidate_result = build_candidate_extraction_result(
+            candidates=[
+                build_field_candidate(
+                    field_name=FIELD_ACCESSORIAL_TERM,
+                    raw_value="$250.00",
+                    normalized_value="250.00",
+                    confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                    label="Layover",
+                    warnings=["not_final_rate_candidate"],
+                )
+            ],
+        )
+
+        result = resolve_ratecon_fields(candidate_result, field_names=[FIELD_RATE])
+        rate_resolution = result["resolutions"][0]
+
+        self.assertEqual(rate_resolution["status"], FIELD_RESOLUTION_STATUS_MISSING)
+        self.assertIn(FIELD_RATE, result["missing_fields"])
 
     def test_missing_core_fixture_marks_missing_fields(self):
         artifact = build_fixture_text_artifact("missing_core_fields_ratecon.txt")
