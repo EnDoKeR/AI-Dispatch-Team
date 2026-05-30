@@ -14,6 +14,11 @@ FIXTURE_NAMES = (
     "multi_stop_ratecon.txt",
     "missing_core_fields_ratecon.txt",
     "conflict_rate_ratecon.txt",
+    "alpha_freight_mock_ratecon.txt",
+    "northstar_logistics_mock_ratecon.txt",
+    "tablelane_transport_mock_ratecon.txt",
+    "unknown_broker_ratecon.txt",
+    "template_conflict_ratecon.txt",
 )
 
 

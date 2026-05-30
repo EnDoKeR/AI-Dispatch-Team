@@ -1,0 +1,17 @@
+FAKE TEMPLATE CONFLICT RATE CONFIRMATION
+Alpha Freight Mock
+Conflict Mock
+Load Number: FAKE-CONFLICT-TEMPLATE-001
+Carrier Pay: $2,900.00
+
+Pickup:
+Fake Conflict Pickup City, KY 40000
+Pickup Date: 06/14/2026
+
+Delivery:
+Fake Conflict Delivery City, PA 19000
+Delivery Date: 06/16/2026
+
+Equipment: Flatbed
+Commodity: FAKE CONFLICT PIPE
+Weight: 42000 lbs

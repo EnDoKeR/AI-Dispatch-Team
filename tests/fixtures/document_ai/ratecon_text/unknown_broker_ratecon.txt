@@ -1,0 +1,17 @@
+FAKE UNKNOWN RATE CONFIRMATION
+Broker: FAKE UNKNOWN BROKER LLC
+MC: MC000000
+Load Number: FAKE-UNKNOWN-001
+Total Rate: $2,500.00
+
+Pickup:
+Fake Unknown Pickup City, IA 50000
+Pickup Date: 06/12/2026
+
+Delivery:
+Fake Unknown Delivery City, OK 73000
+Delivery Date: 06/14/2026
+
+Equipment: Dry Van
+Commodity: FAKE UNKNOWN GOODS
+Weight: 40000 lbs

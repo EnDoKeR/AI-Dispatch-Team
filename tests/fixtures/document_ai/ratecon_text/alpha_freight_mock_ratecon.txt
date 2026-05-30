@@ -1,0 +1,22 @@
+ALPHA RATE CONFIRMATION
+Alpha Freight Mock
+Broker MC: MC111111
+Load Number: FAKE-ALPHA-001
+PO Number: FAKE-ALPHA-PO-001
+BOL Number: FAKE-ALPHA-BOL-001
+Carrier Pay: $2,850.00
+
+Pickup:
+Fake Alpha Pickup City, IL 60000
+Pickup Time: 08:00 AM - 12:00 PM
+Pickup Date: 06/01/2026
+
+Delivery:
+Fake Alpha Delivery City, TX 75201
+Delivery Time: Appt 09:30
+Delivery Date: 06/03/2026
+
+Equipment: Conestoga 53 ft
+Commodity: FAKE ALPHA PARTS
+Weight: 42,500 lbs
+Special Requirements: tarp required, straps required

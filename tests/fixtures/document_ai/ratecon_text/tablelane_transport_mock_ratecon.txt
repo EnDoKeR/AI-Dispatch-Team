@@ -1,0 +1,23 @@
+TABLELANE RATE SHEET
+Tablelane Transport Mock
+MC333333
+Order #: FAKE-TABLE-001
+Appointment #: FAKE-TABLE-APPT-001
+Pickup Confirmation: FAKE-TABLE-PU-001
+Delivery Confirmation: FAKE-TABLE-DEL-001
+Total Carrier Rate: $4,200.00
+
+Stop 1 PU Appt:
+Fake Table Pickup City, WI 53000
+Date: 2026-06-07
+PU Appt: 08:00-10:00
+
+Stop 2 DEL Appt:
+Fake Table Delivery City, FL 33000
+Date: 2026-06-10
+DEL Appt: 09:00-12:00
+
+Trailer: Stepdeck
+Product: FAKE TABLE MATERIALS
+Total Weight: 44000
+Load Notes: appointment required, chains required

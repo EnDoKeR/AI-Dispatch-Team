@@ -1,0 +1,23 @@
+NORTHSTAR DOCKET
+Northstar Logistics Mock
+Docket MC: MC222222
+Shipment #: FAKE-NORTH-001
+Customer Ref: FAKE-NORTH-CUST-001
+Pickup #: FAKE-NORTH-PU-001
+Delivery #: FAKE-NORTH-DEL-001
+Agreed Amount: $3,150.00
+
+Shipper:
+Fake North Pickup City, OH 43000
+Date: 06/04/2026
+Time: FCFS 07:00-15:00
+
+Consignee:
+Fake North Delivery City, GA 30300
+Date: 06/06/2026
+Time: 10:00 AM
+
+Trailer Type: Flatbed
+Freight Description: FAKE NORTH MACHINERY
+Gross Weight: 39000 lb
+Driver Notes: appointment required
