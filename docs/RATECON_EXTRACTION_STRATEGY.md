@@ -49,6 +49,7 @@ Current project support:
 - conservative field resolution contracts and resolver;
 - RateConfirmationIntake draft builder from resolved candidates;
 - fake-only candidate extraction CLI;
+- fake/anonymized broker template contracts, registry, matcher, template-aware scoring, and regression matrix;
 - local-only `pypdf` extraction helper;
 - private PDF extraction inventory CLI;
 - private PDF dry-run CLI;
@@ -62,7 +63,7 @@ Current project does not yet have:
 
 - OCR;
 - Vision AI;
-- broker template registry;
+- real broker templates;
 - typed evidence object for every production field;
 - DispatchCase creation from RateCon intake;
 - live document upload handling;
@@ -215,6 +216,9 @@ Broker templates should:
 - use fake/anonymized tests;
 - produce candidates and evidence;
 - avoid direct dispatch decisions.
+
+Current fake/anonymized broker template behavior is documented in
+`docs/RATECON_BROKER_TEMPLATES.md`.
 
 ## Normalization And Validation
 

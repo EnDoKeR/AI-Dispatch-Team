@@ -30,6 +30,7 @@ Before major feature growth, add coverage for:
 - OCR fallback routing without invoking OCR in unit tests;
 - broker template parsing and template selection;
 - expanded field candidate resolver behavior for broker-specific duplicates, conflicts, and confidence;
+- broker template registry, matcher, scorer, unknown fallback, and conflict fallback;
 - confidence/evidence propagation from extraction artifact to intake contract;
 - ReviewRequired gating for missing, low-confidence, and conflicting critical data;
 - DispatchCase creation from validated intake, with approval and idempotency gates;
@@ -113,6 +114,19 @@ Required coverage for candidate generators and resolvers:
 - conflict behavior;
 - intake draft handoff without DispatchCase creation;
 - fake-only CLI summaries with no raw fixture text.
+
+## Broker Template Test Rule
+
+Every broker template needs:
+
+- fake/anonymized template JSON;
+- fake/anonymized text fixture;
+- matched-template test;
+- unknown fallback test;
+- conflict fallback test when labels overlap another template;
+- rate/accessorial safety test when money labels are present;
+- typed-reference coverage when reference labels are present;
+- proof that templates do not contain broker memory or business-risk fields.
 
 ## Persistence Test Rule
 

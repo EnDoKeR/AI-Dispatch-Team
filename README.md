@@ -82,6 +82,7 @@ Core architecture docs:
 * [RateCon Extraction Strategy](docs/RATECON_EXTRACTION_STRATEGY.md)
 * [PDF Triage](docs/PDF_TRIAGE.md)
 * [RateCon Candidate Extraction](docs/RATECON_CANDIDATE_EXTRACTION.md)
+* [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
 * [Testing Roadmap](docs/TESTING_ROADMAP.md)
 * [Event Timeline Contract](docs/EVENT_TIMELINE_CONTRACT.md)
 * [Telegram Output Safety](docs/TELEGRAM_OUTPUT_SAFETY.md)

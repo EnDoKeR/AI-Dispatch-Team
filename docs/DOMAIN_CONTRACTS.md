@@ -563,6 +563,54 @@ Suggested test coverage:
 - serialization;
 - intake draft validation handoff.
 
+## BrokerTemplate
+
+Purpose:
+
+- fake/anonymized RateCon document layout and label vocabulary for extraction.
+
+Owner module:
+
+- `app/document_ai/broker_templates.py`
+- registry: `app/document_ai/broker_template_registry.py`
+- matcher: `app/document_ai/broker_template_matcher.py`
+- scoring: `app/document_ai/broker_template_scoring.py`
+
+Current status:
+
+- `implemented` for fake/anonymized fixtures.
+
+Required fields:
+
+- template id;
+- broker key;
+- display name;
+- version;
+- match rules;
+- field label rules;
+- stop section rules;
+- reference type rules;
+- known rate/accessorial/equipment/special labels;
+- testing flag for fake templates.
+
+Must not do:
+
+- store real broker/private document data in tracked fixtures;
+- contain broker memory, payment history, or risk status;
+- create DispatchCases;
+- make dispatch recommendations;
+- bypass candidate confidence, field resolution, or intake validation.
+
+Suggested test coverage:
+
+- fake template load/validation;
+- template matching;
+- unknown fallback;
+- conflict fallback;
+- template-aware candidate scoring;
+- resolver behavior with template context;
+- no private data in fixtures.
+
 ## ExtractionArtifact
 
 Purpose:

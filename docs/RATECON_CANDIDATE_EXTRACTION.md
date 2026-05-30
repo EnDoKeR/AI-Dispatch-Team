@@ -168,6 +168,9 @@ extractor.
 Future broker templates should add candidate generators and confidence
 boosts/penalties, not direct final assignment or dispatch decisions.
 
+The fake/anonymized broker template registry is documented in
+`docs/RATECON_BROKER_TEMPLATES.md`.
+
 Future Event Timeline wiring can record:
 
 - PDF triaged;
