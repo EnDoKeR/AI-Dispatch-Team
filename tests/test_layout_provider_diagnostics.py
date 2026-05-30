@@ -2,6 +2,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
 from app.document_ai.layout_provider_diagnostics import (
     ISSUE_PROVIDER_HAS_STOP_LABELS_BUT_NO_GROUPS,
@@ -16,6 +17,7 @@ from app.document_ai.layout_provider_diagnostics import (
     build_provider_page_diagnostics,
     build_stop_evidence_signals,
     classify_layout_provider_diagnostic_issue,
+    compare_pdfplumber_table_profiles,
     compute_layout_quality_bucket,
     summarize_layout_tables,
     summarize_stop_label_signals,
@@ -294,6 +296,66 @@ class LayoutProviderDiagnosticsTests(unittest.TestCase):
         path = Path(".local_outputs/private_ratecon_measurement") / LAYOUT_PROVIDER_DIAGNOSTICS_MD
 
         self.assertTrue(str(path).startswith(".local_outputs"))
+
+    def test_table_profile_comparison_is_safe_and_selects_best_profiles(self):
+        def fake_extract(_path, document_id="", table_settings_profile="default"):
+            table_cells = 12 if table_settings_profile == "lines" else 0
+            table_count = 1 if table_settings_profile == "lines" else 0
+            artifact = build_layout_extraction_artifact(
+                provider="pdfplumber",
+                pages=[
+                    build_layout_page_artifact(
+                        page_number=1,
+                        words=[build_layout_word(text="Pickup")],
+                        lines=[
+                            build_layout_line(
+                                "line_1",
+                                text_redacted="Pickup Date <DATE>",
+                                page_number=1,
+                            )
+                        ],
+                        tables=[
+                            build_layout_table(
+                                "table_1",
+                                cells=[
+                                    build_layout_table_cell(0, 0, "Pickup"),
+                                    build_layout_table_cell(0, 1, "<DATE>"),
+                                ],
+                            )
+                        ]
+                        if table_count
+                        else [],
+                    )
+                ],
+            )
+            return {
+                "provider_name": "pdfplumber",
+                "status": "success",
+                "artifact": artifact,
+                "page_count": 1,
+                "warning_codes": [],
+                "table_settings_profile": table_settings_profile,
+            }
+
+        with patch(
+            "app.document_ai.pdfplumber_layout_provider.extract_pdfplumber_layout",
+            side_effect=fake_extract,
+        ):
+            comparison = compare_pdfplumber_table_profiles(
+                "private.pdf",
+                profiles=["default", "lines"],
+                document_alias="RATECON_001",
+            )
+
+        dumped = json.dumps(comparison, sort_keys=True)
+
+        self.assertEqual(comparison["document_alias"], "RATECON_001")
+        self.assertEqual(comparison["best_profile_by_table_count"], "lines")
+        self.assertEqual(comparison["best_profile_by_stop_signal_count"], "lines")
+        self.assertFalse(comparison["raw_text_included"])
+        self.assertTrue(comparison["private_values_redacted"])
+        self.assertNotIn("private.pdf", dumped)
+        self.assertNotIn("Pickup Date", dumped)
 
 
 if __name__ == "__main__":

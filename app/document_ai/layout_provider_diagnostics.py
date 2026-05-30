@@ -541,3 +541,72 @@ def write_layout_provider_diagnostics_report(
 
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path
+
+
+def _profile_summary_from_result(profile_name, provider_result, document_alias=""):
+    result = provider_result if isinstance(provider_result, dict) else {}
+    safe_result = dict(result)
+    safe_result["document_alias"] = _text(document_alias)
+    diagnostics = build_layout_provider_diagnostics(safe_result)
+    stop_signals = diagnostics["stop_evidence_signals"]
+    stop_signal_count = sum(_int(stop_signals.get(key)) for key in STOP_SIGNAL_KEYS)
+
+    return {
+        "profile_name": _text(profile_name),
+        "provider_status": _text(result.get("status")),
+        "table_count": diagnostics["total_table_count"],
+        "table_cell_count": diagnostics["total_table_cell_count"],
+        "word_count": diagnostics["total_word_count"],
+        "line_count": diagnostics["total_line_count"],
+        "stop_signal_count": stop_signal_count,
+        "warning_codes": _list(result.get("warning_codes")),
+    }
+
+
+def compare_pdfplumber_table_profiles(pdf_path, profiles=None, document_alias=""):
+    from app.document_ai.pdfplumber_layout_provider import (
+        PDFPLUMBER_TABLE_SETTING_PROFILES,
+        extract_pdfplumber_layout,
+        normalize_pdfplumber_table_profile,
+    )
+
+    requested = profiles or PDFPLUMBER_TABLE_SETTING_PROFILES
+    normalized_profiles = []
+    for profile in requested:
+        normalized = normalize_pdfplumber_table_profile(profile)
+        if normalized not in normalized_profiles:
+            normalized_profiles.append(normalized)
+
+    summaries = []
+    warnings = []
+    for profile in normalized_profiles:
+        result = extract_pdfplumber_layout(
+            pdf_path,
+            document_id=_text(document_alias),
+            table_settings_profile=profile,
+        )
+        summaries.append(
+            _profile_summary_from_result(profile, result, document_alias=document_alias)
+        )
+        warnings.extend(_list(result.get("warning_codes")))
+
+    best_by_tables = max(
+        summaries,
+        key=lambda item: (item["table_count"], item["table_cell_count"], item["word_count"]),
+        default={},
+    )
+    best_by_stop_signals = max(
+        summaries,
+        key=lambda item: (item["stop_signal_count"], item["table_count"], item["word_count"]),
+        default={},
+    )
+
+    return {
+        "document_alias": _text(document_alias),
+        "profiles": summaries,
+        "best_profile_by_table_count": _text(best_by_tables.get("profile_name")),
+        "best_profile_by_stop_signal_count": _text(best_by_stop_signals.get("profile_name")),
+        "warning_codes": sorted(set(warnings)),
+        "raw_text_included": False,
+        "private_values_redacted": True,
+    }
