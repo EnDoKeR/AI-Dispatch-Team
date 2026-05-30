@@ -115,3 +115,23 @@ conflicting.
 This overlay workflow does not add OCR, Vision AI, cloud APIs, live DAT/API,
 DispatchCase creation, DecisionEngine decisions, Telegram business logic, or
 production extraction claims.
+
+## Classification Gate Before Overlay
+
+Private overlays are evaluated only after document/page/section classification.
+The overlay does not turn supplemental documents into RateCons. A private broker
+template may improve candidate scoring for eligible RateCon, load confirmation,
+or tender pages, but BOL, carrier-info, certificate, billing-only, signature-only,
+and terms-only documents remain supplemental or non-RateCon according to the
+classifier.
+
+The safe measurement report separates:
+
+- total documents;
+- RateCon-eligible documents;
+- supplemental-only documents;
+- non-RateCon or unknown-review documents;
+- OCR-needed documents.
+
+Template overlay improvement should be measured against eligible documents and
+status-only deltas, not private values.

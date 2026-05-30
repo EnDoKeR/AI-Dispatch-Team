@@ -83,6 +83,7 @@ Core architecture docs:
 * [RateCon Extraction Strategy](docs/RATECON_EXTRACTION_STRATEGY.md)
 * [PDF Triage](docs/PDF_TRIAGE.md)
 * [RateCon Candidate Extraction](docs/RATECON_CANDIDATE_EXTRACTION.md)
+* [Document Type / Page / Section Classification](docs/DOCUMENT_TYPE_PAGE_SECTION_CLASSIFICATION.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
 * [Private Broker Template Overlay](docs/PRIVATE_BROKER_TEMPLATE_OVERLAY.md)
 * [RateCon Template Resolver Hardening](docs/RATECON_TEMPLATE_RESOLVER_HARDENING.md)

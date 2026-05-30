@@ -20,6 +20,8 @@ resolver decides whether one value is safe enough to populate a draft intake fie
 
 ```text
 fake/anonymized text artifact
+-> document/page/section classification
+-> extraction scope filtering
 -> FieldCandidate records
 -> CandidateExtractionResult
 -> optional broker template matching / template-aware scoring
@@ -154,6 +156,7 @@ Run:
 ```powershell
 py scripts/run_fake_ratecon_candidate_extraction.py
 py scripts/run_fake_ratecon_candidate_extraction.py --include-hard-layouts
+py scripts/run_fake_ratecon_candidate_extraction.py --input-dir tests\fixtures\document_ai\document_classification --classify-document --show-page-roles --show-section-roles --respect-extraction-scope
 ```
 
 The CLI reads only fake/anonymized text fixtures by default and prints:
@@ -168,6 +171,23 @@ The CLI reads only fake/anonymized text fixtures by default and prints:
 - warnings.
 
 It does not print full fixture text or candidate values.
+
+## Classification Before Candidate Extraction
+
+Packet-like PDFs can contain primary Rate Confirmation pages, terms, billing,
+signature certificates, carrier information sheets, and BOL-like pages. Candidate
+generation should run only on pages and sections whose `ExtractionScope` allows
+the relevant evidence.
+
+Rules:
+
+- BOL, certificate, carrier-info, and signature-only pages do not feed RateCon
+  core fields.
+- Terms and billing pages can support payment terms, deductions, accessorials,
+  or special requirements, but should not create primary rate or stop evidence
+  by default.
+- Unknown document types route to review.
+- Supplemental-only documents are not counted as missing RateCon fields.
 
 ## Future Extension Points
 

@@ -227,3 +227,15 @@ addresses, references, raw text, filenames, or local paths.
 
 Private templates cannot bypass validation, create DispatchCases, call
 DecisionEngine, call Telegram, write events, or decide accept/reject.
+
+## Relationship To Document Classification
+
+Document/page/section classification runs before broker template matching.
+Templates describe label vocabulary and extraction hints inside eligible scopes;
+they do not decide whether a BOL, signature certificate, carrier-info sheet, or
+terms-only page should be treated as a primary RateCon.
+
+If classification marks a document as supplemental-only or non-RateCon, broker
+template matching is skipped for RateCon extraction. If classification marks the
+document eligible, templates may boost or penalize candidates from allowed pages
+and sections only. Validation and review gates still apply.

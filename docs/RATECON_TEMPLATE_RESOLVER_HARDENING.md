@@ -199,3 +199,20 @@ pattern collection. Private overlays may help template scoring, but resolver
 hardening rules remain unchanged: templates cannot invent values, cannot override
 field conflicts, cannot turn accessorial-only money into rate, and cannot bypass
 validation or review-required gates.
+
+## Classification-First Resolver Input
+
+Safe measurement now classifies document type, page roles, section roles, and
+extraction scopes before the resolver sees candidates. This means:
+
+- BOL, certificate, carrier-info, and signature-only documents should not create
+  missing RateCon core fields.
+- Terms and billing pages do not feed core rate/stops unless the allowed scope is
+  payment or requirements related.
+- TONU / truck-order-not-used documents are classified separately and should not
+  be treated as normal load movement when stops are absent.
+- Resolver conflicts are reported separately from pure missing fields.
+
+If conflicts remain after classification, the next hardening should focus on
+layout-aware digital extraction and field association, not OCR or Vision by
+default.

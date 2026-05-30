@@ -166,6 +166,27 @@ Generated safe outputs:
 
 These files are local-only and ignored by Git.
 
+## Classification-First Measurement Output
+
+The private measurement harness now classifies document type, page roles, section
+roles, and extraction scopes before RateCon extraction. Safe aggregate output may
+include:
+
+- `document_type_counts`
+- `ratecon_eligible_count`
+- `supplemental_only_count`
+- `non_ratecon_count`
+- `page_role_counts`
+- `section_role_counts`
+- `eligible_critical_field_missing_counts`
+- `non_applicable_counts_by_field`
+- `skipped_counts_by_field`
+
+BOL-like pages, certificate pages, signature-only pages, carrier/driver
+information sheets, billing-only pages, and terms-only pages should not be
+counted as failed RateCon extraction. They are supplemental or non-RateCon for
+this pipeline unless a future reviewed workflow says otherwise.
+
 ## Blocker Interpretation
 
 - Mostly `OCR_NEEDED`: plan a local OCR design checkpoint.

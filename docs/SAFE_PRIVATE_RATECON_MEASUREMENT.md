@@ -38,6 +38,16 @@ Candidate quality:
 - candidate counts by field;
 - candidate coverage for critical fields.
 
+Classification quality:
+
+- document type;
+- RateCon eligibility;
+- supplemental-only status;
+- page role counts;
+- section role counts;
+- classification warnings;
+- extraction-scope skips.
+
 Template quality:
 
 - template status: `matched`, `unknown`, `conflict`, or `low_confidence`;
@@ -48,6 +58,8 @@ Resolver quality:
 - field status: `resolved`, `missing`, `needs_review`, `low_confidence`,
   or `conflict`;
 - missing critical fields;
+- unresolved fields where candidates exist but cannot be selected safely;
+- low-confidence fields;
 - conflict fields;
 - needs-check fields.
 
@@ -67,6 +79,32 @@ Blocker category:
 - `VALIDATION_GAP`
 - `MANUAL_REVIEW_REQUIRED`
 - `UNSUPPORTED_OR_BROKEN_PDF`
+- `NON_RATECON_DOCUMENT`
+- `SUPPLEMENTAL_DOCUMENT_ONLY`
+- `UNKNOWN_DOCUMENT_TYPE_REVIEW`
+
+## Classification-First Measurement
+
+Safe measurement now classifies text before RateCon extraction:
+
+```text
+PDF triage
+-> in-memory text artifact
+-> DocumentType / PageRole / SectionRole
+-> ExtractionScope
+-> RateCon candidate extraction only when eligible
+-> resolver / validation
+-> safe status summary
+```
+
+Recognized supplemental documents such as BOL-like pages, carrier/driver
+information sheets, signature certificates, billing pages, and terms-only pages
+do not inflate missing RateCon field counts. Their RateCon core fields are
+reported as `non_applicable_fields` and `skipped_fields`, not failed extraction.
+
+Critical-field missing rates are measured against `ratecon_eligible_count`, not
+the total document count. OCR-needed and supplemental-only documents stay visible
+in aggregate counts, but they are not treated as failed RateCon parses.
 
 ## What This Block Does Not Do
 

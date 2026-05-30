@@ -126,6 +126,11 @@ Required coverage for candidate generators and resolvers:
   confirmation, safe template aliases, private display-name redaction, redacted
   pattern collection, family grouping, draft skeleton generation, and baseline
   vs overlay status-only comparison.
+- document/page/section classification tests for RateCon, tender, BOL,
+  terms-only, billing, carrier-info, signature, certificate, TONU, and unknown
+  documents.
+- extraction scope tests proving supplemental pages do not feed core RateCon
+  candidates and do not inflate missing critical field counts.
 
 ## Broker Template Test Rule
 

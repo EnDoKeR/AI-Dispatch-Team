@@ -9,6 +9,8 @@ as implemented. It is a control checkpoint, not a new feature.
 PDF triage
 -> extraction artifact
 -> safe text artifact
+-> document type / page role / section role classification
+-> extraction scope filtering
 -> generic candidates
 -> broker template matching
 -> template-aware scoring
@@ -28,6 +30,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Extraction artifact | `app/document_ai/extraction_artifacts.py`, `app/document_ai/pdf_extraction_artifact.py` | Implemented safe metadata artifact |
 | Local PDF text extraction | `app/market_intelligence/intake/pdf_text_extraction.py` | Local dry-run helper only |
 | Safe text artifact | `app/document_ai/text_artifacts.py` | Implemented for fake/anonymized candidate extraction |
+| Document/page/section classification | `app/document_ai/document_classification.py` | Implemented deterministic text classifier |
+| Extraction scope filtering | `app/document_ai/extraction_scope.py` | Implemented page selection before RateCon candidates |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -62,6 +66,10 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   field statuses, blocker categories, and aggregate summaries.
 - Local-only private broker template overlay loading with safe template aliases.
 - Redacted template pattern collection and local-only template draft skeletons.
+- Deterministic document type, page role, section role, and extraction scope
+  classification before RateCon candidate extraction.
+- Private measurement rows and aggregates now separate eligible RateCon documents
+  from supplemental-only, non-RateCon, unknown-review, and OCR-needed documents.
 
 ## Scaffolding Only
 
@@ -78,6 +86,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Cloud extraction APIs.
 - Production private RateCon parser path.
 - Real broker templates.
+- Layout-aware word/block/table extraction.
 - Production real broker templates.
 - Broker template privacy review workflow beyond local-only overlay measurement.
 - Candidate field resolver for difficult layout pairing beyond current fake fixtures.
