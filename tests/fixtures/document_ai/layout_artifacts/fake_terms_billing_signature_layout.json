@@ -1,0 +1,36 @@
+{
+  "artifact_id": "LAYOUT_TERMS_BILLING_SIGNATURE",
+  "document_id": "FAKE_TERMS_BILLING_SIGNATURE",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": ["supplemental_only_fixture"],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Terms and Conditions", "bbox": {"x0": 40, "y0": 40, "x1": 240, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "LEGAL_TERMS", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Detention may apply after free time at $75.00 per hour", "bbox": {"x0": 40, "y0": 78, "x1": 510, "y1": 96, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "DEDUCTIONS_PENALTIES", "warning_codes": []},
+        {"line_id": "P1_L3", "text_redacted": "Quick Pay discount: $25.00 processing fee", "bbox": {"x0": 40, "y0": 128, "x1": 430, "y1": 146, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 3, "section_role": "QUICK_PAY", "warning_codes": []},
+        {"line_id": "P1_L4", "text_redacted": "Billing Instructions: upload paperwork to fake billing portal", "bbox": {"x0": 40, "y0": 178, "x1": 520, "y1": 196, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 4, "section_role": "BILLING_INSTRUCTIONS", "warning_codes": []},
+        {"line_id": "P1_L5", "text_redacted": "Carrier Signature: __________________", "bbox": {"x0": 40, "y0": 700, "x1": 320, "y1": 720, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 5, "section_role": "SIGNATURE_BLOCK", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_TERMS", "text_redacted": "Legal terms with accessorial policy", "bbox": {"x0": 40, "y0": 35, "x1": 540, "y1": 112, "unit": "points", "page_number": 1}, "line_ids": ["P1_L1", "P1_L2"], "page_number": 1, "block_type": "text", "section_role": "LEGAL_TERMS", "warning_codes": []},
+        {"block_id": "P1_B_BILLING", "text_redacted": "Quick pay and billing", "bbox": {"x0": 40, "y0": 120, "x1": 540, "y1": 210, "unit": "points", "page_number": 1}, "line_ids": ["P1_L3", "P1_L4"], "page_number": 1, "block_type": "text", "section_role": "BILLING_INSTRUCTIONS", "warning_codes": []},
+        {"block_id": "P1_B_SIGNATURE", "text_redacted": "Signature block", "bbox": {"x0": 40, "y0": 690, "x1": 400, "y1": 730, "unit": "points", "page_number": 1}, "line_ids": ["P1_L5"], "page_number": 1, "block_type": "signature", "section_role": "SIGNATURE_BLOCK", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["TERMS", "BILLING", "SIGNATURE"],
+      "section_roles": ["LEGAL_TERMS", "DEDUCTIONS_PENALTIES", "QUICK_PAY", "BILLING_INSTRUCTIONS", "SIGNATURE_BLOCK"],
+      "warning_codes": ["no_ratecon_core_scope"]
+    }
+  ]
+}

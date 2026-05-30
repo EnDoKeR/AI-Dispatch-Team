@@ -1,0 +1,67 @@
+{
+  "artifact_id": "LAYOUT_MULTI_STOP_ORDER",
+  "document_id": "FAKE_MULTI_STOP_ORDER",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Order Confirmation", "bbox": {"x0": 40, "y0": 40, "x1": 240, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "HEADER", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Order ID: FAKE-ORDER-MULTI", "bbox": {"x0": 40, "y0": 66, "x1": 250, "y1": 84, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "LOAD_IDENTITY", "warning_codes": []},
+        {"line_id": "P1_L3", "text_redacted": "Total Carrier Pay: $4200.00", "bbox": {"x0": 360, "y0": 66, "x1": 560, "y1": 84, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 3, "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"line_id": "P1_L4", "text_redacted": "Instructions: keep product sealed; appointment required", "bbox": {"x0": 40, "y0": 480, "x1": 500, "y1": 498, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 10, "section_role": "SPECIAL_INSTRUCTIONS", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_HEADER", "text_redacted": "Order header and rate", "bbox": {"x0": 32, "y0": 32, "x1": 570, "y1": 100, "unit": "points", "page_number": 1}, "line_ids": ["P1_L1", "P1_L2", "P1_L3"], "page_number": 1, "block_type": "header", "section_role": "HEADER", "warning_codes": []},
+        {"block_id": "P1_B_STOPS", "text_redacted": "Multi-stop table", "bbox": {"x0": 40, "y0": 120, "x1": 570, "y1": 360, "unit": "points", "page_number": 1}, "line_ids": [], "page_number": 1, "block_type": "table", "section_role": "MULTI_STOP_SECTION", "warning_codes": []},
+        {"block_id": "P1_B_NOTES", "text_redacted": "Special instructions", "bbox": {"x0": 40, "y0": 470, "x1": 520, "y1": 510, "unit": "points", "page_number": 1}, "line_ids": ["P1_L4"], "page_number": 1, "block_type": "text", "section_role": "SPECIAL_INSTRUCTIONS", "warning_codes": []}
+      ],
+      "tables": [
+        {
+          "table_id": "P1_T_MULTI_STOP",
+          "page_number": 1,
+          "bbox": {"x0": 40, "y0": 120, "x1": 570, "y1": 360, "unit": "points", "page_number": 1},
+          "header_rows": [0],
+          "source": "synthetic_fixture",
+          "confidence": "HIGH",
+          "warning_codes": [],
+          "cells": [
+            {"row_index": 0, "col_index": 0, "text_redacted": "Seq", "bbox": {"x0": 45, "y0": 126, "x1": 85, "y1": 144, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 1, "text_redacted": "Stop Type", "bbox": {"x0": 90, "y0": 126, "x1": 160, "y1": 144, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 2, "text_redacted": "Location", "bbox": {"x0": 165, "y0": 126, "x1": 340, "y1": 144, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 3, "text_redacted": "Date", "bbox": {"x0": 345, "y0": 126, "x1": 430, "y1": 144, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 4, "text_redacted": "Ref", "bbox": {"x0": 435, "y0": 126, "x1": 540, "y1": 144, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 0, "text_redacted": "1", "bbox": {"x0": 45, "y0": 152, "x1": 85, "y1": 170, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 1, "text_redacted": "Pickup", "bbox": {"x0": 90, "y0": 152, "x1": 160, "y1": 170, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 2, "text_redacted": "FAKE MULTI ORIGIN ST", "bbox": {"x0": 165, "y0": 152, "x1": 340, "y1": 170, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 3, "text_redacted": "2099-04-01", "bbox": {"x0": 345, "y0": 152, "x1": 430, "y1": 170, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 4, "text_redacted": "FAKE-REF-1", "bbox": {"x0": 435, "y0": 152, "x1": 540, "y1": 170, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 0, "text_redacted": "2", "bbox": {"x0": 45, "y0": 178, "x1": 85, "y1": 196, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 1, "text_redacted": "Pickup", "bbox": {"x0": 90, "y0": 178, "x1": 160, "y1": 196, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 2, "text_redacted": "FAKE SECOND PICK ST", "bbox": {"x0": 165, "y0": 178, "x1": 340, "y1": 196, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 3, "text_redacted": "2099-04-02", "bbox": {"x0": 345, "y0": 178, "x1": 430, "y1": 196, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 4, "text_redacted": "FAKE-REF-2", "bbox": {"x0": 435, "y0": 178, "x1": 540, "y1": 196, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 3, "col_index": 0, "text_redacted": "3", "bbox": {"x0": 45, "y0": 204, "x1": 85, "y1": 222, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 3, "col_index": 1, "text_redacted": "Delivery", "bbox": {"x0": 90, "y0": 204, "x1": 160, "y1": 222, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 3, "col_index": 2, "text_redacted": "FAKE MULTI DEST ST", "bbox": {"x0": 165, "y0": 204, "x1": 340, "y1": 222, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 3, "col_index": 3, "text_redacted": "2099-04-03", "bbox": {"x0": 345, "y0": 204, "x1": 430, "y1": 222, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 3, "col_index": 4, "text_redacted": "FAKE-REF-3", "bbox": {"x0": 435, "y0": 204, "x1": 540, "y1": 222, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"}
+          ]
+        }
+      ],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "STOP_DETAILS", "PAYMENT_SUMMARY"],
+      "section_roles": ["HEADER", "LOAD_IDENTITY", "RATE_SUMMARY", "MULTI_STOP_SECTION", "SPECIAL_INSTRUCTIONS"],
+      "warning_codes": []
+    }
+  ]
+}

@@ -1,0 +1,76 @@
+{
+  "artifact_id": "LAYOUT_CARRIER_TENDER_ROUTE",
+  "document_id": "FAKE_CARRIER_TENDER_ROUTE",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 2,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Carrier Load Tender & Rate Confirmation", "bbox": {"x0": 40, "y0": 40, "x1": 360, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "HEADER", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Freight Bill: FAKE-FB-300", "bbox": {"x0": 40, "y0": 68, "x1": 240, "y1": 86, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "LOAD_IDENTITY", "warning_codes": []},
+        {"line_id": "P1_L3", "text_redacted": "Route Details", "bbox": {"x0": 40, "y0": 118, "x1": 160, "y1": 136, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 3, "section_role": "STOP_TABLE", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_HEADER", "text_redacted": "Carrier tender header", "bbox": {"x0": 32, "y0": 32, "x1": 560, "y1": 96, "unit": "points", "page_number": 1}, "line_ids": ["P1_L1", "P1_L2"], "page_number": 1, "block_type": "header", "section_role": "HEADER", "warning_codes": []},
+        {"block_id": "P1_B_ROUTE", "text_redacted": "Route detail table", "bbox": {"x0": 40, "y0": 145, "x1": 560, "y1": 260, "unit": "points", "page_number": 1}, "line_ids": ["P1_L3"], "page_number": 1, "block_type": "table", "section_role": "STOP_TABLE", "warning_codes": []}
+      ],
+      "tables": [
+        {
+          "table_id": "P1_T_ROUTE",
+          "page_number": 1,
+          "bbox": {"x0": 40, "y0": 145, "x1": 560, "y1": 260, "unit": "points", "page_number": 1},
+          "header_rows": [0],
+          "source": "synthetic_fixture",
+          "confidence": "HIGH",
+          "warning_codes": [],
+          "cells": [
+            {"row_index": 0, "col_index": 0, "text_redacted": "Stop", "bbox": {"x0": 45, "y0": 150, "x1": 90, "y1": 168, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 1, "text_redacted": "Action", "bbox": {"x0": 95, "y0": 150, "x1": 160, "y1": 168, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 2, "text_redacted": "City State", "bbox": {"x0": 165, "y0": 150, "x1": 330, "y1": 168, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 0, "col_index": 3, "text_redacted": "Appt", "bbox": {"x0": 335, "y0": 150, "x1": 470, "y1": 168, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 0, "text_redacted": "1", "bbox": {"x0": 45, "y0": 176, "x1": 90, "y1": 194, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 1, "text_redacted": "Pick", "bbox": {"x0": 95, "y0": 176, "x1": 160, "y1": 194, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 2, "text_redacted": "FAKE TENDER ORIGIN ST", "bbox": {"x0": 165, "y0": 176, "x1": 330, "y1": 194, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 1, "col_index": 3, "text_redacted": "2099-03-03 09:00", "bbox": {"x0": 335, "y0": 176, "x1": 470, "y1": 194, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 0, "text_redacted": "2", "bbox": {"x0": 45, "y0": 202, "x1": 90, "y1": 220, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 1, "text_redacted": "Drop", "bbox": {"x0": 95, "y0": 202, "x1": 160, "y1": 220, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 2, "text_redacted": "FAKE TENDER DEST ST", "bbox": {"x0": 165, "y0": 202, "x1": 330, "y1": 220, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"},
+            {"row_index": 2, "col_index": 3, "text_redacted": "2099-03-04 16:00", "bbox": {"x0": 335, "y0": 202, "x1": 470, "y1": 220, "unit": "points", "page_number": 1}, "row_span": 1, "col_span": 1, "confidence": "HIGH"}
+          ]
+        }
+      ],
+      "page_roles": ["MAIN_TENDER", "STOP_DETAILS"],
+      "section_roles": ["HEADER", "LOAD_IDENTITY", "STOP_TABLE"],
+      "warning_codes": []
+    },
+    {
+      "page_number": 2,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P2_L1", "text_redacted": "Agreed Rate", "bbox": {"x0": 40, "y0": 60, "x1": 150, "y1": 78, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 1, "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"line_id": "P2_L2", "text_redacted": "Total Charge: $3500.00", "bbox": {"x0": 40, "y0": 86, "x1": 250, "y1": 104, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 2, "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"line_id": "P2_L3", "text_redacted": "Billing documents must be submitted through fake portal", "bbox": {"x0": 40, "y0": 150, "x1": 500, "y1": 168, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 3, "section_role": "BILLING_INSTRUCTIONS", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P2_B_RATE", "text_redacted": "Agreed rate summary", "bbox": {"x0": 40, "y0": 54, "x1": 300, "y1": 114, "unit": "points", "page_number": 2}, "line_ids": ["P2_L1", "P2_L2"], "page_number": 2, "block_type": "text", "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"block_id": "P2_B_BILL", "text_redacted": "Billing instructions", "bbox": {"x0": 40, "y0": 140, "x1": 530, "y1": 180, "unit": "points", "page_number": 2}, "line_ids": ["P2_L3"], "page_number": 2, "block_type": "text", "section_role": "BILLING_INSTRUCTIONS", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["PAYMENT_SUMMARY", "BILLING"],
+      "section_roles": ["RATE_SUMMARY", "BILLING_INSTRUCTIONS"],
+      "warning_codes": []
+    }
+  ]
+}

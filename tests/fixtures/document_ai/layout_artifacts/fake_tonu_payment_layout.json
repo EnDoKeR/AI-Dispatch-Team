@@ -1,0 +1,33 @@
+{
+  "artifact_id": "LAYOUT_TONU_PAYMENT",
+  "document_id": "FAKE_TONU_PAYMENT",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 1,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": ["tonu_payment_not_normal_load_movement"],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Truck Order Not Used Confirmation", "bbox": {"x0": 40, "y0": 40, "x1": 330, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "HEADER", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Reason: cancelled after dispatch", "bbox": {"x0": 40, "y0": 78, "x1": 300, "y1": 96, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "TONU_PAYMENT", "warning_codes": []},
+        {"line_id": "P1_L3", "text_redacted": "TONU Payment: $250.00", "bbox": {"x0": 40, "y0": 110, "x1": 250, "y1": 128, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 3, "section_role": "TONU_PAYMENT", "warning_codes": []},
+        {"line_id": "P1_L4", "text_redacted": "No pickup or delivery was completed", "bbox": {"x0": 40, "y0": 150, "x1": 350, "y1": 168, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 4, "section_role": "TONU_PAYMENT", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_TONU", "text_redacted": "TONU payment block", "bbox": {"x0": 40, "y0": 35, "x1": 420, "y1": 180, "unit": "points", "page_number": 1}, "line_ids": ["P1_L1", "P1_L2", "P1_L3", "P1_L4"], "page_number": 1, "block_type": "text", "section_role": "TONU_PAYMENT", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "PAYMENT_SUMMARY"],
+      "section_roles": ["HEADER", "TONU_PAYMENT"],
+      "warning_codes": ["normal_movement_fields_not_applicable"]
+    }
+  ]
+}

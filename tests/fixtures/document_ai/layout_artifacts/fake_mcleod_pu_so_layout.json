@@ -1,0 +1,59 @@
+{
+  "artifact_id": "LAYOUT_MCLEOD_PU_SO",
+  "document_id": "FAKE_MCLEOD_PU_SO",
+  "source_method": "synthetic_fixture",
+  "provider": "synthetic",
+  "provider_version": "fixture_v1",
+  "layout_version": "layout_artifact_v1",
+  "page_count": 2,
+  "raw_text_included": false,
+  "private_values_redacted": true,
+  "warning_codes": [],
+  "pages": [
+    {
+      "page_number": 1,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P1_L1", "text_redacted": "Load Confirmation", "bbox": {"x0": 40, "y0": 40, "x1": 220, "y1": 58, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 1, "section_role": "HEADER", "warning_codes": []},
+        {"line_id": "P1_L2", "text_redacted": "Order Number: FAKE-ORDER-200", "bbox": {"x0": 40, "y0": 70, "x1": 260, "y1": 88, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 2, "section_role": "LOAD_IDENTITY", "warning_codes": []},
+        {"line_id": "P1_L3", "text_redacted": "PU 1", "bbox": {"x0": 40, "y0": 130, "x1": 90, "y1": 148, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION", "warning_codes": []},
+        {"line_id": "P1_L4", "text_redacted": "Name: FAKE SHIPPER  Location: FAKE PU CITY ST", "bbox": {"x0": 60, "y0": 154, "x1": 420, "y1": 172, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 4, "section_role": "PICKUP_SECTION", "warning_codes": []},
+        {"line_id": "P1_L5", "text_redacted": "Date: 2099-02-01  Time: 07:30", "bbox": {"x0": 60, "y0": 178, "x1": 310, "y1": 196, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 5, "section_role": "PICKUP_SECTION", "warning_codes": []},
+        {"line_id": "P1_L6", "text_redacted": "Equipment: Reefer  Commodity: FAKE GOODS  Weight: 39000 lb", "bbox": {"x0": 40, "y0": 250, "x1": 520, "y1": 268, "unit": "points", "page_number": 1}, "word_ids": [], "page_number": 1, "reading_order_index": 6, "section_role": "COMMODITY_WEIGHT", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P1_B_HEADER", "text_redacted": "Load confirmation header", "bbox": {"x0": 32, "y0": 32, "x1": 560, "y1": 100, "unit": "points", "page_number": 1}, "line_ids": ["P1_L1", "P1_L2"], "page_number": 1, "block_type": "header", "section_role": "HEADER", "warning_codes": []},
+        {"block_id": "P1_B_PU", "text_redacted": "PU section", "bbox": {"x0": 40, "y0": 120, "x1": 540, "y1": 210, "unit": "points", "page_number": 1}, "line_ids": ["P1_L3", "P1_L4", "P1_L5"], "page_number": 1, "block_type": "text", "section_role": "PICKUP_SECTION", "warning_codes": []},
+        {"block_id": "P1_B_EQUIP", "text_redacted": "Equipment and commodity", "bbox": {"x0": 40, "y0": 240, "x1": 540, "y1": 280, "unit": "points", "page_number": 1}, "line_ids": ["P1_L6"], "page_number": 1, "block_type": "text", "section_role": "COMMODITY_WEIGHT", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "STOP_DETAILS"],
+      "section_roles": ["HEADER", "LOAD_IDENTITY", "PICKUP_SECTION", "COMMODITY_WEIGHT", "EQUIPMENT_SUMMARY"],
+      "warning_codes": []
+    },
+    {
+      "page_number": 2,
+      "width": 612,
+      "height": 792,
+      "words": [],
+      "lines": [
+        {"line_id": "P2_L1", "text_redacted": "SO 2", "bbox": {"x0": 40, "y0": 52, "x1": 90, "y1": 70, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 1, "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"line_id": "P2_L2", "text_redacted": "Name: FAKE CONSIGNEE  Location: FAKE SO CITY ST", "bbox": {"x0": 60, "y0": 78, "x1": 440, "y1": 96, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 2, "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"line_id": "P2_L3", "text_redacted": "Date: 2099-02-02  Time: 15:00", "bbox": {"x0": 60, "y0": 102, "x1": 310, "y1": 120, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 3, "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"line_id": "P2_L4", "text_redacted": "Carrier Freight Pay: $3100.00", "bbox": {"x0": 40, "y0": 180, "x1": 280, "y1": 198, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 4, "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"line_id": "P2_L5", "text_redacted": "Signature: __________________", "bbox": {"x0": 40, "y0": 700, "x1": 300, "y1": 720, "unit": "points", "page_number": 2}, "word_ids": [], "page_number": 2, "reading_order_index": 5, "section_role": "SIGNATURE_BLOCK", "warning_codes": []}
+      ],
+      "blocks": [
+        {"block_id": "P2_B_SO", "text_redacted": "SO section", "bbox": {"x0": 40, "y0": 46, "x1": 540, "y1": 132, "unit": "points", "page_number": 2}, "line_ids": ["P2_L1", "P2_L2", "P2_L3"], "page_number": 2, "block_type": "text", "section_role": "DELIVERY_SECTION", "warning_codes": []},
+        {"block_id": "P2_B_PAY", "text_redacted": "Payment summary", "bbox": {"x0": 40, "y0": 170, "x1": 330, "y1": 210, "unit": "points", "page_number": 2}, "line_ids": ["P2_L4"], "page_number": 2, "block_type": "text", "section_role": "RATE_SUMMARY", "warning_codes": []},
+        {"block_id": "P2_B_SIG", "text_redacted": "Signature footer", "bbox": {"x0": 40, "y0": 690, "x1": 400, "y1": 730, "unit": "points", "page_number": 2}, "line_ids": ["P2_L5"], "page_number": 2, "block_type": "signature", "section_role": "SIGNATURE_BLOCK", "warning_codes": []}
+      ],
+      "tables": [],
+      "page_roles": ["MAIN_LOAD_CONFIRMATION", "STOP_DETAILS", "PAYMENT_SUMMARY", "SIGNATURE"],
+      "section_roles": ["DELIVERY_SECTION", "RATE_SUMMARY", "SIGNATURE_BLOCK"],
+      "warning_codes": []
+    }
+  ]
+}
