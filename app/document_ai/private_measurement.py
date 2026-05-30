@@ -186,6 +186,13 @@ def build_private_ratecon_measurement_row(
     layout_improved_fields=None,
     layout_worsened_fields=None,
     layout_unchanged_fields=None,
+    fusion_enabled=False,
+    fusion_attempted=False,
+    fusion_improved_fields=None,
+    fusion_worsened_fields=None,
+    fusion_unchanged_fields=None,
+    fusion_conflict_fields=None,
+    stop_group_count=0,
     warning_codes=None,
     blocker_categories=None,
     intake_status="",
@@ -247,6 +254,13 @@ def build_private_ratecon_measurement_row(
         "layout_improved_fields": _normalize_list(layout_improved_fields),
         "layout_worsened_fields": _normalize_list(layout_worsened_fields),
         "layout_unchanged_fields": _normalize_list(layout_unchanged_fields),
+        "fusion_enabled": _bool(fusion_enabled),
+        "fusion_attempted": _bool(fusion_attempted),
+        "fusion_improved_fields": _normalize_list(fusion_improved_fields),
+        "fusion_worsened_fields": _normalize_list(fusion_worsened_fields),
+        "fusion_unchanged_fields": _normalize_list(fusion_unchanged_fields),
+        "fusion_conflict_fields": _normalize_list(fusion_conflict_fields),
+        "stop_group_count": int(stop_group_count or 0),
         "warning_codes": _normalize_list(warning_codes),
         "blocker_categories": _normalize_list(blocker_categories),
         "intake_status": _text(intake_status),
@@ -293,6 +307,12 @@ def build_private_ratecon_measurement_aggregate(
     layout_success_count=0,
     layout_skipped_count=0,
     layout_failed_count=0,
+    fusion_attempted_count=0,
+    fusion_improved_counts_by_field=None,
+    fusion_worsened_counts_by_field=None,
+    fusion_unchanged_counts_by_field=None,
+    fusion_conflict_counts_by_field=None,
+    stop_group_count_total=0,
     eligible_critical_field_missing_counts=None,
     eligible_critical_field_denominator=0,
     normal_load_critical_field_missing_counts=None,
@@ -338,6 +358,20 @@ def build_private_ratecon_measurement_aggregate(
         "layout_success_count": int(layout_success_count or 0),
         "layout_skipped_count": int(layout_skipped_count or 0),
         "layout_failed_count": int(layout_failed_count or 0),
+        "fusion_attempted_count": int(fusion_attempted_count or 0),
+        "fusion_improved_counts_by_field": _normalize_mapping(
+            fusion_improved_counts_by_field
+        ),
+        "fusion_worsened_counts_by_field": _normalize_mapping(
+            fusion_worsened_counts_by_field
+        ),
+        "fusion_unchanged_counts_by_field": _normalize_mapping(
+            fusion_unchanged_counts_by_field
+        ),
+        "fusion_conflict_counts_by_field": _normalize_mapping(
+            fusion_conflict_counts_by_field
+        ),
+        "stop_group_count_total": int(stop_group_count_total or 0),
         "eligible_critical_field_missing_counts": _normalize_mapping(
             eligible_critical_field_missing_counts
         ),

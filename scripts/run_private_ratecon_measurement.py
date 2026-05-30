@@ -104,6 +104,7 @@ def build_private_ratecon_measurement_report(
     output_policy=None,
     layout_provider_name="",
     enable_layout_candidates=False,
+    enable_layout_fusion=False,
     compare_layout_to_text_baseline=False,
 ):
     pdfs = discover_private_pdfs(input_dir)
@@ -125,6 +126,7 @@ def build_private_ratecon_measurement_report(
             output_policy=policy,
             layout_provider_name=layout_provider_name,
             enable_layout_candidates=enable_layout_candidates,
+            enable_layout_fusion=enable_layout_fusion,
             compare_layout_to_text_baseline=compare_layout_to_text_baseline,
         )
         for path in pdfs
@@ -170,6 +172,12 @@ def format_private_measurement_report(report):
         f"layout_success_count: {aggregate.get('layout_success_count', 0)}",
         f"layout_skipped_count: {aggregate.get('layout_skipped_count', 0)}",
         f"layout_failed_count: {aggregate.get('layout_failed_count', 0)}",
+        f"fusion_attempted_count: {aggregate.get('fusion_attempted_count', 0)}",
+        f"fusion_improved_counts_by_field: {aggregate.get('fusion_improved_counts_by_field', {})}",
+        f"fusion_worsened_counts_by_field: {aggregate.get('fusion_worsened_counts_by_field', {})}",
+        f"fusion_unchanged_counts_by_field: {aggregate.get('fusion_unchanged_counts_by_field', {})}",
+        f"fusion_conflict_counts_by_field: {aggregate.get('fusion_conflict_counts_by_field', {})}",
+        f"stop_group_count_total: {aggregate.get('stop_group_count_total', 0)}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
         f"normal_load_critical_field_missing_counts: {aggregate.get('normal_load_critical_field_missing_counts', {})}",
@@ -215,6 +223,13 @@ def format_private_measurement_report(report):
                 f"  layout_improved_fields: {row.get('layout_improved_fields', [])}",
                 f"  layout_worsened_fields: {row.get('layout_worsened_fields', [])}",
                 f"  layout_unchanged_fields: {row.get('layout_unchanged_fields', [])}",
+                f"  fusion_enabled: {row.get('fusion_enabled', False)}",
+                f"  fusion_attempted: {row.get('fusion_attempted', False)}",
+                f"  fusion_improved_fields: {row.get('fusion_improved_fields', [])}",
+                f"  fusion_worsened_fields: {row.get('fusion_worsened_fields', [])}",
+                f"  fusion_unchanged_fields: {row.get('fusion_unchanged_fields', [])}",
+                f"  fusion_conflict_fields: {row.get('fusion_conflict_fields', [])}",
+                f"  stop_group_count: {row.get('stop_group_count', 0)}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]
@@ -260,6 +275,7 @@ def main(argv=None):
     parser.add_argument("--redact-private-template-names", action="store_true", default=True)
     parser.add_argument("--layout-provider", default="")
     parser.add_argument("--enable-layout-candidates", action="store_true")
+    parser.add_argument("--enable-layout-fusion", action="store_true")
     parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
@@ -274,6 +290,12 @@ def main(argv=None):
     if args.enable_layout_candidates and not args.layout_provider:
         _print_expected_config_error(
             "--enable-layout-candidates requires --layout-provider pdfplumber"
+        )
+        return 2
+
+    if args.enable_layout_fusion and not args.enable_layout_candidates:
+        _print_expected_config_error(
+            "--enable-layout-fusion requires --enable-layout-candidates"
         )
         return 2
 
@@ -300,6 +322,7 @@ def main(argv=None):
             output_policy=policy,
             layout_provider_name=args.layout_provider,
             enable_layout_candidates=args.enable_layout_candidates,
+            enable_layout_fusion=args.enable_layout_fusion,
             compare_layout_to_text_baseline=args.compare_layout_to_text_baseline,
         )
 

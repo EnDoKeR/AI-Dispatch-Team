@@ -264,6 +264,12 @@ def build_private_ratecon_measurement_aggregate(rows):
                 "skipped_not_normal_load_movement",
             }
         ),
+        fusion_attempted_count=sum(1 for row in safe_rows if row.get("fusion_attempted")),
+        fusion_improved_counts_by_field=_count_list_values(safe_rows, "fusion_improved_fields"),
+        fusion_worsened_counts_by_field=_count_list_values(safe_rows, "fusion_worsened_fields"),
+        fusion_unchanged_counts_by_field=_count_list_values(safe_rows, "fusion_unchanged_fields"),
+        fusion_conflict_counts_by_field=_count_list_values(safe_rows, "fusion_conflict_fields"),
+        stop_group_count_total=sum(int(row.get("stop_group_count", 0) or 0) for row in safe_rows),
         eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
         eligible_critical_field_denominator=len(eligible_rows),
         normal_load_critical_field_missing_counts=_critical_missing_counts(normal_load_rows),

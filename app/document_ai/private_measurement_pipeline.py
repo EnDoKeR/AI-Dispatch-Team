@@ -23,6 +23,7 @@ from app.document_ai.extraction_scope import (
     should_skip_ratecon_extraction,
 )
 from app.document_ai.layout_pipeline import extract_layout_candidates_from_pdf
+from app.document_ai.operational_fusion import fuse_operational_detail_candidates
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
     DIGITAL_TEXT,
@@ -53,6 +54,15 @@ from app.document_ai.private_measurement import (
 from app.document_ai.private_measurement_blockers import (
     classify_private_ratecon_measurement_blockers,
 )
+from app.document_ai.rate_fusion import fuse_rate_candidates
+from app.document_ai.ratecon_candidates import (
+    FIELD_ACCESSORIAL_TERM,
+    FIELD_COMMODITY,
+    FIELD_EQUIPMENT,
+    FIELD_RATE,
+    FIELD_SPECIAL_REQUIREMENT,
+    FIELD_WEIGHT,
+)
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -62,6 +72,12 @@ from app.document_ai.ratecon_field_resolution import (
     resolve_ratecon_fields_with_template_context,
 )
 from app.document_ai.ratecon_intake_draft import build_ratecon_intake_from_resolution
+from app.document_ai.stop_association import (
+    build_stop_association_result,
+    build_stop_groups_from_layout_sections,
+    build_stop_groups_from_layout_tables,
+    fuse_stop_candidates,
+)
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.market_intelligence.intake.rate_confirmation_validation import (
     validate_rate_confirmation_intake,
@@ -198,6 +214,219 @@ def _candidate_count_deltas(text_counts, layout_counts):
         else:
             unchanged.append(field_name)
     return improved, worsened, unchanged
+
+
+def _template_result_uses_adjusted_candidates(template_result):
+    template_selection = (template_result or {}).get("template_selection_result", {})
+    return (
+        template_selection.get("status") == "matched"
+        and bool((template_result or {}).get("template_scoring_applied", False))
+    )
+
+
+def _candidate_result_for_resolution(template_result):
+    if _template_result_uses_adjusted_candidates(template_result):
+        return (template_result or {}).get("adjusted_candidate_result", {})
+    return (template_result or {}).get("base_candidate_result", {})
+
+
+def _resolution_status_map(resolution_result):
+    statuses = {}
+    for resolution in (resolution_result or {}).get("resolutions", []) or []:
+        if not isinstance(resolution, dict):
+            continue
+        field_name = str(resolution.get("field_name") or "").strip()
+        status = str(resolution.get("status") or "").strip()
+        if field_name:
+            statuses[field_name] = status
+    return statuses
+
+
+def _candidate_ids(candidates):
+    return {
+        str(candidate.get("candidate_id") or candidate.get("evidence_ref") or "").strip()
+        for candidate in candidates or []
+        if isinstance(candidate, dict)
+    }
+
+
+def _filter_candidates_by_field(candidates, fields):
+    fields = set(fields or [])
+    return [
+        candidate
+        for candidate in candidates or []
+        if isinstance(candidate, dict)
+        and str(candidate.get("field_name") or "").strip() in fields
+    ]
+
+
+def _combine_stop_association_results(*results):
+    groups = []
+    unresolved = []
+    conflicts = []
+    warnings = []
+    for result in results:
+        groups.extend((result or {}).get("stop_groups", []) or [])
+        unresolved.extend((result or {}).get("unresolved_stop_fields", []) or [])
+        conflicts.extend((result or {}).get("conflict_stop_fields", []) or [])
+        warnings.extend((result or {}).get("warning_codes", []) or [])
+    return build_stop_association_result(
+        stop_groups=groups,
+        unresolved_stop_fields=sorted(set(unresolved)),
+        conflict_stop_fields=sorted(set(conflicts)),
+        warning_codes=sorted(set(warnings)),
+    )
+
+
+def _default_fusion_fields(enable_layout_fusion=False):
+    return {
+        "fusion_enabled": bool(enable_layout_fusion),
+        "fusion_attempted": False,
+        "fusion_improved_fields": [],
+        "fusion_worsened_fields": [],
+        "fusion_unchanged_fields": [],
+        "fusion_conflict_fields": [],
+        "stop_group_count": 0,
+        "fusion_warning_codes": [],
+        "fused_candidate_result": None,
+    }
+
+
+def _build_fused_candidate_result(text_candidate_result, layout_candidates, allowed_fields, warnings):
+    base_candidates = list((text_candidate_result or {}).get("candidates", []) or [])
+    existing_ids = _candidate_ids(base_candidates)
+    added = []
+    for candidate in _filter_candidates_by_field(layout_candidates, allowed_fields):
+        candidate_id = str(candidate.get("candidate_id") or candidate.get("evidence_ref") or "").strip()
+        if candidate_id and candidate_id in existing_ids:
+            continue
+        added.append(candidate)
+
+    return {
+        "document_id": (text_candidate_result or {}).get("document_id", ""),
+        "artifact_id": (text_candidate_result or {}).get("artifact_id", ""),
+        "candidates": base_candidates + added,
+        "missing_candidate_fields": (text_candidate_result or {}).get("missing_candidate_fields", []),
+        "warnings": sorted(
+            set(list((text_candidate_result or {}).get("warnings", []) or []) + list(warnings or []))
+        ),
+        "extractor_version": "layout_fused_candidate_result_v1",
+    }
+
+
+def _template_result_with_fused_candidates(template_result, fused_candidate_result):
+    fused = dict(template_result or {})
+    if _template_result_uses_adjusted_candidates(template_result):
+        fused["adjusted_candidate_result"] = fused_candidate_result
+    else:
+        fused["base_candidate_result"] = fused_candidate_result
+    return fused
+
+
+def _layout_fusion_fields(
+    text_candidate_result,
+    layout_fields,
+    baseline_resolution_result,
+    document_type="",
+    enable_layout_fusion=False,
+):
+    defaults = _default_fusion_fields(enable_layout_fusion=enable_layout_fusion)
+    if not enable_layout_fusion:
+        return defaults
+    if layout_fields.get("layout_provider_status") != "success":
+        defaults["fusion_warning_codes"] = ["layout_fusion_skipped_without_successful_layout"]
+        return defaults
+
+    layout_candidate_result = layout_fields.get("layout_candidate_result") or {}
+    layout_candidates = layout_candidate_result.get("candidates", []) or []
+    layout_artifact = layout_fields.get("layout_artifact") or {}
+    baseline_statuses = _resolution_status_map(baseline_resolution_result)
+    text_candidates = (text_candidate_result or {}).get("candidates", []) or []
+
+    table_stops = build_stop_groups_from_layout_tables(layout_artifact)
+    section_stops = build_stop_groups_from_layout_sections(layout_artifact)
+    stop_association = _combine_stop_association_results(table_stops, section_stops)
+    stop_fusion = fuse_stop_candidates(
+        text_candidate_result,
+        stop_association,
+        baseline_resolution_result={"field_statuses": baseline_statuses},
+    )
+
+    rate_fusion = fuse_rate_candidates(
+        text_candidates=_filter_candidates_by_field(
+            text_candidates,
+            {FIELD_RATE, FIELD_ACCESSORIAL_TERM},
+        ),
+        layout_candidates=_filter_candidates_by_field(
+            layout_candidates,
+            {FIELD_RATE, FIELD_ACCESSORIAL_TERM},
+        ),
+        baseline_status=baseline_statuses.get(FIELD_RATE, ""),
+        document_type=document_type,
+    )
+
+    operational_fusion = fuse_operational_detail_candidates(
+        text_candidates=_filter_candidates_by_field(
+            text_candidates,
+            {FIELD_EQUIPMENT, FIELD_WEIGHT, FIELD_COMMODITY, FIELD_SPECIAL_REQUIREMENT},
+        ),
+        layout_candidates=_filter_candidates_by_field(
+            layout_candidates,
+            {FIELD_EQUIPMENT, FIELD_WEIGHT, FIELD_COMMODITY, FIELD_SPECIAL_REQUIREMENT},
+        ),
+        baseline_statuses=baseline_statuses,
+    )
+
+    improved = sorted(
+        set(stop_fusion.get("improved_fields", []))
+        | set(operational_fusion.get("improved_fields", []))
+        | ({FIELD_RATE} if rate_fusion.get("did_improve_baseline") else set())
+    )
+    worsened = sorted(
+        set(stop_fusion.get("worsened_fields", []))
+        | set(operational_fusion.get("worsened_fields", []))
+        | ({FIELD_RATE} if rate_fusion.get("did_worsen_baseline") else set())
+    )
+    unchanged = sorted(
+        set(stop_fusion.get("unchanged_fields", []))
+        | set(operational_fusion.get("unchanged_fields", []))
+        | ({FIELD_RATE} if rate_fusion.get("fused_status") == "resolved" and not rate_fusion.get("did_improve_baseline") else set())
+    )
+    conflicts = sorted(
+        set(stop_fusion.get("conflict_stop_fields", []))
+        | set(operational_fusion.get("conflict_fields", []))
+        | ({FIELD_RATE} if rate_fusion.get("fused_status") == "conflict" else set())
+    )
+    allowed_fields = set(improved) | set(conflicts)
+    if rate_fusion.get("selected_candidate_id") and rate_fusion.get("did_improve_baseline"):
+        allowed_fields.add(FIELD_RATE)
+
+    fusion_warnings = sorted(
+        set(
+            stop_fusion.get("warning_codes", [])
+            + rate_fusion.get("warning_codes", [])
+            + operational_fusion.get("warning_codes", [])
+        )
+    )
+
+    defaults.update(
+        {
+            "fusion_attempted": True,
+            "fusion_improved_fields": improved,
+            "fusion_worsened_fields": worsened,
+            "fusion_unchanged_fields": unchanged,
+            "fusion_conflict_fields": conflicts,
+            "stop_group_count": len(stop_association.get("stop_groups", [])),
+            "fusion_warning_codes": fusion_warnings,
+            "fused_candidate_result": _build_fused_candidate_result(
+                text_candidate_result,
+                layout_candidates,
+                allowed_fields=allowed_fields,
+                warnings=fusion_warnings,
+            ),
+        }
+    )
+    return defaults
 
 
 def _confidence_bucket(value):
@@ -414,6 +643,8 @@ def _layout_measurement_fields(
             "layout_worsened_fields": [],
             "layout_unchanged_fields": [],
             "layout_warning_codes": [],
+            "layout_candidate_result": {},
+            "layout_artifact": {},
         }
 
     if route != DIGITAL_TEXT:
@@ -425,6 +656,8 @@ def _layout_measurement_fields(
             "layout_worsened_fields": [],
             "layout_unchanged_fields": [],
             "layout_warning_codes": ["layout_provider_skipped_non_digital"],
+            "layout_candidate_result": {},
+            "layout_artifact": {},
         }
 
     if not classification_fields.get("extraction_relevant"):
@@ -436,6 +669,8 @@ def _layout_measurement_fields(
             "layout_worsened_fields": [],
             "layout_unchanged_fields": [],
             "layout_warning_codes": ["layout_provider_skipped_not_extraction_relevant"],
+            "layout_candidate_result": {},
+            "layout_artifact": {},
         }
 
     if not classification_fields.get("normal_load_movement"):
@@ -447,6 +682,8 @@ def _layout_measurement_fields(
             "layout_worsened_fields": [],
             "layout_unchanged_fields": [],
             "layout_warning_codes": ["layout_provider_skipped_not_normal_load_movement"],
+            "layout_candidate_result": {},
+            "layout_artifact": {},
         }
 
     layout_result = extract_layout_candidates_from_pdf(
@@ -454,6 +691,7 @@ def _layout_measurement_fields(
         provider_name=layout_provider_name,
         classification_result=classification_result,
         document_id=document_alias,
+        include_artifact=True,
     )
     candidate_result = layout_result.get("candidate_result") or {}
     layout_candidates = candidate_result.get("candidates", [])
@@ -470,6 +708,8 @@ def _layout_measurement_fields(
         "layout_worsened_fields": worsened,
         "layout_unchanged_fields": unchanged,
         "layout_warning_codes": layout_result.get("warning_codes", []),
+        "layout_candidate_result": candidate_result,
+        "layout_artifact": layout_result.get("layout_artifact", {}),
     }
 
 
@@ -480,6 +720,7 @@ def measure_private_ratecon_pdf(
     output_policy=None,
     layout_provider_name="",
     enable_layout_candidates=False,
+    enable_layout_fusion=False,
     compare_layout_to_text_baseline=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
@@ -497,6 +738,8 @@ def measure_private_ratecon_pdf(
         )
         if enable_layout_candidates:
             row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
+        if enable_layout_fusion:
+            row["fusion_enabled"] = True
         return row
 
     extraction = _extract_text_in_memory(pdf_path)
@@ -514,6 +757,8 @@ def measure_private_ratecon_pdf(
         )
         if enable_layout_candidates:
             row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
+        if enable_layout_fusion:
+            row["fusion_enabled"] = True
         return row
 
     text = extraction.get("text", "")
@@ -564,6 +809,7 @@ def measure_private_ratecon_pdf(
             layout_provider_status=(
                 LAYOUT_STATUS_SKIPPED_NOT_RELEVANT if enable_layout_candidates else ""
             ),
+            fusion_enabled=enable_layout_fusion,
             warning_codes=all_warnings,
             blocker_categories=classify_private_ratecon_measurement_blockers(
                 triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
@@ -588,6 +834,7 @@ def measure_private_ratecon_pdf(
     )
     candidate_result = template_result.get("adjusted_candidate_result", {})
     candidate_counts = _candidate_counts(candidate_result.get("candidates", []))
+    resolver_candidate_result = _candidate_result_for_resolution(template_result)
     layout_fields = _layout_measurement_fields(
         pdf_path=pdf_path,
         document_alias=document_alias,
@@ -599,7 +846,25 @@ def measure_private_ratecon_pdf(
         enable_layout_candidates=enable_layout_candidates,
         compare_layout_to_text_baseline=compare_layout_to_text_baseline,
     )
-    resolution_result = resolve_ratecon_fields_with_template_context(template_result)
+    baseline_resolution_result = resolve_ratecon_fields_with_template_context(template_result)
+    fusion_fields = _layout_fusion_fields(
+        resolver_candidate_result,
+        layout_fields,
+        baseline_resolution_result,
+        document_type=classification_result.get("document_type", ""),
+        enable_layout_fusion=enable_layout_fusion,
+    )
+    resolution_template_result = template_result
+    if fusion_fields.get("fused_candidate_result"):
+        resolution_template_result = _template_result_with_fused_candidates(
+            template_result,
+            fusion_fields["fused_candidate_result"],
+        )
+    resolution_result = (
+        resolve_ratecon_fields_with_template_context(resolution_template_result)
+        if fusion_fields.get("fused_candidate_result")
+        else baseline_resolution_result
+    )
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -630,6 +895,7 @@ def measure_private_ratecon_pdf(
             + template_result.get("warnings", [])
             + candidate_result.get("warnings", [])
             + layout_fields.get("layout_warning_codes", [])
+            + fusion_fields.get("fusion_warning_codes", [])
             + resolution_result.get("warnings", [])
             + validation.get("warnings", [])
         )
@@ -673,6 +939,13 @@ def measure_private_ratecon_pdf(
         layout_improved_fields=layout_fields.get("layout_improved_fields", []),
         layout_worsened_fields=layout_fields.get("layout_worsened_fields", []),
         layout_unchanged_fields=layout_fields.get("layout_unchanged_fields", []),
+        fusion_enabled=fusion_fields.get("fusion_enabled", False),
+        fusion_attempted=fusion_fields.get("fusion_attempted", False),
+        fusion_improved_fields=fusion_fields.get("fusion_improved_fields", []),
+        fusion_worsened_fields=fusion_fields.get("fusion_worsened_fields", []),
+        fusion_unchanged_fields=fusion_fields.get("fusion_unchanged_fields", []),
+        fusion_conflict_fields=fusion_fields.get("fusion_conflict_fields", []),
+        stop_group_count=fusion_fields.get("stop_group_count", 0),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

@@ -162,6 +162,24 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("unknown layout provider", stderr.getvalue())
 
+    def test_cli_enable_layout_fusion_requires_layout_candidates(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--enable-layout-fusion",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("--enable-layout-fusion requires --enable-layout-candidates", stderr.getvalue())
+
     def test_report_includes_safe_layout_status_counts_when_enabled(self):
         temp, root = self._fake_pdf_dir(count=1)
         self.addCleanup(temp.cleanup)
@@ -178,6 +196,26 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("layout_provider_status_counts", output)
         self.assertIn("layout_candidate_counts_by_field", output)
         self.assertIn("layout_evidence_type_counts", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
+        self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
+
+    def test_report_includes_safe_fusion_fields_when_enabled(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        report = build_private_ratecon_measurement_report(
+            root,
+            limit=1,
+            layout_provider_name="pdfplumber",
+            enable_layout_candidates=True,
+            enable_layout_fusion=True,
+            compare_layout_to_text_baseline=True,
+        )
+        output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("fusion_attempted_count", output)
+        self.assertIn("fusion_enabled", output)
+        self.assertIn("stop_group_count", output)
         self.assertNotIn("FAKE BROKER LLC", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
 

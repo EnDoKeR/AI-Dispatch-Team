@@ -75,6 +75,8 @@ def build_layout_candidate_pipeline_result(
     provider_result,
     candidate_result=None,
     warnings=None,
+    layout_artifact=None,
+    include_artifact=False,
 ):
     provider_warning_codes = list((provider_result or {}).get("warning_codes", []))
     candidate_warnings = list((candidate_result or {}).get("warnings", [])) if candidate_result else []
@@ -83,7 +85,7 @@ def build_layout_candidate_pipeline_result(
         if warning and warning not in combined_warnings:
             combined_warnings.append(warning)
 
-    return {
+    result = {
         "pipeline_version": LAYOUT_CANDIDATE_PIPELINE_VERSION,
         "provider_name": (provider_result or {}).get("provider_name", ""),
         "provider_status": (provider_result or {}).get("status", ""),
@@ -95,6 +97,9 @@ def build_layout_candidate_pipeline_result(
         "raw_text_saved": False,
         "private_values_redacted": True,
     }
+    if include_artifact:
+        result["layout_artifact"] = layout_artifact or {}
+    return result
 
 
 def extract_layout_candidates_from_pdf(
@@ -102,6 +107,7 @@ def extract_layout_candidates_from_pdf(
     provider_name=PROVIDER_PDFPLUMBER,
     classification_result=None,
     document_id=None,
+    include_artifact=False,
 ):
     provider_result = extract_layout_artifact(
         pdf_path,
@@ -114,6 +120,7 @@ def extract_layout_candidates_from_pdf(
             provider_result,
             candidate_result=None,
             warnings=["layout_provider_no_candidates"],
+            include_artifact=include_artifact,
         )
 
     layout_artifact = provider_result.get("artifact") or {}
@@ -126,4 +133,6 @@ def extract_layout_candidates_from_pdf(
     return build_layout_candidate_pipeline_result(
         provider_result,
         candidate_result=candidate_result,
+        layout_artifact=contextual_artifact,
+        include_artifact=include_artifact,
     )
