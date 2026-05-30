@@ -1044,3 +1044,12 @@ After legacy load-intake deletion cleanup:
 4. Keep active intake work under `app/market_intelligence/intake/`.
 5. Keep deleted legacy Google Sheets, parser-to-`MarketLoad`, and old scoring flows out of the architecture.
 6. Do not start OCR, dependency expansion, Google Sheets reuse, or legacy parser reuse without a separate accepted block.
+
+Closeout decision:
+
+```text
+Next: anonymized synthetic RateCon scenario expansion.
+Then: parser field extraction improvements based on accepted fake scenarios.
+```
+
+This keeps private RateCon text out of tracked files and prevents deleted legacy runtime code from returning through parser improvements.

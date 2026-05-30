@@ -2301,3 +2301,53 @@ Not recommended next:
 - reintroducing deleted `app/load_intake/` runtime logic;
 - DispatchCase creation/linking/events;
 - OCR, Telegram upload, Gmail/email, Google Sheets, DAT/API, Google Maps, accounting/factoring, reload-chain metadata, or synthetic 100-200 dataset work.
+
+## Legacy Load Intake Deletion Cleanup Closeout
+
+Completed:
+
+- pre-deletion import/reference audit;
+- safe legacy label preservation verification;
+- deletion of the legacy `app/load_intake/` package;
+- removal of legacy-only import tests;
+- docs/roadmap cleanup after deletion.
+
+Current status:
+
+- active intake path is `app/market_intelligence/intake/`;
+- useful legacy label vocabulary is preserved in synthetic fixtures and docs;
+- current RateCon text/PDF dry-run behavior is unchanged;
+- private RateCons were not processed during deletion cleanup;
+- no DispatchCase, Telegram, MarketLoad, parser, or reload-chain runtime behavior changed.
+
+Options evaluated:
+
+1. anonymized synthetic RateCon scenario expansion from observed parser gaps and preserved legacy label ideas
+2. parser field extraction improvements based on synthetic/fake patterns
+3. user runs redacted diagnostics locally and shares safe summary
+4. PDF extraction dependency refinement if `pypdf` text order is weak
+5. OCR strategy audit later
+6. reload-chain DispatchCase policy audit
+
+Recommended next target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed parser gaps and preserved safe legacy label ideas
+```
+
+Recommended follow-up:
+
+```text
+parser field extraction improvements based on synthetic/fake patterns
+```
+
+Not recommended next:
+
+- direct parser changes from private extracted text;
+- restoring deleted `app/load_intake` runtime logic;
+- reusing old Google Sheets, parser-to-`MarketLoad`, decision, reload, zone, mileage, or broker scoring behavior;
+- OCR implementation;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase creation/linking/events;
+- synthetic 100-200 load dataset.

@@ -832,3 +832,44 @@ expand anonymized synthetic RateCon scenarios from observed parser gaps and pres
 ```
 
 Parser improvements should happen only after fake/synthetic scenarios define expected behavior.
+
+## Post-deletion Closeout Decision
+
+Options evaluated after deletion:
+
+1. anonymized synthetic RateCon scenario expansion from observed parser gaps and preserved legacy label ideas;
+2. parser field extraction improvements based on synthetic/fake patterns;
+3. user runs redacted diagnostics locally and shares safe summary;
+4. PDF extraction dependency refinement if `pypdf` text order is weak;
+5. OCR strategy audit later;
+6. reload-chain DispatchCase policy audit.
+
+Recommended next target:
+
+```text
+anonymized synthetic RateCon scenario expansion from observed parser gaps and preserved safe legacy label ideas
+```
+
+Why:
+
+- the deleted legacy package only had salvage value at the label-vocabulary level;
+- those labels are now represented safely outside the old package;
+- the first private PDF dry-run showed parser coverage gaps, but private text must not drive direct parser edits;
+- fake scenarios can define expected behavior without committing private values or reviving legacy code.
+
+Recommended follow-up:
+
+```text
+parser field extraction improvements based on synthetic/fake patterns
+```
+
+Not recommended next:
+
+- direct parser changes from private extracted text;
+- restoring or importing deleted `app/load_intake` code;
+- reusing old Google Sheets, parser-to-`MarketLoad`, decision, reload, zone, mileage, or broker scoring behavior;
+- OCR implementation;
+- Telegram upload handling;
+- Gmail/email or Google Sheets integration;
+- DispatchCase creation/linking/events;
+- synthetic 100-200 load dataset.
