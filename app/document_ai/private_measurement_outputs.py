@@ -31,8 +31,12 @@ SAFE_CSV_COLUMNS = [
     "classification_status",
     "review_required",
     "missing_fields",
+    "unresolved_fields",
     "needs_check_fields",
+    "low_confidence_fields",
     "conflict_fields",
+    "non_applicable_fields",
+    "skipped_fields",
     "blocker_categories",
     "candidate_counts_summary",
     "warning_codes",
@@ -95,8 +99,12 @@ def _safe_csv_row(row):
         "classification_status": row.get("classification_status", ""),
         "review_required": row.get("review_required", False),
         "missing_fields": _join(row.get("missing_fields", [])),
+        "unresolved_fields": _join(row.get("unresolved_fields", [])),
         "needs_check_fields": _join(row.get("needs_check_fields", [])),
+        "low_confidence_fields": _join(row.get("low_confidence_fields", [])),
         "conflict_fields": _join(row.get("conflict_fields", [])),
+        "non_applicable_fields": _join(row.get("non_applicable_fields", [])),
+        "skipped_fields": _join(row.get("skipped_fields", [])),
         "blocker_categories": _join(row.get("blocker_categories", [])),
         "candidate_counts_summary": _candidate_counts_summary(
             row.get("candidate_counts_by_field", {})
@@ -186,6 +194,10 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
         f"- blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"- critical_field_missing_counts: {aggregate.get('critical_field_missing_counts', {})}",
         f"- eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
+        f"- unresolved_counts_by_field: {aggregate.get('unresolved_counts_by_field', {})}",
+        f"- low_confidence_counts_by_field: {aggregate.get('low_confidence_counts_by_field', {})}",
+        f"- non_applicable_counts_by_field: {aggregate.get('non_applicable_counts_by_field', {})}",
+        f"- skipped_counts_by_field: {aggregate.get('skipped_counts_by_field', {})}",
     ]
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
     return path

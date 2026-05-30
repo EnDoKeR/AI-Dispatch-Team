@@ -68,6 +68,27 @@ from app.market_intelligence.intake.rate_confirmation_validation import (
 
 PRIVATE_RATECON_MEASUREMENT_PIPELINE_VERSION = "private_ratecon_measurement_pipeline_v1"
 
+CRITICAL_MEASUREMENT_FIELDS = (
+    "broker_name",
+    "broker_mc",
+    "rate",
+    "pickup_location",
+    "pickup_date",
+    "delivery_location",
+    "delivery_date",
+    "equipment",
+    "weight",
+)
+
+TONU_NON_APPLICABLE_FIELDS = (
+    "pickup_location",
+    "pickup_date",
+    "delivery_location",
+    "delivery_date",
+    "equipment",
+    "weight",
+)
+
 RESOLUTION_STATUS_TO_FIELD_STATUS = {
     FIELD_RESOLUTION_STATUS_RESOLVED: FIELD_STATUS_RESOLVED,
     FIELD_RESOLUTION_STATUS_MISSING: FIELD_STATUS_MISSING,
@@ -197,6 +218,16 @@ def _field_statuses(resolution_result, candidate_counts):
     return statuses
 
 
+def _fields_with_resolution_status(resolution_result, statuses):
+    wanted = set(statuses)
+    fields = []
+    for resolution in resolution_result.get("resolutions", []):
+        field_name = str(resolution.get("field_name") or "").strip()
+        if field_name and resolution.get("status") in wanted:
+            fields.append(field_name)
+    return fields
+
+
 def _merged_list(*values):
     merged = []
     for value in values:
@@ -205,6 +236,14 @@ def _merged_list(*values):
             if text and text not in merged:
                 merged.append(text)
     return merged
+
+
+def _non_applicable_fields_for_classification(classification_result):
+    if (classification_result or {}).get("document_type") == "TRUCK_ORDER_NOT_USED":
+        return list(TONU_NON_APPLICABLE_FIELDS)
+    if not (classification_result or {}).get("ratecon_eligible"):
+        return list(CRITICAL_MEASUREMENT_FIELDS)
+    return []
 
 
 def _page_role_counts(classification_result):
@@ -373,8 +412,12 @@ def measure_private_ratecon_pdf(
             candidate_counts_by_field={},
             field_statuses=[],
             missing_fields=[],
+            unresolved_fields=[],
             needs_check_fields=[],
+            low_confidence_fields=[],
             conflict_fields=[],
+            non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
+            skipped_fields=_non_applicable_fields_for_classification(classification_result),
             warning_codes=all_warnings,
             blocker_categories=classify_private_ratecon_measurement_blockers(
                 triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
@@ -406,6 +449,22 @@ def measure_private_ratecon_pdf(
     safe_template_summary = build_safe_template_selection_summary(template_selection)
     template_status = template_selection.get("status", "unknown")
     field_statuses = _field_statuses(resolution_result, candidate_counts)
+    low_confidence_fields = _fields_with_resolution_status(
+        resolution_result,
+        [FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE],
+    )
+    unresolved_fields = _merged_list(
+        _fields_with_resolution_status(
+            resolution_result,
+            [
+                FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+                FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+                FIELD_RESOLUTION_STATUS_CONFLICT,
+            ],
+        ),
+        resolution_result.get("needs_check_fields", []),
+        resolution_result.get("conflict_fields", []),
+    )
     all_warnings = sorted(
             set(
                 combined_warnings
@@ -437,14 +496,18 @@ def measure_private_ratecon_pdf(
             validation.get("missing_fields", []),
             resolution_result.get("missing_fields", []),
         ),
+        unresolved_fields=unresolved_fields,
         needs_check_fields=_merged_list(
             validation.get("needs_check_fields", []),
             resolution_result.get("needs_check_fields", []),
         ),
+        low_confidence_fields=low_confidence_fields,
         conflict_fields=_merged_list(
             validation.get("conflict_fields", []),
             resolution_result.get("conflict_fields", []),
         ),
+        non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
+        skipped_fields=[],
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

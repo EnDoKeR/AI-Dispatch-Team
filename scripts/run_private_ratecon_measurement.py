@@ -142,6 +142,9 @@ def format_private_measurement_report(report):
         f"page_role_counts: {aggregate.get('page_role_counts', {})}",
         f"section_role_counts: {aggregate.get('section_role_counts', {})}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
+        f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
+        f"unresolved_counts_by_field: {aggregate.get('unresolved_counts_by_field', {})}",
+        f"non_applicable_counts_by_field: {aggregate.get('non_applicable_counts_by_field', {})}",
     ]
 
     for row in report.get("rows", []):
@@ -164,8 +167,12 @@ def format_private_measurement_report(report):
                 f"  review_required: {row.get('review_required', False)}",
                 f"  blocker_categories: {row.get('blocker_categories', [])}",
                 f"  missing_fields: {row.get('missing_fields', [])}",
+                f"  unresolved_fields: {row.get('unresolved_fields', [])}",
                 f"  needs_check_fields: {row.get('needs_check_fields', [])}",
+                f"  low_confidence_fields: {row.get('low_confidence_fields', [])}",
                 f"  conflict_fields: {row.get('conflict_fields', [])}",
+                f"  non_applicable_fields: {row.get('non_applicable_fields', [])}",
+                f"  skipped_fields: {row.get('skipped_fields', [])}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]

@@ -107,6 +107,8 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertTrue(row["supplemental_only"])
         self.assertEqual(row["candidate_counts_by_field"], {})
         self.assertEqual(row["missing_fields"], [])
+        self.assertIn("rate", row["non_applicable_fields"])
+        self.assertIn("rate", row["skipped_fields"])
         self.assertIn(BLOCKER_SUPPLEMENTAL_DOCUMENT_ONLY, row["blocker_categories"])
 
     def test_carrier_info_sheet_does_not_create_missing_rate_failure(self):
@@ -120,6 +122,7 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertFalse(row["ratecon_eligible"])
         self.assertEqual(row["candidate_counts_by_field"], {})
         self.assertEqual(row["missing_fields"], [])
+        self.assertIn("pickup_location", row["non_applicable_fields"])
 
     def test_main_ratecon_uses_classified_extraction_scope(self):
         text = load_classification_fixture("fake_rate_load_confirmation_main_page.txt")
@@ -141,6 +144,7 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
 
         self.assertEqual(row["document_type"], "TRUCK_ORDER_NOT_USED")
         self.assertTrue(row["ratecon_eligible"])
+        self.assertIn("pickup_location", row["non_applicable_fields"])
         self.assertIn("tonu_not_normal_load_movement", row["classification_warning_codes"])
 
     def test_no_dispatch_decision_or_adapter_imports(self):

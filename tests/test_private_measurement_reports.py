@@ -65,6 +65,7 @@ class PrivateMeasurementReportTests(unittest.TestCase):
                     build_field_status_summary("rate", FIELD_STATUS_CONFLICT),
                 ],
                 conflict_fields=["rate"],
+                unresolved_fields=["rate"],
                 needs_check_fields=["rate"],
                 blocker_categories=[BLOCKER_CONFLICTING_CRITICAL_FIELD],
                 review_required=True,
@@ -91,7 +92,24 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         self.assertEqual(aggregate["eligible_critical_field_missing_counts"]["weight"], 1)
         self.assertNotIn("rate", aggregate["eligible_critical_field_missing_counts"])
         self.assertEqual(aggregate["conflict_counts_by_field"]["rate"], 1)
+        self.assertEqual(aggregate["unresolved_counts_by_field"]["rate"], 1)
         self.assertEqual(aggregate["needs_check_counts_by_field"]["rate"], 1)
+
+    def test_non_applicable_fields_are_counted_separately(self):
+        rows = [
+            build_private_ratecon_measurement_row(
+                document_alias="DOC_BOL",
+                document_type="BILL_OF_LADING",
+                supplemental_only=True,
+                non_applicable_fields=["rate", "pickup_location"],
+                skipped_fields=["rate", "pickup_location"],
+            )
+        ]
+
+        aggregate = build_private_ratecon_measurement_aggregate(rows)
+
+        self.assertEqual(aggregate["non_applicable_counts_by_field"]["rate"], 1)
+        self.assertEqual(aggregate["skipped_counts_by_field"]["pickup_location"], 1)
 
     def test_aggregate_counts_blockers(self):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())
