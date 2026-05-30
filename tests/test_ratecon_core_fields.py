@@ -48,6 +48,8 @@ class RateConCoreFieldsTests(unittest.TestCase):
 
         self.assertEqual(summary["missing_core_fields"], [])
         self.assertTrue(summary["core_fields_present"])
+        self.assertTrue(summary["ready_for_review"])
+        self.assertEqual(summary["core_field_statuses"]["rate"], "present")
 
     def test_broker_mc_missing_does_not_fail_core_ratecon_policy(self):
         summary = build_ratecon_core_field_summary(COMPLETE_CORE_RECORD)
@@ -66,6 +68,11 @@ class RateConCoreFieldsTests(unittest.TestCase):
 
         self.assertNotIn("loaded_miles", summary["missing_core_fields"])
         self.assertIn("loaded_miles", summary["deferred_fields"])
+        self.assertEqual(summary["loaded_miles"], "")
+        self.assertEqual(
+            summary["deferred_field_statuses"]["loaded_miles"],
+            DEFERRED_GOOGLE_MAPS,
+        )
         self.assertEqual(summary["miles_status"], DEFERRED_GOOGLE_MAPS)
         self.assertEqual(summary["miles_source"], NOT_FROM_RATECON)
 
@@ -88,6 +95,32 @@ class RateConCoreFieldsTests(unittest.TestCase):
 
         self.assertIn("rate", summary["missing_core_fields"])
         self.assertFalse(summary["core_fields_present"])
+        self.assertFalse(summary["ready_for_review"])
+        self.assertEqual(summary["core_field_statuses"]["rate"], "missing")
+
+    def test_missing_pickup_delivery_and_dates_are_core_missing_fields(self):
+        record = dict(COMPLETE_CORE_RECORD)
+
+        for field_name in [
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+        ]:
+            record[field_name] = ""
+
+        summary = build_ratecon_core_field_summary(record)
+
+        self.assertEqual(
+            set(summary["missing_core_fields"]),
+            {
+                "pickup_location",
+                "pickup_date",
+                "delivery_location",
+                "delivery_date",
+            },
+        )
+        self.assertFalse(summary["ready_for_review"])
 
     def test_output_is_json_serializable(self):
         summary = build_ratecon_core_field_summary(COMPLETE_CORE_RECORD)

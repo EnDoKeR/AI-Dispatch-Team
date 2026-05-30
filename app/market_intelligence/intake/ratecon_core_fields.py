@@ -91,14 +91,34 @@ def core_fields_present(record=None):
     return not missing_core_fields(record)
 
 
+def _status_map(record, fields):
+    return {
+        field_name: "present"
+        if _value_present(field_value(record, field_name))
+        else "missing"
+        for field_name in fields
+    }
+
+
+def _deferred_status_map():
+    return {field_name: DEFERRED_GOOGLE_MAPS for field_name in DEFERRED_FIELDS}
+
+
 def build_ratecon_core_field_summary(record=None):
+    missing = missing_core_fields(record)
+
     return {
         "core_required_fields": list(CORE_REQUIRED_FIELDS),
-        "missing_core_fields": missing_core_fields(record),
+        "missing_core_fields": missing,
+        "core_field_statuses": _status_map(record, CORE_REQUIRED_FIELDS),
         "optional_fields": list(OPTIONAL_FIELDS),
         "optional_missing_fields": optional_missing_fields(record),
+        "optional_field_statuses": _status_map(record, OPTIONAL_FIELDS),
         "deferred_fields": deferred_fields(record),
+        "deferred_field_statuses": _deferred_status_map(),
+        "loaded_miles": "",
         "miles_status": DEFERRED_GOOGLE_MAPS,
         "miles_source": NOT_FROM_RATECON,
-        "core_fields_present": core_fields_present(record),
+        "core_fields_present": not missing,
+        "ready_for_review": not missing,
     }
