@@ -54,6 +54,12 @@ raw PDFs, raw extracted text, real broker names, real MC numbers, rates,
 addresses, load numbers, or reference numbers in committed docs, tests, or
 fixtures.
 
+Local private paths are ignored by Git. The private template directory is for
+operator-owned local files only; committed code should load it only when the user
+explicitly enables a private overlay. Pattern collection outputs and template
+draft skeletons are local-only artifacts and should remain under the ignored
+measurement output tree.
+
 Committed tests for generalized template behavior must use fake/anonymized
 fixtures only.
 

@@ -30,6 +30,8 @@ tmp/
 temp/
 
 # Local-only generated reports / private measurement outputs
+.local_private/
+.local_private/**
 .local_outputs/
 .local_outputs/**
 local_outputs/
