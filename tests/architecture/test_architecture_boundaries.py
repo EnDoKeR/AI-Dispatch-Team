@@ -667,6 +667,106 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("DispatchCase", source)
         self.assertNotIn("DecisionEngine", source)
 
+    def test_layout_modules_do_not_import_business_output_or_pdf_dependencies(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.market_intelligence.broker_memory_core",
+            "app.market_intelligence.broker_memory_queries",
+            "app.market_intelligence.broker_memory_rules",
+            "app.market_intelligence.market_broker_memory",
+            "pypdf",
+            "pdfplumber",
+            "fitz",
+            "camelot",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "requests",
+            "google.oauth",
+            "googleapiclient",
+            "boto3",
+            "azure",
+        ]
+        layout_files = [
+            DOCUMENT_AI_PACKAGE / "layout_artifacts.py",
+            DOCUMENT_AI_PACKAGE / "layout_index.py",
+            DOCUMENT_AI_PACKAGE / "layout_proximity.py",
+            DOCUMENT_AI_PACKAGE / "layout_candidate_adapter.py",
+            DOCUMENT_AI_PACKAGE / "layout_rate_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_stop_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_operational_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_candidate_extraction.py",
+        ]
+
+        for path in layout_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+    def test_layout_modules_do_not_emit_dispatch_recommendations(self):
+        forbidden_literals = {
+            "ACCEPT",
+            "REJECT",
+            "REVIEW_ONCE",
+            "BOOK",
+            "DISPATCH",
+        }
+        layout_files = [
+            DOCUMENT_AI_PACKAGE / "layout_artifacts.py",
+            DOCUMENT_AI_PACKAGE / "layout_index.py",
+            DOCUMENT_AI_PACKAGE / "layout_proximity.py",
+            DOCUMENT_AI_PACKAGE / "layout_candidate_adapter.py",
+            DOCUMENT_AI_PACKAGE / "layout_rate_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_stop_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_operational_candidates.py",
+            DOCUMENT_AI_PACKAGE / "layout_candidate_extraction.py",
+        ]
+
+        for path in layout_files:
+            literals = set(string_literals(path))
+            for literal in forbidden_literals:
+                with self.subTest(path=str(path), literal=literal):
+                    self.assertNotIn(literal, literals)
+
+    def test_fake_layout_candidate_cli_does_not_import_private_or_provider_flows(self):
+        path = SCRIPTS / "run_fake_layout_candidate_extraction.py"
+        forbidden_prefixes = [
+            "scripts.run_private_ratecon_pdf_dry_run",
+            "scripts.run_private_ratecon_measurement",
+            "scripts.run_private_ratecon_layout_diagnostics",
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
+            "app.market_intelligence.intake.pdf_text_extraction",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.telegram",
+            "pypdf",
+            "pdfplumber",
+            "fitz",
+            "camelot",
+            "openai",
+            "pytesseract",
+            "easyocr",
+        ]
+
+        assert_no_import_prefix(self, path, forbidden_prefixes)
+        source = source_text(path).lower()
+        self.assertIn("fake-only", source)
+        self.assertIn("synthetic layout fixtures", source)
+        self.assertNotIn("private_ratecons", source)
+
+    def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
+        fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
+        banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+
+        for path in fixture_dir.rglob("*"):
+            if path.is_file():
+                with self.subTest(path=str(path)):
+                    self.assertNotIn(path.suffix.lower(), banned_suffixes)
+
 
 if __name__ == "__main__":
     unittest.main()
