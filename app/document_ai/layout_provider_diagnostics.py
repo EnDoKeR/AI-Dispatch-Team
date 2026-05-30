@@ -1,5 +1,12 @@
 """Safe diagnostics contracts for layout provider output quality."""
 
+from pathlib import Path
+
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    PrivateMeasurementOutputError,
+)
+
 
 QUALITY_EMPTY = "empty"
 QUALITY_WEAK = "weak"
@@ -18,6 +25,30 @@ LAYOUT_QUALITY_BUCKETS = {
 }
 
 LAYOUT_PROVIDER_DIAGNOSTICS_VERSION = "layout_provider_diagnostics_v1"
+LAYOUT_PROVIDER_DIAGNOSTICS_MD = "layout_provider_diagnostics.md"
+
+ISSUE_PROVIDER_NO_TABLES = "provider_no_tables"
+ISSUE_PROVIDER_NO_WORDS = "provider_no_words"
+ISSUE_PROVIDER_HAS_TABLES_BUT_NO_STOP_GROUPS = "provider_has_tables_but_no_stop_groups"
+ISSUE_PROVIDER_HAS_STOP_LABELS_BUT_NO_GROUPS = "provider_has_stop_labels_but_no_groups"
+ISSUE_SCOPE_FILTER_EXCLUDED_PAGES = "scope_filter_excluded_pages"
+ISSUE_ASSOCIATION_LOGIC_GAP = "association_logic_gap"
+ISSUE_CANDIDATE_FUSION_REGRESSION = "candidate_fusion_regression"
+ISSUE_NO_DIAGNOSTIC_ISSUE = "no_diagnostic_issue"
+
+FORBIDDEN_DIAGNOSTIC_KEYS = {
+    "raw_text",
+    "extracted_text",
+    "filename",
+    "file_path",
+    "local_path",
+    "broker_name",
+    "broker_mc",
+    "rate_value",
+    "address",
+    "reference_value",
+    "private_note",
+}
 
 _PICKUP_LABELS = ("pickup", "pick up", "pu", "shipper", "origin")
 _DELIVERY_LABELS = (
@@ -413,3 +444,100 @@ def build_layout_provider_diagnostics(provider_result, classification_result=Non
         stop_evidence_signals=stop_signals,
         warning_codes=warnings,
     )
+
+
+def classify_layout_provider_diagnostic_issue(diagnostics, stop_group_count=0):
+    signals = _mapping((diagnostics or {}).get("stop_evidence_signals"))
+    warnings = set(_list((diagnostics or {}).get("warning_codes")))
+    word_count = _int((diagnostics or {}).get("total_word_count"))
+    table_count = _int((diagnostics or {}).get("total_table_count"))
+    stop_groups = _int(stop_group_count)
+    stop_signal_count = sum(_int(signals.get(key)) for key in STOP_SIGNAL_KEYS)
+
+    if word_count <= 0:
+        return ISSUE_PROVIDER_NO_WORDS
+    if "scope_filter_excluded_pages" in warnings:
+        return ISSUE_SCOPE_FILTER_EXCLUDED_PAGES
+    if "candidate_fusion_regression" in warnings:
+        return ISSUE_CANDIDATE_FUSION_REGRESSION
+    if table_count <= 0:
+        return ISSUE_PROVIDER_NO_TABLES
+    if table_count > 0 and stop_groups <= 0 and stop_signal_count > 0:
+        return ISSUE_PROVIDER_HAS_STOP_LABELS_BUT_NO_GROUPS
+    if table_count > 0 and stop_groups <= 0:
+        return ISSUE_PROVIDER_HAS_TABLES_BUT_NO_STOP_GROUPS
+    if stop_signal_count > 0 and stop_groups <= 0:
+        return ISSUE_ASSOCIATION_LOGIC_GAP
+    return ISSUE_NO_DIAGNOSTIC_ISSUE
+
+
+def _reject_unsafe_diagnostics(diagnostics):
+    unsafe_keys = FORBIDDEN_DIAGNOSTIC_KEYS & set(diagnostics or {})
+    if unsafe_keys:
+        raise PrivateMeasurementOutputError(
+            "unsafe layout provider diagnostics field detected: "
+            + ", ".join(sorted(unsafe_keys))
+        )
+    if (diagnostics or {}).get("raw_text_included"):
+        raise PrivateMeasurementOutputError(
+            "layout provider diagnostics cannot include raw text"
+        )
+
+
+def _normalize_output_dir(output_dir=None, allow_custom_output_dir=False):
+    path = Path(output_dir) if output_dir else DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR
+    if output_dir and not allow_custom_output_dir:
+        default_parts = DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR.parts
+        if path.parts[: len(default_parts)] != default_parts:
+            raise PrivateMeasurementOutputError(
+                "custom layout provider diagnostics output directory requires explicit allow flag"
+            )
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def write_layout_provider_diagnostics_report(
+    diagnostics_items,
+    output_dir=None,
+    allow_custom_output_dir=False,
+):
+    items = diagnostics_items if isinstance(diagnostics_items, list) else [diagnostics_items]
+    safe_items = [item for item in items if isinstance(item, dict)]
+    for item in safe_items:
+        _reject_unsafe_diagnostics(item)
+
+    directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
+    path = directory / LAYOUT_PROVIDER_DIAGNOSTICS_MD
+    lines = [
+        "# Safe Layout Provider Diagnostics",
+        "",
+        "Local-only report. No raw text, line text, filenames, paths, or private values included.",
+        "",
+        "| alias | provider_status | page_count | words | lines | tables | cells | quality | stop_signals | table_profile | likely_issue_bucket | warning_codes |",
+        "| --- | --- | ---: | ---: | ---: | ---: | ---: | --- | --- | --- | --- | --- |",
+    ]
+
+    for item in safe_items:
+        signals = _mapping(item.get("stop_evidence_signals"))
+        stop_signal_summary = ";".join(
+            f"{key}={_int(signals.get(key))}" for key in STOP_SIGNAL_KEYS
+        )
+        lines.append(
+            "| {alias} | {status} | {pages} | {words} | {lines_count} | {tables} | {cells} | {quality} | {signals} | {profile} | {issue} | {warnings} |".format(
+                alias=_text(item.get("document_alias")),
+                status=_text(item.get("provider_status")),
+                pages=_int(item.get("page_count")),
+                words=_int(item.get("total_word_count")),
+                lines_count=_int(item.get("total_line_count")),
+                tables=_int(item.get("total_table_count")),
+                cells=_int(item.get("total_table_cell_count")),
+                quality=_text(item.get("layout_quality_bucket")),
+                signals=stop_signal_summary,
+                profile=_text(item.get("table_settings_profile")),
+                issue=classify_layout_provider_diagnostic_issue(item),
+                warnings=";".join(_list(item.get("warning_codes"))),
+            )
+        )
+
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    return path

@@ -1,18 +1,25 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from app.document_ai.layout_provider_diagnostics import (
+    ISSUE_PROVIDER_HAS_STOP_LABELS_BUT_NO_GROUPS,
+    ISSUE_PROVIDER_NO_TABLES,
     QUALITY_EMPTY,
     QUALITY_RICH_LAYOUT,
     QUALITY_TABLE_LIKE,
     QUALITY_TEXT_ONLY,
+    LAYOUT_PROVIDER_DIAGNOSTICS_MD,
     build_layout_provider_diagnostics,
     build_provider_document_diagnostics,
     build_provider_page_diagnostics,
     build_stop_evidence_signals,
+    classify_layout_provider_diagnostic_issue,
     compute_layout_quality_bucket,
     summarize_layout_tables,
     summarize_stop_label_signals,
+    write_layout_provider_diagnostics_report,
 )
 from app.document_ai.layout_artifacts import (
     build_layout_extraction_artifact,
@@ -208,6 +215,85 @@ class LayoutProviderDiagnosticsTests(unittest.TestCase):
         self.assertEqual(table_summary["table_count"], 1)
         self.assertNotIn("Pickup", dumped)
         self.assertNotIn("Date", dumped)
+
+    def test_issue_bucket_identifies_stop_signals_without_groups(self):
+        diagnostics = build_provider_document_diagnostics(
+            document_alias="RATECON_001",
+            provider_status="success",
+            pages=[
+                build_provider_page_diagnostics(
+                    page_number=1,
+                    word_count=20,
+                    line_count=5,
+                    table_count=1,
+                    table_cell_count=8,
+                )
+            ],
+            stop_evidence_signals=build_stop_evidence_signals(
+                pickup_label_hits=1,
+                delivery_label_hits=1,
+                table_stop_like_rows=1,
+            ),
+        )
+
+        self.assertEqual(
+            classify_layout_provider_diagnostic_issue(diagnostics),
+            ISSUE_PROVIDER_HAS_STOP_LABELS_BUT_NO_GROUPS,
+        )
+
+    def test_issue_bucket_identifies_no_tables(self):
+        diagnostics = build_provider_document_diagnostics(
+            document_alias="RATECON_001",
+            provider_status="success",
+            pages=[
+                build_provider_page_diagnostics(
+                    page_number=1,
+                    word_count=20,
+                    line_count=5,
+                )
+            ],
+        )
+
+        self.assertEqual(
+            classify_layout_provider_diagnostic_issue(diagnostics),
+            ISSUE_PROVIDER_NO_TABLES,
+        )
+
+    def test_diagnostics_report_is_local_only_and_safe(self):
+        diagnostics = build_provider_document_diagnostics(
+            document_alias="RATECON_001",
+            provider_status="success",
+            pages=[
+                build_provider_page_diagnostics(
+                    page_number=1,
+                    word_count=20,
+                    line_count=5,
+                    table_count=1,
+                    table_cell_count=8,
+                )
+            ],
+            stop_evidence_signals=build_stop_evidence_signals(stop_label_hits=1),
+        )
+
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = write_layout_provider_diagnostics_report(
+                [diagnostics],
+                output_dir=temp_dir,
+                allow_custom_output_dir=True,
+            )
+            text = path.read_text(encoding="utf-8")
+
+        self.assertEqual(path.name, LAYOUT_PROVIDER_DIAGNOSTICS_MD)
+        self.assertIn("RATECON_001", text)
+        self.assertIn("provider_status", text)
+        self.assertNotIn("FAKE BROKER LLC", text)
+        self.assertNotIn("123 Main", text)
+        self.assertNotIn("raw text", text.lower().replace("no raw text", ""))
+
+    def test_default_diagnostics_report_path_is_ignored_local_outputs(self):
+        path = Path(".local_outputs/private_ratecon_measurement") / LAYOUT_PROVIDER_DIAGNOSTICS_MD
+
+        self.assertTrue(str(path).startswith(".local_outputs"))
 
 
 if __name__ == "__main__":
