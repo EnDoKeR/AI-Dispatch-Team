@@ -204,6 +204,10 @@ Validation must compute:
 - review-required reasons;
 - field evidence coverage.
 
+The validation layer must compute missing and needs-check fields from the
+normalized intake shape. It must not trust caller-provided `missing_fields`,
+`needs_check_fields`, or `status` alone.
+
 Critical fields are defined by current policy in `docs/RATECON_CORE_FIELD_POLICY.md`, while future full RateConfirmationIntake may contain additional optional and document/accounting fields.
 
 ## Human Review Gate
@@ -259,4 +263,3 @@ Future OCR/Vision must be:
 - Do not create tracked fixtures from private documents.
 - Do not print broker/customer/contact names, MCs, addresses, emails, phone numbers, reference numbers, appointment details, or private snippets in reports.
 - Local private value-review CSVs must stay in ignored folders.
-

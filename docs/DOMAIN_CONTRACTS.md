@@ -360,11 +360,12 @@ Purpose:
 Owner module:
 
 - contract helper: `app/market_intelligence/intake/rate_confirmation_intake.py`
+- validation helper: `app/market_intelligence/intake/rate_confirmation_validation.py`
 - current adjacent modules: `app/market_intelligence/intake/record.py`, `ratecon_core_fields.py`, `ratecon_text_dry_run.py`, `ratecon_pdf_dry_run.py`
 
 Current status:
 
-- `partial`: JSON-ready contract helper exists, but it is not wired into PDF parsing, case creation, or event writes.
+- `partial`: JSON-ready contract and validation helpers exist, but they are not wired into PDF parsing, case creation, or event writes.
 
 Required fields:
 
