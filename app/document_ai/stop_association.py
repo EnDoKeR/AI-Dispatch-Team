@@ -1,5 +1,7 @@
 """Layout-aware stop association contracts and helpers."""
 
+import re
+
 from app.document_ai.ratecon_candidates import normalize_list
 
 
@@ -322,6 +324,226 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
                         warning_codes=group_warnings,
                     )
                 )
+
+    return build_stop_association_result(
+        stop_groups=stop_groups,
+        warning_codes=sorted(set(warnings)),
+    )
+
+
+_DATE_RE = re.compile(r"\b\d{4}-\d{2}-\d{2}\b")
+_TIME_RE = re.compile(r"\b\d{1,2}:\d{2}(?:\s?(?:am|pm))?\b", re.IGNORECASE)
+
+_STOP_SECTION_ROLES = {
+    "PICKUP_SECTION",
+    "DELIVERY_SECTION",
+    "MULTI_STOP_SECTION",
+    "STOP_TABLE",
+}
+
+_IGNORED_STOP_SECTION_ROLES = {
+    "LEGAL_TERMS",
+    "PAYMENT_TERMS",
+    "BILLING_INSTRUCTIONS",
+    "QUICK_PAY",
+    "SIGNATURE_BLOCK",
+    "CERTIFICATE_SIGNATURE_BLOCK",
+}
+
+
+def _line_lookup(page):
+    return {
+        _text(line.get("line_id")): line
+        for line in page.get("lines", []) or []
+        if isinstance(line, dict) and _text(line.get("line_id"))
+    }
+
+
+def _block_text(block, page):
+    lines = _line_lookup(page)
+    texts = [_text(block.get("text_redacted"))]
+    for line_id in block.get("line_ids", []) or []:
+        if line_id in lines:
+            texts.append(_text(lines[line_id].get("text_redacted")))
+    return " ".join(text for text in texts if text)
+
+
+def classify_stop_section(block_or_section):
+    section_role = _text((block_or_section or {}).get("section_role")).upper()
+    text = _text((block_or_section or {}).get("text_redacted")).lower()
+    combined = f"{section_role.lower()} {text}"
+    warnings = []
+
+    if section_role in _IGNORED_STOP_SECTION_ROLES:
+        return {
+            "stop_type": STOP_TYPE_UNKNOWN,
+            "confidence": 0.0,
+            "warning_codes": ["ignored_non_core_stop_section"],
+            "ignored": True,
+        }
+    if section_role == "PICKUP_SECTION" or any(
+        token in combined for token in ["pickup", "pick up", " pu ", "shipper", "origin"]
+    ):
+        return {
+            "stop_type": STOP_TYPE_PICKUP,
+            "confidence": 0.85,
+            "warning_codes": [],
+            "ignored": False,
+        }
+    if section_role == "DELIVERY_SECTION" or any(
+        token in combined
+        for token in ["delivery", "deliver", " drop ", " so ", "consignee", "destination"]
+    ):
+        return {
+            "stop_type": STOP_TYPE_DELIVERY,
+            "confidence": 0.85,
+            "warning_codes": [],
+            "ignored": False,
+        }
+    if section_role in {"MULTI_STOP_SECTION", "STOP_TABLE"} or "stop" in combined:
+        return {
+            "stop_type": STOP_TYPE_STOP,
+            "confidence": 0.55,
+            "warning_codes": ["ambiguous_stop_type"],
+            "ignored": False,
+        }
+    return {
+        "stop_type": STOP_TYPE_UNKNOWN,
+        "confidence": 0.0,
+        "warning_codes": ["not_a_stop_section"],
+        "ignored": True,
+    }
+
+
+def associate_nearby_date_time_to_stop(section_text):
+    text = _text(section_text)
+    return {
+        "has_date": bool(_DATE_RE.search(text)),
+        "has_time": bool(_TIME_RE.search(text)),
+    }
+
+
+def collect_stop_fields_within_section(block, page, stop_group_id, stop_type, stop_sequence):
+    section_text = _block_text(block, page)
+    fields = []
+    page_number = page.get("page_number", block.get("page_number", ""))
+    evidence_base = {
+        "page_number": page_number,
+        "block_id": block.get("block_id", ""),
+        "evidence_type": "section_context",
+    }
+
+    if section_text:
+        fields.append(
+            build_stop_field_candidate(
+                stop_group_id=stop_group_id,
+                stop_sequence=stop_sequence,
+                stop_type=stop_type,
+                field_name=STOP_FIELD_LOCATION,
+                candidate_id=f"{stop_group_id}_location",
+                confidence=0.75,
+                evidence_ref=evidence_base,
+                source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                reasons=["stop_section_context_location_candidate"],
+            )
+        )
+
+    nearby = associate_nearby_date_time_to_stop(section_text)
+    if nearby["has_date"]:
+        fields.append(
+            build_stop_field_candidate(
+                stop_group_id=stop_group_id,
+                stop_sequence=stop_sequence,
+                stop_type=stop_type,
+                field_name=STOP_FIELD_DATE,
+                candidate_id=f"{stop_group_id}_date",
+                confidence=0.8,
+                evidence_ref=evidence_base,
+                source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                reasons=["date_within_stop_section"],
+            )
+        )
+    if nearby["has_time"]:
+        fields.append(
+            build_stop_field_candidate(
+                stop_group_id=stop_group_id,
+                stop_sequence=stop_sequence,
+                stop_type=stop_type,
+                field_name=STOP_FIELD_TIME,
+                candidate_id=f"{stop_group_id}_time",
+                confidence=0.8,
+                evidence_ref=evidence_base,
+                source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                reasons=["time_within_stop_section"],
+            )
+        )
+    if "ref" in section_text.lower() or "reference" in section_text.lower():
+        fields.append(
+            build_stop_field_candidate(
+                stop_group_id=stop_group_id,
+                stop_sequence=stop_sequence,
+                stop_type=stop_type,
+                field_name=STOP_FIELD_REFERENCE,
+                candidate_id=f"{stop_group_id}_reference",
+                confidence=0.65,
+                evidence_ref=evidence_base,
+                source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                reasons=["reference_within_stop_section"],
+            )
+        )
+    return fields
+
+
+def build_stop_groups_from_layout_sections(layout_artifact, classification_result=None):
+    """Build stop groups from pickup/delivery/multi-stop text sections."""
+
+    del classification_result
+    stop_groups = []
+    warnings = []
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        for block in page.get("blocks", []) or []:
+            if not isinstance(block, dict):
+                continue
+            if _text(block.get("block_type")).lower() == "table":
+                continue
+            section_role = _text(block.get("section_role")).upper()
+            if section_role not in _STOP_SECTION_ROLES and section_role not in _IGNORED_STOP_SECTION_ROLES:
+                continue
+
+            block_with_text = dict(block)
+            block_with_text["text_redacted"] = _block_text(block, page)
+            section_classification = classify_stop_section(block_with_text)
+            if section_classification["ignored"]:
+                warnings.extend(section_classification["warning_codes"])
+                continue
+
+            stop_sequence = len(stop_groups) + 1
+            stop_group_id = _text(block.get("block_id")) or f"section_stop_{stop_sequence}"
+            fields = collect_stop_fields_within_section(
+                block=block,
+                page=page,
+                stop_group_id=stop_group_id,
+                stop_type=section_classification["stop_type"],
+                stop_sequence=stop_sequence,
+            )
+            if not fields:
+                continue
+            group_warnings = list(section_classification["warning_codes"])
+            warnings.extend(group_warnings)
+            stop_groups.append(
+                build_stop_group_candidate(
+                    stop_group_id=stop_group_id,
+                    stop_sequence=stop_sequence,
+                    stop_type=section_classification["stop_type"],
+                    source=STOP_ASSOCIATION_SOURCE_SECTION_BLOCK,
+                    page_number=page.get("page_number", block.get("page_number", "")),
+                    section_role=section_role,
+                    field_candidates=fields,
+                    confidence=section_classification["confidence"],
+                    reasons=["layout_section_preserves_stop_context"],
+                    warning_codes=group_warnings,
+                )
+            )
 
     return build_stop_association_result(
         stop_groups=stop_groups,
