@@ -33,6 +33,7 @@ class LayoutProviderContractTests(unittest.TestCase):
         self.assertEqual(payload["provider_name"], PROVIDER_PDFPLUMBER)
         self.assertEqual(payload["status"], STATUS_REVIEW_REQUIRED)
         self.assertEqual(payload["page_count"], 2)
+        self.assertIn("table_settings_profile", payload)
         self.assertFalse(payload["raw_text_saved"])
         self.assertTrue(payload["private_values_redacted"])
         self.assertNotIn("raw_text", payload)

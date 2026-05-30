@@ -30,6 +30,58 @@ from app.document_ai.layout_provider import (
 
 PDFPLUMBER_SOURCE_METHOD = "pdfplumber_layout_v1"
 LINE_Y_TOLERANCE = 3.0
+TABLE_PROFILE_DEFAULT = "default"
+TABLE_PROFILE_LINES = "lines"
+TABLE_PROFILE_TEXT = "text"
+TABLE_PROFILE_LINES_STRICT = "lines_strict"
+TABLE_PROFILE_TEXT_STRICT = "text_strict"
+PDFPLUMBER_TABLE_SETTING_PROFILES = (
+    TABLE_PROFILE_DEFAULT,
+    TABLE_PROFILE_LINES,
+    TABLE_PROFILE_TEXT,
+    TABLE_PROFILE_LINES_STRICT,
+    TABLE_PROFILE_TEXT_STRICT,
+)
+
+
+def normalize_pdfplumber_table_profile(value):
+    text = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
+    return text if text in PDFPLUMBER_TABLE_SETTING_PROFILES else TABLE_PROFILE_DEFAULT
+
+
+def get_pdfplumber_table_settings(profile_name=TABLE_PROFILE_DEFAULT):
+    profile = normalize_pdfplumber_table_profile(profile_name)
+    if profile == TABLE_PROFILE_DEFAULT:
+        return None
+    if profile == TABLE_PROFILE_LINES:
+        return {
+            "vertical_strategy": "lines",
+            "horizontal_strategy": "lines",
+        }
+    if profile == TABLE_PROFILE_TEXT:
+        return {
+            "vertical_strategy": "text",
+            "horizontal_strategy": "text",
+        }
+    if profile == TABLE_PROFILE_LINES_STRICT:
+        return {
+            "vertical_strategy": "lines_strict",
+            "horizontal_strategy": "lines_strict",
+            "snap_tolerance": 2,
+            "join_tolerance": 2,
+            "intersection_tolerance": 2,
+        }
+    if profile == TABLE_PROFILE_TEXT_STRICT:
+        return {
+            "vertical_strategy": "text",
+            "horizontal_strategy": "text",
+            "text_x_tolerance": 1,
+            "text_y_tolerance": 1,
+            "snap_tolerance": 1,
+            "join_tolerance": 1,
+            "intersection_tolerance": 1,
+        }
+    return None
 
 
 def _number(value, default=0.0):
@@ -196,9 +248,13 @@ def _cell_bbox(table_bbox, row_index, col_index, row_count, col_count, page_numb
     )
 
 
-def _extract_tables(page, page_number, warnings):
+def _extract_tables(page, page_number, warnings, table_settings_profile=TABLE_PROFILE_DEFAULT):
+    table_settings = get_pdfplumber_table_settings(table_settings_profile)
     try:
-        tables = page.find_tables() or []
+        if table_settings is None:
+            tables = page.find_tables() or []
+        else:
+            tables = page.find_tables(table_settings=table_settings) or []
     except Exception as exc:  # pragma: no cover - provider-specific failure
         warnings.append(f"pdfplumber_tables_failed:{exc.__class__.__name__}")
         return []
@@ -279,8 +335,14 @@ def _page_has_extractable_text(page_artifact):
     return False
 
 
-def extract_pdfplumber_layout(path, document_id=None):
+def extract_pdfplumber_layout(
+    path,
+    document_id=None,
+    table_settings_profile=TABLE_PROFILE_DEFAULT,
+):
     file_path = Path(path or "")
+    requested_profile = str(table_settings_profile or "").strip()
+    normalized_table_profile = normalize_pdfplumber_table_profile(requested_profile)
 
     if not file_path.exists():
         return build_layout_provider_result(
@@ -290,6 +352,7 @@ def extract_pdfplumber_layout(path, document_id=None):
             error_code="layout_input_missing",
             safe_message="Layout input file does not exist.",
             provider_version=pdfplumber.__version__,
+            table_settings_profile=normalized_table_profile,
         )
 
     if file_path.suffix.lower() != ".pdf":
@@ -300,9 +363,12 @@ def extract_pdfplumber_layout(path, document_id=None):
             error_code="unsupported_file_type",
             safe_message="Layout provider only accepts PDF inputs.",
             provider_version=pdfplumber.__version__,
+            table_settings_profile=normalized_table_profile,
         )
 
     warnings = []
+    if requested_profile and requested_profile != normalized_table_profile:
+        warnings.append("unsupported_pdfplumber_table_profile_defaulted")
     pages = []
 
     try:
@@ -311,7 +377,12 @@ def extract_pdfplumber_layout(path, document_id=None):
                 page_warnings = []
                 raw_words = _extract_words(page, page_index, page_warnings)
                 words, lines = _group_words_into_lines(raw_words, page_index)
-                tables = _extract_tables(page, page_index, page_warnings)
+                tables = _extract_tables(
+                    page,
+                    page_index,
+                    page_warnings,
+                    table_settings_profile=normalized_table_profile,
+                )
                 blocks = _page_text_block(lines, page_index) + _rect_blocks(page, page_index, page_warnings)
 
                 page_artifact = build_layout_page_artifact(
@@ -334,6 +405,7 @@ def extract_pdfplumber_layout(path, document_id=None):
             error_code="pdfplumber_open_failed",
             safe_message="Layout provider could not read the PDF.",
             provider_version=pdfplumber.__version__,
+            table_settings_profile=normalized_table_profile,
         )
 
     page_count = len(pages)
@@ -366,4 +438,5 @@ def extract_pdfplumber_layout(path, document_id=None):
         warning_codes=warnings,
         safe_message="Layout extraction completed." if has_text else "No extractable layout text found.",
         provider_version=pdfplumber.__version__,
+        table_settings_profile=normalized_table_profile,
     )

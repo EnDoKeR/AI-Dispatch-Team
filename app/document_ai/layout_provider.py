@@ -103,6 +103,7 @@ def build_layout_provider_result(
     error_code="",
     safe_message="",
     provider_version="",
+    table_settings_profile="",
 ):
     provider = normalize_provider_name(provider_name)
     normalized_status = normalize_provider_status(status)
@@ -117,12 +118,18 @@ def build_layout_provider_result(
         "error_code": str(error_code or "").strip(),
         "safe_message": str(safe_message or "").strip(),
         "provider_version": str(provider_version or get_provider_version(provider)).strip(),
+        "table_settings_profile": str(table_settings_profile or "").strip(),
         "raw_text_saved": False,
         "private_values_redacted": True,
     }
 
 
-def extract_layout_artifact(path, provider_name=PROVIDER_PDFPLUMBER, document_id=None):
+def extract_layout_artifact(
+    path,
+    provider_name=PROVIDER_PDFPLUMBER,
+    document_id=None,
+    table_settings_profile="default",
+):
     provider = normalize_provider_name(provider_name)
     pdf_path = Path(path)
 
@@ -158,7 +165,11 @@ def extract_layout_artifact(path, provider_name=PROVIDER_PDFPLUMBER, document_id
     if provider == PROVIDER_PDFPLUMBER:
         from app.document_ai.pdfplumber_layout_provider import extract_pdfplumber_layout
 
-        return extract_pdfplumber_layout(pdf_path, document_id=document_id)
+        return extract_pdfplumber_layout(
+            pdf_path,
+            document_id=document_id,
+            table_settings_profile=table_settings_profile,
+        )
 
     return build_layout_provider_result(
         provider_name=provider,

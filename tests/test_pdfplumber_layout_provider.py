@@ -10,7 +10,14 @@ from app.document_ai.layout_provider import (
     STATUS_SUCCESS,
     extract_layout_artifact,
 )
-from app.document_ai.pdfplumber_layout_provider import extract_pdfplumber_layout
+from app.document_ai.pdfplumber_layout_provider import (
+    PDFPLUMBER_TABLE_SETTING_PROFILES,
+    TABLE_PROFILE_LINES,
+    TABLE_PROFILE_TEXT_STRICT,
+    extract_pdfplumber_layout,
+    get_pdfplumber_table_settings,
+    normalize_pdfplumber_table_profile,
+)
 from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
     FAKE_RATECON_TEXT,
     write_fake_empty_text_pdf,
@@ -82,6 +89,45 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
 
         self.assertEqual(result["status"], STATUS_SUCCESS)
         self.assertIn("tables", result["artifact"]["pages"][0])
+
+    def test_pdfplumber_table_settings_profiles_exist(self):
+        self.assertIn(TABLE_PROFILE_LINES, PDFPLUMBER_TABLE_SETTING_PROFILES)
+        self.assertIsNone(get_pdfplumber_table_settings("default"))
+        self.assertEqual(
+            get_pdfplumber_table_settings(TABLE_PROFILE_LINES)["vertical_strategy"],
+            "lines",
+        )
+        self.assertEqual(
+            get_pdfplumber_table_settings(TABLE_PROFILE_TEXT_STRICT)["horizontal_strategy"],
+            "text",
+        )
+
+    def test_invalid_table_profile_defaults_with_warning(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = write_fake_text_pdf(temp_dir, text="Total Carrier Pay $1234.00")
+            result = extract_pdfplumber_layout(
+                path,
+                document_id="DOC-TABLE-PROFILE",
+                table_settings_profile="not-a-profile",
+            )
+
+        self.assertEqual(result["status"], STATUS_SUCCESS)
+        self.assertEqual(result["table_settings_profile"], "default")
+        self.assertIn("unsupported_pdfplumber_table_profile_defaulted", result["warning_codes"])
+
+    def test_dispatcher_accepts_table_profile_option(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = write_fake_text_pdf(temp_dir)
+            result = extract_layout_artifact(
+                path,
+                provider_name="pdfplumber",
+                document_id="DOC-DISPATCH-PROFILE",
+                table_settings_profile=TABLE_PROFILE_LINES,
+            )
+
+        self.assertEqual(result["status"], STATUS_SUCCESS)
+        self.assertEqual(result["table_settings_profile"], TABLE_PROFILE_LINES)
+        self.assertEqual(normalize_pdfplumber_table_profile("bad profile"), "default")
 
 
 if __name__ == "__main__":
