@@ -1,5 +1,6 @@
 ALPHA RATE CONFIRMATION
 Alpha Freight Mock
+Broker: Alpha Freight Mock
 Broker MC: MC111111
 Load Number: FAKE-ALPHA-001
 PO Number: FAKE-ALPHA-PO-001

@@ -1,5 +1,6 @@
 NORTHSTAR DOCKET
 Northstar Logistics Mock
+Broker: Northstar Logistics Mock
 Docket MC: MC222222
 Shipment #: FAKE-NORTH-001
 Customer Ref: FAKE-NORTH-CUST-001
