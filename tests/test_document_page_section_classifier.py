@@ -7,6 +7,7 @@ from app.document_ai.document_classification import (
     PAGE_ROLE_CARRIER_INFO,
     PAGE_ROLE_CERTIFICATE_SIGNATURE,
     PAGE_ROLE_MAIN_RATECONF,
+    PAGE_ROLE_MAIN_LOAD_CONFIRMATION,
     PAGE_ROLE_MAIN_TENDER,
     PAGE_ROLE_PAYMENT_SUMMARY,
     PAGE_ROLE_SIGNATURE,
@@ -36,10 +37,15 @@ FIXTURE_DIR = (
     / "document_ai"
     / "document_classification"
 )
+ELIGIBILITY_FIXTURE_DIR = FIXTURE_DIR / "eligibility_calibration"
 
 
 def fixture_text(name):
     return (FIXTURE_DIR / name).read_text(encoding="utf-8")
+
+
+def calibration_fixture_text(name):
+    return (ELIGIBILITY_FIXTURE_DIR / name).read_text(encoding="utf-8")
 
 
 def section_roles(result):
@@ -169,6 +175,34 @@ class DocumentPageSectionClassifierTests(unittest.TestCase):
 
         self.assertIn(PAGE_ROLE_STOP_DETAILS, result["page_roles"])
         self.assertIn(SECTION_ROLE_MULTI_STOP_SECTION, section_roles(result))
+
+    def test_carrier_load_tender_with_rate_confirmation_label_stays_main_tender(self):
+        result = classify_page_text(
+            calibration_fixture_text("fake_carrier_load_tender_route_rate.txt"),
+            page_number=1,
+        )
+
+        self.assertEqual(result["primary_page_role"], PAGE_ROLE_MAIN_TENDER)
+        self.assertIn(PAGE_ROLE_MAIN_RATECONF, result["page_roles"])
+        self.assertIn(PAGE_ROLE_PAYMENT_SUMMARY, result["page_roles"])
+
+    def test_load_tender_with_billing_note_stays_main_tender(self):
+        result = classify_page_text(
+            calibration_fixture_text("fake_load_tender_with_billing_page.txt"),
+            page_number=1,
+        )
+
+        self.assertEqual(result["primary_page_role"], PAGE_ROLE_MAIN_TENDER)
+        self.assertIn(PAGE_ROLE_BILLING, result["page_roles"])
+
+    def test_order_confirmation_with_payment_summary_stays_main_load_confirmation(self):
+        result = classify_page_text(
+            calibration_fixture_text("fake_mcleod_order_confirmation_two_page.txt"),
+            page_number=1,
+        )
+
+        self.assertEqual(result["primary_page_role"], PAGE_ROLE_MAIN_LOAD_CONFIRMATION)
+        self.assertIn(PAGE_ROLE_PAYMENT_SUMMARY, result["page_roles"])
 
 
 if __name__ == "__main__":

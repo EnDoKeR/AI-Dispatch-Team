@@ -475,8 +475,6 @@ def _page_role_candidates(text):
                 "carrier pay",
                 "total carrier pay",
                 "broker mc",
-                "pickup date",
-                "delivery date",
             ],
             "rate confirmation labels detected",
         ),
@@ -489,6 +487,9 @@ def _page_role_candidates(text):
                 "origin:",
                 "destination:",
                 "shipment #",
+                "tender id",
+                "tender number",
+                "freight bill",
                 "docket mc",
             ],
             "carrier tender labels detected",
@@ -501,6 +502,9 @@ def _page_role_candidates(text):
                 "load / order confirmation",
                 "order number",
                 "load number",
+                "pro number",
+                "pu section",
+                "so section",
                 "carrier freight pay",
             ],
             "load or order confirmation labels detected",
@@ -608,26 +612,56 @@ def _page_role_candidates(text):
 
 
 def _primary_page_role(role_scores):
-    priority = [
+    scores = dict(role_scores)
+
+    hard_skip_priority = [
         PAGE_ROLE_BOL,
         PAGE_ROLE_CERTIFICATE_SIGNATURE,
         PAGE_ROLE_INSURANCE_CERTIFICATE,
+    ]
+    for role in hard_skip_priority:
+        if scores.get(role, 0.0) >= 0.62:
+            return role
+
+    main_priority = [
+        PAGE_ROLE_MAIN_TENDER,
+        PAGE_ROLE_MAIN_LOAD_CONFIRMATION,
+        PAGE_ROLE_MAIN_RATECONF,
+    ]
+    strong_stop_context = scores.get(PAGE_ROLE_STOP_DETAILS, 0.0) >= 0.62
+    eligible_main_scores = [
+        (role, scores.get(role, 0.0))
+        for role in main_priority
+        if scores.get(role, 0.0) >= 0.62
+    ]
+    if strong_stop_context and eligible_main_scores:
+        return max(
+            eligible_main_scores,
+            key=lambda item: (item[1], -main_priority.index(item[0])),
+        )[0]
+
+    supplemental_priority = [
         PAGE_ROLE_TERMS,
         PAGE_ROLE_BILLING,
         PAGE_ROLE_SIGNATURE,
         PAGE_ROLE_CARRIER_INFO,
         PAGE_ROLE_DRIVER_INFO,
-        PAGE_ROLE_MAIN_RATECONF,
-        PAGE_ROLE_MAIN_TENDER,
-        PAGE_ROLE_MAIN_LOAD_CONFIRMATION,
-        PAGE_ROLE_STOP_DETAILS,
-        PAGE_ROLE_PAYMENT_SUMMARY,
-        PAGE_ROLE_SUPPLEMENTAL_INSTRUCTIONS,
-        PAGE_ROLE_UNKNOWN,
     ]
-    scores = dict(role_scores)
+    for role in supplemental_priority:
+        if scores.get(role, 0.0) >= 0.42:
+            return role
 
-    for role in priority:
+    fallback_priority = (
+        main_priority
+        + [
+            PAGE_ROLE_STOP_DETAILS,
+            PAGE_ROLE_PAYMENT_SUMMARY,
+            PAGE_ROLE_SUPPLEMENTAL_INSTRUCTIONS,
+            PAGE_ROLE_UNKNOWN,
+        ]
+    )
+
+    for role in fallback_priority:
         if scores.get(role, 0.0) >= 0.42:
             return role
     return PAGE_ROLE_UNKNOWN
