@@ -6,6 +6,10 @@ It is not broker memory, broker risk, payment history, or dispatch policy.
 
 
 BROKER_TEMPLATE_CONTRACT_VERSION = "broker_template_contract_v1"
+TEMPLATE_SOURCE_PUBLIC_FIXTURE = "public_fixture"
+TEMPLATE_SOURCE_PUBLIC_GENERIC = "public_generic"
+TEMPLATE_SOURCE_PRIVATE_LOCAL = "private_local"
+TEMPLATE_SOURCE_PRIVATE_LOCAL_DRAFT = "private_local_draft"
 
 
 def _text(value):
@@ -122,6 +126,7 @@ def build_reference_type_rule(source=None):
 
 def build_broker_template(source=None):
     source = source or {}
+    template_source = _text(source.get("source", TEMPLATE_SOURCE_PUBLIC_FIXTURE))
     version = build_broker_template_version(
         template_id=source.get("template_id", ""),
         broker_key=source.get("broker_key", ""),
@@ -157,6 +162,9 @@ def build_broker_template(source=None):
         ),
         "warnings": _normalize_list(source.get("warnings", [])),
         "created_for_testing": bool(source.get("created_for_testing", False)),
+        "source": template_source,
+        "is_private_local": bool(source.get("is_private_local", False))
+        or template_source in [TEMPLATE_SOURCE_PRIVATE_LOCAL, TEMPLATE_SOURCE_PRIVATE_LOCAL_DRAFT],
         "contract_version": _text(
             source.get("contract_version", BROKER_TEMPLATE_CONTRACT_VERSION)
             or BROKER_TEMPLATE_CONTRACT_VERSION

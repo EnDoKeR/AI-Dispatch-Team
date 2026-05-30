@@ -9,6 +9,10 @@ from app.document_ai.broker_template_registry import (
     load_broker_template,
     load_broker_templates_from_directory,
 )
+from app.document_ai.broker_templates import (
+    TEMPLATE_SOURCE_PRIVATE_LOCAL,
+    TEMPLATE_SOURCE_PUBLIC_FIXTURE,
+)
 from tests.fixtures.document_ai.broker_templates.fixture_loader import (
     FIXTURE_DIR,
     load_template_fixture,
@@ -21,6 +25,7 @@ class BrokerTemplateRegistryTests(unittest.TestCase):
 
         self.assertEqual(template["template_id"], "alpha_freight_mock_v1")
         self.assertTrue(template["created_for_testing"])
+        self.assertEqual(template["source"], TEMPLATE_SOURCE_PUBLIC_FIXTURE)
 
     def test_load_all_fake_templates_from_directory(self):
         templates = load_broker_templates_from_directory(FIXTURE_DIR)
@@ -66,6 +71,77 @@ class BrokerTemplateRegistryTests(unittest.TestCase):
 
         with self.assertRaises(TemplateRegistryError):
             BrokerTemplateRegistry([template, template])
+
+    def test_missing_private_overlay_directory_is_okay(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            missing = Path(temp_dir) / "missing-private-overlay"
+
+            registry = BrokerTemplateRegistry.from_directories(
+                [FIXTURE_DIR],
+                private_dirs=[missing],
+            )
+
+        self.assertGreaterEqual(len(registry), 4)
+
+    def test_private_overlay_template_source_is_preserved(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            overlay_dir = Path(temp_dir)
+            private_template = dict(load_template_fixture("alpha_freight_mock_v1.json"))
+            private_template["template_id"] = "private_overlay_template_v1"
+            private_template["broker_key"] = "private_overlay_template"
+            private_template["display_name"] = "PRIVATE OVERLAY TEMPLATE"
+            private_template["created_for_testing"] = True
+            (overlay_dir / "private_overlay_template_v1.json").write_text(
+                json.dumps(private_template),
+                encoding="utf-8",
+            )
+
+            registry = BrokerTemplateRegistry.from_directories(
+                [FIXTURE_DIR],
+                private_dirs=[overlay_dir],
+            )
+
+        template = registry.get_template("private_overlay_template_v1")
+        self.assertEqual(template["source"], TEMPLATE_SOURCE_PRIVATE_LOCAL)
+        self.assertTrue(template["is_private_local"])
+
+    def test_private_overlay_duplicate_template_id_fails_without_override(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            overlay_dir = Path(temp_dir)
+            private_template = dict(load_template_fixture("alpha_freight_mock_v1.json"))
+            private_template["created_for_testing"] = True
+            (overlay_dir / "alpha_freight_mock_v1.json").write_text(
+                json.dumps(private_template),
+                encoding="utf-8",
+            )
+
+            with self.assertRaises(TemplateRegistryError):
+                BrokerTemplateRegistry.from_directories(
+                    [FIXTURE_DIR],
+                    private_dirs=[overlay_dir],
+                )
+
+    def test_private_overlay_duplicate_template_id_can_override_when_explicit(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            overlay_dir = Path(temp_dir)
+            private_template = dict(load_template_fixture("alpha_freight_mock_v1.json"))
+            private_template["display_name"] = "PRIVATE OVERRIDE TEMPLATE"
+            private_template["created_for_testing"] = True
+            (overlay_dir / "alpha_freight_mock_v1.json").write_text(
+                json.dumps(private_template),
+                encoding="utf-8",
+            )
+
+            registry = BrokerTemplateRegistry.from_directories(
+                [FIXTURE_DIR],
+                private_dirs=[overlay_dir],
+                allow_private_override=True,
+            )
+
+        template = registry.get_template("alpha_freight_mock_v1")
+        self.assertEqual(template["source"], TEMPLATE_SOURCE_PRIVATE_LOCAL)
+        self.assertTrue(template["is_private_local"])
+        self.assertEqual(template["display_name"], "PRIVATE OVERRIDE TEMPLATE")
 
 
 if __name__ == "__main__":
