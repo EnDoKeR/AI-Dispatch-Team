@@ -22,6 +22,7 @@ from app.document_ai.extraction_scope import (
     select_pages_for_stop_candidates,
     should_skip_ratecon_extraction,
 )
+from app.document_ai.layout_pipeline import extract_layout_candidates_from_pdf
 from app.document_ai.pdf_triage import triage_pdf
 from app.document_ai.pdf_triage_contract import (
     DIGITAL_TEXT,
@@ -68,6 +69,10 @@ from app.market_intelligence.intake.rate_confirmation_validation import (
 
 
 PRIVATE_RATECON_MEASUREMENT_PIPELINE_VERSION = "private_ratecon_measurement_pipeline_v1"
+
+LAYOUT_STATUS_SKIPPED_NON_DIGITAL = "skipped_non_digital"
+LAYOUT_STATUS_SKIPPED_NOT_RELEVANT = "skipped_not_extraction_relevant"
+LAYOUT_STATUS_SKIPPED_NOT_NORMAL_LOAD = "skipped_not_normal_load_movement"
 
 CRITICAL_MEASUREMENT_FIELDS = (
     "broker_name",
@@ -164,6 +169,35 @@ def _candidate_counts(candidates):
         if field_name:
             counts[field_name] = counts.get(field_name, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _evidence_type_counts(candidates):
+    counts = {}
+    for candidate in candidates or []:
+        evidence_ref = candidate.get("layout_evidence_ref", {})
+        evidence_type = ""
+        if isinstance(evidence_ref, dict):
+            evidence_type = str(evidence_ref.get("evidence_type") or "").strip()
+        if evidence_type:
+            counts[evidence_type] = counts.get(evidence_type, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def _candidate_count_deltas(text_counts, layout_counts):
+    fields = sorted(set((text_counts or {}).keys()).union((layout_counts or {}).keys()))
+    improved = []
+    worsened = []
+    unchanged = []
+    for field_name in fields:
+        text_count = int((text_counts or {}).get(field_name, 0) or 0)
+        layout_count = int((layout_counts or {}).get(field_name, 0) or 0)
+        if layout_count > text_count:
+            improved.append(field_name)
+        elif layout_count < text_count:
+            worsened.append(field_name)
+        else:
+            unchanged.append(field_name)
+    return improved, worsened, unchanged
 
 
 def _confidence_bucket(value):
@@ -346,6 +380,7 @@ def _base_triage_row(document_alias, triage_result, extraction_status, warnings=
         has_text_layer=triage_result.get("has_text_layer", False),
         likely_image_based=triage_result.get("likely_image_based", False),
         template_status="unknown",
+        layout_provider_status="",
         warning_codes=warnings or triage_result.get("warnings", []),
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", ""),
@@ -359,11 +394,93 @@ def _base_triage_row(document_alias, triage_result, extraction_status, warnings=
     )
 
 
+def _layout_measurement_fields(
+    pdf_path,
+    document_alias,
+    route,
+    classification_fields,
+    classification_result,
+    text_candidate_counts,
+    layout_provider_name="",
+    enable_layout_candidates=False,
+    compare_layout_to_text_baseline=False,
+):
+    if not enable_layout_candidates:
+        return {
+            "layout_provider_status": "",
+            "layout_candidate_counts_by_field": {},
+            "layout_evidence_type_counts": {},
+            "layout_improved_fields": [],
+            "layout_worsened_fields": [],
+            "layout_unchanged_fields": [],
+            "layout_warning_codes": [],
+        }
+
+    if route != DIGITAL_TEXT:
+        return {
+            "layout_provider_status": LAYOUT_STATUS_SKIPPED_NON_DIGITAL,
+            "layout_candidate_counts_by_field": {},
+            "layout_evidence_type_counts": {},
+            "layout_improved_fields": [],
+            "layout_worsened_fields": [],
+            "layout_unchanged_fields": [],
+            "layout_warning_codes": ["layout_provider_skipped_non_digital"],
+        }
+
+    if not classification_fields.get("extraction_relevant"):
+        return {
+            "layout_provider_status": LAYOUT_STATUS_SKIPPED_NOT_RELEVANT,
+            "layout_candidate_counts_by_field": {},
+            "layout_evidence_type_counts": {},
+            "layout_improved_fields": [],
+            "layout_worsened_fields": [],
+            "layout_unchanged_fields": [],
+            "layout_warning_codes": ["layout_provider_skipped_not_extraction_relevant"],
+        }
+
+    if not classification_fields.get("normal_load_movement"):
+        return {
+            "layout_provider_status": LAYOUT_STATUS_SKIPPED_NOT_NORMAL_LOAD,
+            "layout_candidate_counts_by_field": {},
+            "layout_evidence_type_counts": {},
+            "layout_improved_fields": [],
+            "layout_worsened_fields": [],
+            "layout_unchanged_fields": [],
+            "layout_warning_codes": ["layout_provider_skipped_not_normal_load_movement"],
+        }
+
+    layout_result = extract_layout_candidates_from_pdf(
+        pdf_path,
+        provider_name=layout_provider_name,
+        classification_result=classification_result,
+        document_id=document_alias,
+    )
+    candidate_result = layout_result.get("candidate_result") or {}
+    layout_candidates = candidate_result.get("candidates", [])
+    layout_counts = layout_result.get("candidate_counts_by_field", {})
+    improved, worsened, unchanged = ([], [], [])
+    if compare_layout_to_text_baseline:
+        improved, worsened, unchanged = _candidate_count_deltas(text_candidate_counts, layout_counts)
+
+    return {
+        "layout_provider_status": layout_result.get("provider_status", ""),
+        "layout_candidate_counts_by_field": layout_counts,
+        "layout_evidence_type_counts": _evidence_type_counts(layout_candidates),
+        "layout_improved_fields": improved,
+        "layout_worsened_fields": worsened,
+        "layout_unchanged_fields": unchanged,
+        "layout_warning_codes": layout_result.get("warning_codes", []),
+    }
+
+
 def measure_private_ratecon_pdf(
     pdf_path,
     document_alias,
     registry_or_templates=None,
     output_policy=None,
+    layout_provider_name="",
+    enable_layout_candidates=False,
+    compare_layout_to_text_baseline=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -373,11 +490,14 @@ def measure_private_ratecon_pdf(
     triage_result = triage_pdf(pdf_path, document_id=document_alias)
     route = triage_result.get("recommended_route", "")
     if route == UNSUPPORTED or triage_result.get("broken"):
-        return _base_triage_row(
+        row = _base_triage_row(
             document_alias,
             triage_result,
             EXTRACTION_STATUS_BROKEN_OR_UNSUPPORTED,
         )
+        if enable_layout_candidates:
+            row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
+        return row
 
     extraction = _extract_text_in_memory(pdf_path)
     combined_warnings = sorted(
@@ -386,12 +506,15 @@ def measure_private_ratecon_pdf(
     extraction_status = extraction.get("extraction_status", EXTRACTION_STATUS_TRIAGE_ONLY)
 
     if extraction_status != EXTRACTION_STATUS_TEXT_EXTRACTED:
-        return _base_triage_row(
+        row = _base_triage_row(
             document_alias,
             triage_result,
             extraction_status,
             warnings=combined_warnings,
         )
+        if enable_layout_candidates:
+            row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
+        return row
 
     text = extraction.get("text", "")
     artifact = build_text_extraction_artifact_for_candidates(
@@ -438,6 +561,9 @@ def measure_private_ratecon_pdf(
             non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
             skipped_fields=_non_applicable_fields_for_classification(classification_result),
             skipped_by_scope=True,
+            layout_provider_status=(
+                LAYOUT_STATUS_SKIPPED_NOT_RELEVANT if enable_layout_candidates else ""
+            ),
             warning_codes=all_warnings,
             blocker_categories=classify_private_ratecon_measurement_blockers(
                 triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
@@ -462,6 +588,17 @@ def measure_private_ratecon_pdf(
     )
     candidate_result = template_result.get("adjusted_candidate_result", {})
     candidate_counts = _candidate_counts(candidate_result.get("candidates", []))
+    layout_fields = _layout_measurement_fields(
+        pdf_path=pdf_path,
+        document_alias=document_alias,
+        route=triage_result.get("recommended_route", DIGITAL_TEXT),
+        classification_fields=classification_fields,
+        classification_result=classification_result,
+        text_candidate_counts=candidate_counts,
+        layout_provider_name=layout_provider_name,
+        enable_layout_candidates=enable_layout_candidates,
+        compare_layout_to_text_baseline=compare_layout_to_text_baseline,
+    )
     resolution_result = resolve_ratecon_fields_with_template_context(template_result)
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
@@ -486,12 +623,13 @@ def measure_private_ratecon_pdf(
         resolution_result.get("conflict_fields", []),
     )
     all_warnings = sorted(
-            set(
-                combined_warnings
-                + classification_result.get("warning_codes", [])
-                + scope_warnings
-                + template_result.get("warnings", [])
+        set(
+            combined_warnings
+            + classification_result.get("warning_codes", [])
+            + scope_warnings
+            + template_result.get("warnings", [])
             + candidate_result.get("warnings", [])
+            + layout_fields.get("layout_warning_codes", [])
             + resolution_result.get("warnings", [])
             + validation.get("warnings", [])
         )
@@ -529,6 +667,12 @@ def measure_private_ratecon_pdf(
         non_applicable_fields=_non_applicable_fields_for_classification(classification_result),
         skipped_fields=[],
         skipped_by_scope=False,
+        layout_provider_status=layout_fields.get("layout_provider_status", ""),
+        layout_candidate_counts_by_field=layout_fields.get("layout_candidate_counts_by_field", {}),
+        layout_evidence_type_counts=layout_fields.get("layout_evidence_type_counts", {}),
+        layout_improved_fields=layout_fields.get("layout_improved_fields", []),
+        layout_worsened_fields=layout_fields.get("layout_worsened_fields", []),
+        layout_unchanged_fields=layout_fields.get("layout_unchanged_fields", []),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

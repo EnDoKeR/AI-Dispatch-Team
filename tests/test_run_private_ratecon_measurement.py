@@ -124,6 +124,63 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
         self.assertNotIn("FAKE BROKER LLC", output)
 
+    def test_cli_enable_layout_requires_provider(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--enable-layout-candidates",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --layout-provider pdfplumber", stderr.getvalue())
+
+    def test_cli_refuses_unknown_layout_provider(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--layout-provider",
+                    "unknown",
+                    "--enable-layout-candidates",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("unknown layout provider", stderr.getvalue())
+
+    def test_report_includes_safe_layout_status_counts_when_enabled(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+
+        report = build_private_ratecon_measurement_report(
+            root,
+            limit=1,
+            layout_provider_name="pdfplumber",
+            enable_layout_candidates=True,
+            compare_layout_to_text_baseline=True,
+        )
+        output = "\n".join(format_private_measurement_report(report))
+
+        self.assertIn("layout_provider_status_counts", output)
+        self.assertIn("layout_candidate_counts_by_field", output)
+        self.assertIn("layout_evidence_type_counts", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
+        self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
+
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

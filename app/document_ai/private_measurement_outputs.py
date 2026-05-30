@@ -40,6 +40,12 @@ SAFE_CSV_COLUMNS = [
     "conflict_fields",
     "non_applicable_fields",
     "skipped_fields",
+    "layout_provider_status",
+    "layout_candidate_counts_summary",
+    "layout_evidence_type_counts_summary",
+    "layout_improved_fields",
+    "layout_worsened_fields",
+    "layout_unchanged_fields",
     "blocker_categories",
     "candidate_counts_summary",
     "warning_codes",
@@ -111,6 +117,16 @@ def _safe_csv_row(row):
         "conflict_fields": _join(row.get("conflict_fields", [])),
         "non_applicable_fields": _join(row.get("non_applicable_fields", [])),
         "skipped_fields": _join(row.get("skipped_fields", [])),
+        "layout_provider_status": row.get("layout_provider_status", ""),
+        "layout_candidate_counts_summary": _candidate_counts_summary(
+            row.get("layout_candidate_counts_by_field", {})
+        ),
+        "layout_evidence_type_counts_summary": _candidate_counts_summary(
+            row.get("layout_evidence_type_counts", {})
+        ),
+        "layout_improved_fields": _join(row.get("layout_improved_fields", [])),
+        "layout_worsened_fields": _join(row.get("layout_worsened_fields", [])),
+        "layout_unchanged_fields": _join(row.get("layout_unchanged_fields", [])),
         "blocker_categories": _join(row.get("blocker_categories", [])),
         "candidate_counts_summary": _candidate_counts_summary(
             row.get("candidate_counts_by_field", {})
@@ -205,6 +221,11 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
         f"- page_role_counts: {aggregate.get('page_role_counts', {})}",
         f"- section_role_counts: {aggregate.get('section_role_counts', {})}",
         f"- extraction_scope_counts: {aggregate.get('extraction_scope_counts', {})}",
+        f"- layout_provider_status_counts: {aggregate.get('layout_provider_status_counts', {})}",
+        f"- layout_attempted_count: {aggregate.get('layout_attempted_count', 0)}",
+        f"- layout_success_count: {aggregate.get('layout_success_count', 0)}",
+        f"- layout_skipped_count: {aggregate.get('layout_skipped_count', 0)}",
+        f"- layout_failed_count: {aggregate.get('layout_failed_count', 0)}",
         f"- blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"- critical_field_missing_counts: {aggregate.get('critical_field_missing_counts', {})}",
         f"- eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",

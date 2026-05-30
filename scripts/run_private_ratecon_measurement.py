@@ -9,6 +9,7 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry, TemplateRegistryError
+from app.document_ai.layout_provider import get_available_layout_providers
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -61,6 +62,11 @@ def _print_expected_error(reason):
     )
 
 
+def _print_expected_config_error(reason):
+    print("Private RateCon measurement could not start.", file=sys.stderr)
+    print(f"Reason: {reason}.", file=sys.stderr)
+
+
 def _load_registry(
     template_dir,
     private_template_dir=None,
@@ -96,6 +102,9 @@ def build_private_ratecon_measurement_report(
     alias_prefix="RATECON",
     limit=0,
     output_policy=None,
+    layout_provider_name="",
+    enable_layout_candidates=False,
+    compare_layout_to_text_baseline=False,
 ):
     pdfs = discover_private_pdfs(input_dir)
     if limit and int(limit) > 0:
@@ -109,7 +118,15 @@ def build_private_ratecon_measurement_report(
     )
     policy = output_policy or build_safe_measurement_output_policy()
     rows = [
-        measure_private_ratecon_pdf(path, aliases[path], registry, output_policy=policy)
+        measure_private_ratecon_pdf(
+            path,
+            aliases[path],
+            registry,
+            output_policy=policy,
+            layout_provider_name=layout_provider_name,
+            enable_layout_candidates=enable_layout_candidates,
+            compare_layout_to_text_baseline=compare_layout_to_text_baseline,
+        )
         for path in pdfs
     ]
     aggregate = build_private_ratecon_measurement_aggregate(rows)
@@ -148,6 +165,11 @@ def format_private_measurement_report(report):
         f"page_role_counts: {aggregate.get('page_role_counts', {})}",
         f"section_role_counts: {aggregate.get('section_role_counts', {})}",
         f"extraction_scope_counts: {aggregate.get('extraction_scope_counts', {})}",
+        f"layout_provider_status_counts: {aggregate.get('layout_provider_status_counts', {})}",
+        f"layout_attempted_count: {aggregate.get('layout_attempted_count', 0)}",
+        f"layout_success_count: {aggregate.get('layout_success_count', 0)}",
+        f"layout_skipped_count: {aggregate.get('layout_skipped_count', 0)}",
+        f"layout_failed_count: {aggregate.get('layout_failed_count', 0)}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
         f"normal_load_critical_field_missing_counts: {aggregate.get('normal_load_critical_field_missing_counts', {})}",
@@ -187,6 +209,12 @@ def format_private_measurement_report(report):
                 f"  conflict_fields: {row.get('conflict_fields', [])}",
                 f"  non_applicable_fields: {row.get('non_applicable_fields', [])}",
                 f"  skipped_fields: {row.get('skipped_fields', [])}",
+                f"  layout_provider_status: {row.get('layout_provider_status', '')}",
+                f"  layout_candidate_counts_by_field: {row.get('layout_candidate_counts_by_field', {})}",
+                f"  layout_evidence_type_counts: {row.get('layout_evidence_type_counts', {})}",
+                f"  layout_improved_fields: {row.get('layout_improved_fields', [])}",
+                f"  layout_worsened_fields: {row.get('layout_worsened_fields', [])}",
+                f"  layout_unchanged_fields: {row.get('layout_unchanged_fields', [])}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]
@@ -230,6 +258,9 @@ def main(argv=None):
     parser.add_argument("--private-template-dir", default="")
     parser.add_argument("--allow-private-template-overlay", action="store_true")
     parser.add_argument("--redact-private-template-names", action="store_true", default=True)
+    parser.add_argument("--layout-provider", default="")
+    parser.add_argument("--enable-layout-candidates", action="store_true")
+    parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -238,6 +269,18 @@ def main(argv=None):
 
     if not args.confirm_private_local_run:
         print("Refusing to run: pass --confirm-private-local-run for local private measurement.")
+        return 2
+
+    if args.enable_layout_candidates and not args.layout_provider:
+        _print_expected_config_error(
+            "--enable-layout-candidates requires --layout-provider pdfplumber"
+        )
+        return 2
+
+    if args.layout_provider and args.layout_provider not in get_available_layout_providers():
+        _print_expected_config_error(
+            f"unknown layout provider {args.layout_provider!r}"
+        )
         return 2
 
     try:
@@ -255,6 +298,9 @@ def main(argv=None):
             alias_prefix=args.alias_prefix,
             limit=args.limit,
             output_policy=policy,
+            layout_provider_name=args.layout_provider,
+            enable_layout_candidates=args.enable_layout_candidates,
+            compare_layout_to_text_baseline=args.compare_layout_to_text_baseline,
         )
 
         for line in format_private_measurement_report(report):

@@ -168,6 +168,27 @@ def _normal_load_movement_rows(rows):
     ]
 
 
+def _layout_status_counts(rows):
+    return _count_by_key(
+        [
+            row
+            for row in rows
+            if str(row.get("layout_provider_status") or "").strip()
+        ],
+        "layout_provider_status",
+    )
+
+
+def _layout_attempted_count(rows):
+    skipped_prefix = "skipped"
+    return sum(
+        1
+        for row in rows
+        if str(row.get("layout_provider_status") or "").strip()
+        and not str(row.get("layout_provider_status") or "").startswith(skipped_prefix)
+    )
+
+
 def build_private_ratecon_measurement_aggregate(rows):
     safe_rows = [
         row
@@ -179,6 +200,7 @@ def build_private_ratecon_measurement_aggregate(rows):
     eligible_rows = _eligible_rows(safe_rows)
     extraction_relevant_rows = _extraction_relevant_rows(safe_rows)
     normal_load_rows = _normal_load_movement_rows(safe_rows)
+    layout_provider_status_counts = _layout_status_counts(safe_rows)
 
     return build_aggregate_contract(
         document_count=len(safe_rows),
@@ -223,6 +245,25 @@ def build_private_ratecon_measurement_aggregate(rows):
         page_role_counts=_sum_mapping_values(safe_rows, "page_role_counts"),
         section_role_counts=_sum_mapping_values(safe_rows, "section_role_counts"),
         extraction_scope_counts=_sum_mapping_values(safe_rows, "extraction_scope_counts"),
+        layout_provider_status_counts=layout_provider_status_counts,
+        layout_attempted_count=_layout_attempted_count(safe_rows),
+        layout_success_count=layout_provider_status_counts.get("success", 0),
+        layout_skipped_count=sum(
+            count
+            for status, count in layout_provider_status_counts.items()
+            if str(status).startswith("skipped")
+        ),
+        layout_failed_count=sum(
+            count
+            for status, count in layout_provider_status_counts.items()
+            if status
+            not in {
+                "success",
+                "skipped_non_digital",
+                "skipped_not_extraction_relevant",
+                "skipped_not_normal_load_movement",
+            }
+        ),
         eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
         eligible_critical_field_denominator=len(eligible_rows),
         normal_load_critical_field_missing_counts=_critical_missing_counts(normal_load_rows),
