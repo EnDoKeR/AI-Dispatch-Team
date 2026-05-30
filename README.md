@@ -71,6 +71,44 @@ Current active driver examples:
 
 ---
 
+## Start Here For Development
+
+Core architecture docs:
+
+* [Architecture](docs/ARCHITECTURE.md)
+* [Flow](docs/FLOW.md)
+* [Development Rulebook](docs/DEVELOPMENT_RULEBOOK.md)
+* [Domain Contracts](docs/DOMAIN_CONTRACTS.md)
+* [RateCon Extraction Strategy](docs/RATECON_EXTRACTION_STRATEGY.md)
+* [Testing Roadmap](docs/TESTING_ROADMAP.md)
+* [Event Timeline Contract](docs/EVENT_TIMELINE_CONTRACT.md)
+* [Telegram Output Safety](docs/TELEGRAM_OUTPUT_SAFETY.md)
+* [DecisionEngine Contract](docs/DECISION_ENGINE_CONTRACT.md)
+* [RateCon Core Field Policy](docs/RATECON_CORE_FIELD_POLICY.md)
+* [Roadmap](docs/ROADMAP.md)
+
+Current development order:
+
+1. Foundation architecture/contracts
+2. Decision safety
+3. Intake validation
+4. Event timeline
+5. Document AI scaffolding
+6. RateCon extraction hardening
+7. Simulation/backtesting
+8. Future live DAT/API integration
+
+Do not do yet:
+
+* no live DAT/API integration
+* no autonomous booking
+* no private raw PDF text commits
+* no external paid OCR/Vision by default
+* no Telegram business logic
+* no low-confidence DispatchCase automation
+
+---
+
 ## Main Capabilities
 
 ### 1. Market Snapshot
