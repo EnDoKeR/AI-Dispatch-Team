@@ -13,6 +13,12 @@ SCRIPT_PATH = Path("scripts/export_ratecon_dry_run_csv.py")
 
 
 class RateConDryRunCsvExportCliTests(unittest.TestCase):
+    def test_cli_default_limit_is_batch_three(self):
+        parser = export_cli.build_parser()
+        args = parser.parse_args([])
+
+        self.assertEqual(args.limit, 3)
+
     def test_cli_sample_mode_writes_csv_and_warning(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "sample.csv"

@@ -14,11 +14,12 @@ from app.market_intelligence.intake.ratecon_dry_run_csv_export import (  # noqa:
     export_ratecon_dry_run_csv,
 )
 from scripts.run_private_ratecon_pdf_dry_run import (  # noqa: E402
-    DEFAULT_LIMIT,
     DEFAULT_PRIVATE_RATECON_DIR,
     build_private_pdf_dry_run_report,
 )
 
+
+DEFAULT_EXPORT_LIMIT = 3
 
 DRY_RUN_WARNING = (
     "DRY RUN ONLY - safe RateCon dry-run CSV export, no raw text saved, no Google Sheets API used"
@@ -67,7 +68,7 @@ def build_parser():
     parser.add_argument(
         "--limit",
         type=int,
-        default=DEFAULT_LIMIT,
+        default=DEFAULT_EXPORT_LIMIT,
         help="Maximum number of private PDFs to summarize.",
     )
     parser.add_argument(

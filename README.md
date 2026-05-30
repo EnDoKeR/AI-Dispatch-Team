@@ -1139,7 +1139,7 @@ py scripts/run_private_ratecon_pdf_extraction_inventory.py --limit 3
 py scripts/run_private_ratecon_pdf_dry_run.py --limit 1
 py scripts/run_private_ratecon_redacted_diagnostics.py --limit 1
 py scripts/run_private_ratecon_layout_diagnostics.py --limit 1
-py scripts/export_ratecon_dry_run_csv.py
+py scripts/export_ratecon_dry_run_csv.py --limit 3
 py scripts/run_pasted_text_scenarios.py
 py scripts/run_decision_engine_scenarios.py
 py scripts/run_decision_engine_adapter_dry_run.py
