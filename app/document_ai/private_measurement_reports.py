@@ -21,6 +21,50 @@ CRITICAL_MEASUREMENT_FIELDS = (
     "weight",
 )
 
+KNOWN_PRIVATE_RATECON_BASELINE = {
+    "RATECON_001": {
+        "extraction_status": EXTRACTION_STATUS_TEXT_EXTRACTED,
+        "page_count": 2,
+        "char_count": 4636,
+        "missing_fields": [
+            "broker_name",
+            "load_number",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "rate",
+            "weight",
+        ],
+        "needs_check_fields": [],
+        "conflict_fields": [],
+    },
+    "RATECON_002": {
+        "extraction_status": EXTRACTION_STATUS_EMPTY_TEXT,
+        "page_count": 2,
+        "char_count": 0,
+        "missing_fields": [],
+        "needs_check_fields": [],
+        "conflict_fields": [],
+    },
+    "RATECON_003": {
+        "extraction_status": EXTRACTION_STATUS_TEXT_EXTRACTED,
+        "page_count": 3,
+        "char_count": 10694,
+        "missing_fields": [
+            "broker_name",
+            "load_number",
+            "pickup_location",
+            "pickup_date",
+            "delivery_location",
+            "delivery_date",
+            "weight",
+        ],
+        "needs_check_fields": ["rate", "special_requirements"],
+        "conflict_fields": [],
+    },
+}
+
 
 def _count_by_key(rows, key):
     return dict(
@@ -102,10 +146,69 @@ def build_private_ratecon_measurement_aggregate(rows):
     )
 
 
-def compare_private_measurement_to_known_baseline(
-    aggregate,
-    optional_known_baseline=None,
-):
+def _status_score(record):
+    return sum(
+        len(record.get(key, []) or [])
+        for key in ["missing_fields", "needs_check_fields", "conflict_fields"]
+    )
+
+
+def _status_change(current_row, baseline):
+    current_status = current_row.get("extraction_status", "")
+    baseline_status = baseline.get("extraction_status", "")
+
+    if baseline_status == EXTRACTION_STATUS_EMPTY_TEXT:
+        if current_status == EXTRACTION_STATUS_EMPTY_TEXT:
+            return "unchanged"
+        if current_status == EXTRACTION_STATUS_TEXT_EXTRACTED:
+            return "improved"
+        return "unknown"
+
+    current_score = _status_score(current_row)
+    baseline_score = _status_score(baseline)
+
+    if current_score < baseline_score:
+        return "improved"
+    if current_score > baseline_score:
+        return "worsened"
+    return "unchanged"
+
+
+def _compare_rows_to_baseline(rows, baseline):
+    comparisons = []
+    baseline_by_alias = baseline or KNOWN_PRIVATE_RATECON_BASELINE
+
+    for row in rows:
+        alias = str(row.get("document_alias") or "").strip()
+        if alias not in baseline_by_alias:
+            continue
+
+        baseline_record = baseline_by_alias[alias]
+        comparisons.append(
+            {
+                "document_alias": alias,
+                "baseline_matched": True,
+                "extraction_status_before": baseline_record.get("extraction_status", ""),
+                "extraction_status_after": row.get("extraction_status", ""),
+                "field_status_change": _status_change(row, baseline_record),
+                "missing_fields_before_count": len(baseline_record.get("missing_fields", [])),
+                "missing_fields_after_count": len(row.get("missing_fields", [])),
+                "needs_check_fields_before_count": len(baseline_record.get("needs_check_fields", [])),
+                "needs_check_fields_after_count": len(row.get("needs_check_fields", [])),
+                "conflict_fields_before_count": len(baseline_record.get("conflict_fields", [])),
+                "conflict_fields_after_count": len(row.get("conflict_fields", [])),
+                "comparison_uses_private_values": False,
+            }
+        )
+
+    return {
+        "baseline_compared": bool(comparisons),
+        "alias_comparisons": comparisons,
+        "comparison_uses_private_values": False,
+    }
+
+
+def _compare_aggregate_to_baseline(aggregate, optional_known_baseline=None):
     baseline = optional_known_baseline or {}
     baseline_empty_text = int(baseline.get("empty_text_count", 0) or 0)
     baseline_text_extracted = int(baseline.get("text_extracted_count", 0) or 0)
@@ -116,3 +219,13 @@ def compare_private_measurement_to_known_baseline(
         "text_extracted_count_delta": int(aggregate.get("text_extracted_count", 0) or 0) - baseline_text_extracted,
         "comparison_uses_private_values": False,
     }
+
+
+def compare_private_measurement_to_known_baseline(
+    measurement,
+    optional_known_baseline=None,
+):
+    if isinstance(measurement, list):
+        return _compare_rows_to_baseline(measurement, optional_known_baseline)
+
+    return _compare_aggregate_to_baseline(measurement or {}, optional_known_baseline)

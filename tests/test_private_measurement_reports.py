@@ -106,6 +106,50 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         self.assertEqual(comparison["empty_text_count_delta"], 0)
         self.assertFalse(comparison["comparison_uses_private_values"])
 
+    def test_known_baseline_aliases_are_matched(self):
+        comparison = compare_private_measurement_to_known_baseline(self._rows())
+        aliases = {
+            item["document_alias"]
+            for item in comparison["alias_comparisons"]
+        }
+
+        self.assertTrue(comparison["baseline_compared"])
+        self.assertIn("RATECON_001", aliases)
+        self.assertIn("RATECON_002", aliases)
+        self.assertIn("RATECON_003", aliases)
+
+    def test_unknown_aliases_are_ignored(self):
+        row = build_private_ratecon_measurement_row(document_alias="RATECON_999")
+
+        comparison = compare_private_measurement_to_known_baseline([row])
+
+        self.assertFalse(comparison["baseline_compared"])
+        self.assertEqual(comparison["alias_comparisons"], [])
+
+    def test_field_status_improvement_uses_status_counts_only(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            extraction_status=EXTRACTION_STATUS_TEXT_EXTRACTED,
+            missing_fields=["rate"],
+        )
+
+        comparison = compare_private_measurement_to_known_baseline([row])
+
+        self.assertEqual(
+            comparison["alias_comparisons"][0]["field_status_change"],
+            "improved",
+        )
+        self.assertFalse(
+            comparison["alias_comparisons"][0]["comparison_uses_private_values"]
+        )
+
+    def test_baseline_comparison_serializes_without_private_values(self):
+        comparison = compare_private_measurement_to_known_baseline(self._rows())
+        payload = json.dumps(comparison)
+
+        self.assertNotIn("FAKE BROKER LLC", payload)
+        self.assertNotIn("3200.00", payload)
+
 
 if __name__ == "__main__":
     unittest.main()
