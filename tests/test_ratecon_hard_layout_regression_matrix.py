@@ -235,6 +235,8 @@ class RateConHardLayoutRegressionMatrixTests(unittest.TestCase):
 
         self.assertIn("po_number", reference_types)
         self.assertIn("bol_number", reference_types)
+        self.assertIn("pickup_confirmation", reference_types)
+        self.assertIn("delivery_confirmation", reference_types)
         self.assertIn("customer_reference", reference_types)
 
     def test_revised_current_rate_is_selected_when_evidence_is_strong(self):

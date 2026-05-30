@@ -89,10 +89,18 @@ REFERENCE_LABELS = (
     ("po number", FIELD_REFERENCE, "po_number", CANDIDATE_CONFIDENCE_HIGH),
     ("bol #", FIELD_REFERENCE, "bol_number", CANDIDATE_CONFIDENCE_HIGH),
     ("bol number", FIELD_REFERENCE, "bol_number", CANDIDATE_CONFIDENCE_HIGH),
+    ("pickup #", FIELD_REFERENCE, "pickup_number", CANDIDATE_CONFIDENCE_HIGH),
     ("pickup number", FIELD_REFERENCE, "pickup_number", CANDIDATE_CONFIDENCE_HIGH),
+    ("pickup confirmation", FIELD_REFERENCE, "pickup_confirmation", CANDIDATE_CONFIDENCE_HIGH),
+    ("delivery #", FIELD_REFERENCE, "delivery_number", CANDIDATE_CONFIDENCE_HIGH),
     ("delivery number", FIELD_REFERENCE, "delivery_number", CANDIDATE_CONFIDENCE_HIGH),
+    ("delivery confirmation", FIELD_REFERENCE, "delivery_confirmation", CANDIDATE_CONFIDENCE_HIGH),
+    ("customer ref", FIELD_REFERENCE, "customer_reference", CANDIDATE_CONFIDENCE_HIGH),
     ("customer reference", FIELD_REFERENCE, "customer_reference", CANDIDATE_CONFIDENCE_HIGH),
+    ("appointment #", FIELD_REFERENCE, "appointment_number", CANDIDATE_CONFIDENCE_MEDIUM),
     ("appointment number", FIELD_REFERENCE, "appointment_number", CANDIDATE_CONFIDENCE_MEDIUM),
+    ("ref #", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
+    ("reference #", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
     ("reference", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
 )
 

@@ -70,6 +70,21 @@ class RateConIdentityReferenceCandidatesTests(unittest.TestCase):
         self.assertIn("customer_reference", reference_types)
         self.assertIn("appointment_number", reference_types)
 
+    def test_hard_layout_confirmation_references_remain_typed(self):
+        artifact = build_fixture_text_artifact("references_near_wrong_stop_ratecon.txt")
+        candidates = generate_identity_reference_candidates(artifact)
+        reference_types = {
+            candidate["value_type"]
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_REFERENCE
+        }
+
+        self.assertIn("po_number", reference_types)
+        self.assertIn("bol_number", reference_types)
+        self.assertIn("pickup_confirmation", reference_types)
+        self.assertIn("delivery_confirmation", reference_types)
+        self.assertIn("customer_reference", reference_types)
+
     def test_ambiguous_reference_candidate_is_lower_confidence(self):
         artifact = build_text_extraction_artifact_for_candidates(
             full_text="Reference: FAKE-REF-999",
