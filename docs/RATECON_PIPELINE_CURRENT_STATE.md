@@ -373,16 +373,25 @@ Private value-review CSV output is local-only and ignored.
   mapping conflict. The next stop-focused block should inspect stop-span
   evidence/candidate generation and coverage before adding more deterministic
   date/time or mapping heuristics.
+- Candidate coverage target selection is now active for measured hardening.
+  Broker identity and stop-span date candidate generation produced measurable
+  synthetic and safe-private diagnostics; the date fix improved selected date
+  candidate gaps from 8 to 0. The latest load identifier block added typed
+  primary identifiers, typed reference separation, coverage counters, and
+  review workbook columns, but did not improve the private corpus:
+  load-number candidate gap moved 7 -> 8 under the more specific taxonomy and
+  load-number intake blockers moved 7 -> 9. The next load-identifier work
+  should audit missing identifier label features and load-identity section
+  coverage.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after policy-aware blocker cleanup:
+Next safe block after load identifier candidate-generation diagnostics:
 
 ```text
-Audit stop-span evidence/candidate generation and coverage for required
-pickup/delivery date and location fields, or use local human review if the
-review workbook shows those gaps are expected document-specific omissions.
+Audit load-identifier label features and load-identity section coverage for
+documents where no primary load identifier candidate is generated.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

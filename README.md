@@ -98,6 +98,8 @@ Core architecture docs:
 * [Local RateCon Review Analysis](docs/LOCAL_RATECON_REVIEW_ANALYSIS.md)
 * [Core Field Gap Forensics](docs/CORE_FIELD_GAP_FORENSICS.md)
 * [Stop Span Candidate Generation Audit](docs/STOP_SPAN_CANDIDATE_GENERATION_AUDIT.md)
+* [Candidate Coverage Target Selection](docs/CANDIDATE_COVERAGE_TARGET_SELECTION.md)
+* [Load Identifier Candidate Generation](docs/LOAD_IDENTIFIER_CANDIDATE_GENERATION.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -139,9 +141,10 @@ Do not do yet:
   outputs and analysis reports until sync credentials are available
 * no stacking generic RateCon extraction heuristics without candidate coverage
   stage evidence; use `--write-candidate-coverage` and the local analyzer first
-* candidate coverage target selection writes local-only target reports and now
-  routes the next measured target to load identifier candidate generation after
-  the stop-span table-row date fix
+* candidate coverage target selection writes local-only target reports; the
+  load identifier pass added typed primary IDs and typed references, but the
+  private corpus still selects load-identifier label/section coverage as the
+  next measured target
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

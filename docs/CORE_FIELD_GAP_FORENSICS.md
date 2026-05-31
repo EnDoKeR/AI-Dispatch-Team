@@ -153,6 +153,15 @@ intake blockers from 53 to 49. Remaining no-candidate work is now led by
 `load_number`, so the next selected target is
 `load_identifier_candidate_generation`.
 
+The load identifier pass added typed primary identifiers, typed reference
+separation, load-number resolver mapping, load identifier coverage counters,
+and review workbook columns. Safe local result: primary identifier candidates
+3, typed references 11, rejected non-primary references 11, load-number
+candidate gap 7 -> 8 under the more specific taxonomy, and load-number intake
+blockers 7 -> 9. This is cleaner diagnostics rather than private-corpus
+improvement. The next forensics step is missing identifier label and
+load-identity section coverage.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

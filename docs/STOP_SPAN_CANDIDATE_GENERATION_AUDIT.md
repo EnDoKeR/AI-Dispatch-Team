@@ -144,6 +144,14 @@ Second safe before/after signal:
 - true intake blockers: 53 -> 49;
 - next selected target: `load_identifier_candidate_generation`.
 
+The third coverage target implemented typed load identifier candidate
+generation and reporting. It preserved secondary references and added
+load-identifier coverage counters, but the private corpus did not improve:
+load-number candidate gaps moved from 7 to 8 under the more specific taxonomy,
+load-number intake blockers moved from 7 to 9, and the next selector output
+remains `load_identifier_candidate_generation`. Continue coverage-first
+selection; do not return to broad datetime or mapping work from this result.
+
 ## Decision Gate
 
 After coverage analysis, select exactly one candidate generation fix:

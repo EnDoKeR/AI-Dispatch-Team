@@ -180,6 +180,16 @@ reduced that count to zero, improved span date resolved/missing from 8 / 21 to
 10 / 19, and left readiness unchanged. The remaining next target from coverage
 is `load_identifier_candidate_generation`.
 
+The load identifier pass implemented typed primary identifiers and typed
+references, then regenerated local review and coverage outputs. The review
+workbook now includes load identifier status, primary candidate count, typed
+reference count, rejected non-primary reference count, gap reason, and
+needs-review flag. Safe local result: primary identifier candidates 3, typed
+references 11, rejected non-primary references 11, load-number candidate gap
+7 -> 8 under the more specific taxonomy, and load-number intake blockers
+7 -> 9. This means the next useful work is a label/section coverage audit for
+load identity, not another broad identifier regex pass.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

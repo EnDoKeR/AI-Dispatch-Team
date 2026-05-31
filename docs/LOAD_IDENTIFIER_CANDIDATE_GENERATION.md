@@ -128,6 +128,54 @@ Candidate coverage should report safe counts only:
 - core load-number mappings;
 - conflicts or weak generic references that require review.
 
+The local review workbook and field review CSV include load-identifier-specific
+columns:
+
+- load identifier status;
+- primary identifier candidate count;
+- primary identifier candidate type counts;
+- typed reference count;
+- rejected non-primary reference count;
+- load identifier gap reason;
+- load identifier needs-review flag.
+
+## Implemented Behavior
+
+The generic identity/reference candidate generator now creates typed candidates
+for strong primary load labels such as load, order, tender, freight bill, PRO,
+and shipment labels. It preserves PO, BOL, pickup, delivery, appointment,
+customer, carrier, and generic references as typed references instead of
+silently promoting them to `load_number`.
+
+The resolver maps typed primary identifiers into the core load-number field,
+routes multiple conflicting strong primary IDs to review, and keeps weak header
+references review-required unless no stronger identifier exists.
+
+Candidate coverage now tracks identifier label features, primary candidates,
+typed references, rejected non-primary references, and core load-number mapping
+counts.
+
+## Latest Local Result
+
+The private rerun regenerated local review workbook/CSV outputs and candidate
+coverage artifacts. Safe measured result:
+
+- documents measured: 18;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed unchanged: 4;
+- primary identifier candidates observed: 3;
+- typed references observed: 11;
+- rejected non-primary references: 11;
+- load-number candidate gap: 7 -> 8 under the more specific taxonomy;
+- load-number intake blockers: 7 -> 9;
+- total candidate gap count stayed 14;
+- next selected target remains `load_identifier_candidate_generation`.
+
+The implementation improved synthetic coverage and reporting, but it did not
+improve the private corpus. The next useful step is to audit why the relevant
+private documents lack identifier label features or load-identity section
+coverage, not to add broader generic identifier regexes.
+
 The console and committed docs must never include private identifier values,
 raw text, private filenames, local paths, screenshots, service account keys, or
 generated private outputs.

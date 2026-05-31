@@ -33,6 +33,12 @@ candidate.
 - `scope_filtered`: scope rules filtered the field or document.
 - `policy_excluded`: policy correctly excluded optional, review-only, or
   dispatch-only fields from intake-core blockers.
+- `identifier_label_missing`: no load-identity label feature was found for the
+  primary load identifier.
+- `identifier_candidate_not_generated`: identifier label evidence exists, but
+  no primary load identifier candidate was emitted.
+- `only_non_primary_reference_found`: PO/BOL/pickup/delivery/customer/carrier
+  references were found, but none should be promoted to `load_number`.
 
 ## Target Rules
 
@@ -82,5 +88,23 @@ Safe delta after rerun:
 - dispatch-decision blockers: 123 -> 119;
 - readiness unchanged: `extraction_review_ready=14`, `not_ready=4`.
 
-The next selector output is `load_identifier_candidate_generation`, supported by
-seven load-number candidate gaps.
+The third target was `load_identifier_candidate_generation`. The implementation
+added typed load identifier contracts, label helpers, typed candidate
+generation, load-number resolver mapping, load identifier coverage counters, and
+review workbook columns. Synthetic fixtures now cover load/order/tender/PRO/
+freight-bill/shipment labels and non-primary PO/BOL/stop references.
+
+Safe private delta after rerun:
+
+- primary identifier candidates observed: 3;
+- typed references observed: 11;
+- rejected non-primary references: 11;
+- load-number candidate gap: 7 -> 8 under the more specific taxonomy;
+- total candidate gap count stayed 14;
+- load-number intake blockers: 7 -> 9;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- next selected target remains `load_identifier_candidate_generation`.
+
+The load identifier block improved diagnostics, but not the private corpus. The
+next load-identifier pass should audit section/label coverage for missing
+identifier features before adding broader regexes.

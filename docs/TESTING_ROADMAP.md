@@ -268,6 +268,9 @@ Required coverage for candidate generators and resolvers:
 - money/rate candidates, including accessorial amounts that must not become final rate;
 - broker identity and broker MC candidates;
 - typed reference candidates;
+- typed load identifier candidates, including load/order/tender/PRO/freight
+  bill/shipment IDs and PO/BOL/pickup/delivery/customer/carrier references that
+  must not become primary load numbers;
 - pickup/delivery location, date, and time candidates;
 - equipment, commodity, weight, special requirement, and accessorial-term candidates;
 - multiple candidates for one field;
@@ -341,6 +344,10 @@ Required coverage for candidate generators and resolvers:
 - resolver readiness tests for choosing among provider-derived stop groups,
   preserving unresolved/review status when layout evidence is ambiguous, and
   avoiding private values in evaluation output.
+- load identifier coverage tests should prove primary identifier candidates,
+  typed references, rejected non-primary references, core load-number mapping,
+  and weak generic reference review states remain visible without private
+  values.
 
 ## Broker Template Test Rule
 

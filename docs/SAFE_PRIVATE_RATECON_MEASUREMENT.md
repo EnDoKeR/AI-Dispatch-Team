@@ -294,6 +294,23 @@ the focused table-row date fix:
 - OCR-needed unchanged: 4;
 - next selected target: `load_identifier_candidate_generation`.
 
+The load identifier pass added typed identifier contracts, deterministic label
+helpers, typed candidate generation, primary-ID resolver mapping, candidate
+coverage counters, and review workbook columns. Safe local delta after rerun:
+
+- primary identifier candidates observed: 3;
+- typed references observed: 11;
+- rejected non-primary references: 11;
+- load-number candidate gap: 7 -> 8 under the more specific taxonomy;
+- load-number intake blockers: 7 -> 9;
+- total candidate gap count stayed 14;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed unchanged: 4.
+
+The result is diagnostic improvement, not extraction improvement on the private
+corpus. The next load-identifier block should audit missing identifier labels
+and load-identity section coverage before adding broader regexes.
+
 ## Command
 
 Run locally only:

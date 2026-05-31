@@ -117,6 +117,9 @@ locally:
    reference.
 3. Review `Field_Review` for core fields such as broker identity, load number,
    rate, equipment, weight, and commodity.
+   Load identifier rows also expose typed identifier status, primary candidate
+   count, typed reference count, rejected non-primary reference count, gap
+   reason, and needs-review status.
 4. Review `Rate_Review` for main-rate versus payment/terms noise.
 5. Mark `User Correct?` as `yes`, `no`, or `unknown`.
 6. Add `User Issue Type` for incorrect or unknown rows.
@@ -128,12 +131,19 @@ types, and field names. Private workbook values and notes must stay local.
 Candidate coverage can be analyzed locally with:
 
 ```powershell
-py scripts/analyze_candidate_coverage.py --write-md --write-json
+py scripts/analyze_candidate_coverage.py --write-md --write-json --select-next-target
 ```
 
 Use this before selecting another extraction change. It identifies whether a
 field has no candidate, candidates that fail normalization, normalized fields
 that fail core mapping, or a policy/non-applicable reason.
+
+The latest load identifier pass added typed load/order/tender/PRO/freight bill/
+shipment candidates and preserved PO/BOL/pickup/delivery/customer/carrier
+references as non-primary references. Safe private measurement showed cleaner
+diagnostics but no private-corpus improvement: the next target remains
+load-identifier label and section coverage, not broader generic identifier
+regexes.
 
 ## Direct Google Sheets Sync
 
