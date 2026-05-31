@@ -900,6 +900,63 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("FAKE-PO", console_output + json_text + md_text)
         self.assertNotIn(output_dir, console_output)
 
+    def test_cli_writes_load_identifier_source_line_audit_without_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "triage_route": "DIGITAL_TEXT",
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "char_count": 100,
+                    "load_identifier_source_line_metrics": {
+                        "identifier_like_source_line_count": 1,
+                        "scoped_identifier_like_source_line_count": 1,
+                        "label_detected_count": 1,
+                        "label_classified_count": 1,
+                        "typed_candidate_count": 1,
+                        "primary_candidate_count": 1,
+                        "core_mapping_count": 0,
+                        "rejected_non_primary_count": 0,
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-load-identifier-source-line-audit",
+                        ]
+                    )
+            json_text = (
+                Path(output_dir) / "load_identifier_source_line_audit_raw.json"
+            ).read_text(encoding="utf-8")
+            md_text = (
+                Path(output_dir) / "load_identifier_source_line_audit_raw.md"
+            ).read_text(encoding="utf-8")
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("load_identifier_source_line_audit_written", console_output)
+        self.assertIn("load_identifier_source_line_audit_raw.json", console_output)
+        self.assertIn("primary_candidate_not_core_mapped", json_text)
+        self.assertIn("Load Identifier Source-Line Audit", md_text)
+        self.assertNotIn("FAKE-", console_output + json_text + md_text)
+        self.assertNotIn(output_dir, console_output)
+
     def test_cli_writes_local_review_workbook_export_without_printing_values(self):
         fake_report = {
             "rows": [

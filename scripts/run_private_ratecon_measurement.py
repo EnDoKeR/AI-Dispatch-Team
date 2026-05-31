@@ -17,6 +17,10 @@ from app.document_ai.load_identifier_coverage_audit import (
     analyze_load_identifier_coverage_from_rows,
     write_load_identifier_coverage_artifacts,
 )
+from app.document_ai.load_identifier_source_line_audit import (
+    analyze_load_id_source_lines_from_rows,
+    write_load_identifier_source_line_artifacts,
+)
 from app.document_ai.layout_provider import get_available_layout_providers
 from app.document_ai.layout_provider_diagnostics import (
     compare_pdfplumber_table_profiles,
@@ -553,6 +557,7 @@ def main(argv=None):
     parser.add_argument("--write-review-csvs", action="store_true")
     parser.add_argument("--write-candidate-coverage", action="store_true")
     parser.add_argument("--write-load-identifier-audit", action="store_true")
+    parser.add_argument("--write-load-identifier-source-line-audit", action="store_true")
     parser.add_argument("--sync-review-google-sheet", action="store_true")
     parser.add_argument("--confirm-google-review-sync", action="store_true")
     parser.add_argument("--google-config", default="")
@@ -842,6 +847,50 @@ def main(argv=None):
                 ),
             }
             print(f"load_identifier_audit_written: {labels}")
+        if not args.dry_run and args.write_load_identifier_source_line_audit:
+            source_line_analysis = analyze_load_id_source_lines_from_rows(
+                report["rows"],
+            )
+            source_line_audit = write_load_identifier_source_line_artifacts(
+                source_line_analysis,
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+                raw=True,
+            )
+            aggregate = source_line_audit.get("aggregate", {})
+            labels = {
+                "files": _safe_output_file_labels(source_line_audit.get("paths", {})),
+                "document_count": aggregate.get("document_count", 0),
+                "identifier_like_source_line_count": aggregate.get(
+                    "identifier_like_line_count",
+                    0,
+                ),
+                "label_detected_count": aggregate.get("detected_label_count", 0),
+                "label_classified_count": aggregate.get("classified_label_count", 0),
+                "primary_candidate_count": aggregate.get(
+                    "primary_candidate_count",
+                    0,
+                ),
+                "core_mapping_count": aggregate.get("core_mapping_count", 0),
+                "rejected_non_primary_count": aggregate.get(
+                    "rejected_non_primary_count",
+                    0,
+                ),
+                "fix_allowed": aggregate.get("fix_allowed", False),
+                "private_values_printed": source_line_audit.get(
+                    "private_values_printed",
+                    False,
+                ),
+                "raw_text_printed": source_line_audit.get(
+                    "raw_text_printed",
+                    False,
+                ),
+                "line_text_printed": source_line_audit.get(
+                    "line_text_printed",
+                    False,
+                ),
+            }
+            print(f"load_identifier_source_line_audit_written: {labels}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {
