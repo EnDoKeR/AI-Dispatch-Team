@@ -377,13 +377,21 @@ def build_local_review_aggregate(alias_summaries, stop_rows=None, field_rows=Non
     for summary in alias_summaries or []:
         readiness_counts[_token(summary.get("readiness_level")) or "unknown"] += 1
         for category in summary.get("issue_categories", []):
-            issue_counts[category] += 1
             aliases_by_issue[category].append(summary.get("measurement_alias", ""))
+        for category in summary.get("issue_categories", []):
+            if category in {
+                LOCAL_REVIEW_ISSUE_OCR_NEEDED,
+                LOCAL_REVIEW_ISSUE_NOT_READY,
+                LOCAL_REVIEW_ISSUE_INTEGRITY,
+                LOCAL_REVIEW_ISSUE_EXTRA_STOP,
+                LOCAL_REVIEW_ISSUE_AMBIGUOUS_STOP_TYPE,
+            }:
+                issue_counts[category] += 1
 
     for row in field_rows or []:
         field = _token(row.get("Field Name"))
         status = _token(row.get("Status"))
-        if _boolish(row.get("Needs Review")) or status in {
+        if status in {
             "missing",
             "needs_review",
             "review_required",
@@ -391,22 +399,33 @@ def build_local_review_aggregate(alias_summaries, stop_rows=None, field_rows=Non
             "low_confidence",
         }:
             field_issue_counts[field] += 1
+        if field in CORE_FIELD_NAMES:
+            core_issue = _core_issue_for_status(status)
+            if core_issue:
+                issue_counts[core_issue] += 1
+            specific = _field_specific_issue(field, status)
+            if specific:
+                issue_counts[specific] += 1
 
     for row in stop_rows or []:
         field = _token(row.get("Field Name"))
         status = _token(row.get("Status"))
-        if _boolish(row.get("Needs Review")) or status in {
-            "missing",
-            "conflict",
-            "low_confidence",
-        }:
+        if status in {"missing", "conflict", "low_confidence"}:
             stop_issue_counts[field] += 1
+        if field == "date" and status == "missing":
+            issue_counts[LOCAL_REVIEW_ISSUE_MISSING_STOP_DATE] += 1
+        if field in {"time", "appointment_window"} and status == "missing":
+            issue_counts[LOCAL_REVIEW_ISSUE_MISSING_STOP_TIME] += 1
 
     for row in rate_rows or []:
         status = _token(row.get("Status"))
         field = _token(row.get("Rate Field Type")) or "rate"
         if status in {"missing", "conflict", "low_confidence", "needs_review"}:
             rate_issue_counts[field] += 1
+        if status == "missing":
+            issue_counts[LOCAL_REVIEW_ISSUE_RATE_MISSING] += 1
+        if status == "conflict":
+            issue_counts[LOCAL_REVIEW_ISSUE_RATE_CONFLICT] += 1
 
     top_issue_categories = [name for name, _count in issue_counts.most_common(10)]
     top_fields_by_review_need = [

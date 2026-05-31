@@ -163,6 +163,7 @@ class LocalReviewAnalysisTests(unittest.TestCase):
         self.assertIn(LOCAL_REVIEW_ISSUE_MISSING_STOP_TIME, aggregate["issue_category_counts"])
         self.assertIn(LOCAL_REVIEW_ISSUE_OCR_NEEDED, aggregate["issue_category_counts"])
         self.assertIn("broker_name", aggregate["field_issue_counts"])
+        self.assertIn("date", aggregate["stop_issue_counts"])
 
     def test_missing_csv_returns_friendly_error(self):
         with tempfile.TemporaryDirectory() as tmp:
