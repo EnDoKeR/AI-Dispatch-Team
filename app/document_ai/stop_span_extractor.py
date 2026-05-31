@@ -133,12 +133,29 @@ NOISE_TEXT_RE = re.compile(
     re.IGNORECASE,
 )
 DATE_RE = re.compile(
-    r"\b(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|"
+    r"\b(?:\d{4}[/-]\d{1,2}[/-]\d{1,2}|"
+    r"\d{1,2}[./-]\d{1,2}(?:[./-]\d{2,4})?|"
     r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
     r"\s+\d{1,2},?\s+\d{2,4})\b",
     re.IGNORECASE,
 )
-TIME_RE = re.compile(r"\b(?:\d{1,2}:\d{2}(?:\s*[-–]\s*\d{1,2}:\d{2})?|fcfs)\b", re.IGNORECASE)
+TIME_RE = re.compile(
+    r"\b(?:\d{1,2}:\d{2}\s*(?:am|pm)?|"
+    r"\d{1,2}\s*(?:am|pm)|"
+    r"(?:[01]?\d|2[0-3])[0-5]\d|"
+    r"fcfs)\b",
+    re.IGNORECASE,
+)
+TIME_WINDOW_LABEL_RE = re.compile(
+    r"\b(fcfs|target window|earliest|latest|shipping|receiving|hours|appt|"
+    r"appointment|window|by)\b|-|\bto\b",
+    re.IGNORECASE,
+)
+NUMERIC_TIME_RE = re.compile(
+    r"\b(?:\d{1,2}:\d{2}\s*(?:am|pm)?|\d{1,2}\s*(?:am|pm)|"
+    r"(?:[01]?\d|2[0-3])[0-5]\d)\b",
+    re.IGNORECASE,
+)
 REFERENCE_RE = re.compile(r"\b(ref|reference|appt|appointment|po|pickup #|delivery #)\b", re.IGNORECASE)
 LOCATION_RE = re.compile(
     r"\b(location|facility|warehouse|shipper|consignee|origin|destination|"
@@ -346,9 +363,29 @@ def classify_anchor_type(line_feature):
 
     explicit_pickup = bool(EXPLICIT_PICKUP_ANCHOR_RE.search(text))
     explicit_delivery = bool(EXPLICIT_DELIVERY_ANCHOR_RE.search(text))
+    date_time_label_only = bool(
+        re.match(
+            r"^\s*(?:(?:pu|pickup|pick[- ]?up|delivery|so)\s+)?"
+            r"(?:date|time|appt|appointment)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+    reference_label_only = bool(
+        re.match(
+            r"^\s*(?:(?:pu|pickup|delivery|so)\s+)?"
+            r"(?:ref|reference|pickup #|delivery #|appt(?:ointment)?\s+ref)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+    if (date_time_label_only or reference_label_only) and LINE_LABEL_STOP not in categories:
+        return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
     if (
         (LINE_LABEL_DATE in categories or LINE_LABEL_TIME in categories)
         and LINE_LABEL_STOP not in categories
+        and not explicit_pickup
+        and not explicit_delivery
         and "location" not in lower_text
     ):
         return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
@@ -657,21 +694,22 @@ def extract_time_candidates_from_span(span, line_features, layout_artifact):
             continue
         text = _line_text(line)
         if TIME_RE.search(text):
-            field_name = (
-                STOP_SPAN_FIELD_APPOINTMENT_WINDOW
-                if re.search(r"fcfs|target window|earliest|latest|[-–]", text, re.IGNORECASE)
-                else STOP_SPAN_FIELD_TIME
-            )
-            candidates.append(
-                _candidate(
-                    span,
-                    field_name,
-                    line,
-                    index,
-                    CANDIDATE_CONFIDENCE_HIGH,
-                    ["time_inside_stop_span"],
+            field_names = [STOP_SPAN_FIELD_TIME]
+            if TIME_WINDOW_LABEL_RE.search(text):
+                field_names.append(STOP_SPAN_FIELD_APPOINTMENT_WINDOW)
+            if re.search(r"\bfcfs\b", text, re.IGNORECASE) and not NUMERIC_TIME_RE.search(text):
+                field_names = [STOP_SPAN_FIELD_APPOINTMENT_WINDOW]
+            for field_name in dict.fromkeys(field_names):
+                candidates.append(
+                    _candidate(
+                        span,
+                        field_name,
+                        line,
+                        index,
+                        CANDIDATE_CONFIDENCE_HIGH,
+                        ["time_inside_stop_span"],
+                    )
                 )
-            )
     return candidates
 
 
