@@ -1,4 +1,4 @@
-"""Safe rate conflict audit contracts.
+"""Safe rate conflict audit contracts and local analyzer.
 
 Rate conflict audit artifacts store aliases, counts, statuses, and categories
 only. They must not store or print money values, private labels, filenames,
@@ -6,7 +6,14 @@ local paths, or raw text.
 """
 
 from collections import Counter, defaultdict
+import json
+from pathlib import Path
 
+from app.document_ai.local_review_analysis import LocalReviewAnalysisError
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
+)
 from app.document_ai.rate_candidate_forensics import (
     RATE_CATEGORY_ACCESSORIAL,
     RATE_CATEGORY_AGREED_AMOUNT,
@@ -563,4 +570,141 @@ def build_rate_conflict_audit_result(records=None, document_count=0):
             normalized_records,
             document_count=document_count,
         ),
+    }
+
+
+def analyze_rate_conflict_audit_from_measurement_rows(measurement_rows):
+    records = []
+    for row in measurement_rows or []:
+        if not isinstance(row, dict):
+            continue
+        row_records = row.get("rate_conflict_audit_records", []) or []
+        records.extend(record for record in row_records if isinstance(record, dict))
+    return build_rate_conflict_audit_result(
+        records,
+        document_count=len(measurement_rows or []),
+    )
+
+
+def _read_json(path, default):
+    try:
+        return json.loads(Path(path).read_text(encoding="utf-8-sig"))
+    except FileNotFoundError:
+        return default
+    except json.JSONDecodeError as exc:
+        raise LocalReviewAnalysisError(f"invalid JSON: {Path(path).name}") from exc
+
+
+def _safe_summary_rows(root):
+    summary = _read_json(Path(root) / "safe_summary.json", default={})
+    rows = summary.get("rows", [])
+    return rows if isinstance(rows, list) else []
+
+
+def analyze_rate_conflict_audit(input_dir=None):
+    root = Path(input_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR)
+    raw_artifact = _read_json(root / RATE_CONFLICT_AUDIT_RAW_JSON, default=None)
+    if isinstance(raw_artifact, dict) and "records" in raw_artifact:
+        return build_rate_conflict_audit_result(
+            raw_artifact.get("records", []),
+            document_count=(raw_artifact.get("aggregate", {}) or {}).get(
+                "document_count",
+                0,
+            ),
+        )
+    analysis_artifact = _read_json(root / RATE_CONFLICT_AUDIT_JSON, default=None)
+    if isinstance(analysis_artifact, dict) and "records" in analysis_artifact:
+        return build_rate_conflict_audit_result(
+            analysis_artifact.get("records", []),
+            document_count=(analysis_artifact.get("aggregate", {}) or {}).get(
+                "document_count",
+                0,
+            ),
+        )
+    if not (root / "safe_summary.json").exists():
+        raise LocalReviewAnalysisError("missing rate conflict audit data")
+    return analyze_rate_conflict_audit_from_measurement_rows(_safe_summary_rows(root))
+
+
+def rate_conflict_audit_markdown_lines(analysis):
+    aggregate = (analysis or {}).get("aggregate", {}) or {}
+    lines = [
+        "# Rate Conflict Audit",
+        "",
+        "Local-only analysis. Safe to share: aliases, counts, statuses, categories, and conflict reasons.",
+        "Do not share money values, raw text, private labels, filenames, local paths, or broker identifiers.",
+        "",
+        f"Documents analyzed: {aggregate.get('document_count', 0)}",
+        f"Fix allowed: {aggregate.get('fix_allowed', False)}",
+        f"Selected root cause: {aggregate.get('selected_root_cause', '')}",
+        f"Recommended next action: {aggregate.get('recommended_next_action', '')}",
+        "",
+        "## Counts",
+        f"- equivalent groups: {aggregate.get('equivalent_group_count', 0)}",
+        f"- different strong totals: {aggregate.get('different_strong_total_count', 0)}",
+        f"- selected rate present: {aggregate.get('selected_rate_present_count', 0)}",
+        f"- core rate mapped: {aggregate.get('core_rate_mapped_count', 0)}",
+        f"- conflicts: {aggregate.get('conflict_count', 0)}",
+        f"- review required: {aggregate.get('review_required_count', 0)}",
+        "",
+        "## Conflict Reasons",
+    ]
+    for reason, count in (aggregate.get("records_by_conflict_reason", {}) or {}).items():
+        lines.append(f"- {reason}: {count}")
+    return lines
+
+
+def write_rate_conflict_audit_json(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(analysis, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "json": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "money_values_printed": False,
+    }
+
+
+def write_rate_conflict_audit_md(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(rate_conflict_audit_markdown_lines(analysis)) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "md": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "money_values_printed": False,
+    }
+
+
+def write_rate_conflict_audit_artifacts(
+    analysis,
+    output_dir=None,
+    allow_custom_output_dir=False,
+    raw=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    json_name = RATE_CONFLICT_AUDIT_RAW_JSON if raw else RATE_CONFLICT_AUDIT_JSON
+    md_name = RATE_CONFLICT_AUDIT_RAW_MD if raw else RATE_CONFLICT_AUDIT_MD
+    json_result = write_rate_conflict_audit_json(analysis, output_root / json_name)
+    md_result = write_rate_conflict_audit_md(analysis, output_root / md_name)
+    return {
+        "files": {
+            "rate_conflict_audit_json": json_result["json"],
+            "rate_conflict_audit_md": md_result["md"],
+        },
+        "aggregate": (analysis or {}).get("aggregate", {}),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "money_values_printed": False,
     }
