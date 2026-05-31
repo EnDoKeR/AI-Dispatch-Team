@@ -474,6 +474,63 @@ def analyze_core_field_gaps(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
     return analyze_core_field_gaps_from_rows(**inputs)
 
 
+def core_field_gap_markdown_lines(analysis):
+    aggregate = (analysis or {}).get("aggregate", {})
+    lines = [
+        "# Core Field Gap Analysis",
+        "",
+        "Local-only analysis. Safe to share: aliases, counts, statuses, field names, and gap reasons.",
+        "Do not share private values, raw text, filenames, local paths, rates, addresses, references, or broker identifiers.",
+        "",
+        f"Documents analyzed: {aggregate.get('document_count', 0)}",
+        f"Recommended next target: {aggregate.get('recommended_next_target', 'local_human_review')}",
+        "",
+        "## Top Core Field Gaps",
+    ]
+    for field_name in aggregate.get("top_core_field_gaps", []) or []:
+        count = aggregate.get("gap_counts_by_field", {}).get(field_name, 0)
+        lines.append(f"- {field_name}: {count}")
+    lines.extend(["", "## Top Conflict Fields"])
+    for field_name in aggregate.get("top_conflict_fields", []) or []:
+        count = aggregate.get("gap_counts_by_field", {}).get(field_name, 0)
+        lines.append(f"- {field_name}: {count}")
+    lines.extend(["", "## Gap Reasons"])
+    for reason, count in (aggregate.get("gap_counts_by_reason", {}) or {}).items():
+        lines.append(f"- {reason}: {count}")
+    lines.extend(["", "## Readiness Blockers"])
+    for level, count in (
+        aggregate.get("blocker_counts_by_readiness_level", {}) or {}
+    ).items():
+        lines.append(f"- {level}: {count}")
+    lines.extend(["", "## Aliases By Top Field"])
+    for field_name in (aggregate.get("top_core_field_gaps", []) or [])[:5]:
+        aliases = aggregate.get("aliases_by_field", {}).get(field_name, [])
+        lines.append(f"- {field_name}: {', '.join(aliases)}")
+    return lines
+
+
+def write_core_field_gap_analysis_json(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(analysis, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return {
+        "json": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def write_core_field_gap_analysis_md(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("\n".join(core_field_gap_markdown_lines(analysis)) + "\n", encoding="utf-8")
+    return {
+        "md": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _sorted_counter(counter):
     return {
         key: count
