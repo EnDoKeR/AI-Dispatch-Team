@@ -16,6 +16,16 @@ from app.document_ai.ratecon_candidates import (
     normalize_confidence,
     normalize_list,
 )
+from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK,
+    STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
+    STOP_GROUP_SOURCE_TYPE_TABLE_ROW,
+    TRIGGER_LABEL_DELIVERY,
+    TRIGGER_LABEL_PICKUP,
+    TRIGGER_LABEL_STOP,
+    TRIGGER_LABEL_UNKNOWN,
+    build_stop_group_provenance,
+)
 
 
 STOP_ASSOCIATION_SOURCE_TABLE_ROW = "table_row"
@@ -136,7 +146,11 @@ def build_stop_group_candidate(
     confidence=0.0,
     reasons=None,
     warning_codes=None,
+    provenance=None,
 ):
+    safe_fields = [
+        candidate for candidate in field_candidates or [] if isinstance(candidate, dict)
+    ]
     return {
         "stop_group_id": _text(stop_group_id),
         "stop_sequence": stop_sequence if stop_sequence not in [None, ""] else "",
@@ -146,12 +160,11 @@ def build_stop_group_candidate(
         "section_role": _text(section_role),
         "table_id": _text(table_id),
         "row_index": row_index if row_index not in [None, ""] else "",
-        "field_candidates": [
-            candidate for candidate in field_candidates or [] if isinstance(candidate, dict)
-        ],
+        "field_candidates": safe_fields,
         "confidence": float(confidence or 0.0),
         "reasons": normalize_list(reasons),
         "warning_codes": normalize_list(warning_codes),
+        "provenance": provenance if isinstance(provenance, dict) else {},
     }
 
 
@@ -176,6 +189,25 @@ def _cell_text(cell):
 
 def _cell_ref(cell):
     return f"r{int((cell or {}).get('row_index', 0))}c{int((cell or {}).get('col_index', 0))}"
+
+
+def _candidate_field_names(field_candidates):
+    return [
+        _text(candidate.get("field_name"))
+        for candidate in field_candidates or []
+        if isinstance(candidate, dict) and _text(candidate.get("field_name"))
+    ]
+
+
+def _trigger_label_for_stop_type(stop_type):
+    normalized = _normalize_stop_type(stop_type)
+    if normalized == STOP_TYPE_PICKUP:
+        return TRIGGER_LABEL_PICKUP
+    if normalized == STOP_TYPE_DELIVERY:
+        return TRIGGER_LABEL_DELIVERY
+    if normalized == STOP_TYPE_STOP:
+        return TRIGGER_LABEL_STOP
+    return TRIGGER_LABEL_UNKNOWN
 
 
 def _rows_by_index(table):
@@ -405,6 +437,21 @@ def build_stop_groups_from_layout_tables(layout_artifact, classification_result=
                         confidence=row_classification["confidence"],
                         reasons=["layout_table_row_preserves_stop_field_association"],
                         warning_codes=group_warnings,
+                        provenance=build_stop_group_provenance(
+                            source_type=STOP_GROUP_SOURCE_TYPE_TABLE_ROW,
+                            source_generator="build_stop_groups_from_layout_tables",
+                            page_number=table.get("page_number", page.get("page_number", "")),
+                            table_id=table_id,
+                            row_index=row_index,
+                            section_role=_text(table.get("section_role")) or "STOP_TABLE",
+                            page_role=",".join(page.get("page_roles", []) or []),
+                            trigger_label_category=_trigger_label_for_stop_type(
+                                row_classification["stop_type"]
+                            ),
+                            candidate_field_names=_candidate_field_names(field_candidates),
+                            grouping_key=f"{table.get('page_number', page.get('page_number', ''))}|{table_id}|{row_index}",
+                            warning_codes=group_warnings,
+                        ),
                     )
                 )
 
@@ -664,6 +711,20 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                     confidence=section_classification["confidence"],
                     reasons=["layout_section_preserves_stop_context"],
                     warning_codes=group_warnings,
+                    provenance=build_stop_group_provenance(
+                        source_type=STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK,
+                        source_generator="build_stop_groups_from_layout_sections",
+                        page_number=page.get("page_number", block.get("page_number", "")),
+                        block_id=stop_group_id,
+                        section_role=section_role,
+                        page_role=",".join(page.get("page_roles", []) or []),
+                        trigger_label_category=_trigger_label_for_stop_type(
+                            section_classification["stop_type"]
+                        ),
+                        candidate_field_names=_candidate_field_names(fields),
+                        grouping_key=f"{page.get('page_number', block.get('page_number', ''))}|{section_role}|{stop_group_id}",
+                        warning_codes=group_warnings,
+                    ),
                 )
             )
 
@@ -718,6 +779,20 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                     confidence=section_classification["confidence"],
                     reasons=["layout_line_preserves_stop_context"],
                     warning_codes=group_warnings,
+                    provenance=build_stop_group_provenance(
+                        source_type=STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
+                        source_generator="build_stop_groups_from_layout_sections",
+                        page_number=page.get("page_number", line.get("page_number", "")),
+                        line_id=line_id,
+                        section_role=_text(line.get("section_role")),
+                        page_role=",".join(page.get("page_roles", []) or []),
+                        trigger_label_category=_trigger_label_for_stop_type(
+                            section_classification["stop_type"]
+                        ),
+                        candidate_field_names=_candidate_field_names(fields),
+                        grouping_key=f"{page.get('page_number', line.get('page_number', ''))}|{_text(line.get('section_role'))}|{line_id}",
+                        warning_codes=group_warnings,
+                    ),
                 )
             )
 

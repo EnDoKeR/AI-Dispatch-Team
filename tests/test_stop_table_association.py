@@ -13,6 +13,7 @@ from app.document_ai.stop_association import (
     classify_stop_row,
     detect_stop_table_columns,
 )
+from app.document_ai.stop_group_provenance import STOP_GROUP_SOURCE_TYPE_TABLE_ROW
 
 
 FIXTURE_DIR = Path("tests/fixtures/document_ai/layout_association")
@@ -50,6 +51,24 @@ class StopTableAssociationTests(unittest.TestCase):
             first_fields,
             {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME, STOP_FIELD_REFERENCE},
         )
+
+    def test_table_row_groups_include_safe_provenance(self):
+        artifact = _load_fixture("fake_layout_table_stop_rows.json")
+
+        result = build_stop_groups_from_layout_tables(artifact)
+        provenance = result["stop_groups"][0]["provenance"]
+
+        self.assertEqual(provenance["source_type"], STOP_GROUP_SOURCE_TYPE_TABLE_ROW)
+        self.assertEqual(
+            provenance["source_generator"],
+            "build_stop_groups_from_layout_tables",
+        )
+        self.assertEqual(provenance["table_id"], "P1_T_STOPS")
+        self.assertEqual(provenance["row_index"], 1)
+        self.assertEqual(provenance["grouping_key"], "1|P1_T_STOPS|1")
+        self.assertIn(STOP_FIELD_LOCATION, provenance["candidate_field_names"])
+        self.assertFalse(provenance["raw_text_included"])
+        self.assertTrue(provenance["private_values_redacted"])
 
     def test_multi_stop_table_rows_are_not_collapsed(self):
         artifact = _load_fixture("fake_layout_multi_stop_order.json")

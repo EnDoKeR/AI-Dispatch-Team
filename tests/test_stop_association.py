@@ -14,6 +14,10 @@ from app.document_ai.stop_association import (
     build_stop_field_candidate,
     build_stop_group_candidate,
 )
+from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_TABLE_ROW,
+    build_stop_group_provenance,
+)
 
 
 class StopAssociationContractTests(unittest.TestCase):
@@ -42,6 +46,34 @@ class StopAssociationContractTests(unittest.TestCase):
         self.assertEqual(group["stop_type"], STOP_TYPE_PICKUP)
         self.assertEqual(group["source"], STOP_ASSOCIATION_SOURCE_TABLE_ROW)
         self.assertEqual(group["field_candidates"][0]["field_name"], STOP_FIELD_LOCATION)
+        self.assertEqual(group["provenance"], {})
+
+    def test_group_candidate_accepts_safe_provenance(self):
+        provenance = build_stop_group_provenance(
+            source_type=STOP_GROUP_SOURCE_TYPE_TABLE_ROW,
+            source_generator="test_builder",
+            page_number=1,
+            table_id="table_1",
+            row_index=1,
+            candidate_field_names=[STOP_FIELD_LOCATION],
+            grouping_key="1|table_1|1",
+        )
+
+        group = build_stop_group_candidate(
+            stop_group_id="stop_001",
+            stop_sequence=1,
+            stop_type=STOP_TYPE_PICKUP,
+            source=STOP_ASSOCIATION_SOURCE_TABLE_ROW,
+            table_id="table_1",
+            row_index=1,
+            field_candidates=[],
+            provenance=provenance,
+        )
+
+        self.assertEqual(group["provenance"]["source_type"], STOP_GROUP_SOURCE_TYPE_TABLE_ROW)
+        self.assertEqual(group["provenance"]["grouping_key"], "1|table_1|1")
+        self.assertFalse(group["provenance"]["raw_text_included"])
+        self.assertTrue(group["provenance"]["private_values_redacted"])
 
     def test_create_delivery_group_from_section_block(self):
         date = build_stop_field_candidate(

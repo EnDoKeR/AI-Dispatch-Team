@@ -13,6 +13,10 @@ from app.document_ai.stop_association import (
     build_stop_groups_from_layout_sections,
     classify_stop_section,
 )
+from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK,
+    STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
+)
 
 
 FIXTURE_DIR = Path("tests/fixtures/document_ai/layout_association")
@@ -37,6 +41,22 @@ class StopSectionAssociationTests(unittest.TestCase):
         ]
         self.assertIn(STOP_FIELD_DATE, field_sets[0])
         self.assertIn(STOP_FIELD_TIME, field_sets[1])
+
+    def test_section_groups_include_safe_provenance(self):
+        artifact = _load_fixture("fake_layout_mcleod_pu_so_continuation.json")
+
+        result = build_stop_groups_from_layout_sections(artifact)
+        provenance = result["stop_groups"][0]["provenance"]
+
+        self.assertEqual(provenance["source_type"], STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK)
+        self.assertEqual(
+            provenance["source_generator"],
+            "build_stop_groups_from_layout_sections",
+        )
+        self.assertEqual(provenance["section_role"], "PICKUP_SECTION")
+        self.assertIn(STOP_FIELD_DATE, provenance["candidate_field_names"])
+        self.assertFalse(provenance["raw_text_included"])
+        self.assertTrue(provenance["private_values_redacted"])
 
     def test_pickup_section_date_time_association(self):
         nearby = associate_nearby_date_time_to_stop("Pickup FAKE ORIGIN 2099-02-01 07:30")
@@ -182,6 +202,31 @@ class StopSectionAssociationTests(unittest.TestCase):
         ]
         self.assertIn(STOP_FIELD_DATE, field_sets[0])
         self.assertIn(STOP_FIELD_TIME, field_sets[1])
+
+    def test_provider_style_line_groups_include_safe_provenance(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "lines": [
+                        {
+                            "line_id": "line_1",
+                            "text_redacted": "PU FAKE ORIGIN <DATE> <TIME>",
+                            "page_number": 1,
+                        }
+                    ],
+                    "blocks": [],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_sections(artifact)
+        provenance = result["stop_groups"][0]["provenance"]
+
+        self.assertEqual(provenance["source_type"], STOP_GROUP_SOURCE_TYPE_SINGLE_LINE)
+        self.assertEqual(provenance["line_id"], "line_1")
+        self.assertEqual(provenance["trigger_label_category"], "pickup")
+        self.assertIn(STOP_FIELD_DATE, provenance["candidate_field_names"])
 
 
 if __name__ == "__main__":
