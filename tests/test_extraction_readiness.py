@@ -81,7 +81,8 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_INTAKE_CORE_READY)
         self.assertTrue(assessment["intake_core_ready"])
         self.assertIn("broker_mc", assessment["review_fields"])
-        self.assertIn("broker_mc", assessment["blocking_fields"])
+        self.assertNotIn("broker_mc", assessment["intake_core_blockers"])
+        self.assertNotIn("broker_mc", assessment["dispatch_decision_blockers"])
 
     def test_equipment_missing_does_not_block_intake_core_by_itself(self):
         row = {
@@ -103,6 +104,9 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_INTAKE_CORE_READY)
         self.assertTrue(assessment["intake_core_ready"])
         self.assertIn("equipment", assessment["review_fields"])
+        self.assertIn("equipment", assessment["optional_missing_fields"])
+        self.assertNotIn("equipment", assessment["intake_core_blockers"])
+        self.assertIn("equipment", assessment["dispatch_decision_blockers"])
 
     def test_weight_and_commodity_missing_remain_visible_for_review(self):
         row = {
@@ -126,6 +130,10 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertFalse(assessment["dispatch_decision_ready"])
         self.assertIn("weight", assessment["review_fields"])
         self.assertIn("commodity", assessment["review_fields"])
+        self.assertIn("weight", assessment["optional_missing_fields"])
+        self.assertIn("commodity", assessment["optional_missing_fields"])
+        self.assertNotIn("weight", assessment["intake_core_blockers"])
+        self.assertNotIn("commodity", assessment["intake_core_blockers"])
 
     def test_rate_missing_blocks_intake_core_ready(self):
         row = {
@@ -149,6 +157,7 @@ class ExtractionReadinessTests(unittest.TestCase):
         )
         self.assertFalse(assessment["intake_core_ready"])
         self.assertIn("rate", assessment["blocking_fields"])
+        self.assertIn("rate", assessment["intake_core_blockers"])
 
     def test_pickup_or_delivery_core_missing_blocks_intake_core_ready(self):
         row = {
@@ -168,6 +177,7 @@ class ExtractionReadinessTests(unittest.TestCase):
 
         self.assertFalse(assessment["intake_core_ready"])
         self.assertIn("pickup_date", assessment["blocking_fields"])
+        self.assertIn("pickup_date", assessment["intake_core_blockers"])
 
     def test_dispatch_decision_ready_is_stricter(self):
         row = {
@@ -214,6 +224,21 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_INTAKE_CORE_READY)
         self.assertIn("pickup_location", assessment["non_applicable_fields"])
         self.assertIn("tonu_stop_fields_not_required_for_core_readiness", assessment["reasons"])
+        self.assertNotIn("pickup_location", assessment["intake_core_blockers"])
+
+    def test_ocr_doc_not_ready_without_digital_missing_core_blockers(self):
+        row = {
+            "document_alias": "RATECON_OCR",
+            "extraction_status": "EMPTY_TEXT",
+            "field_statuses": [_field("rate", "missing")],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_NOT_READY)
+        self.assertFalse(assessment["extraction_review_ready"])
+        self.assertIn("ocr_needed", assessment["extraction_review_blockers"])
+        self.assertEqual(assessment["intake_core_blockers"], [])
 
     def test_serialization(self):
         assessment = build_readiness_assessment(
