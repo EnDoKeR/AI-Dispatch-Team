@@ -880,6 +880,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
+            DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
         ]
 
         for path in fusion_files:
@@ -909,6 +910,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
+            DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
         ]
 
         for path in fusion_files:
@@ -929,6 +931,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_group_provenance.py",
             DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
+            DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
         ]
         forbidden_fragments = [
             "write_text",
@@ -1031,6 +1034,29 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, export_source)
 
+    def test_stop_span_extractor_is_safe_and_dependency_free(self):
+        source = source_text(DOCUMENT_AI_PACKAGE / "stop_span_extractor.py")
+
+        self.assertIn('"raw_text_included": False', source)
+        self.assertIn('"private_values_redacted": True', source)
+        self.assertIn("passthrough_detected", source)
+        self.assertNotIn("print(", source)
+        for forbidden in [
+            "DispatchCase",
+            "DecisionEngine",
+            "telegram",
+            "googleapiclient",
+            "google.oauth",
+            "openai",
+            "camelot",
+            "fitz",
+            "pytesseract",
+            "boto3",
+            "azure",
+        ]:
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, source)
+
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
@@ -1060,6 +1086,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_stop_pipeline_wiring_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "stop_pipeline_wiring"
+        banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+
+        for path in fixture_dir.rglob("*"):
+            if path.is_file():
+                with self.subTest(path=str(path)):
+                    self.assertNotIn(path.suffix.lower(), banned_suffixes)
+
+    def test_stop_span_fixture_directory_contains_no_pdf_or_screenshots(self):
+        fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "stop_spans"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 
         for path in fixture_dir.rglob("*"):
