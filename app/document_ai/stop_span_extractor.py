@@ -5,6 +5,7 @@ path fragments provider evidence into many stop candidates.
 """
 
 import re
+from collections import Counter
 
 from app.document_ai.layout_artifacts import normalize_bbox
 from app.document_ai.normalized_stops import (
@@ -228,6 +229,14 @@ def _normalize_stop_type(value):
 def _normalize_field_name(value):
     token = _token(value)
     return token if token in STOP_SPAN_FIELDS else STOP_SPAN_FIELD_NOTES
+
+
+def _sorted_counts(counter):
+    return {
+        key: count
+        for key, count in sorted(counter.items(), key=lambda item: (-item[1], item[0]))
+        if key
+    }
 
 
 def normalize_line_text_for_features(text):
@@ -898,6 +907,77 @@ def build_normalized_stop_set_from_spans(span_result, classification_result=None
     )
 
 
+def build_stop_span_coverage_metrics(
+    line_features=None,
+    anchors=None,
+    spans=None,
+    field_candidates=None,
+    normalized_stop_set=None,
+    core_field_statuses=None,
+    review_rows_by_field=None,
+):
+    label_counts = Counter()
+    for feature in line_features or []:
+        for label in normalize_list((feature or {}).get("label_categories")):
+            label_counts[_token(label)] += 1
+
+    anchor_counts = Counter(
+        _normalize_anchor_type((anchor or {}).get("anchor_type"))
+        for anchor in anchors or []
+        if isinstance(anchor, dict)
+    )
+    span_counts = Counter(
+        _normalize_stop_type((span or {}).get("stop_type"))
+        for span in spans or []
+        if isinstance(span, dict)
+    )
+    candidate_counts = Counter(
+        _normalize_field_name((candidate or {}).get("field_name"))
+        for candidate in field_candidates or []
+        if isinstance(candidate, dict)
+    )
+    normalized_counts = Counter()
+    normalized_status_counts = {}
+    for stop in (normalized_stop_set or {}).get("stops", []) or []:
+        if not isinstance(stop, dict):
+            continue
+        for field in stop.get("fields", []) or []:
+            if not isinstance(field, dict):
+                continue
+            field_name = _token(field.get("field_name"))
+            status = _token(field.get("status"))
+            if not field_name:
+                continue
+            normalized_status_counts.setdefault(field_name, Counter())[status] += 1
+            if status and status != NORMALIZED_STOP_FIELD_STATUS_MISSING:
+                normalized_counts[field_name] += 1
+
+    core_counts = Counter()
+    for field in core_field_statuses or []:
+        if not isinstance(field, dict):
+            continue
+        field_name = _token(field.get("field_name"))
+        status = _token(field.get("status"))
+        if field_name and status and status != NORMALIZED_STOP_FIELD_STATUS_MISSING:
+            core_counts[field_name] += 1
+
+    return {
+        "line_feature_count_by_label_category": _sorted_counts(label_counts),
+        "anchor_count_by_type": _sorted_counts(anchor_counts),
+        "span_count_by_type": _sorted_counts(span_counts),
+        "span_field_candidate_count_by_field": _sorted_counts(candidate_counts),
+        "normalized_stop_field_count_by_field": _sorted_counts(normalized_counts),
+        "normalized_stop_field_status_count_by_field": {
+            field_name: _sorted_counts(counts)
+            for field_name, counts in sorted(normalized_status_counts.items())
+        },
+        "core_field_mapping_count_by_field": _sorted_counts(core_counts),
+        "review_row_count_by_field": _sorted_counts(Counter(review_rows_by_field or {})),
+        "private_values_included": False,
+        "raw_text_included": False,
+    }
+
+
 def extract_stop_spans_from_layout_artifact(
     layout_artifact,
     classification_result=None,
@@ -928,6 +1008,12 @@ def extract_stop_spans_from_layout_artifact(
         spans=spans,
         field_candidates=field_candidates,
         raw_line_count=len(line_features),
+        coverage_metrics=build_stop_span_coverage_metrics(
+            line_features=line_features,
+            anchors=anchors,
+            spans=spans,
+            field_candidates=field_candidates,
+        ),
     )
 
 
@@ -1027,6 +1113,7 @@ def build_stop_span_extraction_result(
     spans=None,
     field_candidates=None,
     raw_line_count=0,
+    coverage_metrics=None,
     warning_codes=None,
 ):
     safe_anchors = [anchor for anchor in anchors or [] if isinstance(anchor, dict)]
@@ -1048,6 +1135,7 @@ def build_stop_span_extraction_result(
         "anchor_count": len(safe_anchors),
         "span_count": span_count,
         "passthrough_detected": bool(span_count and raw_count and span_count >= raw_count),
+        "coverage_metrics": coverage_metrics if isinstance(coverage_metrics, dict) else {},
         "warning_codes": normalize_list(warning_codes),
         "extractor_version": STOP_SPAN_EXTRACTOR_VERSION,
         "raw_text_included": False,

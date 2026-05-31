@@ -260,6 +260,7 @@ def build_private_ratecon_measurement_row(
     span_passthrough_detected=False,
     stop_span_delta=0,
     span_normalized_stop_set=None,
+    stop_span_coverage_metrics=None,
     warning_codes=None,
     blocker_categories=None,
     intake_status="",
@@ -401,6 +402,11 @@ def build_private_ratecon_measurement_row(
         "span_normalized_stop_set": (
             span_normalized_stop_set
             if isinstance(span_normalized_stop_set, dict)
+            else {}
+        ),
+        "stop_span_coverage_metrics": (
+            stop_span_coverage_metrics
+            if isinstance(stop_span_coverage_metrics, dict)
             else {}
         ),
         "warning_codes": _normalize_list(warning_codes),

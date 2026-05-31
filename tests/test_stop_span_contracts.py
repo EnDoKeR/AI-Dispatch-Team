@@ -2,8 +2,12 @@ import json
 import unittest
 
 from app.document_ai.normalized_stops import (
+    NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
     NORMALIZED_STOP_TYPE_DELIVERY,
     NORMALIZED_STOP_TYPE_PICKUP,
+    build_normalized_stop,
+    build_normalized_stop_field,
+    build_normalized_stop_set,
 )
 from app.document_ai.ratecon_candidates import CANDIDATE_CONFIDENCE_HIGH
 from app.document_ai.stop_span_extractor import (
@@ -13,6 +17,7 @@ from app.document_ai.stop_span_extractor import (
     STOP_SPAN_SOURCE_LAYOUT_LINE,
     STOP_SPAN_ANCHOR_TYPE_PICKUP,
     build_stop_span,
+    build_stop_span_coverage_metrics,
     build_stop_span_anchor,
     build_stop_span_extraction_result,
     build_stop_span_field_candidate,
@@ -101,7 +106,73 @@ class StopSpanContractTests(unittest.TestCase):
         self.assertNotIn("raw_text", result)
         self.assertNotIn("filename", result)
 
+    def test_coverage_metrics_count_features_candidates_and_mappings(self):
+        anchor = build_stop_span_anchor("anchor_001", "pickup", page_number=1)
+        span = build_stop_span(
+            "span_001",
+            anchor=anchor,
+            stop_type=NORMALIZED_STOP_TYPE_PICKUP,
+            line_ids=["line_001"],
+        )
+        candidate = build_stop_span_field_candidate(
+            "span_001",
+            STOP_SPAN_FIELD_DATE,
+            "span_001_date",
+        )
+        stop_set = build_normalized_stop_set(
+            document_alias="RATECON_001",
+            stops=[
+                build_normalized_stop(
+                    stop_id="stop_001",
+                    stop_type=NORMALIZED_STOP_TYPE_PICKUP,
+                    fields=[
+                        build_normalized_stop_field(
+                            field_name=STOP_SPAN_FIELD_DATE,
+                            status=NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+                        )
+                    ],
+                )
+            ],
+        )
+
+        metrics = build_stop_span_coverage_metrics(
+            line_features=[{"label_categories": ["date", "pickup"]}],
+            anchors=[anchor],
+            spans=[span],
+            field_candidates=[candidate],
+            normalized_stop_set=stop_set,
+            core_field_statuses=[
+                {"field_name": "pickup_date", "status": "resolved"}
+            ],
+            review_rows_by_field={"pickup_date": 1},
+        )
+
+        self.assertEqual(metrics["line_feature_count_by_label_category"]["date"], 1)
+        self.assertEqual(metrics["anchor_count_by_type"]["pickup"], 1)
+        self.assertEqual(metrics["span_count_by_type"]["pickup"], 1)
+        self.assertEqual(metrics["span_field_candidate_count_by_field"]["date"], 1)
+        self.assertEqual(metrics["normalized_stop_field_count_by_field"]["date"], 1)
+        self.assertEqual(metrics["core_field_mapping_count_by_field"]["pickup_date"], 1)
+        self.assertEqual(metrics["review_row_count_by_field"]["pickup_date"], 1)
+        self.assertFalse(metrics["private_values_included"])
+        self.assertFalse(metrics["raw_text_included"])
+
+    def test_coverage_metrics_make_missing_later_stage_detectable(self):
+        candidate = build_stop_span_field_candidate(
+            "span_001",
+            STOP_SPAN_FIELD_LOCATION,
+            "span_001_location",
+        )
+
+        metrics = build_stop_span_coverage_metrics(field_candidates=[candidate])
+
+        self.assertEqual(
+            metrics["span_field_candidate_count_by_field"]["location"],
+            1,
+        )
+        self.assertNotIn("location", metrics["normalized_stop_field_count_by_field"])
+        self.assertNotIn("pickup_location", metrics["core_field_mapping_count_by_field"])
+
 
 if __name__ == "__main__":
     unittest.main()
-

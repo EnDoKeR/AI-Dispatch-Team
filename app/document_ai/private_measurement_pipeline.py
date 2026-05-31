@@ -103,6 +103,7 @@ from app.document_ai.stop_span_extractor import (
     STOP_SPAN_FIELD_APPOINTMENT_WINDOW,
     STOP_SPAN_FIELD_DATE,
     STOP_SPAN_FIELD_TIME,
+    build_stop_span_coverage_metrics,
     build_normalized_stop_set_from_spans,
     extract_stop_spans_from_layout_artifact,
 )
@@ -370,6 +371,7 @@ def _default_stop_span_fields(
         "span_passthrough_detected": False,
         "stop_span_delta": 0,
         "span_normalized_stop_set": {},
+        "stop_span_coverage_metrics": {},
         "stop_span_warning_codes": [],
     }
 
@@ -445,6 +447,15 @@ def _stop_span_measurement_fields(
         classification_result=classification_result,
     )
     span_status_counts = _count_span_stop_field_statuses(span_stop_set)
+    coverage_metrics = dict(span_result.get("coverage_metrics", {}) or {})
+    normalized_coverage = build_stop_span_coverage_metrics(
+        normalized_stop_set=span_stop_set,
+    )
+    for key in [
+        "normalized_stop_field_count_by_field",
+        "normalized_stop_field_status_count_by_field",
+    ]:
+        coverage_metrics[key] = normalized_coverage.get(key, {})
     span_count = int(span_result.get("span_count", 0) or 0)
     raw_line_count = int(span_result.get("raw_line_count", 0) or 0)
     fields.update(
@@ -464,6 +475,7 @@ def _stop_span_measurement_fields(
                 span_stop_set.get("stops", []) or []
             ),
             "span_normalized_stop_set": span_stop_set,
+            "stop_span_coverage_metrics": coverage_metrics,
             "stop_span_warning_codes": span_result.get("warning_codes", []),
             **span_status_counts,
         }
@@ -1241,6 +1253,11 @@ def measure_private_ratecon_pdf(
         field_statuses,
         stop_span_fields.get("span_normalized_stop_set", {}),
     )
+    coverage_metrics = dict(stop_span_fields.get("stop_span_coverage_metrics", {}) or {})
+    coverage_metrics["core_field_mapping_count_by_field"] = build_stop_span_coverage_metrics(
+        core_field_statuses=field_statuses,
+    ).get("core_field_mapping_count_by_field", {})
+    stop_span_fields["stop_span_coverage_metrics"] = coverage_metrics
     low_confidence_fields = _fields_with_resolution_status(
         resolution_result,
         [FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE],
@@ -1473,6 +1490,9 @@ def measure_private_ratecon_pdf(
         stop_span_delta=stop_span_fields.get("stop_span_delta", 0),
         span_normalized_stop_set=stop_span_fields.get(
             "span_normalized_stop_set", {}
+        ),
+        stop_span_coverage_metrics=stop_span_fields.get(
+            "stop_span_coverage_metrics", {}
         ),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(

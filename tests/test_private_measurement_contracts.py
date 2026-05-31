@@ -106,6 +106,27 @@ class PrivateMeasurementContractTests(unittest.TestCase):
         self.assertNotIn("raw_text", row)
         self.assertNotIn("FAKE BROKER LLC", payload)
 
+    def test_measurement_row_supports_safe_stop_span_coverage_metrics(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            stop_span_coverage_metrics={
+                "span_field_candidate_count_by_field": {"date": 1},
+                "core_field_mapping_count_by_field": {"pickup_date": 1},
+                "private_values_included": False,
+                "raw_text_included": False,
+            },
+        )
+
+        payload = json.dumps(row)
+
+        self.assertEqual(
+            row["stop_span_coverage_metrics"]["span_field_candidate_count_by_field"],
+            {"date": 1},
+        )
+        self.assertFalse(row["stop_span_coverage_metrics"]["private_values_included"])
+        self.assertFalse(row["stop_span_coverage_metrics"]["raw_text_included"])
+        self.assertNotIn("Fake Broker", payload)
+
     def test_aggregate_serializes(self):
         aggregate = build_private_ratecon_measurement_aggregate(
             document_count=2,
