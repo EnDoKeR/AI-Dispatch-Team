@@ -1,0 +1,10 @@
+{
+  "fixture_name": "fake_passthrough_should_fail",
+  "expected": {
+    "passthrough_allowed": false
+  },
+  "stop_groups": [
+    {"stop_group_id": "line_a", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "field_candidates": [{"candidate_id": "line_a_location", "field_name": "location", "confidence": 0.8, "evidence_ref": {"line_id": "A"}}], "confidence": 0.8, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 1, "line_id": "A", "section_role": "PICKUP_SECTION", "trigger_label_category": "location", "candidate_field_names": ["location"], "field_count": 1, "has_location_candidate": true, "has_date_candidate": false, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "p1|pickup|passthrough", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}},
+    {"stop_group_id": "line_b", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "field_candidates": [{"candidate_id": "line_b_date", "field_name": "date", "confidence": 0.8, "evidence_ref": {"line_id": "B"}}], "confidence": 0.8, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 1, "line_id": "B", "section_role": "PICKUP_SECTION", "trigger_label_category": "date", "candidate_field_names": ["date"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": true, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "p1|pickup|passthrough", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}}
+  ]
+}
