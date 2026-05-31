@@ -860,6 +860,39 @@ def build_normalized_stop_set_from_spans(span_result, classification_result=None
     )
 
 
+def extract_stop_spans_from_layout_artifact(
+    layout_artifact,
+    classification_result=None,
+    document_alias="",
+):
+    line_features = build_layout_line_features(
+        layout_artifact,
+        classification_result=classification_result,
+        include_safe_text=True,
+    )
+    anchors = detect_stop_span_anchors(
+        line_features,
+        classification_result=classification_result,
+    )
+    spans = build_stop_spans_from_anchors(
+        line_features,
+        anchors,
+        classification_result=classification_result,
+    )
+    field_candidates = []
+    for span in spans:
+        field_candidates.extend(
+            extract_stop_span_field_candidates(span, line_features, layout_artifact)
+        )
+    return build_stop_span_extraction_result(
+        document_alias=document_alias,
+        anchors=anchors,
+        spans=spans,
+        field_candidates=field_candidates,
+        raw_line_count=len(line_features),
+    )
+
+
 def build_stop_span_anchor(
     anchor_id="",
     anchor_type=STOP_SPAN_ANCHOR_TYPE_UNKNOWN,

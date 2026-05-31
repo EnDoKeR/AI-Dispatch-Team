@@ -164,6 +164,48 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         self.assertFalse(aggregate["raw_text_saved"])
         self.assertTrue(aggregate["private_values_redacted"])
 
+    def test_aggregate_counts_stop_span_metrics(self):
+        rows = [
+            build_private_ratecon_measurement_row(
+                document_alias="RATECON_SPAN_001",
+                stop_span_extractor_enabled=True,
+                span_anchor_count=2,
+                stop_span_count=2,
+                span_normalized_stop_count=2,
+                span_pickup_count=1,
+                span_delivery_count=1,
+                span_date_resolved_count=2,
+                span_time_missing_count=2,
+                span_review_required_count=1,
+                span_passthrough_detected=False,
+            ),
+            build_private_ratecon_measurement_row(
+                document_alias="RATECON_SPAN_002",
+                stop_span_extractor_enabled=True,
+                span_anchor_count=4,
+                stop_span_count=4,
+                span_normalized_stop_count=4,
+                span_unknown_count=4,
+                span_date_missing_count=4,
+                span_time_missing_count=4,
+                span_passthrough_detected=True,
+            ),
+        ]
+
+        aggregate = build_private_ratecon_measurement_aggregate(rows)
+
+        self.assertEqual(aggregate["stop_span_extractor_attempted_count"], 2)
+        self.assertEqual(aggregate["span_anchor_count_total"], 6)
+        self.assertEqual(aggregate["span_normalized_stop_count_total"], 6)
+        self.assertEqual(aggregate["span_pickup_count_total"], 1)
+        self.assertEqual(aggregate["span_delivery_count_total"], 1)
+        self.assertEqual(aggregate["span_unknown_count_total"], 4)
+        self.assertEqual(aggregate["span_date_resolved_count_total"], 2)
+        self.assertEqual(aggregate["span_date_missing_count_total"], 4)
+        self.assertEqual(aggregate["span_time_missing_count_total"], 6)
+        self.assertEqual(aggregate["span_review_required_count_total"], 1)
+        self.assertEqual(aggregate["span_passthrough_count"], 1)
+
     def test_baseline_comparison_uses_counts_only(self):
         aggregate = build_private_ratecon_measurement_aggregate(self._rows())
         comparison = compare_private_measurement_to_known_baseline(

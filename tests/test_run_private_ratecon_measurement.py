@@ -182,6 +182,45 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("--enable-layout-fusion requires --enable-layout-candidates", stderr.getvalue())
 
+    def test_cli_enable_stop_span_requires_layout_candidates(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--enable-stop-span-extractor",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --enable-layout-candidates", stderr.getvalue())
+
+    def test_cli_compare_stop_span_requires_extractor(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--layout-provider",
+                    "pdfplumber",
+                    "--enable-layout-candidates",
+                    "--compare-stop-span-to-stop-group-pipeline",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --enable-stop-span-extractor", stderr.getvalue())
+
     def test_report_includes_safe_layout_status_counts_when_enabled(self):
         temp, root = self._fake_pdf_dir(count=1)
         self.addCleanup(temp.cleanup)
@@ -226,6 +265,55 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("prevented_regression_count", output)
         self.assertNotIn("FAKE BROKER LLC", output)
         self.assertNotIn("TRUCKLOAD RATE CONFIRMATION", output)
+
+    def test_report_includes_stop_span_comparison_fields_when_enabled(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "stop_span_extractor_enabled": True,
+                    "stop_span_comparison_enabled": True,
+                    "old_raw_stop_groups": 8,
+                    "old_normalized_stops": 8,
+                    "span_anchor_count": 2,
+                    "stop_span_count": 2,
+                    "span_normalized_stop_count": 2,
+                    "span_pickup_count": 1,
+                    "span_delivery_count": 1,
+                    "span_unknown_count": 0,
+                    "span_date_resolved_count": 2,
+                    "span_date_missing_count": 0,
+                    "span_time_resolved_count": 1,
+                    "span_time_missing_count": 1,
+                    "span_review_required_count": 1,
+                    "span_passthrough_detected": False,
+                }
+            ],
+            "aggregate": {
+                "stop_span_extractor_attempted_count": 1,
+                "span_anchor_count_total": 2,
+                "stop_span_count_total": 2,
+                "span_normalized_stop_count_total": 2,
+                "span_pickup_count_total": 1,
+                "span_delivery_count_total": 1,
+                "span_unknown_count_total": 0,
+                "span_date_resolved_count_total": 2,
+                "span_date_missing_count_total": 0,
+                "span_time_resolved_count_total": 1,
+                "span_time_missing_count_total": 1,
+                "span_review_required_count_total": 1,
+                "span_passthrough_count": 0,
+            },
+            "document_count": 1,
+        }
+
+        output = "\n".join(format_private_measurement_report(fake_report))
+
+        self.assertIn("stop_span_extractor_attempted_count: 1", output)
+        self.assertIn("old_raw_stop_groups: 8", output)
+        self.assertIn("span_anchor_count: 2", output)
+        self.assertIn("span_passthrough_detected: False", output)
+        self.assertNotIn("FAKE BROKER LLC", output)
 
     def test_report_includes_safe_layout_diagnostics_when_enabled(self):
         temp, root = self._fake_pdf_dir(count=1)

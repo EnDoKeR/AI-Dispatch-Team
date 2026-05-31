@@ -122,6 +122,8 @@ def build_private_ratecon_measurement_report(
     compare_pdfplumber_table_profiles_enabled=False,
     pdfplumber_table_profile="default",
     natural_sort_inputs=False,
+    enable_stop_span_extractor=False,
+    compare_stop_span_to_stop_group_pipeline=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
     if limit and int(limit) > 0:
@@ -147,6 +149,8 @@ def build_private_ratecon_measurement_report(
             allow_layout_regression_for_debug=allow_layout_regression_for_debug,
             compare_layout_to_text_baseline=compare_layout_to_text_baseline,
             pdfplumber_table_profile=pdfplumber_table_profile,
+            enable_stop_span_extractor=enable_stop_span_extractor,
+            compare_stop_span_to_stop_group_pipeline=compare_stop_span_to_stop_group_pipeline,
         )
         for path in pdfs
     ]
@@ -261,6 +265,19 @@ def format_private_measurement_report(report):
         f"normalized_stop_improved_counts_by_field: {aggregate.get('normalized_stop_improved_counts_by_field', {})}",
         f"normalized_stop_conflict_counts_by_field: {aggregate.get('normalized_stop_conflict_counts_by_field', {})}",
         f"normalized_stop_missing_counts_by_field: {aggregate.get('normalized_stop_missing_counts_by_field', {})}",
+        f"stop_span_extractor_attempted_count: {aggregate.get('stop_span_extractor_attempted_count', 0)}",
+        f"span_anchor_count_total: {aggregate.get('span_anchor_count_total', 0)}",
+        f"stop_span_count_total: {aggregate.get('stop_span_count_total', 0)}",
+        f"span_normalized_stop_count_total: {aggregate.get('span_normalized_stop_count_total', 0)}",
+        f"span_pickup_count_total: {aggregate.get('span_pickup_count_total', 0)}",
+        f"span_delivery_count_total: {aggregate.get('span_delivery_count_total', 0)}",
+        f"span_unknown_count_total: {aggregate.get('span_unknown_count_total', 0)}",
+        f"span_date_resolved_count_total: {aggregate.get('span_date_resolved_count_total', 0)}",
+        f"span_date_missing_count_total: {aggregate.get('span_date_missing_count_total', 0)}",
+        f"span_time_resolved_count_total: {aggregate.get('span_time_resolved_count_total', 0)}",
+        f"span_time_missing_count_total: {aggregate.get('span_time_missing_count_total', 0)}",
+        f"span_review_required_count_total: {aggregate.get('span_review_required_count_total', 0)}",
+        f"span_passthrough_count: {aggregate.get('span_passthrough_count', 0)}",
         f"blocker_category_counts: {aggregate.get('blocker_category_counts', {})}",
         f"eligible_critical_field_missing_counts: {aggregate.get('eligible_critical_field_missing_counts', {})}",
         f"normal_load_critical_field_missing_counts: {aggregate.get('normal_load_critical_field_missing_counts', {})}",
@@ -359,6 +376,23 @@ def format_private_measurement_report(report):
                 f"  normalized_stop_improved_fields: {row.get('normalized_stop_improved_fields', [])}",
                 f"  normalized_stop_conflict_fields: {row.get('normalized_stop_conflict_fields', [])}",
                 f"  normalized_stop_missing_fields: {row.get('normalized_stop_missing_fields', [])}",
+                f"  stop_span_extractor_enabled: {row.get('stop_span_extractor_enabled', False)}",
+                f"  stop_span_comparison_enabled: {row.get('stop_span_comparison_enabled', False)}",
+                f"  old_raw_stop_groups: {row.get('old_raw_stop_groups', 0)}",
+                f"  old_normalized_stops: {row.get('old_normalized_stops', 0)}",
+                f"  span_anchor_count: {row.get('span_anchor_count', 0)}",
+                f"  stop_span_count: {row.get('stop_span_count', 0)}",
+                f"  span_normalized_stop_count: {row.get('span_normalized_stop_count', 0)}",
+                f"  span_pickup_count: {row.get('span_pickup_count', 0)}",
+                f"  span_delivery_count: {row.get('span_delivery_count', 0)}",
+                f"  span_unknown_count: {row.get('span_unknown_count', 0)}",
+                f"  span_date_resolved_count: {row.get('span_date_resolved_count', 0)}",
+                f"  span_date_missing_count: {row.get('span_date_missing_count', 0)}",
+                f"  span_time_resolved_count: {row.get('span_time_resolved_count', 0)}",
+                f"  span_time_missing_count: {row.get('span_time_missing_count', 0)}",
+                f"  span_review_required_count: {row.get('span_review_required_count', 0)}",
+                f"  span_passthrough_detected: {row.get('span_passthrough_detected', False)}",
+                f"  stop_span_delta: {row.get('stop_span_delta', 0)}",
                 f"  candidate_counts_by_field: {row.get('candidate_counts_by_field', {})}",
                 f"  warning_codes: {row.get('warning_codes', [])}",
             ]
@@ -460,6 +494,8 @@ def main(argv=None):
     parser.add_argument("--write-stop-provenance-report", action="store_true")
     parser.add_argument("--write-google-sheet-export", action="store_true")
     parser.add_argument("--natural-sort-inputs", action="store_true")
+    parser.add_argument("--enable-stop-span-extractor", action="store_true")
+    parser.add_argument("--compare-stop-span-to-stop-group-pipeline", action="store_true")
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
@@ -492,6 +528,21 @@ def main(argv=None):
     if args.compare_pdfplumber_table_profiles and args.layout_provider != "pdfplumber":
         _print_expected_config_error(
             "--compare-pdfplumber-table-profiles requires --layout-provider pdfplumber"
+        )
+        return 2
+
+    if args.enable_stop_span_extractor and not args.enable_layout_candidates:
+        _print_expected_config_error(
+            "--enable-stop-span-extractor requires --enable-layout-candidates"
+        )
+        return 2
+
+    if (
+        args.compare_stop_span_to_stop_group_pipeline
+        and not args.enable_stop_span_extractor
+    ):
+        _print_expected_config_error(
+            "--compare-stop-span-to-stop-group-pipeline requires --enable-stop-span-extractor"
         )
         return 2
 
@@ -532,6 +583,10 @@ def main(argv=None):
             compare_pdfplumber_table_profiles_enabled=args.compare_pdfplumber_table_profiles,
             pdfplumber_table_profile=args.pdfplumber_table_profile,
             natural_sort_inputs=args.natural_sort_inputs,
+            enable_stop_span_extractor=args.enable_stop_span_extractor,
+            compare_stop_span_to_stop_group_pipeline=(
+                args.compare_stop_span_to_stop_group_pipeline
+            ),
         )
 
         for line in format_private_measurement_report(report):

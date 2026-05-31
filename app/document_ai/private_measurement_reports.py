@@ -406,6 +406,45 @@ def build_private_ratecon_measurement_aggregate(rows):
         normalized_stop_missing_counts_by_field=_count_list_values(
             safe_rows, "normalized_stop_missing_fields"
         ),
+        stop_span_extractor_attempted_count=sum(
+            1 for row in safe_rows if row.get("stop_span_extractor_enabled")
+        ),
+        span_anchor_count_total=sum(
+            int(row.get("span_anchor_count", 0) or 0) for row in safe_rows
+        ),
+        stop_span_count_total=sum(
+            int(row.get("stop_span_count", 0) or 0) for row in safe_rows
+        ),
+        span_normalized_stop_count_total=sum(
+            int(row.get("span_normalized_stop_count", 0) or 0) for row in safe_rows
+        ),
+        span_pickup_count_total=sum(
+            int(row.get("span_pickup_count", 0) or 0) for row in safe_rows
+        ),
+        span_delivery_count_total=sum(
+            int(row.get("span_delivery_count", 0) or 0) for row in safe_rows
+        ),
+        span_unknown_count_total=sum(
+            int(row.get("span_unknown_count", 0) or 0) for row in safe_rows
+        ),
+        span_date_resolved_count_total=sum(
+            int(row.get("span_date_resolved_count", 0) or 0) for row in safe_rows
+        ),
+        span_date_missing_count_total=sum(
+            int(row.get("span_date_missing_count", 0) or 0) for row in safe_rows
+        ),
+        span_time_resolved_count_total=sum(
+            int(row.get("span_time_resolved_count", 0) or 0) for row in safe_rows
+        ),
+        span_time_missing_count_total=sum(
+            int(row.get("span_time_missing_count", 0) or 0) for row in safe_rows
+        ),
+        span_review_required_count_total=sum(
+            int(row.get("span_review_required_count", 0) or 0) for row in safe_rows
+        ),
+        span_passthrough_count=sum(
+            1 for row in safe_rows if row.get("span_passthrough_detected")
+        ),
         eligible_critical_field_missing_counts=_critical_missing_counts(eligible_rows),
         eligible_critical_field_denominator=len(eligible_rows),
         normal_load_critical_field_missing_counts=_critical_missing_counts(normal_load_rows),

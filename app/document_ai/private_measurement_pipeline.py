@@ -99,6 +99,13 @@ from app.document_ai.stop_normalization import (
 )
 from app.document_ai.stop_group_provenance import build_stop_group_provenance_summary
 from app.document_ai.stop_review_packet import build_stop_review_packet_summary
+from app.document_ai.stop_span_extractor import (
+    STOP_SPAN_FIELD_APPOINTMENT_WINDOW,
+    STOP_SPAN_FIELD_DATE,
+    STOP_SPAN_FIELD_TIME,
+    build_normalized_stop_set_from_spans,
+    extract_stop_spans_from_layout_artifact,
+)
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.market_intelligence.intake.rate_confirmation_validation import (
     validate_rate_confirmation_intake,
@@ -337,6 +344,129 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "stop_review_summary": {},
         "stop_group_provenance_summary": {},
     }
+
+
+def _default_stop_span_fields(
+    enable_stop_span_extractor=False,
+    compare_stop_span_to_stop_group_pipeline=False,
+):
+    return {
+        "stop_span_extractor_enabled": bool(enable_stop_span_extractor),
+        "stop_span_comparison_enabled": bool(compare_stop_span_to_stop_group_pipeline),
+        "old_raw_stop_groups": 0,
+        "old_normalized_stops": 0,
+        "span_anchor_count": 0,
+        "stop_span_count": 0,
+        "span_normalized_stop_count": 0,
+        "span_pickup_count": 0,
+        "span_delivery_count": 0,
+        "span_unknown_count": 0,
+        "span_date_resolved_count": 0,
+        "span_date_missing_count": 0,
+        "span_time_resolved_count": 0,
+        "span_time_missing_count": 0,
+        "span_review_required_count": 0,
+        "span_passthrough_detected": False,
+        "stop_span_delta": 0,
+        "span_normalized_stop_set": {},
+        "stop_span_warning_codes": [],
+    }
+
+
+def _span_field_status(stop, field_name):
+    for field in (stop or {}).get("fields", []) or []:
+        if not isinstance(field, dict):
+            continue
+        if field.get("field_name") == field_name:
+            return str(field.get("status") or "").strip()
+    return ""
+
+
+def _count_span_stop_field_statuses(stop_set):
+    date_resolved = 0
+    date_missing = 0
+    time_resolved = 0
+    time_missing = 0
+    review_required = 0
+    for stop in (stop_set or {}).get("stops", []) or []:
+        if not isinstance(stop, dict):
+            continue
+        if stop.get("review_required"):
+            review_required += 1
+        date_status = _span_field_status(stop, STOP_SPAN_FIELD_DATE)
+        if date_status == "resolved":
+            date_resolved += 1
+        else:
+            date_missing += 1
+        time_status = _span_field_status(stop, STOP_SPAN_FIELD_TIME)
+        appointment_status = _span_field_status(stop, STOP_SPAN_FIELD_APPOINTMENT_WINDOW)
+        if time_status == "resolved" or appointment_status == "resolved":
+            time_resolved += 1
+        else:
+            time_missing += 1
+    return {
+        "span_date_resolved_count": date_resolved,
+        "span_date_missing_count": date_missing,
+        "span_time_resolved_count": time_resolved,
+        "span_time_missing_count": time_missing,
+        "span_review_required_count": review_required,
+    }
+
+
+def _stop_span_measurement_fields(
+    layout_fields,
+    classification_result=None,
+    document_alias="",
+    enable_stop_span_extractor=False,
+    compare_stop_span_to_stop_group_pipeline=False,
+    old_normalized_stop_set=None,
+):
+    fields = _default_stop_span_fields(
+        enable_stop_span_extractor=enable_stop_span_extractor,
+        compare_stop_span_to_stop_group_pipeline=compare_stop_span_to_stop_group_pipeline,
+    )
+    old_stop_set = old_normalized_stop_set or {}
+    fields["old_raw_stop_groups"] = int(old_stop_set.get("raw_stop_group_count", 0) or 0)
+    fields["old_normalized_stops"] = len(old_stop_set.get("stops", []) or [])
+    if not enable_stop_span_extractor:
+        return fields
+    if (layout_fields or {}).get("layout_provider_status") != "success":
+        fields["stop_span_warning_codes"] = ["stop_span_extractor_skipped_without_successful_layout"]
+        return fields
+
+    span_result = extract_stop_spans_from_layout_artifact(
+        (layout_fields or {}).get("layout_artifact", {}),
+        classification_result=classification_result,
+        document_alias=document_alias,
+    )
+    span_stop_set = build_normalized_stop_set_from_spans(
+        span_result,
+        classification_result=classification_result,
+    )
+    span_status_counts = _count_span_stop_field_statuses(span_stop_set)
+    span_count = int(span_result.get("span_count", 0) or 0)
+    raw_line_count = int(span_result.get("raw_line_count", 0) or 0)
+    fields.update(
+        {
+            "span_anchor_count": int(span_result.get("anchor_count", 0) or 0),
+            "stop_span_count": span_count,
+            "span_normalized_stop_count": len(span_stop_set.get("stops", []) or []),
+            "span_pickup_count": int(span_stop_set.get("pickup_count", 0) or 0),
+            "span_delivery_count": int(span_stop_set.get("delivery_count", 0) or 0),
+            "span_unknown_count": int(span_stop_set.get("unknown_count", 0) or 0),
+            "span_passthrough_detected": bool(
+                span_result.get("passthrough_detected")
+                or (span_count and raw_line_count and span_count >= raw_line_count)
+            ),
+            "stop_span_delta": fields["old_normalized_stops"] - len(
+                span_stop_set.get("stops", []) or []
+            ),
+            "span_normalized_stop_set": span_stop_set,
+            "stop_span_warning_codes": span_result.get("warning_codes", []),
+            **span_status_counts,
+        }
+    )
+    return fields
 
 
 def _build_fused_candidate_result(text_candidate_result, layout_candidates, allowed_fields, warnings):
@@ -861,6 +991,8 @@ def measure_private_ratecon_pdf(
     allow_layout_regression_for_debug=False,
     compare_layout_to_text_baseline=False,
     pdfplumber_table_profile="default",
+    enable_stop_span_extractor=False,
+    compare_stop_span_to_stop_group_pipeline=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -998,6 +1130,14 @@ def measure_private_ratecon_pdf(
             allow_layout_regression_for_debug or not enable_no_regression_fusion
         ),
     )
+    stop_span_fields = _stop_span_measurement_fields(
+        layout_fields,
+        classification_result=classification_result,
+        document_alias=document_alias,
+        enable_stop_span_extractor=enable_stop_span_extractor,
+        compare_stop_span_to_stop_group_pipeline=compare_stop_span_to_stop_group_pipeline,
+        old_normalized_stop_set=fusion_fields.get("normalized_stop_set", {}),
+    )
     layout_likely_issue_bucket = classify_layout_provider_diagnostic_issue(
         layout_fields.get("layout_provider_diagnostics", {}),
         stop_group_count=fusion_fields.get("stop_group_count", 0),
@@ -1044,6 +1184,7 @@ def measure_private_ratecon_pdf(
             + candidate_result.get("warnings", [])
             + layout_fields.get("layout_warning_codes", [])
             + fusion_fields.get("fusion_warning_codes", [])
+            + stop_span_fields.get("stop_span_warning_codes", [])
             + resolution_result.get("warnings", [])
             + validation.get("warnings", [])
         )
@@ -1213,6 +1354,40 @@ def measure_private_ratecon_pdf(
         stop_pipeline_trace=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("stop_pipeline_trace", {}),
+        stop_span_extractor_enabled=stop_span_fields.get(
+            "stop_span_extractor_enabled", False
+        ),
+        stop_span_comparison_enabled=stop_span_fields.get(
+            "stop_span_comparison_enabled", False
+        ),
+        old_raw_stop_groups=stop_span_fields.get("old_raw_stop_groups", 0),
+        old_normalized_stops=stop_span_fields.get("old_normalized_stops", 0),
+        span_anchor_count=stop_span_fields.get("span_anchor_count", 0),
+        stop_span_count=stop_span_fields.get("stop_span_count", 0),
+        span_normalized_stop_count=stop_span_fields.get(
+            "span_normalized_stop_count", 0
+        ),
+        span_pickup_count=stop_span_fields.get("span_pickup_count", 0),
+        span_delivery_count=stop_span_fields.get("span_delivery_count", 0),
+        span_unknown_count=stop_span_fields.get("span_unknown_count", 0),
+        span_date_resolved_count=stop_span_fields.get(
+            "span_date_resolved_count", 0
+        ),
+        span_date_missing_count=stop_span_fields.get("span_date_missing_count", 0),
+        span_time_resolved_count=stop_span_fields.get(
+            "span_time_resolved_count", 0
+        ),
+        span_time_missing_count=stop_span_fields.get("span_time_missing_count", 0),
+        span_review_required_count=stop_span_fields.get(
+            "span_review_required_count", 0
+        ),
+        span_passthrough_detected=stop_span_fields.get(
+            "span_passthrough_detected", False
+        ),
+        stop_span_delta=stop_span_fields.get("stop_span_delta", 0),
+        span_normalized_stop_set=stop_span_fields.get(
+            "span_normalized_stop_set", {}
+        ),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
