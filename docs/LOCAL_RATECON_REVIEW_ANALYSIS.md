@@ -173,6 +173,13 @@ The next extraction target should be selected from the remaining candidate
 coverage counts. Do not repeat datetime or mapping work unless the stage data
 shows that exact loss point.
 
+The second target-selection pass did prove a date candidate-generation loss:
+eight pickup/delivery date records were at
+`span_field_candidate/candidate_not_generated`. The focused table-row date fix
+reduced that count to zero, improved span date resolved/missing from 8 / 21 to
+10 / 19, and left readiness unchanged. The remaining next target from coverage
+is `load_identifier_candidate_generation`.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

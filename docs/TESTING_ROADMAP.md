@@ -129,6 +129,12 @@ Required behavior:
   without printing values;
 - broker identity candidate fixtures use fake names and prove broker-context
   candidates are generated without selecting carrier names as brokers.
+- candidate coverage target selection is tested separately from extraction
+  hardening so datetime fixes are selected only when stage data proves a date
+  candidate-generation loss;
+- stop-span table-row date candidates are covered with fake fixtures for
+  TQL-like rows, PU/SO right-side dates, target windows, shipping/receiving
+  hours, and header/billing noise.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than

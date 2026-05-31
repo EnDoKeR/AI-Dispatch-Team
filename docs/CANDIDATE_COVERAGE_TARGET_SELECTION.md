@@ -64,3 +64,23 @@ OCR is not implemented in this workflow.
 This workflow does not run Google sync, add OCR or Vision, add cloud document AI,
 create DispatchCases, call DecisionEngine, call Telegram, write Event Timeline
 events, or claim production readiness.
+
+## Latest Local Result
+
+The target selector confirmed `stop_span_date_candidate_generation` only after
+coverage showed eight pickup/delivery date records at
+`span_field_candidate/candidate_not_generated` across two aliases. The focused
+fix added table-row date candidates for stop rows when line-based date
+candidates are absent.
+
+Safe delta after rerun:
+
+- selected date `candidate_not_generated`: 8 -> 0;
+- total `candidate_not_generated`: 22 -> 14;
+- span date resolved/missing: 8 / 21 -> 10 / 19;
+- true intake blockers: 53 -> 49;
+- dispatch-decision blockers: 123 -> 119;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`.
+
+The next selector output is `load_identifier_candidate_generation`, supported by
+seven load-number candidate gaps.

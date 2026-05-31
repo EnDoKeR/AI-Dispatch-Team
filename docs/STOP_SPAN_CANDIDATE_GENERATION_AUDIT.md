@@ -130,6 +130,20 @@ Safe before/after signal:
 - remaining true intake blockers are still delivery date, pickup date, load
   number, rate, broker name, delivery location, and pickup location.
 
+The second coverage target was selected by the target selector, not by a generic
+datetime assumption. Coverage showed eight pickup/delivery date records at
+`span_field_candidate/candidate_not_generated` across two aliases. The focused
+fix generates date candidates from stop-type table rows when line-based date
+candidates are absent and keeps header/billing/rate dates ignored.
+
+Second safe before/after signal:
+
+- selected date `candidate_not_generated`: 8 -> 0;
+- total `candidate_not_generated`: 22 -> 14;
+- span date resolved/missing: 8 / 21 -> 10 / 19;
+- true intake blockers: 53 -> 49;
+- next selected target: `load_identifier_candidate_generation`.
+
 ## Decision Gate
 
 After coverage analysis, select exactly one candidate generation fix:

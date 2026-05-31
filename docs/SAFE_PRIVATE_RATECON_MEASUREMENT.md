@@ -282,6 +282,18 @@ Remaining true blockers should be selected from the policy-cleaned coverage
 counts. Do not repeat generic datetime or mapping heuristics unless the
 coverage stage data proves that exact failure point.
 
+The next selector pass selected `stop_span_date_candidate_generation` because
+eight date records were missing specifically at `span_field_candidate`. After
+the focused table-row date fix:
+
+- selected date candidate-not-generated count: 8 -> 0;
+- total candidate-not-generated count: 22 -> 14;
+- span date resolved / missing: 8 / 21 -> 10 / 19;
+- span time resolved / missing: 10 / 19 unchanged;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed unchanged: 4;
+- next selected target: `load_identifier_candidate_generation`.
+
 ## Command
 
 Run locally only:

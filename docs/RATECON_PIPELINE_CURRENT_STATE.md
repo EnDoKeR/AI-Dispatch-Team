@@ -117,6 +117,14 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   `extraction_review_ready=14`, `not_ready=4`.
 - The next clean target should come from the remaining candidate coverage
   counts, not from stacking generic datetime or mapping heuristics.
+- Candidate coverage target selection now writes
+  `candidate_coverage_target_selection.json` and `.md`. The second selected
+  target was `stop_span_date_candidate_generation` because eight date records
+  were missing at the span-field candidate stage. The focused table-row date fix
+  moved selected date candidate-not-generated from 8 to 0, total
+  candidate-not-generated from 22 to 14, and span date resolved/missing from
+  8 / 21 to 10 / 19. The next selected target is
+  `load_identifier_candidate_generation`.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.

@@ -64,3 +64,18 @@ Secondary metrics:
 
 No Google sync, OCR, Vision, cloud document AI, DispatchCase, DecisionEngine,
 Telegram, Event Timeline writes, or production automation claims.
+
+## Result
+
+The selected target was implemented as table-row date candidate generation. It
+adds date candidates from stop-type table rows only when a span has no
+line-based date candidate, and it ignores header, rate-confirmation, billing,
+payment, and terms dates.
+
+Safe measured result:
+
+- selected date `candidate_not_generated`: 8 -> 0;
+- total `candidate_not_generated`: 22 -> 14;
+- span date resolved/missing: 8 / 21 -> 10 / 19;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- next selected target: `load_identifier_candidate_generation`.

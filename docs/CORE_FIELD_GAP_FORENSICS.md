@@ -146,6 +146,13 @@ Safe local delta:
 Remaining blockers should be chosen from the updated coverage reports, not from
 the broad all-gap list.
 
+The next coverage pass selected stop-span date candidate generation only after
+stage evidence showed the date loss at `span_field_candidate`. The table-row
+date fix reduced selected date `candidate_not_generated` from 8 to 0 and true
+intake blockers from 53 to 49. Remaining no-candidate work is now led by
+`load_number`, so the next selected target is
+`load_identifier_candidate_generation`.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add
