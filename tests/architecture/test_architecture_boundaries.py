@@ -1082,6 +1082,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         readiness_source = source_text(DOCUMENT_AI_PACKAGE / "extraction_readiness.py")
         integrity_source = source_text(DOCUMENT_AI_PACKAGE / "measurement_integrity.py")
         feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
+        issue_taxonomy_source = source_text(
+            DOCUMENT_AI_PACKAGE / "review_issue_taxonomy.py"
+        )
+        feedback_target_source = source_text(
+            DOCUMENT_AI_PACKAGE / "review_feedback_target_selector.py"
+        )
         local_analysis_source = source_text(DOCUMENT_AI_PACKAGE / "local_review_analysis.py")
         core_gap_source = source_text(DOCUMENT_AI_PACKAGE / "core_field_gap_analysis.py")
         candidate_coverage_source = source_text(
@@ -1108,6 +1114,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         rate_equivalence_source = source_text(
             DOCUMENT_AI_PACKAGE / "rate_candidate_equivalence.py"
         )
+        review_packet_v2_cli_source = source_text(
+            SCRIPTS / "generate_ratecon_review_packet_v2.py"
+        )
+        feedback_import_cli_source = source_text(
+            SCRIPTS / "import_ratecon_review_feedback.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1118,8 +1130,22 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("include_private_values=False", workbook_source)
         self.assertIn('"private_values_printed": False', workbook_source)
         self.assertIn('"raw_text_included": False', workbook_source)
+        self.assertIn("ratecon_review_v2_workbook.xlsx", workbook_source)
         self.assertNotIn("print(", workbook_source)
         self.assertNotIn("print(", feedback_source)
+        self.assertIn('"private_values_included": False', issue_taxonomy_source)
+        self.assertIn('"raw_text_included": False', issue_taxonomy_source)
+        self.assertIn('"money_values_included": False', issue_taxonomy_source)
+        self.assertNotIn("print(", issue_taxonomy_source)
+        self.assertIn('"private_values_included": False', feedback_target_source)
+        self.assertIn('"raw_text_included": False', feedback_target_source)
+        self.assertNotIn("print(", feedback_target_source)
+        self.assertIn("SHEET_V2_CORE_FIELDS", review_packet_v2_cli_source)
+        self.assertIn("private_values_printed: False", review_packet_v2_cli_source)
+        self.assertIn("local_paths_printed: False", review_packet_v2_cli_source)
+        self.assertIn("review_feedback_summary.json", feedback_import_cli_source)
+        self.assertIn("expected_values_printed: False", feedback_import_cli_source)
+        self.assertIn("private_notes_printed: False", feedback_import_cli_source)
         self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", local_analysis_source)
         self.assertIn("local_review_analysis.json", local_analysis_source)
         self.assertIn("local_review_analysis.md", local_analysis_source)
@@ -1184,6 +1210,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             readiness_source,
             integrity_source,
             feedback_source,
+            issue_taxonomy_source,
+            feedback_target_source,
             local_analysis_source,
             core_gap_source,
             candidate_coverage_source,
@@ -1193,6 +1221,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             rate_forensics_source,
             rate_conflict_source,
             rate_equivalence_source,
+            review_packet_v2_cli_source,
+            feedback_import_cli_source,
             policy_source,
         ]:
             for forbidden in [
