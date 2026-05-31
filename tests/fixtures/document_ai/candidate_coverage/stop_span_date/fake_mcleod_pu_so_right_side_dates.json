@@ -1,0 +1,44 @@
+{
+  "fixture_id": "fake_mcleod_pu_so_right_side_dates",
+  "expected_span_count": 2,
+  "expected_date_candidates": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_mcleod_pu_so_right_side_dates",
+    "document_id": "SYNTHETIC_CANDIDATE_COVERAGE_DATE_002",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "PU 1", "page_number": 1, "reading_order_index": 1, "section_role": "STOP_TABLE"},
+          {"line_id": "l002", "text_redacted": "Fake PU Facility", "page_number": 1, "reading_order_index": 2, "section_role": "STOP_TABLE"},
+          {"line_id": "l003", "text_redacted": "SO 1", "page_number": 1, "reading_order_index": 3, "section_role": "STOP_TABLE"},
+          {"line_id": "l004", "text_redacted": "Fake SO Facility", "page_number": 1, "reading_order_index": 4, "section_role": "STOP_TABLE"}
+        ],
+        "tables": [
+          {
+            "table_id": "fake_mcleod_route",
+            "page_number": 1,
+            "header_rows": [0],
+            "cells": [
+              {"row_index": 0, "col_index": 0, "text_redacted": "Type"},
+              {"row_index": 0, "col_index": 1, "text_redacted": "Name"},
+              {"row_index": 0, "col_index": 2, "text_redacted": "Appt Date"},
+              {"row_index": 1, "col_index": 0, "text_redacted": "PU"},
+              {"row_index": 1, "col_index": 1, "text_redacted": "Fake PU Facility"},
+              {"row_index": 1, "col_index": 2, "text_redacted": "02/04/2099"},
+              {"row_index": 2, "col_index": 0, "text_redacted": "SO"},
+              {"row_index": 2, "col_index": 1, "text_redacted": "Fake SO Facility"},
+              {"row_index": 2, "col_index": 2, "text_redacted": "02/05/2099"}
+            ]
+          }
+        ]
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

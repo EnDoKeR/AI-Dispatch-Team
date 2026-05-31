@@ -1,0 +1,35 @@
+{
+  "target": "stop_span_date_candidate_generation",
+  "fixtures": [
+    {
+      "file": "fake_tql_date_columns_inside_stop_span.json",
+      "expected_date_candidates": 2,
+      "pattern": "pickup/delivery table rows with date columns"
+    },
+    {
+      "file": "fake_mcleod_pu_so_right_side_dates.json",
+      "expected_date_candidates": 2,
+      "pattern": "PU/SO row labels with right-side date cells"
+    },
+    {
+      "file": "fake_landstar_target_window_lines.json",
+      "expected_date_candidates": 2,
+      "pattern": "target-window date cells inside route rows"
+    },
+    {
+      "file": "fake_integrity_shipping_receiving_hours.json",
+      "expected_date_candidates": 2,
+      "pattern": "shipper/consignee expected date and hours cells"
+    },
+    {
+      "file": "fake_header_date_outside_span_ignored.json",
+      "expected_date_candidates": 0,
+      "pattern": "header date outside stop span"
+    },
+    {
+      "file": "fake_terms_date_inside_billing_ignored.json",
+      "expected_date_candidates": 0,
+      "pattern": "billing terms date ignored"
+    }
+  ]
+}

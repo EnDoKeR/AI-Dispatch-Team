@@ -1,0 +1,39 @@
+{
+  "fixture_id": "fake_landstar_target_window_lines",
+  "expected_span_count": 2,
+  "expected_date_candidates": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_landstar_target_window_lines",
+    "document_id": "SYNTHETIC_CANDIDATE_COVERAGE_DATE_003",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Stop #1 Pickup Fake Origin", "page_number": 1, "reading_order_index": 1, "section_role": "ROUTE"},
+          {"line_id": "l002", "text_redacted": "Stop #2 Drop Fake Destination", "page_number": 1, "reading_order_index": 2, "section_role": "ROUTE"}
+        ],
+        "tables": [
+          {
+            "table_id": "fake_target_windows",
+            "page_number": 1,
+            "header_rows": [0],
+            "cells": [
+              {"row_index": 0, "col_index": 0, "text_redacted": "Stop"},
+              {"row_index": 0, "col_index": 1, "text_redacted": "Target Window"},
+              {"row_index": 1, "col_index": 0, "text_redacted": "Pickup"},
+              {"row_index": 1, "col_index": 1, "text_redacted": "Target Window 03/06/2099 0800-1000"},
+              {"row_index": 2, "col_index": 0, "text_redacted": "Delivery"},
+              {"row_index": 2, "col_index": 1, "text_redacted": "Target Window 03/07/2099 1300-1500"}
+            ]
+          }
+        ]
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}
