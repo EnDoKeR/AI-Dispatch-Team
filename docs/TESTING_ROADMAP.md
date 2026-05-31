@@ -86,6 +86,29 @@ available, natural sorting, local-only output paths, readiness levels, integrity
 issue detection, feedback import summaries, explicit local-only private value
 guards, and no console printing of local document stems or predicted values.
 
+## Local Review Analysis And Hardening Tests
+
+The local-first hardening loop is covered by:
+
+- `tests/test_local_review_analysis.py`
+- `tests/test_analyze_local_ratecon_review_outputs.py`
+- `tests/test_local_review_hardening_stop_datetime_fixtures.py`
+- `tests/test_local_review_hardening_stop_datetime.py`
+
+Required behavior:
+
+- local review CSV loaders drop private value columns before analysis;
+- analysis reports only aliases, counts, statuses, field names, and issue
+  categories;
+- generated analysis reports stay under ignored local output paths;
+- selected hardening fixtures use fake values only;
+- stop span date/time hardening covers deterministic formats without attaching
+  header, terms, billing, or footer dates to stops.
+
+If a private rerun does not improve the selected blocker aggregate, document
+that result and pick the next blocker from the local analysis rather than
+stacking unrelated heuristics.
+
 ## Google Sheets Review Sync Tests
 
 The Google Sheets review sync is covered by fake/mocked tests only:

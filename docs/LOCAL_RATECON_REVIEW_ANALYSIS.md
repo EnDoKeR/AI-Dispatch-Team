@@ -68,6 +68,39 @@ Only one major blocker should be fixed per block. This keeps the before/after
 measurement interpretable and prevents unrelated heuristics from masking the
 real effect.
 
+## Current Local Analysis Result
+
+The current local review analysis uses regenerated ignored review outputs only.
+It reports safe counts and aliases, not private values.
+
+Latest safe counts:
+
+- documents analyzed: 18;
+- readiness counts: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed count: 4;
+- span-normalized stops: 29;
+- span date resolved / missing: 8 / 21;
+- span time resolved / missing: 10 / 19.
+
+The first local hardening pass selected stop span date/time extraction because
+missing stop date/time was a top blocker. Synthetic fixtures now cover dotted
+dates, ISO dates, compact time ranges, right-side PU/SO date/time lines, target
+windows, and shipping/receiving hours. The private rerun did not change the
+aggregate date/time counts, so the improvement is regression coverage for
+known deterministic formats rather than a measured private-corpus gain.
+
+After the rerun, the top issue categories are:
+
+- `missing_core_field`;
+- `missing_stop_time`;
+- `conflict_core_field`;
+- `missing_stop_date`;
+- `broker_identity_missing`;
+- `rate_conflict`.
+
+The next measured blocker should be chosen from those categories or by local
+human review of the workbook rows.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

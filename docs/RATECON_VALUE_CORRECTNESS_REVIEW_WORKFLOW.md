@@ -87,6 +87,11 @@ context.
 
 ## Google Sheets Review Flow
 
+Google Sheets sync is currently paused until a valid local Google service
+account JSON is available. Continue the local-first workflow with regenerated
+review CSVs/workbook files and `scripts/analyze_local_ratecon_review_outputs.py`
+until credentials are available.
+
 Run the local-only review export with the stop span extractor enabled:
 
 ```powershell
@@ -203,11 +208,21 @@ rows. These checks detect issues such as:
 - negative count fields;
 - OCR-needed documents being counted as normal-load extraction failures.
 
-The latest safe run reported one integrity issue:
-`SPAN_TYPE_COUNT_MISMATCH`. This matches the known aggregate where 29
-span-normalized stops were reported, but pickup + delivery + unknown added to
-27. That is a reporting/integrity issue to fix before any downstream trust
-claim.
+The stop span type count mismatch has been fixed by reporting generic `stop`
+counts explicitly alongside pickup, delivery, and unknown counts. Current local
+review exports should have no integrity issues for that denominator.
+
+## Local Analysis Before Human Review
+
+Before asking a reviewer to inspect values, run:
+
+```powershell
+py scripts/analyze_local_ratecon_review_outputs.py --write-md --write-json --include-local-document-names-local-only
+```
+
+The report is local-only and ignored. It summarizes readiness counts, OCR-needed
+counts, issue categories, top fields needing review, and recommended next fix
+buckets. It does not print private values or raw text.
 
 ## Feedback Import
 

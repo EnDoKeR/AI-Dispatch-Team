@@ -216,6 +216,28 @@ Preferred path:
 Outputs may include safe JSON, safe CSV, safe Markdown summaries, and a
 local-only human value-review template. Generated files must not be committed.
 
+The local review analysis loop reads the ignored review CSVs and writes:
+
+- `local_review_analysis.md`
+- `local_review_analysis.json`
+
+Those reports contain aliases, counts, statuses, field names, and issue
+categories only. They are used to choose one targeted deterministic hardening
+focus per block.
+
+Current safe local review metrics after the stop datetime hardening pass:
+
+- documents analyzed: 18;
+- readiness counts: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed count: 4;
+- span-normalized stops: 29;
+- span date resolved / missing: 8 / 21;
+- span time resolved / missing: 10 / 19.
+
+The private rerun did not change span date/time aggregate counts, so the next
+block should use the local review workbook or analysis report to select the
+next blocker instead of adding more date/time heuristics blindly.
+
 ## Command
 
 Run locally only:
