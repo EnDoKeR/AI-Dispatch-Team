@@ -260,7 +260,11 @@ def _top_fix_bucket(records):
         (record or {}).get("recommended_fix_bucket", "local_human_review")
         for record in records or []
         if (record or {}).get("gap_reason")
-        not in {COVERAGE_GAP_NON_APPLICABLE, COVERAGE_GAP_POLICY_EXCLUDED}
+        not in {
+            COVERAGE_GAP_NON_APPLICABLE,
+            COVERAGE_GAP_POLICY_EXCLUDED,
+            COVERAGE_GAP_UNKNOWN,
+        }
     )
     if not counts:
         return "local_human_review"
@@ -566,7 +570,10 @@ def analyze_candidate_coverage_from_rows(
 def analyze_candidate_coverage(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
     artifact = _read_json(Path(input_dir) / CANDIDATE_COVERAGE_JSON, default=None)
     if isinstance(artifact, dict) and "records" in artifact and "aggregate" in artifact:
-        return artifact
+        return build_candidate_coverage_result(
+            artifact.get("records", []),
+            document_count=(artifact.get("aggregate", {}) or {}).get("document_count", 0),
+        )
     inputs = load_candidate_coverage_inputs(input_dir)
     return analyze_candidate_coverage_from_rows(**inputs)
 

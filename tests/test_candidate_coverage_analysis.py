@@ -11,9 +11,12 @@ from app.document_ai.candidate_coverage_analysis import (
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
     COVERAGE_GAP_POLICY_EXCLUDED,
+    COVERAGE_GAP_UNKNOWN,
     COVERAGE_STAGE_CORE_FIELD_MAPPING,
     COVERAGE_STAGE_NORMALIZED_STOP_FIELD,
+    COVERAGE_STAGE_REVIEW_ROW,
     COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
+    COVERAGE_STATUS_CONFLICT,
     COVERAGE_STATUS_MISSING,
     analyze_candidate_coverage_from_rows,
     analyze_candidate_coverage_from_measurement_rows,
@@ -111,6 +114,35 @@ class CandidateCoverageAnalysisTests(unittest.TestCase):
         self.assertEqual(
             aggregate["recommended_next_fix"],
             "stop_span_date_candidate_generation",
+        )
+
+    def test_aggregate_next_fix_ignores_unknown_conflict_rows(self):
+        aggregate = build_candidate_coverage_aggregate(
+            [
+                build_candidate_coverage_record(
+                    measurement_alias=f"RATECON_00{index}",
+                    field_name="delivery_date",
+                    stage=COVERAGE_STAGE_REVIEW_ROW,
+                    status=COVERAGE_STATUS_CONFLICT,
+                    gap_reason=COVERAGE_GAP_UNKNOWN,
+                )
+                for index in range(1, 5)
+            ]
+            + [
+                build_candidate_coverage_record(
+                    measurement_alias="RATECON_010",
+                    field_name="load_number",
+                    stage=COVERAGE_STAGE_REVIEW_ROW,
+                    status=COVERAGE_STATUS_MISSING,
+                    gap_reason=COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+                )
+            ],
+            document_count=5,
+        )
+
+        self.assertEqual(
+            aggregate["recommended_next_fix"],
+            "load_identifier_candidate_generation",
         )
 
     def test_serialization_contains_no_private_values(self):
