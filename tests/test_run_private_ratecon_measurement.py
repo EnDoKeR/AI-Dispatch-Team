@@ -554,6 +554,59 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("RATECON_001", json_text)
         self.assertNotIn("FAKE_SECRET_STOP_VALUE", md_text + json_text + console_output)
 
+    def test_cli_writes_google_sheet_export_without_printing_names(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "document_type": "LOAD_CONFIRMATION",
+                    "classification_status": "classified",
+                    "extraction_relevant": True,
+                    "normal_load_movement": True,
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "layout_provider_status": "success",
+                    "field_statuses": [{"field_name": "rate", "status": "resolved"}],
+                    "stop_pipeline_trace": {
+                        "passthrough_detected": False,
+                        "first_stage_that_changed": "post_single_line_cluster",
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+            "local_document_names_by_alias": {"RATECON_001": "LoadConfirmation1"},
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-google-sheet-export",
+                            "--natural-sort-inputs",
+                        ]
+                    )
+            csv_text = (Path(output_dir) / "ratecon_review_google_sheet.csv").read_text(
+                encoding="utf-8"
+            )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("google_sheet_export_written", console_output)
+        self.assertIn("ratecon_review_google_sheet.csv", console_output)
+        self.assertIn("LoadConfirmation1", csv_text)
+        self.assertNotIn("LoadConfirmation1", console_output)
+        self.assertNotIn(output_dir, console_output)
+
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

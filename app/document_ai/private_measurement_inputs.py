@@ -1,6 +1,7 @@
 """Private measurement input discovery and safe aliasing helpers."""
 
 import json
+import re
 from pathlib import Path
 
 
@@ -54,25 +55,45 @@ def validate_private_input_dir(path):
     return input_dir
 
 
-def discover_private_pdfs(input_dir):
+def natural_sort_key(value):
+    """Return a natural-sort key for local-only document review ordering."""
+
+    text = str(value or "")
+    return [
+        int(part) if part.isdigit() else part.lower()
+        for part in re.split(r"(\d+)", text)
+    ]
+
+
+def discover_private_pdfs(input_dir, natural_sort=False):
     directory = validate_private_input_dir(input_dir)
 
+    key = (
+        lambda path: natural_sort_key(path.name)
+        if natural_sort
+        else path.name.lower()
+    )
     return sorted(
         [
             path
             for path in directory.iterdir()
             if path.is_file() and path.suffix.lower() == ".pdf"
         ],
-        key=lambda path: path.name.lower(),
+        key=key,
     )
 
 
-def build_safe_aliases(paths, prefix="RATECON"):
+def build_safe_aliases(paths, prefix="RATECON", natural_sort=False):
     safe_prefix = str(prefix or "RATECON").strip().upper() or "RATECON"
+    key = (
+        lambda item: natural_sort_key(Path(item).name)
+        if natural_sort
+        else Path(item).name.lower()
+    )
 
     return {
         Path(path): f"{safe_prefix}_{index:03d}"
-        for index, path in enumerate(sorted(paths, key=lambda item: Path(item).name.lower()), start=1)
+        for index, path in enumerate(sorted(paths, key=key), start=1)
     }
 
 

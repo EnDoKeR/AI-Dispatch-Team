@@ -26,6 +26,7 @@ from app.document_ai.private_measurement_outputs import (
     PrivateMeasurementOutputError,
     write_private_measurement_outputs,
 )
+from app.document_ai.private_measurement_review_export import write_ratecon_review_export
 from app.document_ai.private_measurement_pipeline import measure_private_ratecon_pdf
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
@@ -120,12 +121,13 @@ def build_private_ratecon_measurement_report(
     layout_diagnostics=False,
     compare_pdfplumber_table_profiles_enabled=False,
     pdfplumber_table_profile="default",
+    natural_sort_inputs=False,
 ):
-    pdfs = discover_private_pdfs(input_dir)
+    pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
     if limit and int(limit) > 0:
         pdfs = pdfs[: int(limit)]
 
-    aliases = build_safe_aliases(pdfs, prefix=alias_prefix)
+    aliases = build_safe_aliases(pdfs, prefix=alias_prefix, natural_sort=natural_sort_inputs)
     registry = _load_registry(
         template_dir,
         private_template_dir=private_template_dir,
@@ -169,6 +171,7 @@ def build_private_ratecon_measurement_report(
         "rows": rows,
         "aggregate": aggregate,
         "table_profile_comparisons": table_profile_comparisons,
+        "local_document_names_by_alias": {aliases[path]: path.stem for path in pdfs},
         "layout_diagnostics_enabled": bool(layout_diagnostics),
         "document_count": len(rows),
         "input_dir_included": False,
@@ -455,6 +458,8 @@ def main(argv=None):
     parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
     parser.add_argument("--write-stop-review-packet", action="store_true")
     parser.add_argument("--write-stop-provenance-report", action="store_true")
+    parser.add_argument("--write-google-sheet-export", action="store_true")
+    parser.add_argument("--natural-sort-inputs", action="store_true")
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
@@ -526,6 +531,7 @@ def main(argv=None):
             layout_diagnostics=args.layout_diagnostics,
             compare_pdfplumber_table_profiles_enabled=args.compare_pdfplumber_table_profiles,
             pdfplumber_table_profile=args.pdfplumber_table_profile,
+            natural_sort_inputs=args.natural_sort_inputs,
         )
 
         for line in format_private_measurement_report(report):
@@ -569,6 +575,20 @@ def main(argv=None):
                 f"'include_private_values_local_only': "
                 f"{packet['include_private_values_local_only']}}}"
             )
+        if not args.dry_run and args.write_google_sheet_export:
+            export = write_ratecon_review_export(
+                report["rows"],
+                output_dir=args.output_dir,
+                local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            labels = {
+                "csv": Path(export["csv"]).name,
+                "row_count": export["row_count"],
+            }
+            if export.get("xlsx"):
+                labels["xlsx"] = Path(export["xlsx"]).name
+            print(f"google_sheet_export_written: {labels}")
         if not args.dry_run and args.write_stop_provenance_report:
             provenance_report = write_stop_group_provenance_report(
                 report["rows"],
