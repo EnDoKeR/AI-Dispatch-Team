@@ -6,8 +6,11 @@ or local paths.
 """
 
 from collections import Counter, defaultdict
+import json
 import re
+from pathlib import Path
 
+from app.document_ai.local_review_analysis import LocalReviewAnalysisError
 from app.document_ai.load_identifier_candidates import (
     LOAD_IDENTIFIER_TYPE_BOL_NUMBER,
     LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER,
@@ -30,6 +33,10 @@ from app.document_ai.load_identifier_candidates import (
     NON_PRIMARY_REFERENCE_TYPES,
 )
 from app.document_ai.ratecon_candidates import FIELD_LOAD_NUMBER, FIELD_REFERENCE
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
+)
 
 
 LOAD_ID_SOURCE_STAGE_SOURCE_LINE = "source_line"
@@ -752,3 +759,139 @@ def analyze_load_id_source_lines_from_rows(measurement_rows):
         records,
         document_count=len(measurement_rows or []),
     )
+
+
+def _read_json(path, default):
+    try:
+        with Path(path).open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        return default
+    except json.JSONDecodeError as exc:
+        raise LocalReviewAnalysisError(f"invalid JSON: {Path(path).name}") from exc
+
+
+def _safe_summary_rows(input_dir):
+    payload = _read_json(Path(input_dir) / "safe_summary.json", default={}) or {}
+    rows = payload.get("rows", []) if isinstance(payload, dict) else []
+    return rows if isinstance(rows, list) else []
+
+
+def analyze_load_identifier_source_lines(input_dir=None):
+    root = Path(input_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR)
+    artifact = _read_json(root / LOAD_ID_SOURCE_LINE_RAW_JSON, default=None)
+    if isinstance(artifact, dict) and "records" in artifact and "aggregate" in artifact:
+        return build_load_id_source_line_result(
+            artifact.get("records", []),
+            document_count=(artifact.get("aggregate", {}) or {}).get(
+                "document_count",
+                0,
+            ),
+        )
+    if not (root / "safe_summary.json").exists():
+        raise LocalReviewAnalysisError("missing safe_summary.json")
+    return analyze_load_id_source_lines_from_rows(_safe_summary_rows(root))
+
+
+def load_identifier_source_line_markdown_lines(analysis):
+    aggregate = (analysis or {}).get("aggregate", {}) or {}
+    lines = [
+        "# Load Identifier Source-Line Audit",
+        "",
+        "Local-only analysis. Safe to share: aliases, counts, statuses, label categories, and stage categories.",
+        "Do not share private values, line text, raw text, filenames, local paths, rates, addresses, references, or broker identifiers.",
+        "",
+        f"Documents analyzed: {aggregate.get('document_count', 0)}",
+        f"Fix allowed: {aggregate.get('fix_allowed', False)}",
+        f"Selected root cause: {aggregate.get('selected_root_cause', '')}",
+        f"Recommended next action: {aggregate.get('recommended_next_action', '')}",
+        "",
+        "## Counts",
+        f"- identifier-like source lines: {aggregate.get('identifier_like_line_count', 0)}",
+        f"- labels detected: {aggregate.get('detected_label_count', 0)}",
+        f"- labels classified: {aggregate.get('classified_label_count', 0)}",
+        f"- typed candidates: {aggregate.get('typed_candidate_count', 0)}",
+        f"- primary candidates: {aggregate.get('primary_candidate_count', 0)}",
+        f"- core mappings: {aggregate.get('core_mapping_count', 0)}",
+        f"- rejected non-primary references: {aggregate.get('rejected_non_primary_count', 0)}",
+        "",
+        "## Reasons",
+    ]
+    for reason, count in (aggregate.get("records_by_reason", {}) or {}).items():
+        lines.append(f"- {reason}: {count}")
+    lines.extend(["", "## Source Sections"])
+    for section, count in (aggregate.get("records_by_source_section", {}) or {}).items():
+        lines.append(f"- {section}: {count}")
+    lines.extend(["", "## Label Categories"])
+    for category, count in (aggregate.get("records_by_label_category", {}) or {}).items():
+        lines.append(f"- {category}: {count}")
+    return lines
+
+
+def write_load_identifier_source_line_json(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(analysis, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "json": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "line_text_printed": False,
+    }
+
+
+def write_load_identifier_source_line_md(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(load_identifier_source_line_markdown_lines(analysis)) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "md": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "line_text_printed": False,
+    }
+
+
+def write_load_identifier_source_line_artifacts(
+    analysis,
+    output_dir=None,
+    allow_custom_output_dir=False,
+    raw=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    json_name = LOAD_ID_SOURCE_LINE_RAW_JSON if raw else LOAD_ID_SOURCE_LINE_ANALYSIS_JSON
+    md_name = LOAD_ID_SOURCE_LINE_RAW_MD if raw else LOAD_ID_SOURCE_LINE_ANALYSIS_MD
+    json_result = write_load_identifier_source_line_json(
+        analysis,
+        output_root / json_name,
+    )
+    md_result = write_load_identifier_source_line_md(
+        analysis,
+        output_root / md_name,
+    )
+    return {
+        "paths": {
+            "load_identifier_source_line_json": output_root / json_name,
+            "load_identifier_source_line_md": output_root / md_name,
+        },
+        "aggregate": (analysis or {}).get("aggregate", {}),
+        "private_values_printed": bool(
+            json_result.get("private_values_printed")
+            or md_result.get("private_values_printed")
+        ),
+        "raw_text_printed": bool(
+            json_result.get("raw_text_printed") or md_result.get("raw_text_printed")
+        ),
+        "line_text_printed": bool(
+            json_result.get("line_text_printed") or md_result.get("line_text_printed")
+        ),
+    }
