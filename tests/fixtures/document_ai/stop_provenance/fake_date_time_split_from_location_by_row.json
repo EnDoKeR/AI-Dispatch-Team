@@ -1,0 +1,10 @@
+{
+  "fixture_name": "fake_date_time_split_from_location_by_row",
+  "expected_root_causes": ["DATE_TIME_SPLIT_FROM_LOCATION", "TABLE_ROW_NOT_MERGED"],
+  "expected": {"date_candidate_attached_after_merge": true},
+  "stop_groups": [
+    {"stop_group_id": "pickup_row_location_only", "stop_sequence": 1, "stop_type": "pickup", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_SPLIT", "row_index": 1, "field_candidates": [{"candidate_id": "pickup_row_location_only", "field_name": "location", "confidence": 0.8}], "confidence": 0.8, "warning_codes": [], "provenance": {"source_type": "table_row", "source_generator": "synthetic_fixture", "page_number": 1, "table_id": "T_SPLIT", "row_index": 1, "section_role": "STOP_TABLE", "trigger_label_category": "pickup", "candidate_field_names": ["location"], "field_count": 1, "has_location_candidate": true, "has_date_candidate": false, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "1|T_SPLIT|1", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}},
+    {"stop_group_id": "pickup_row_datetime_only", "stop_sequence": 1, "stop_type": "pickup", "source": "table_row", "page_number": 1, "section_role": "STOP_TABLE", "table_id": "T_SPLIT", "row_index": 1, "field_candidates": [{"candidate_id": "pickup_row_date", "field_name": "date", "confidence": 0.8}, {"candidate_id": "pickup_row_time", "field_name": "time", "confidence": 0.8}], "confidence": 0.8, "warning_codes": [], "provenance": {"source_type": "table_row", "source_generator": "synthetic_fixture", "page_number": 1, "table_id": "T_SPLIT", "row_index": 1, "section_role": "STOP_TABLE", "trigger_label_category": "date", "candidate_field_names": ["date", "time"], "field_count": 2, "has_location_candidate": false, "has_date_candidate": true, "has_time_candidate": true, "has_reference_candidate": false, "grouping_key": "1|T_SPLIT|1", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}}
+  ]
+}
+

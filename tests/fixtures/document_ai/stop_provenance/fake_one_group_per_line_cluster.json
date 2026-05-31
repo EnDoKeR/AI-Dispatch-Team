@@ -1,0 +1,14 @@
+{
+  "fixture_name": "fake_one_group_per_line_cluster",
+  "expected_root_causes": ["ONE_GROUP_PER_LINE", "SECTION_LINES_NOT_CLUSTERED", "DATE_TIME_SPLIT_FROM_LOCATION"],
+  "expected": {
+    "section_role": "PICKUP_SECTION",
+    "expected_group_count_after_section_cluster": 1
+  },
+  "stop_groups": [
+    {"stop_group_id": "line_pickup_label", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "field_candidates": [{"candidate_id": "line_location", "field_name": "location", "confidence": 0.7, "evidence_ref": {"line_id": "L_PICKUP_1"}}], "confidence": 0.65, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 1, "line_id": "L_PICKUP_1", "section_role": "PICKUP_SECTION", "trigger_label_category": "pickup", "candidate_field_names": ["location"], "field_count": 1, "has_location_candidate": true, "has_date_candidate": false, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "1|PICKUP_SECTION|cluster_a", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}},
+    {"stop_group_id": "line_pickup_date", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "field_candidates": [{"candidate_id": "line_date", "field_name": "date", "confidence": 0.7, "evidence_ref": {"line_id": "L_PICKUP_2"}}], "confidence": 0.65, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 1, "line_id": "L_PICKUP_2", "section_role": "PICKUP_SECTION", "trigger_label_category": "date", "candidate_field_names": ["date"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": true, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "1|PICKUP_SECTION|cluster_a", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}},
+    {"stop_group_id": "line_pickup_time", "stop_sequence": 1, "stop_type": "pickup", "source": "section_block", "page_number": 1, "section_role": "PICKUP_SECTION", "field_candidates": [{"candidate_id": "line_time", "field_name": "time", "confidence": 0.7, "evidence_ref": {"line_id": "L_PICKUP_3"}}], "confidence": 0.65, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 1, "line_id": "L_PICKUP_3", "section_role": "PICKUP_SECTION", "trigger_label_category": "time", "candidate_field_names": ["time"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": false, "has_time_candidate": true, "has_reference_candidate": false, "grouping_key": "1|PICKUP_SECTION|cluster_a", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}}
+  ]
+}
+

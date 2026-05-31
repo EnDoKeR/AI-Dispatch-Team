@@ -1,0 +1,10 @@
+{
+  "fixture_name": "fake_terms_billing_noise_with_stop_labels",
+  "expected_root_causes": ["TERMS_BILLING_NOISE_NOT_FILTERED"],
+  "expected": {"noise_candidate_count": 2},
+  "stop_groups": [
+    {"stop_group_id": "terms_stop_label", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 3, "section_role": "LEGAL_TERMS", "field_candidates": [{"candidate_id": "terms_date", "field_name": "date", "confidence": 0.3}], "confidence": 0.3, "warning_codes": ["terms_noise"], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 3, "line_id": "L_TERMS", "section_role": "LEGAL_TERMS", "trigger_label_category": "date", "candidate_field_names": ["date"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": true, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "3|LEGAL_TERMS|L_TERMS", "raw_text_included": false, "private_values_redacted": true, "warning_codes": ["terms_noise"]}},
+    {"stop_group_id": "billing_stop_label", "stop_sequence": "", "stop_type": "unknown", "source": "section_block", "page_number": 3, "section_role": "BILLING_INSTRUCTIONS", "field_candidates": [{"candidate_id": "billing_reference", "field_name": "reference", "confidence": 0.3}], "confidence": 0.3, "warning_codes": ["billing_noise"], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 3, "line_id": "L_BILLING", "section_role": "BILLING_INSTRUCTIONS", "trigger_label_category": "reference", "candidate_field_names": ["reference"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": false, "has_time_candidate": false, "has_reference_candidate": true, "grouping_key": "3|BILLING_INSTRUCTIONS|L_BILLING", "raw_text_included": false, "private_values_redacted": true, "warning_codes": ["billing_noise"]}}
+  ]
+}
+

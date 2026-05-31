@@ -1,0 +1,10 @@
+{
+  "fixture_name": "fake_section_lines_not_clustered",
+  "expected_root_causes": ["SECTION_LINES_NOT_CLUSTERED", "ONE_GROUP_PER_LINE"],
+  "expected": {"section_role": "DELIVERY_SECTION", "expected_group_count_after_section_cluster": 1},
+  "stop_groups": [
+    {"stop_group_id": "delivery_location_line", "stop_sequence": 2, "stop_type": "delivery", "source": "section_block", "page_number": 2, "section_role": "DELIVERY_SECTION", "field_candidates": [{"candidate_id": "delivery_location_line", "field_name": "location", "confidence": 0.75}], "confidence": 0.7, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 2, "line_id": "L_DEL_1", "section_role": "DELIVERY_SECTION", "trigger_label_category": "delivery", "candidate_field_names": ["location"], "field_count": 1, "has_location_candidate": true, "has_date_candidate": false, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "2|DELIVERY_SECTION|cluster_b", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}},
+    {"stop_group_id": "delivery_date_line", "stop_sequence": 2, "stop_type": "delivery", "source": "section_block", "page_number": 2, "section_role": "DELIVERY_SECTION", "field_candidates": [{"candidate_id": "delivery_date_line", "field_name": "date", "confidence": 0.75}], "confidence": 0.7, "warning_codes": [], "provenance": {"source_type": "single_line", "source_generator": "synthetic_fixture", "page_number": 2, "line_id": "L_DEL_2", "section_role": "DELIVERY_SECTION", "trigger_label_category": "date", "candidate_field_names": ["date"], "field_count": 1, "has_location_candidate": false, "has_date_candidate": true, "has_time_candidate": false, "has_reference_candidate": false, "grouping_key": "2|DELIVERY_SECTION|cluster_b", "raw_text_included": false, "private_values_redacted": true, "warning_codes": []}}
+  ]
+}
+
