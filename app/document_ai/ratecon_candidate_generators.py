@@ -86,13 +86,12 @@ CARRIER_NAME_LABELS = (
 )
 
 BROKER_CONTEXT_HINTS = (
+    "broker",
     "broker contact",
     "brokerage",
+    "dispatch contact",
     "load tendered by",
     "carrier rate confirmation from",
-    "rate confirmation",
-    "load confirmation",
-    "load tender",
 )
 
 CARRIER_CONTEXT_HINTS = (
@@ -245,7 +244,12 @@ def _split_label_value(line):
 
 def _label_matches(label, labels):
     token = str(label or "").strip().lower()
-    return any(token == item or item in token for item in labels)
+    for item in labels:
+        if token == item:
+            return True
+        if item not in {"broker", "carrier"} and item in token:
+            return True
+    return False
 
 
 def _looks_like_company_name(value):
@@ -264,11 +268,12 @@ def _broker_context_candidate(lines, index, stripped):
     )
     if any(hint in current_previous for hint in CARRIER_CONTEXT_HINTS):
         return False
-    window = " ".join(
-        line.strip().lower()
-        for line in lines[max(0, index - 2) : min(len(lines), index + 3)]
+    context_window = " ".join(
+        lines[position].strip().lower()
+        for position in range(max(0, index - 2), min(len(lines), index + 3))
+        if position != index
     )
-    return any(hint in window for hint in BROKER_CONTEXT_HINTS)
+    return any(hint in context_window for hint in BROKER_CONTEXT_HINTS)
 
 
 def _section_from_line(line):
@@ -431,6 +436,14 @@ def generate_identity_reference_candidates(artifact):
     for page in _artifact_pages(artifact):
         page_number = page.get("page_number", "")
         lines = str(page.get("text", "") or "").splitlines()
+        page_has_labeled_broker_name = any(
+            bool(_split_label_value(line.strip())[1])
+            and _label_matches(
+                _split_label_value(line.strip())[0].lower(),
+                BROKER_NAME_LABELS,
+            )
+            for line in lines
+        )
 
         for line_index, line in enumerate(lines, start=1):
             stripped = line.strip()
@@ -527,7 +540,10 @@ def generate_identity_reference_candidates(artifact):
                             )
                         )
 
-            elif _broker_context_candidate(lines, line_index - 1, stripped):
+            elif (
+                not page_has_labeled_broker_name
+                and _broker_context_candidate(lines, line_index - 1, stripped)
+            ):
                 candidates.append(
                     build_field_candidate(
                         candidate_id=f"broker-name-context-p{page_number}-l{line_index}",

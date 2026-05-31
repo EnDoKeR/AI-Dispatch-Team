@@ -124,8 +124,8 @@ preserving the carrier-name guard.
 
 Safe before/after signal:
 
-- `broker_name` candidate-not-generated count improved from 10 to 6.
-- total `candidate_not_generated` count improved from 27 to 20.
+- `broker_name` candidate-not-generated count improved from 10 to 7.
+- total `candidate_not_generated` count improved from 27 to 22.
 - readiness did not change: `extraction_review_ready=14`, `not_ready=4`.
 - remaining true intake blockers are still delivery date, pickup date, load
   number, rate, broker name, delivery location, and pickup location.

@@ -137,10 +137,10 @@ review-gated broker candidates from explicit broker/tender labels and
 broker-context header/contact blocks while preserving carrier-name separation.
 Safe local delta:
 
-- broker-name candidate-not-generated: 10 -> 6;
-- total candidate-not-generated: 27 -> 20;
-- true intake blockers: 56 -> 52;
-- dispatch-decision blockers: 128 -> 121;
+- broker-name candidate-not-generated: 10 -> 7;
+- total candidate-not-generated: 27 -> 22;
+- true intake blockers: 56 -> 53;
+- dispatch-decision blockers: 128 -> 123;
 - readiness unchanged: `extraction_review_ready=14`, `not_ready=4`.
 
 Remaining blockers should be chosen from the updated coverage reports, not from

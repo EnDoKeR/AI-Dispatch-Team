@@ -112,8 +112,8 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   `candidate_coverage_analysis.json`, and `candidate_coverage_analysis.md`.
 - The first selected candidate-generation fix targeted broker identity because
   `broker_name` was the largest concrete `candidate_not_generated` field.
-  Safe rerun signal: broker-name candidate-not-generated improved from 10 to 6,
-  total candidate-not-generated improved from 27 to 20, and readiness remained
+  Safe rerun signal: broker-name candidate-not-generated improved from 10 to 7,
+  total candidate-not-generated improved from 27 to 22, and readiness remained
   `extraction_review_ready=14`, `not_ready=4`.
 - The next clean target should come from the remaining candidate coverage
   counts, not from stacking generic datetime or mapping heuristics.

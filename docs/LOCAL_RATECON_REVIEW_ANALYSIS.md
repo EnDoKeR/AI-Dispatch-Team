@@ -163,8 +163,8 @@ labels, and carrier-name guard cases.
 
 Safe measured delta after the focused fix:
 
-- broker-name candidate-not-generated: 10 -> 6;
-- total candidate-not-generated: 27 -> 20;
+- broker-name candidate-not-generated: 10 -> 7;
+- total candidate-not-generated: 27 -> 22;
 - readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
 - remaining top true intake blockers: delivery date, pickup date, load number,
   rate, broker name, delivery location, and pickup location.

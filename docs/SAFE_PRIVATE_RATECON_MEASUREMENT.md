@@ -272,9 +272,9 @@ heuristics.
 After candidate coverage instrumentation, the first selected fix was broker
 identity candidate generation. Safe local delta:
 
-- broker-name candidate-not-generated count: 10 -> 6;
-- total candidate-not-generated count: 27 -> 20;
-- field review rows: 154 -> 156;
+- broker-name candidate-not-generated count: 10 -> 7;
+- total candidate-not-generated count: 27 -> 22;
+- field review rows: 154;
 - readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
 - OCR-needed unchanged: 4.
 
