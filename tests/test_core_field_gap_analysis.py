@@ -10,6 +10,7 @@ from app.document_ai.core_field_gap_analysis import (
     CORE_FIELD_GAP_CONFLICT,
     CORE_FIELD_GAP_NO_CANDIDATE,
     CORE_FIELD_GAP_OCR_NEEDED,
+    CORE_FIELD_GAP_OPTIONAL_MISSING,
     CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED,
     CORE_FIELD_PICKUP_DATE,
     CORE_FIELD_PICKUP_TIME,
@@ -257,9 +258,41 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
         )
 
         record = analysis["records"][0]
-        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED)
+        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_OPTIONAL_MISSING)
         self.assertFalse(record["intake_core_blocker"])
         self.assertTrue(record["dispatch_decision_blocker"])
+        self.assertTrue(record["optional_missing_field"])
+
+    def test_optional_equipment_missing_is_dispatch_gap_not_intake_gap(self):
+        analysis = analyze_core_field_gaps_from_rows(
+            document_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Normal Load Movement": "yes",
+                }
+            ],
+            field_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Field Name": "equipment",
+                    "Status": "missing",
+                }
+            ],
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "field_statuses": [
+                        {"field_name": "equipment", "status": "missing"}
+                    ],
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_OPTIONAL_MISSING)
+        self.assertFalse(record["intake_core_blocker"])
+        self.assertTrue(record["dispatch_decision_blocker"])
+        self.assertTrue(record["review_field"])
 
     def test_ocr_document_is_not_digital_intake_blocker(self):
         analysis = analyze_core_field_gaps_from_rows(
