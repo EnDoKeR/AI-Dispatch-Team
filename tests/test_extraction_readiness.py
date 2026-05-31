@@ -61,6 +61,114 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertFalse(assessment["dispatch_decision_ready"])
         self.assertIn("equipment", assessment["review_fields"])
 
+    def test_broker_mc_missing_does_not_block_intake_core_by_itself(self):
+        row = {
+            "document_alias": "RATECON_CORE",
+            "field_statuses": [
+                _field("broker_name", "resolved"),
+                _field("broker_mc", "missing"),
+                _field("load_number", "resolved"),
+                _field("rate", "resolved"),
+                _field("pickup_location", "resolved"),
+                _field("pickup_date", "resolved"),
+                _field("delivery_location", "resolved"),
+                _field("delivery_date", "resolved"),
+            ],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_INTAKE_CORE_READY)
+        self.assertTrue(assessment["intake_core_ready"])
+        self.assertIn("broker_mc", assessment["review_fields"])
+        self.assertIn("broker_mc", assessment["blocking_fields"])
+
+    def test_equipment_missing_does_not_block_intake_core_by_itself(self):
+        row = {
+            "document_alias": "RATECON_CORE",
+            "field_statuses": [
+                _field("broker_name", "resolved"),
+                _field("load_number", "resolved"),
+                _field("rate", "resolved"),
+                _field("pickup_location", "resolved"),
+                _field("pickup_date", "resolved"),
+                _field("delivery_location", "resolved"),
+                _field("delivery_date", "resolved"),
+                _field("equipment", "missing"),
+            ],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertEqual(assessment["readiness_level"], READINESS_LEVEL_INTAKE_CORE_READY)
+        self.assertTrue(assessment["intake_core_ready"])
+        self.assertIn("equipment", assessment["review_fields"])
+
+    def test_weight_and_commodity_missing_remain_visible_for_review(self):
+        row = {
+            "document_alias": "RATECON_CORE",
+            "field_statuses": [
+                _field("broker_name", "resolved"),
+                _field("load_number", "resolved"),
+                _field("rate", "resolved"),
+                _field("pickup_location", "resolved"),
+                _field("pickup_date", "resolved"),
+                _field("delivery_location", "resolved"),
+                _field("delivery_date", "resolved"),
+                _field("weight", "missing"),
+                _field("commodity", "missing"),
+            ],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertTrue(assessment["intake_core_ready"])
+        self.assertFalse(assessment["dispatch_decision_ready"])
+        self.assertIn("weight", assessment["review_fields"])
+        self.assertIn("commodity", assessment["review_fields"])
+
+    def test_rate_missing_blocks_intake_core_ready(self):
+        row = {
+            "document_alias": "RATECON_CORE",
+            "field_statuses": [
+                _field("broker_name", "resolved"),
+                _field("load_number", "resolved"),
+                _field("rate", "missing"),
+                _field("pickup_location", "resolved"),
+                _field("pickup_date", "resolved"),
+                _field("delivery_location", "resolved"),
+                _field("delivery_date", "resolved"),
+            ],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertEqual(
+            assessment["readiness_level"],
+            READINESS_LEVEL_EXTRACTION_REVIEW_READY,
+        )
+        self.assertFalse(assessment["intake_core_ready"])
+        self.assertIn("rate", assessment["blocking_fields"])
+
+    def test_pickup_or_delivery_core_missing_blocks_intake_core_ready(self):
+        row = {
+            "document_alias": "RATECON_CORE",
+            "field_statuses": [
+                _field("broker_name", "resolved"),
+                _field("load_number", "resolved"),
+                _field("rate", "resolved"),
+                _field("pickup_location", "resolved"),
+                _field("pickup_date", "missing"),
+                _field("delivery_location", "resolved"),
+                _field("delivery_date", "resolved"),
+            ],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertFalse(assessment["intake_core_ready"])
+        self.assertIn("pickup_date", assessment["blocking_fields"])
+
     def test_dispatch_decision_ready_is_stricter(self):
         row = {
             "document_alias": "RATECON_004",
@@ -126,4 +234,3 @@ class ExtractionReadinessTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
-

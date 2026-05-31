@@ -549,9 +549,30 @@ def _aliases_by(records, key_name):
 
 
 def _top_fix_bucket(records):
+    actionable_records = [
+        record
+        for record in records or []
+        if (record or {}).get("intake_core_blocker")
+        and (record or {}).get("gap_reason")
+        not in {
+            CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED,
+            CORE_FIELD_GAP_NON_APPLICABLE,
+            CORE_FIELD_GAP_OCR_NEEDED,
+        }
+    ]
+    records_for_target = actionable_records or [
+        record
+        for record in records or []
+        if (record or {}).get("gap_reason")
+        not in {
+            CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED,
+            CORE_FIELD_GAP_NON_APPLICABLE,
+            CORE_FIELD_GAP_OCR_NEEDED,
+        }
+    ]
     counts = Counter(
         (record or {}).get("recommended_fix_bucket", "local_human_review")
-        for record in records or []
+        for record in records_for_target
     )
     if not counts:
         return "local_human_review"

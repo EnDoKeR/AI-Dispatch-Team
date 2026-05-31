@@ -110,6 +110,36 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
             "broker_load_identity_extraction",
         )
 
+    def test_optional_records_do_not_drive_next_target(self):
+        aggregate = build_core_field_gap_aggregate(
+            [
+                build_core_field_gap_record(
+                    measurement_alias=f"RATECON_OPT_{index}",
+                    field_name=CORE_FIELD_BROKER_MC,
+                    status="missing",
+                    gap_reason=CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED,
+                    intake_core_blocker=False,
+                    dispatch_decision_blocker=True,
+                )
+                for index in range(5)
+            ]
+            + [
+                build_core_field_gap_record(
+                    measurement_alias="RATECON_RATE",
+                    field_name=CORE_FIELD_RATE,
+                    status="conflict",
+                    gap_reason=CORE_FIELD_GAP_CONFLICT,
+                    intake_core_blocker=True,
+                )
+            ],
+            document_count=6,
+        )
+
+        self.assertEqual(
+            aggregate["recommended_next_target"],
+            "rate_resolution_hardening",
+        )
+
     def test_serialization_contains_no_private_values(self):
         aggregate = build_core_field_gap_aggregate(
             [

@@ -170,15 +170,17 @@ def _dispatch_blocking_fields(statuses):
 
 
 def _review_fields(statuses):
+    dispatch_review_statuses = {
+        READINESS_FIELD_STATUS_MISSING,
+        READINESS_FIELD_STATUS_LOW_CONFIDENCE,
+        READINESS_FIELD_STATUS_NEEDS_REVIEW,
+        READINESS_FIELD_STATUS_CONFLICT,
+    }
     return [
         field_name
         for field_name, status in sorted(statuses.items())
-        if status
-        in {
-            READINESS_FIELD_STATUS_LOW_CONFIDENCE,
-            READINESS_FIELD_STATUS_NEEDS_REVIEW,
-            READINESS_FIELD_STATUS_CONFLICT,
-        }
+        if status in dispatch_review_statuses
+        and status != READINESS_FIELD_STATUS_NON_APPLICABLE
     ]
 
 
@@ -243,4 +245,3 @@ def assess_extraction_readiness(row):
         reasons=reasons,
         warning_codes=warnings,
     )
-
