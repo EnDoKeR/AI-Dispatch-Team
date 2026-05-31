@@ -200,6 +200,36 @@ class RateConflictAuditTests(unittest.TestCase):
             RATE_AUDIT_SELECTED_RATE_NOT_CORE_MAPPED,
         )
 
+    def test_conflict_reason_takes_priority_over_mapping_gap(self):
+        record = build_rate_conflict_audit_record_from_candidates(
+            measurement_alias="RATECON_006",
+            layout_candidates=[
+                self._candidate("1200.00", candidate_id="a"),
+                self._candidate("1300.00", candidate_id="b"),
+            ],
+            rate_fusion_result={
+                "fused_status": "conflict",
+                "selected_candidate_id": "a",
+                "review_required": True,
+            },
+            resolution_result={
+                "resolutions": [
+                    {
+                        "field_name": FIELD_RATE,
+                        "status": "conflict",
+                        "selected_candidate": "a",
+                    },
+                ]
+            },
+        )
+
+        self.assertTrue(record["conflict_present"])
+        self.assertFalse(record["selected_rate_present"])
+        self.assertEqual(
+            record["conflict_reason"],
+            RATE_AUDIT_MULTIPLE_DIFFERENT_STRONG_TOTALS,
+        )
+
     def test_accessorial_counted_without_money_values(self):
         record = build_rate_conflict_audit_record_from_candidates(
             measurement_alias="RATECON_006",

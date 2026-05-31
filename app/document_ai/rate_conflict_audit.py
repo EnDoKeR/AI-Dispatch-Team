@@ -320,17 +320,14 @@ def build_rate_conflict_audit_record_from_candidates(
         fusion.get("fused_status") == "conflict"
         or _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_CONFLICT
     )
-    selected_rate_present = bool(
-        fusion.get("selected_candidate_id")
-        or resolution.get("selected_candidate")
-    )
     core_rate_mapped = _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_RESOLVED
+    selected_rate_present = bool(
+        not conflict_present and (fusion.get("selected_candidate_id") or core_rate_mapped)
+    )
     document_type_token = _token(document_type)
 
     reason = RATE_AUDIT_UNKNOWN
-    if selected_rate_present and not core_rate_mapped:
-        reason = RATE_AUDIT_SELECTED_RATE_NOT_CORE_MAPPED
-    elif conflict_present and category_counts.get(RATE_CATEGORY_TONU, 0) and document_type_token in {
+    if conflict_present and category_counts.get(RATE_CATEGORY_TONU, 0) and document_type_token in {
         "truck_order_not_used",
         "tonu",
     }:
@@ -349,6 +346,8 @@ def build_rate_conflict_audit_record_from_candidates(
         reason = RATE_AUDIT_QUICKPAY_DEDUCTION_NOISE_REMAINING
     elif conflict_present and terms_billing_candidate_count:
         reason = RATE_AUDIT_TERMS_BILLING_NOISE_REMAINING
+    elif selected_rate_present and not core_rate_mapped:
+        reason = RATE_AUDIT_SELECTED_RATE_NOT_CORE_MAPPED
     elif candidates and fusion.get("fused_status") in {"missing", "needs_review", "low_confidence", ""}:
         reason = RATE_AUDIT_CANDIDATE_NOT_RESOLVED
 
