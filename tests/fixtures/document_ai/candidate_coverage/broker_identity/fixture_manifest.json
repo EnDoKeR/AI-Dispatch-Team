@@ -1,0 +1,25 @@
+{
+  "target": "broker_identity_candidate_generation",
+  "fixtures": [
+    {
+      "file": "fake_broker_contact_block.txt",
+      "expected_field": "broker_name",
+      "expected_pattern": "broker contact block"
+    },
+    {
+      "file": "fake_broker_logo_header.txt",
+      "expected_field": "broker_name",
+      "expected_pattern": "broker header context"
+    },
+    {
+      "file": "fake_load_tendered_by_broker.txt",
+      "expected_field": "broker_name",
+      "expected_pattern": "load tendered by label"
+    },
+    {
+      "file": "fake_carrier_name_should_not_be_broker.txt",
+      "expected_field": "carrier_name",
+      "expected_pattern": "carrier guard"
+    }
+  ]
+}

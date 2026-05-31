@@ -1,0 +1,5 @@
+CARRIER INFORMATION
+Carrier Name: Mock Carrier Testing LLC
+Dispatcher: Example Desk
+Rate Confirmation
+Load #: TEST-1004
