@@ -77,6 +77,8 @@ class PrivateMeasurementOutputTests(unittest.TestCase):
         self.assertIn("extraction_relevant", text)
         self.assertIn("normal_load_movement", text)
         self.assertIn("skipped_by_scope", text)
+        self.assertIn("premerge_stop_group_count", text)
+        self.assertIn("post_dedupe_stop_group_count", text)
         self.assertNotIn("raw_text", text)
         self.assertNotIn("FAKE BROKER LLC", text)
 

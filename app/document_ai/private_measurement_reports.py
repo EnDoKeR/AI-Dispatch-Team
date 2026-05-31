@@ -302,6 +302,22 @@ def build_private_ratecon_measurement_aggregate(rows):
         prevented_regression_count=sum(len(row.get("prevented_regression_fields", []) or []) for row in safe_rows),
         stop_group_count_total=sum(int(row.get("stop_group_count", 0) or 0) for row in safe_rows),
         raw_stop_group_count_total=sum(int(row.get("raw_stop_group_count", 0) or 0) for row in safe_rows),
+        raw_stop_signal_count_total=sum(int(row.get("raw_stop_signal_count", 0) or 0) for row in safe_rows),
+        premerge_stop_group_count_total=sum(
+            int(row.get("premerge_stop_group_count", 0) or 0) for row in safe_rows
+        ),
+        post_row_merge_stop_group_count_total=sum(
+            int(row.get("post_row_merge_stop_group_count", 0) or 0) for row in safe_rows
+        ),
+        post_section_merge_stop_group_count_total=sum(
+            int(row.get("post_section_merge_stop_group_count", 0) or 0) for row in safe_rows
+        ),
+        post_noise_filter_stop_group_count_total=sum(
+            int(row.get("post_noise_filter_stop_group_count", 0) or 0) for row in safe_rows
+        ),
+        post_dedupe_stop_group_count_total=sum(
+            int(row.get("post_dedupe_stop_group_count", 0) or 0) for row in safe_rows
+        ),
         normalized_stop_count_total=sum(int(row.get("normalized_stop_count", 0) or 0) for row in safe_rows),
         pickup_count_total=sum(int(row.get("pickup_count", 0) or 0) for row in safe_rows),
         delivery_count_total=sum(int(row.get("delivery_count", 0) or 0) for row in safe_rows),

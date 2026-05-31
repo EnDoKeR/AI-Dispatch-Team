@@ -203,6 +203,12 @@ def build_private_ratecon_measurement_row(
     prevented_regression_fields=None,
     stop_group_count=0,
     raw_stop_group_count=0,
+    raw_stop_signal_count=0,
+    premerge_stop_group_count=0,
+    post_row_merge_stop_group_count=0,
+    post_section_merge_stop_group_count=0,
+    post_noise_filter_stop_group_count=0,
+    post_dedupe_stop_group_count=0,
     normalized_stop_count=0,
     pickup_count=0,
     delivery_count=0,
@@ -308,6 +314,12 @@ def build_private_ratecon_measurement_row(
         "prevented_regression_fields": _normalize_list(prevented_regression_fields),
         "stop_group_count": int(stop_group_count or 0),
         "raw_stop_group_count": int(raw_stop_group_count or 0),
+        "raw_stop_signal_count": int(raw_stop_signal_count or 0),
+        "premerge_stop_group_count": int(premerge_stop_group_count or 0),
+        "post_row_merge_stop_group_count": int(post_row_merge_stop_group_count or 0),
+        "post_section_merge_stop_group_count": int(post_section_merge_stop_group_count or 0),
+        "post_noise_filter_stop_group_count": int(post_noise_filter_stop_group_count or 0),
+        "post_dedupe_stop_group_count": int(post_dedupe_stop_group_count or 0),
         "normalized_stop_count": int(normalized_stop_count or 0),
         "pickup_count": int(pickup_count or 0),
         "delivery_count": int(delivery_count or 0),
@@ -397,6 +409,12 @@ def build_private_ratecon_measurement_aggregate(
     prevented_regression_count=0,
     stop_group_count_total=0,
     raw_stop_group_count_total=0,
+    raw_stop_signal_count_total=0,
+    premerge_stop_group_count_total=0,
+    post_row_merge_stop_group_count_total=0,
+    post_section_merge_stop_group_count_total=0,
+    post_noise_filter_stop_group_count_total=0,
+    post_dedupe_stop_group_count_total=0,
     normalized_stop_count_total=0,
     pickup_count_total=0,
     delivery_count_total=0,
@@ -493,6 +511,20 @@ def build_private_ratecon_measurement_aggregate(
         "prevented_regression_count": int(prevented_regression_count or 0),
         "stop_group_count_total": int(stop_group_count_total or 0),
         "raw_stop_group_count_total": int(raw_stop_group_count_total or 0),
+        "raw_stop_signal_count_total": int(raw_stop_signal_count_total or 0),
+        "premerge_stop_group_count_total": int(premerge_stop_group_count_total or 0),
+        "post_row_merge_stop_group_count_total": int(
+            post_row_merge_stop_group_count_total or 0
+        ),
+        "post_section_merge_stop_group_count_total": int(
+            post_section_merge_stop_group_count_total or 0
+        ),
+        "post_noise_filter_stop_group_count_total": int(
+            post_noise_filter_stop_group_count_total or 0
+        ),
+        "post_dedupe_stop_group_count_total": int(
+            post_dedupe_stop_group_count_total or 0
+        ),
         "normalized_stop_count_total": int(normalized_stop_count_total or 0),
         "pickup_count_total": int(pickup_count_total or 0),
         "delivery_count_total": int(delivery_count_total or 0),

@@ -219,6 +219,8 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("fusion_enabled", output)
         self.assertIn("stop_group_count", output)
         self.assertIn("normalized_stop_count_total", output)
+        self.assertIn("premerge_stop_group_count_total", output)
+        self.assertIn("post_dedupe_stop_group_count_total", output)
         self.assertIn("stop_field_status_counts", output)
         self.assertIn("normalized_stop_improved_fields", output)
         self.assertIn("prevented_regression_count", output)

@@ -828,7 +828,13 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
         )
         stop_set.update(
             {
+                "raw_stop_signal_count": len(raw_groups),
                 "raw_stop_group_count": len(raw_groups),
+                "premerge_group_count": len(raw_groups),
+                "post_row_merge_group_count": len(raw_groups),
+                "post_section_merge_group_count": len(raw_groups),
+                "post_noise_filter_group_count": 0,
+                "post_dedupe_group_count": 0,
                 "stop_group_quality_bucket": diagnostics["quality_bucket"],
                 "stop_noise_removed_count": 0,
                 "stop_duplicate_removed_count": 0,
@@ -839,19 +845,20 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
         )
         return stop_set
 
-    noise = filter_stop_group_noise(raw_groups)
-    table_row_merge = merge_stop_groups_by_table_row(noise["kept_groups"])
+    premerge_groups = raw_groups
+    table_row_merge = merge_stop_groups_by_table_row(premerge_groups)
     section_context_merge = merge_stop_groups_by_section_context(table_row_merge["merged_groups"])
-    deduped = dedupe_stop_groups(section_context_merge["merged_groups"])
+    noise = filter_stop_group_noise(section_context_merge["merged_groups"])
+    deduped = dedupe_stop_groups(noise["kept_groups"])
     sequenced = assign_stop_sequence_order(deduped["kept_groups"])
     stops = [build_normalized_stop_from_group(group) for group in sequenced]
     warning_codes = sorted(
         set(
             normalize_list((stop_association_result or {}).get("warning_codes"))
             + diagnostics["warning_codes"]
-            + noise["warning_codes"]
             + table_row_merge["warning_codes"]
             + section_context_merge["warning_codes"]
+            + noise["warning_codes"]
             + deduped["warning_codes"]
             + [
                 WARNING_NORMALIZED_STOP_REVIEW_REQUIRED
@@ -867,15 +874,21 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
     )
     stop_set.update(
         {
+            "raw_stop_signal_count": len(raw_groups),
             "raw_stop_group_count": len(raw_groups),
-                "stop_group_quality_bucket": diagnostics["quality_bucket"],
-                "stop_noise_removed_count": noise["removed_count"],
-                "stop_duplicate_removed_count": deduped["removed_count"],
-                "table_row_merge_count": table_row_merge["merge_count"],
-                "section_context_merge_count": section_context_merge["merge_count"],
-                "review_required_stop_count": sum(
-                    1 for stop in stops if stop.get("review_required")
-                ),
+            "premerge_group_count": len(premerge_groups),
+            "post_row_merge_group_count": len(table_row_merge["merged_groups"]),
+            "post_section_merge_group_count": len(section_context_merge["merged_groups"]),
+            "post_noise_filter_group_count": len(noise["kept_groups"]),
+            "post_dedupe_group_count": len(deduped["kept_groups"]),
+            "stop_group_quality_bucket": diagnostics["quality_bucket"],
+            "stop_noise_removed_count": noise["removed_count"],
+            "stop_duplicate_removed_count": deduped["removed_count"],
+            "table_row_merge_count": table_row_merge["merge_count"],
+            "section_context_merge_count": section_context_merge["merge_count"],
+            "review_required_stop_count": sum(
+                1 for stop in stops if stop.get("review_required")
+            ),
         }
     )
     return stop_set

@@ -1106,6 +1106,24 @@ def measure_private_ratecon_pdf(
         raw_stop_group_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("raw_stop_group_count", 0),
+        raw_stop_signal_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("raw_stop_signal_count", 0),
+        premerge_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("premerge_group_count", 0),
+        post_row_merge_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_row_merge_group_count", 0),
+        post_section_merge_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_section_merge_group_count", 0),
+        post_noise_filter_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_noise_filter_group_count", 0),
+        post_dedupe_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_dedupe_group_count", 0),
         normalized_stop_count=len(
             (fusion_fields.get("normalized_stop_set", {}) or {}).get("stops", []) or []
         ),
