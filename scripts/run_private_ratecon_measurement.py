@@ -36,6 +36,7 @@ from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
 )
+from app.integrations import google_sheets_review as sheets_review
 
 
 DEFAULT_TEMPLATE_DIR = REPO_ROOT / "tests" / "fixtures" / "document_ai" / "broker_templates"
@@ -450,6 +451,37 @@ def _diagnostics_from_rows(rows):
     return diagnostics
 
 
+def _load_google_review_config_from_args(args):
+    config = sheets_review.load_google_sheets_review_config(args.google_config)
+    return sheets_review.GoogleSheetsReviewConfig(
+        spreadsheet_id=args.google_spreadsheet_id or config.spreadsheet_id,
+        credentials_json_path=args.google_credentials_json or config.credentials_json_path,
+        worksheet_prefix=args.google_worksheet_prefix or config.worksheet_prefix,
+        service_account_email=config.service_account_email,
+        default_sync_mode=config.default_sync_mode,
+    )
+
+
+def _sync_google_review_tabs(report, args):
+    mode = (
+        sheets_review.SYNC_MODE_PRIVATE_VALUES_TEST_ONLY
+        if args.include_private_review_values_google_test_only
+        else sheets_review.SYNC_MODE_STATUS_ONLY
+    )
+    rows_by_tab = sheets_review.build_google_review_tab_rows(
+        report["rows"],
+        local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
+        sync_mode=mode,
+        include_private_values=args.include_private_review_values_google_test_only,
+        worksheet_prefix=args.google_worksheet_prefix,
+    )
+    config = _load_google_review_config_from_args(args)
+    client = sheets_review.connect_to_google_sheet(config)
+    result = client.batch_update_review_tabs(rows_by_tab)
+    result["sync_mode"] = mode
+    return result
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(
         description=(
@@ -500,11 +532,18 @@ def main(argv=None):
     parser.add_argument("--write-google-sheet-export", action="store_true")
     parser.add_argument("--write-review-workbook", action="store_true")
     parser.add_argument("--write-review-csvs", action="store_true")
+    parser.add_argument("--sync-review-google-sheet", action="store_true")
+    parser.add_argument("--confirm-google-review-sync", action="store_true")
+    parser.add_argument("--google-config", default="")
+    parser.add_argument("--google-spreadsheet-id", default="")
+    parser.add_argument("--google-credentials-json", default="")
+    parser.add_argument("--google-worksheet-prefix", default="RC_")
     parser.add_argument("--natural-sort-inputs", action="store_true")
     parser.add_argument("--enable-stop-span-extractor", action="store_true")
     parser.add_argument("--compare-stop-span-to-stop-group-pipeline", action="store_true")
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-private-review-values-local-only", action="store_true")
+    parser.add_argument("--include-private-review-values-google-test-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -565,6 +604,29 @@ def main(argv=None):
     ):
         _print_expected_config_error(
             "--include-private-review-values-local-only requires --write-review-workbook or --write-review-csvs"
+        )
+        return 2
+
+    if args.sync_review_google_sheet and not args.confirm_google_review_sync:
+        _print_expected_config_error(
+            "--sync-review-google-sheet requires --confirm-google-review-sync"
+        )
+        return 2
+
+    if args.sync_review_google_sheet and not (
+        args.write_review_workbook or args.write_review_csvs
+    ):
+        _print_expected_config_error(
+            "--sync-review-google-sheet requires --write-review-workbook or --write-review-csvs"
+        )
+        return 2
+
+    if (
+        args.include_private_review_values_google_test_only
+        and not args.sync_review_google_sheet
+    ):
+        _print_expected_config_error(
+            "--include-private-review-values-google-test-only requires --sync-review-google-sheet"
         )
         return 2
 
@@ -692,6 +754,24 @@ def main(argv=None):
                 "csvs_written": review.get("csvs_written", False),
             }
             print(f"review_workbook_export_written: {labels}")
+        if not args.dry_run and args.sync_review_google_sheet:
+            sync_result = _sync_google_review_tabs(report, args)
+            sync_labels = {
+                "google_sheet_sync": "completed",
+                "tabs_updated": sync_result.get("tabs_updated", []),
+                "row_counts": sync_result.get("row_counts", {}),
+                "sync_mode": sync_result.get("sync_mode", "status_only"),
+                "private_values_printed": sync_result.get(
+                    "private_values_printed",
+                    False,
+                ),
+                "credentials_printed": sync_result.get("credentials_printed", False),
+                "spreadsheet_id_printed": sync_result.get(
+                    "spreadsheet_id_printed",
+                    False,
+                ),
+            }
+            print(f"google_sheet_sync: {sync_labels}")
         if not args.dry_run and args.write_stop_provenance_report:
             provenance_report = write_stop_group_provenance_report(
                 report["rows"],
@@ -716,6 +796,8 @@ def main(argv=None):
         PrivateMeasurementOutputError,
         TemplateRegistryError,
         FileNotFoundError,
+        sheets_review.GoogleSheetsReviewConfigError,
+        sheets_review.GoogleSheetsReviewClientError,
     ) as exc:
         _print_expected_error(str(exc))
         return 2

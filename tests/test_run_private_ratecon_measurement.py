@@ -482,6 +482,62 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("requires --write-review-workbook or --write-review-csvs", stderr.getvalue())
 
+    def test_cli_refuses_google_sync_without_confirm(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--write-review-csvs",
+                    "--sync-review-google-sheet",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --confirm-google-review-sync", stderr.getvalue())
+
+    def test_cli_refuses_google_sync_without_review_export(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--sync-review-google-sheet",
+                    "--confirm-google-review-sync",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --write-review-workbook or --write-review-csvs", stderr.getvalue())
+
+    def test_cli_refuses_google_private_values_without_sync(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--include-private-review-values-google-test-only",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --sync-review-google-sheet", stderr.getvalue())
+
     def test_cli_writes_shareable_stop_review_packet_without_values(self):
         fake_report = {
             "rows": [
@@ -813,6 +869,127 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("FAKE_PRIVATE_RATE", console_output)
         self.assertNotIn("LoadConfirmation1", console_output)
         self.assertNotIn(output_dir, console_output)
+
+    def test_cli_syncs_review_google_sheet_with_mock_client(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "document_type": "LOAD_CONFIRMATION",
+                    "classification_status": "classified",
+                    "extraction_relevant": True,
+                    "normal_load_movement": True,
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "layout_provider_status": "success",
+                    "span_normalized_stop_count": 1,
+                    "span_pickup_count": 1,
+                    "span_delivery_count": 0,
+                    "span_generic_stop_count": 0,
+                    "span_unknown_count": 0,
+                    "span_date_resolved_count": 0,
+                    "span_date_missing_count": 1,
+                    "span_time_resolved_count": 0,
+                    "span_time_missing_count": 1,
+                    "span_review_required_count": 1,
+                    "span_normalized_stop_set": {
+                        "stops": [
+                            {
+                                "stop_id": "span_stop_001",
+                                "stop_type": "pickup",
+                                "sequence": 1,
+                                "review_required": True,
+                                "fields": [
+                                    {
+                                        "field_name": "location",
+                                        "status": "resolved",
+                                        "confidence": "high",
+                                        "selected_value": "FAKE_PRIVATE_GOOGLE_VALUE",
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    "field_statuses": [
+                        {"field_name": "rate", "status": "resolved"},
+                        {"field_name": "broker_name", "status": "needs_review"},
+                        {"field_name": "load_number", "status": "resolved"},
+                        {"field_name": "pickup_location", "status": "resolved"},
+                        {"field_name": "pickup_date", "status": "needs_review"},
+                        {"field_name": "delivery_location", "status": "resolved"},
+                        {"field_name": "delivery_date", "status": "resolved"},
+                    ],
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+            "local_document_names_by_alias": {"RATECON_001": "LoadConfirmation1"},
+        }
+
+        class FakeGoogleClient:
+            rows_by_tab = None
+
+            def batch_update_review_tabs(self, rows_by_tab):
+                self.rows_by_tab = rows_by_tab
+                return {
+                    "tabs_updated": list(rows_by_tab),
+                    "row_counts": {title: len(rows) for title, rows in rows_by_tab.items()},
+                    "private_values_printed": False,
+                    "credentials_printed": False,
+                    "spreadsheet_id_printed": False,
+                }
+
+        fake_client = FakeGoogleClient()
+        fake_config = type(
+            "Config",
+            (),
+            {
+                "spreadsheet_id": "fake-spreadsheet",
+                "credentials_json_path": "fake-credentials.json",
+                "worksheet_prefix": "RC_",
+                "service_account_email": "ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com",
+                "default_sync_mode": "status_only",
+            },
+        )()
+
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ), patch(
+                "scripts.run_private_ratecon_measurement.sheets_review.load_google_sheets_review_config",
+                return_value=fake_config,
+            ), patch(
+                "scripts.run_private_ratecon_measurement.sheets_review.connect_to_google_sheet",
+                return_value=fake_client,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-review-csvs",
+                            "--sync-review-google-sheet",
+                            "--confirm-google-review-sync",
+                        ]
+                    )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("google_sheet_sync", console_output)
+        self.assertIn("RC_Document_Summary", console_output)
+        self.assertNotIn("FAKE_PRIVATE_GOOGLE_VALUE", console_output)
+        payload = "\n".join(
+            str(cell)
+            for rows in fake_client.rows_by_tab.values()
+            for row in rows
+            for cell in row
+        )
+        self.assertNotIn("FAKE_PRIVATE_GOOGLE_VALUE", payload)
 
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:
