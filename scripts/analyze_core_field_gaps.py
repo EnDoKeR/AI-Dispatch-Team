@@ -48,7 +48,15 @@ def main(argv=None):
     aggregate = analysis["aggregate"]
     print("Core field gap analysis summary")
     print(f"documents_analyzed: {aggregate.get('document_count', 0)}")
-    print(f"top_missing_or_gap_fields: {aggregate.get('top_core_field_gaps', [])[:8]}")
+    print(
+        "top_true_intake_core_fields: "
+        f"{aggregate.get('top_true_intake_core_gaps', [])[:8]}"
+    )
+    print(
+        "top_dispatch_decision_fields: "
+        f"{aggregate.get('top_dispatch_decision_gaps', [])[:8]}"
+    )
+    print(f"top_all_gap_fields: {aggregate.get('top_core_field_gaps', [])[:8]}")
     print(f"top_conflict_fields: {aggregate.get('top_conflict_fields', [])[:8]}")
     print(f"top_gap_reasons: {list((aggregate.get('gap_counts_by_reason', {}) or {}).items())[:8]}")
     print(
@@ -61,7 +69,7 @@ def main(argv=None):
     print("local_paths_printed: False")
 
     if not args.no_console_alias_details:
-        for field_name in aggregate.get("top_core_field_gaps", [])[:5]:
+        for field_name in aggregate.get("top_true_intake_core_gaps", [])[:5]:
             aliases = aggregate.get("aliases_by_field", {}).get(field_name, [])
             print(f"aliases_for_{field_name}: {aliases}")
 

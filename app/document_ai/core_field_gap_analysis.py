@@ -624,8 +624,31 @@ def core_field_gap_markdown_lines(analysis):
         f"Documents analyzed: {aggregate.get('document_count', 0)}",
         f"Recommended next target: {aggregate.get('recommended_next_target', 'local_human_review')}",
         "",
-        "## Top Core Field Gaps",
+        "## True Intake Core Gaps",
     ]
+    for field_name in aggregate.get("top_true_intake_core_gaps", []) or []:
+        count = aggregate.get("intake_core_gap_counts", {}).get(field_name, 0)
+        lines.append(f"- {field_name}: {count}")
+    lines.extend(["", "## Dispatch Decision Gaps"])
+    for field_name in aggregate.get("top_dispatch_decision_gaps", []) or []:
+        count = aggregate.get("dispatch_decision_gap_counts", {}).get(field_name, 0)
+        lines.append(f"- {field_name}: {count}")
+    lines.extend(
+        [
+            "",
+            "## Optional Missing Fields",
+        ]
+    )
+    for field_name, count in (
+        aggregate.get("optional_missing_field_counts", {}) or {}
+    ).items():
+        lines.append(f"- {field_name}: {count}")
+    lines.extend(
+        [
+            "",
+            "## Top Core Field Gaps",
+        ]
+    )
     for field_name in aggregate.get("top_core_field_gaps", []) or []:
         count = aggregate.get("gap_counts_by_field", {}).get(field_name, 0)
         lines.append(f"- {field_name}: {count}")
@@ -761,6 +784,8 @@ def build_core_field_gap_aggregate(records, document_count=0):
     )
     top_core_field_gaps = list(_sorted_counter(gap_counts_by_field).keys())[:10]
     top_conflict_fields = list(_sorted_counter(conflict_fields).keys())[:10]
+    top_true_intake_core_gaps = list(_sorted_counter(intake_core_gaps).keys())[:10]
+    top_dispatch_decision_gaps = list(_sorted_counter(dispatch_decision_gaps).keys())[:10]
 
     return {
         "document_count": _int(document_count),
@@ -781,6 +806,8 @@ def build_core_field_gap_aggregate(records, document_count=0):
         "aliases_by_field": _aliases_by(normalized_records, "field_name"),
         "aliases_by_reason": _aliases_by(normalized_records, "gap_reason"),
         "top_core_field_gaps": top_core_field_gaps,
+        "top_true_intake_core_gaps": top_true_intake_core_gaps,
+        "top_dispatch_decision_gaps": top_dispatch_decision_gaps,
         "top_conflict_fields": top_conflict_fields,
         "recommended_next_target": _top_fix_bucket(normalized_records),
         "analysis_version": CORE_FIELD_GAP_ANALYSIS_VERSION,

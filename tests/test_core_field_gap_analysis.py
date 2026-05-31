@@ -87,18 +87,21 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
                     field_name=CORE_FIELD_BROKER_NAME,
                     status="missing",
                     gap_reason=CORE_FIELD_GAP_NO_CANDIDATE,
+                    intake_core_blocker=True,
                 ),
                 build_core_field_gap_record(
                     measurement_alias="RATECON_002",
                     field_name=CORE_FIELD_BROKER_NAME,
                     status="missing",
                     gap_reason=CORE_FIELD_GAP_NO_CANDIDATE,
+                    intake_core_blocker=True,
                 ),
                 build_core_field_gap_record(
                     measurement_alias="RATECON_003",
                     field_name=CORE_FIELD_RATE,
                     status="conflict",
                     gap_reason=CORE_FIELD_GAP_CONFLICT,
+                    intake_core_blocker=True,
                 ),
             ],
             document_count=3,
@@ -107,6 +110,10 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
         self.assertEqual(aggregate["document_count"], 3)
         self.assertEqual(aggregate["gap_counts_by_field"][CORE_FIELD_BROKER_NAME], 2)
         self.assertEqual(aggregate["top_core_field_gaps"][0], CORE_FIELD_BROKER_NAME)
+        self.assertEqual(
+            aggregate["top_true_intake_core_gaps"][0],
+            CORE_FIELD_BROKER_NAME,
+        )
         self.assertEqual(
             aggregate["recommended_next_target"],
             "broker_load_identity_extraction",
@@ -140,6 +147,11 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
         self.assertEqual(
             aggregate["recommended_next_target"],
             "rate_resolution_hardening",
+        )
+        self.assertEqual(aggregate["top_true_intake_core_gaps"], [CORE_FIELD_RATE])
+        self.assertNotIn(
+            CORE_FIELD_BROKER_MC,
+            aggregate["intake_core_gap_counts"],
         )
 
     def test_serialization_contains_no_private_values(self):
