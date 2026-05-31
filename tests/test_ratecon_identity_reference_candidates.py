@@ -1,4 +1,6 @@
+import json
 import unittest
+from pathlib import Path
 
 from app.document_ai.ratecon_candidate_generators import (
     generate_identity_reference_candidates,
@@ -6,6 +8,7 @@ from app.document_ai.ratecon_candidate_generators import (
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
+    CANDIDATE_CONFIDENCE_MEDIUM,
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_CARRIER_NAME,
@@ -16,6 +19,22 @@ from app.document_ai.text_artifacts import build_text_extraction_artifact_for_ca
 from tests.fixtures.document_ai.ratecon_text.fixture_loader import (
     build_fixture_text_artifact,
 )
+
+
+BROKER_IDENTITY_FIXTURE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "candidate_coverage"
+    / "broker_identity"
+)
+
+
+def build_broker_identity_fixture_artifact(name):
+    return build_text_extraction_artifact_for_candidates(
+        full_text=(BROKER_IDENTITY_FIXTURE_DIR / name).read_text(encoding="utf-8"),
+        source_name=name,
+    )
 
 
 class RateConIdentityReferenceCandidatesTests(unittest.TestCase):
@@ -114,6 +133,88 @@ class RateConIdentityReferenceCandidatesTests(unittest.TestCase):
         self.assertTrue(
             all(candidate["normalized_value"] != "FAKE CARRIER LLC" for candidate in broker_names)
         )
+
+    def test_broker_identity_fixture_manifest_loads(self):
+        manifest = json.loads(
+            (BROKER_IDENTITY_FIXTURE_DIR / "fixture_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        self.assertEqual(manifest["target"], "broker_identity_candidate_generation")
+        self.assertGreaterEqual(len(manifest["fixtures"]), 4)
+        for fixture in manifest["fixtures"]:
+            self.assertTrue((BROKER_IDENTITY_FIXTURE_DIR / fixture["file"]).exists())
+
+    def test_broker_contact_block_generates_broker_candidate(self):
+        artifact = build_broker_identity_fixture_artifact("fake_broker_contact_block.txt")
+        candidates = generate_identity_reference_candidates(artifact)
+        broker_names = [
+            candidate
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_BROKER_NAME
+        ]
+
+        self.assertTrue(broker_names)
+        self.assertEqual(
+            broker_names[0]["normalized_value"],
+            "Pioneer Freight Testing LLC",
+        )
+        self.assertEqual(broker_names[0]["confidence"], CANDIDATE_CONFIDENCE_MEDIUM)
+        self.assertIn("broker_header_context", broker_names[0]["confidence_reasons"])
+
+    def test_broker_logo_header_generates_reviewable_broker_candidate(self):
+        artifact = build_broker_identity_fixture_artifact("fake_broker_logo_header.txt")
+        candidates = generate_identity_reference_candidates(artifact)
+        broker_names = [
+            candidate
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_BROKER_NAME
+        ]
+
+        self.assertTrue(broker_names)
+        self.assertEqual(
+            broker_names[0]["normalized_value"],
+            "Pioneer Freight Testing LLC",
+        )
+        self.assertIn("broker_identity_review_required", broker_names[0]["warnings"])
+
+    def test_load_tendered_by_label_generates_broker_candidate(self):
+        artifact = build_broker_identity_fixture_artifact(
+            "fake_load_tendered_by_broker.txt"
+        )
+        candidates = generate_identity_reference_candidates(artifact)
+        broker_names = [
+            candidate
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_BROKER_NAME
+        ]
+
+        self.assertTrue(broker_names)
+        self.assertEqual(
+            broker_names[0]["normalized_value"],
+            "Atlas Freight Testing LLC",
+        )
+        self.assertEqual(broker_names[0]["confidence"], CANDIDATE_CONFIDENCE_HIGH)
+
+    def test_carrier_context_fixture_does_not_generate_broker_candidate(self):
+        artifact = build_broker_identity_fixture_artifact(
+            "fake_carrier_name_should_not_be_broker.txt"
+        )
+        candidates = generate_identity_reference_candidates(artifact)
+        broker_names = [
+            candidate
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_BROKER_NAME
+        ]
+        carrier_names = [
+            candidate
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_CARRIER_NAME
+        ]
+
+        self.assertEqual(broker_names, [])
+        self.assertTrue(carrier_names)
 
 
 if __name__ == "__main__":

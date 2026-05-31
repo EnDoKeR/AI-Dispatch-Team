@@ -70,6 +70,12 @@ MONEY_EXCLUSION_LABELS = (
 BROKER_NAME_LABELS = (
     "broker",
     "broker name",
+    "broker contact",
+    "broker company",
+    "brokerage",
+    "customer broker",
+    "customer/broker",
+    "load tendered by",
     "logistics company",
     "carrier rate confirmation from",
 )
@@ -77,6 +83,29 @@ BROKER_NAME_LABELS = (
 CARRIER_NAME_LABELS = (
     "carrier name",
     "carrier",
+)
+
+BROKER_CONTEXT_HINTS = (
+    "broker contact",
+    "brokerage",
+    "load tendered by",
+    "carrier rate confirmation from",
+    "rate confirmation",
+    "load confirmation",
+    "load tender",
+)
+
+CARRIER_CONTEXT_HINTS = (
+    "carrier name",
+    "carrier information",
+    "motor carrier",
+    "driver",
+)
+
+COMPANY_NAME_PATTERN = re.compile(
+    r"\b(?P<company>[A-Z][A-Za-z0-9&'., -]{2,}?\s+"
+    r"(?:Logistics|Freight|Transport|Transportation|Brokerage|"
+    r"Supply\s+Chain|Truckload|Services|LLC|Inc\.?|Company|Co\.?))\b"
 )
 
 REFERENCE_LABELS = (
@@ -212,6 +241,34 @@ def _split_label_value(line):
         return label.strip(), value.strip()
 
     return "", ""
+
+
+def _label_matches(label, labels):
+    token = str(label or "").strip().lower()
+    return any(token == item or item in token for item in labels)
+
+
+def _looks_like_company_name(value):
+    text = str(value or "").strip()
+    if not text:
+        return False
+    return bool(COMPANY_NAME_PATTERN.search(text))
+
+
+def _broker_context_candidate(lines, index, stripped):
+    if not _looks_like_company_name(stripped):
+        return False
+    current_previous = " ".join(
+        line.strip().lower()
+        for line in lines[max(0, index - 1) : min(len(lines), index + 1)]
+    )
+    if any(hint in current_previous for hint in CARRIER_CONTEXT_HINTS):
+        return False
+    window = " ".join(
+        line.strip().lower()
+        for line in lines[max(0, index - 2) : min(len(lines), index + 3)]
+    )
+    return any(hint in window for hint in BROKER_CONTEXT_HINTS)
 
 
 def _section_from_line(line):
@@ -405,7 +462,7 @@ def generate_identity_reference_candidates(artifact):
                 )
 
             if value:
-                if lower_label in BROKER_NAME_LABELS:
+                if _label_matches(lower_label, BROKER_NAME_LABELS):
                     candidates.append(
                         build_field_candidate(
                             candidate_id=f"broker-name-p{page_number}-l{line_index}",
@@ -424,7 +481,7 @@ def generate_identity_reference_candidates(artifact):
                         )
                     )
 
-                if lower_label in CARRIER_NAME_LABELS:
+                if _label_matches(lower_label, CARRIER_NAME_LABELS):
                     candidates.append(
                         build_field_candidate(
                             candidate_id=f"carrier-name-p{page_number}-l{line_index}",
@@ -469,6 +526,26 @@ def generate_identity_reference_candidates(artifact):
                                 ),
                             )
                         )
+
+            elif _broker_context_candidate(lines, line_index - 1, stripped):
+                candidates.append(
+                    build_field_candidate(
+                        candidate_id=f"broker-name-context-p{page_number}-l{line_index}",
+                        field_name=FIELD_BROKER_NAME,
+                        raw_value=stripped,
+                        normalized_value=stripped,
+                        confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                        confidence_reasons=["broker_header_context"],
+                        page_number=page_number,
+                        line_number=line_index,
+                        label="broker context",
+                        context_before=context_before,
+                        context_after=context_after,
+                        source=SOURCE_LABEL_PATTERN,
+                        value_type="name",
+                        warnings=["broker_identity_review_required"],
+                    )
+                )
 
             elif "reference" in lower_line:
                 candidates.append(
