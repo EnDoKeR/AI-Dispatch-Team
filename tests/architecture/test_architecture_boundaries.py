@@ -1100,6 +1100,10 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_google_sheets_review_sync_boundaries_are_safe(self):
         integration_source = source_text(INTEGRATIONS_PACKAGE / "google_sheets_review.py")
+        preflight_source = source_text(
+            INTEGRATIONS_PACKAGE / "google_sheets_review_preflight.py"
+        )
+        init_source = source_text(SCRIPTS / "init_google_sheets_review_config.py")
         sync_source = source_text(SCRIPTS / "sync_ratecon_review_to_google_sheet.py")
         download_source = source_text(
             SCRIPTS / "download_ratecon_review_feedback_from_google_sheet.py"
@@ -1113,13 +1117,27 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("SHEET_STOP_REVIEW", integration_source)
         self.assertIn("SHEET_FIELD_REVIEW", integration_source)
         self.assertIn("SHEET_RATE_REVIEW", integration_source)
+        self.assertIn("validate_google_review_tab_titles", integration_source)
+        self.assertIn("preflight_google_review_outputs", sync_source)
+        self.assertIn("allow_private_review_value_sync", integration_source)
+        self.assertIn("allow_private_review_value_sync", sync_source)
+        self.assertIn("--preflight-only", sync_source)
+        self.assertIn("--confirm-google-review-sync", sync_source)
+        self.assertIn("--spreadsheet-id", init_source)
+        self.assertIn("--credentials-json", init_source)
         self.assertIn("--confirm-google-review-sync", sync_source)
         self.assertIn("--confirm-google-feedback-download", download_source)
         self.assertIn("private_values_printed", sync_source)
         self.assertIn("private_values_printed", download_source)
         self.assertNotIn("print(", integration_source)
 
-        for source in [integration_source, sync_source, download_source]:
+        for source in [
+            integration_source,
+            preflight_source,
+            init_source,
+            sync_source,
+            download_source,
+        ]:
             for forbidden in [
                 "DispatchCase",
                 "DecisionEngine",
