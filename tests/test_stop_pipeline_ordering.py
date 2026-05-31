@@ -42,7 +42,8 @@ class StopPipelineOrderingTests(unittest.TestCase):
 
         self.assertEqual(stop_set["raw_stop_signal_count"], 3)
         self.assertEqual(stop_set["premerge_group_count"], 3)
-        self.assertEqual(stop_set["post_row_merge_group_count"], 3)
+        self.assertEqual(stop_set["post_single_line_cluster_group_count"], 1)
+        self.assertEqual(stop_set["post_row_merge_group_count"], 1)
         self.assertEqual(stop_set["post_section_merge_group_count"], 1)
         self.assertEqual(stop_set["post_dedupe_group_count"], 1)
 

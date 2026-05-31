@@ -35,6 +35,28 @@ from app.document_ai.stop_association import (
     STOP_TYPE_UNKNOWN,
 )
 from app.document_ai.stop_group_diagnostics import build_stop_group_diagnostics
+from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER,
+    STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
+    TRIGGER_LABEL_DELIVERY,
+    TRIGGER_LABEL_PICKUP,
+    TRIGGER_LABEL_STOP,
+    TRIGGER_LABEL_UNKNOWN,
+    build_stop_group_provenance,
+)
+from app.document_ai.stop_pipeline_trace import (
+    STOP_STAGE_NORMALIZED_STOPS,
+    STOP_STAGE_POST_DATE_TIME_ATTACHMENT,
+    STOP_STAGE_POST_NOISE_FILTER,
+    STOP_STAGE_POST_SECTION_CLUSTER,
+    STOP_STAGE_POST_SINGLE_LINE_CLUSTER,
+    STOP_STAGE_POST_STRUCTURAL_DEDUPE,
+    STOP_STAGE_POST_TABLE_ROW_MERGE,
+    STOP_STAGE_PREMERGE_GROUPS,
+    STOP_STAGE_RAW_SIGNALS,
+    build_stop_pipeline_stage_stats,
+    build_stop_pipeline_trace,
+)
 
 try:
     from app.document_ai.document_classification import DOCUMENT_TYPE_TRUCK_ORDER_NOT_USED
@@ -56,6 +78,7 @@ WARNING_TONU_STOPS_NOT_APPLICABLE = "tonu_stops_not_applicable"
 WARNING_NORMALIZED_STOP_REVIEW_REQUIRED = "normalized_stop_review_required"
 WARNING_TABLE_ROW_GROUPS_MERGED = "table_row_stop_groups_merged"
 WARNING_SECTION_CONTEXT_GROUPS_MERGED = "section_context_stop_groups_merged"
+WARNING_SINGLE_LINE_GROUPS_CLUSTERED = "single_line_stop_groups_clustered"
 
 _SIGNATURE_SECTIONS = {"SIGNATURE_BLOCK", "CERTIFICATE_SIGNATURE_BLOCK"}
 _TERMS_SECTIONS = {
@@ -316,6 +339,25 @@ def _merge_stop_type(types):
     return STOP_TYPE_UNKNOWN
 
 
+def _trigger_label_for_stop_type(stop_type):
+    normalized = _text(stop_type).lower()
+    if normalized == STOP_TYPE_PICKUP:
+        return TRIGGER_LABEL_PICKUP
+    if normalized == STOP_TYPE_DELIVERY:
+        return TRIGGER_LABEL_DELIVERY
+    if normalized == STOP_TYPE_STOP:
+        return TRIGGER_LABEL_STOP
+    return TRIGGER_LABEL_UNKNOWN
+
+
+def _candidate_field_names(field_candidates):
+    return [
+        _text(candidate.get("field_name"))
+        for candidate in field_candidates or []
+        if isinstance(candidate, dict) and _text(candidate.get("field_name"))
+    ]
+
+
 def _retarget_field_candidates(field_candidates, stop_group_id):
     retargeted = []
     for candidate in field_candidates or []:
@@ -325,6 +367,139 @@ def _retarget_field_candidates(field_candidates, stop_group_id):
         safe_candidate["stop_group_id"] = stop_group_id
         retargeted.append(safe_candidate)
     return retargeted
+
+
+def build_line_cluster_key(group):
+    """Return a conservative cluster key for provider single-line stop groups."""
+
+    provenance = _provenance(group)
+    if _text(provenance.get("source_type")) != STOP_GROUP_SOURCE_TYPE_SINGLE_LINE:
+        return None
+
+    page_number = _text(group.get("page_number") or provenance.get("page_number"))
+    if not page_number:
+        return None
+
+    section = _text(group.get("section_role") or provenance.get("section_role")).upper()
+    stop_type = _text(group.get("stop_type")).lower() or STOP_TYPE_UNKNOWN
+    sequence = _text(group.get("stop_sequence"))
+    grouping_key = _text(provenance.get("grouping_key"))
+
+    if section:
+        return ("single_line", page_number, section, stop_type, sequence)
+
+    if grouping_key:
+        parts = [part for part in grouping_key.split("|") if part]
+        if len(parts) >= 2:
+            return ("single_line", parts[0], parts[1], stop_type, sequence)
+
+    if stop_type in {STOP_TYPE_PICKUP, STOP_TYPE_DELIVERY, STOP_TYPE_STOP}:
+        return ("single_line", page_number, "UNSCOPED_STOP_LINES", stop_type, sequence)
+
+    return None
+
+
+def _merge_single_line_cluster_groups(groups, cluster_key):
+    safe_groups = [group for group in groups or [] if isinstance(group, dict)]
+    if not safe_groups:
+        return None
+    if len(safe_groups) == 1:
+        return safe_groups[0]
+
+    first = dict(safe_groups[0])
+    field_candidates = []
+    stop_types = []
+    reasons = []
+    warnings = []
+    source_group_ids = []
+    line_ids = []
+    page_roles = []
+
+    for group in safe_groups:
+        field_candidates.extend(group.get("field_candidates", []) or [])
+        stop_types.append(group.get("stop_type", ""))
+        reasons.extend(normalize_list(group.get("reasons")))
+        warnings.extend(normalize_list(group.get("warning_codes")))
+        source_group_ids.append(_text(group.get("stop_group_id")))
+        provenance = _provenance(group)
+        if _text(provenance.get("line_id")):
+            line_ids.append(_text(provenance.get("line_id")))
+        if _text(provenance.get("page_role")):
+            page_roles.append(_text(provenance.get("page_role")))
+
+    page_number = _text(first.get("page_number") or _provenance(first).get("page_number"))
+    section = _section(first)
+    stop_type = _merge_stop_type(stop_types)
+    sequence = _text(first.get("stop_sequence"))
+    cluster_id = "line_cluster_{}_{}_{}_{}".format(
+        page_number or "page",
+        section.lower() or "unscoped",
+        stop_type,
+        sequence or len(safe_groups),
+    )
+    cluster_warnings = sorted(set(warnings + [WARNING_SINGLE_LINE_GROUPS_CLUSTERED]))
+
+    first.update(
+        {
+            "stop_group_id": cluster_id,
+            "stop_type": stop_type,
+            "field_candidates": _retarget_field_candidates(field_candidates, cluster_id),
+            "reasons": sorted(set(reasons + ["single_line_groups_clustered"])),
+            "warning_codes": cluster_warnings,
+            "source_group_ids": [item for item in source_group_ids if item],
+            "provenance": build_stop_group_provenance(
+                source_type=STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER,
+                source_generator="cluster_single_line_stop_groups",
+                page_number=page_number,
+                line_id=",".join(line_ids),
+                section_role=section,
+                page_role=",".join(sorted(set(page_roles))),
+                trigger_label_category=_trigger_label_for_stop_type(stop_type),
+                candidate_field_names=_candidate_field_names(field_candidates),
+                grouping_key="|".join(_text(part) for part in cluster_key),
+                warning_codes=cluster_warnings,
+            ),
+        }
+    )
+    return first
+
+
+def cluster_single_line_stop_groups(stop_groups, classification_result=None):
+    """Cluster provider single-line stop groups into section-level groups."""
+
+    del classification_result
+    keyed = {}
+    passthrough = []
+    order = []
+    for group in stop_groups or []:
+        if not isinstance(group, dict):
+            continue
+        key = build_line_cluster_key(group)
+        if not key:
+            passthrough.append(group)
+            continue
+        if key not in keyed:
+            keyed[key] = []
+            order.append(key)
+        keyed[key].append(group)
+
+    clustered = []
+    merge_count = 0
+    warnings = []
+    for key in order:
+        groups = keyed[key]
+        merged = _merge_single_line_cluster_groups(groups, key)
+        if merged:
+            clustered.append(merged)
+        if len(groups) > 1:
+            merge_count += len(groups) - 1
+            warnings.append(WARNING_SINGLE_LINE_GROUPS_CLUSTERED)
+
+    return {
+        "merged_groups": passthrough + clustered,
+        "merge_count": merge_count,
+        "warning_codes": sorted(set(warnings)),
+    }
 
 
 def merge_stop_groups_by_table_row(stop_groups):
@@ -812,6 +987,18 @@ def _is_tonu_or_non_normal(classification_result):
     return False
 
 
+def _trace_stage(stage_name, input_count, output_count, merge_count=0, removed_count=0, warning_codes=None):
+    return build_stop_pipeline_stage_stats(
+        stage_name=stage_name,
+        input_count=input_count,
+        output_count=output_count,
+        changed_count=abs(int(output_count or 0) - int(input_count or 0)),
+        merge_count=merge_count,
+        removed_count=removed_count,
+        warning_codes=warning_codes,
+    )
+
+
 def build_normalized_stop_set(stop_association_result, classification_result=None):
     raw_groups = [
         group
@@ -821,6 +1008,17 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
     diagnostics = build_stop_group_diagnostics(raw_groups)
 
     if _is_tonu_or_non_normal(classification_result):
+        stages = [
+            _trace_stage(STOP_STAGE_RAW_SIGNALS, len(raw_groups), len(raw_groups)),
+            _trace_stage(STOP_STAGE_PREMERGE_GROUPS, len(raw_groups), len(raw_groups)),
+            _trace_stage(STOP_STAGE_POST_SINGLE_LINE_CLUSTER, len(raw_groups), len(raw_groups)),
+            _trace_stage(STOP_STAGE_POST_TABLE_ROW_MERGE, len(raw_groups), len(raw_groups)),
+            _trace_stage(STOP_STAGE_POST_SECTION_CLUSTER, len(raw_groups), len(raw_groups)),
+            _trace_stage(STOP_STAGE_POST_NOISE_FILTER, len(raw_groups), 0, removed_count=len(raw_groups)),
+            _trace_stage(STOP_STAGE_POST_STRUCTURAL_DEDUPE, 0, 0),
+            _trace_stage(STOP_STAGE_POST_DATE_TIME_ATTACHMENT, 0, 0),
+            _trace_stage(STOP_STAGE_NORMALIZED_STOPS, 0, 0),
+        ]
         stop_set = build_normalized_stop_set_contract(
             document_alias=(classification_result or {}).get("document_alias", ""),
             stops=[],
@@ -831,31 +1029,93 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
                 "raw_stop_signal_count": len(raw_groups),
                 "raw_stop_group_count": len(raw_groups),
                 "premerge_group_count": len(raw_groups),
+                "post_single_line_cluster_group_count": len(raw_groups),
                 "post_row_merge_group_count": len(raw_groups),
                 "post_section_merge_group_count": len(raw_groups),
                 "post_noise_filter_group_count": 0,
                 "post_dedupe_group_count": 0,
+                "post_date_time_attachment_group_count": 0,
                 "stop_group_quality_bucket": diagnostics["quality_bucket"],
                 "stop_noise_removed_count": 0,
                 "stop_duplicate_removed_count": 0,
+                "single_line_cluster_merge_count": 0,
                 "table_row_merge_count": 0,
                 "section_context_merge_count": 0,
                 "review_required_stop_count": 0,
+                "stop_pipeline_trace": build_stop_pipeline_trace(
+                    document_alias=(classification_result or {}).get("document_alias", ""),
+                    stages=stages,
+                ),
             }
         )
         return stop_set
 
     premerge_groups = raw_groups
-    table_row_merge = merge_stop_groups_by_table_row(premerge_groups)
+    single_line_cluster = cluster_single_line_stop_groups(
+        premerge_groups,
+        classification_result=classification_result,
+    )
+    table_row_merge = merge_stop_groups_by_table_row(single_line_cluster["merged_groups"])
     section_context_merge = merge_stop_groups_by_section_context(table_row_merge["merged_groups"])
     noise = filter_stop_group_noise(section_context_merge["merged_groups"])
     deduped = dedupe_stop_groups(noise["kept_groups"])
+    post_date_time_groups = deduped["kept_groups"]
     sequenced = assign_stop_sequence_order(deduped["kept_groups"])
     stops = [build_normalized_stop_from_group(group) for group in sequenced]
+    stages = [
+        _trace_stage(STOP_STAGE_RAW_SIGNALS, len(raw_groups), len(raw_groups)),
+        _trace_stage(STOP_STAGE_PREMERGE_GROUPS, len(raw_groups), len(premerge_groups)),
+        _trace_stage(
+            STOP_STAGE_POST_SINGLE_LINE_CLUSTER,
+            len(premerge_groups),
+            len(single_line_cluster["merged_groups"]),
+            merge_count=single_line_cluster["merge_count"],
+            warning_codes=single_line_cluster["warning_codes"],
+        ),
+        _trace_stage(
+            STOP_STAGE_POST_TABLE_ROW_MERGE,
+            len(single_line_cluster["merged_groups"]),
+            len(table_row_merge["merged_groups"]),
+            merge_count=table_row_merge["merge_count"],
+            warning_codes=table_row_merge["warning_codes"],
+        ),
+        _trace_stage(
+            STOP_STAGE_POST_SECTION_CLUSTER,
+            len(table_row_merge["merged_groups"]),
+            len(section_context_merge["merged_groups"]),
+            merge_count=section_context_merge["merge_count"],
+            warning_codes=section_context_merge["warning_codes"],
+        ),
+        _trace_stage(
+            STOP_STAGE_POST_NOISE_FILTER,
+            len(section_context_merge["merged_groups"]),
+            len(noise["kept_groups"]),
+            removed_count=noise["removed_count"],
+            warning_codes=noise["warning_codes"],
+        ),
+        _trace_stage(
+            STOP_STAGE_POST_STRUCTURAL_DEDUPE,
+            len(noise["kept_groups"]),
+            len(deduped["kept_groups"]),
+            removed_count=deduped["removed_count"],
+            warning_codes=deduped["warning_codes"],
+        ),
+        _trace_stage(
+            STOP_STAGE_POST_DATE_TIME_ATTACHMENT,
+            len(deduped["kept_groups"]),
+            len(post_date_time_groups),
+        ),
+        _trace_stage(
+            STOP_STAGE_NORMALIZED_STOPS,
+            len(post_date_time_groups),
+            len(stops),
+        ),
+    ]
     warning_codes = sorted(
         set(
             normalize_list((stop_association_result or {}).get("warning_codes"))
             + diagnostics["warning_codes"]
+            + single_line_cluster["warning_codes"]
             + table_row_merge["warning_codes"]
             + section_context_merge["warning_codes"]
             + noise["warning_codes"]
@@ -877,17 +1137,25 @@ def build_normalized_stop_set(stop_association_result, classification_result=Non
             "raw_stop_signal_count": len(raw_groups),
             "raw_stop_group_count": len(raw_groups),
             "premerge_group_count": len(premerge_groups),
+            "post_single_line_cluster_group_count": len(single_line_cluster["merged_groups"]),
             "post_row_merge_group_count": len(table_row_merge["merged_groups"]),
             "post_section_merge_group_count": len(section_context_merge["merged_groups"]),
             "post_noise_filter_group_count": len(noise["kept_groups"]),
             "post_dedupe_group_count": len(deduped["kept_groups"]),
+            "post_date_time_attachment_group_count": len(post_date_time_groups),
             "stop_group_quality_bucket": diagnostics["quality_bucket"],
             "stop_noise_removed_count": noise["removed_count"],
             "stop_duplicate_removed_count": deduped["removed_count"],
+            "single_line_cluster_merge_count": single_line_cluster["merge_count"],
             "table_row_merge_count": table_row_merge["merge_count"],
             "section_context_merge_count": section_context_merge["merge_count"],
             "review_required_stop_count": sum(
                 1 for stop in stops if stop.get("review_required")
+            ),
+            "stop_pipeline_trace": build_stop_pipeline_trace(
+                document_alias=(classification_result or {}).get("document_alias", ""),
+                stages=stages,
+                no_change_reason="no_stop_group_stage_changed",
             ),
         }
     )
