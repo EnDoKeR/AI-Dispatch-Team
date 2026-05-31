@@ -55,6 +55,17 @@ def source_text(path):
     return path.read_text(encoding="utf-8-sig")
 
 
+def assert_no_print_call(test_case, path):
+    tree = parse_file(path)
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and isinstance(node.func, ast.Name):
+            test_case.assertNotEqual(
+                node.func.id,
+                "print",
+                f"{path} contains a print call",
+            )
+
+
 def assert_no_import_prefix(test_case, path, forbidden_prefixes):
     imports = imported_modules(path)
 
@@ -1091,6 +1102,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         rate_forensics_source = source_text(
             DOCUMENT_AI_PACKAGE / "rate_candidate_forensics.py"
         )
+        rate_conflict_source = source_text(
+            DOCUMENT_AI_PACKAGE / "rate_conflict_audit.py"
+        )
+        rate_equivalence_source = source_text(
+            DOCUMENT_AI_PACKAGE / "rate_candidate_equivalence.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1150,6 +1167,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"raw_text_included": False', rate_forensics_source)
         self.assertIn('"money_values_included": False', rate_forensics_source)
         self.assertNotIn("print(", rate_forensics_source)
+        self.assertIn("rate_conflict_audit_raw.json", rate_conflict_source)
+        self.assertIn("rate_conflict_audit.json", rate_conflict_source)
+        self.assertIn('"private_values_included": False', rate_conflict_source)
+        self.assertIn('"raw_text_included": False', rate_conflict_source)
+        self.assertIn('"money_values_included": False', rate_conflict_source)
+        self.assertNotIn("print(", rate_conflict_source)
+        self.assertIn('"money_values_included": False', rate_equivalence_source)
+        assert_no_print_call(self, DOCUMENT_AI_PACKAGE / "rate_candidate_equivalence.py")
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
@@ -1166,6 +1191,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             source_line_audit_source,
             target_disposition_source,
             rate_forensics_source,
+            rate_conflict_source,
+            rate_equivalence_source,
             policy_source,
         ]:
             for forbidden in [
