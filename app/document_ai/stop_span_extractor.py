@@ -17,6 +17,12 @@ from app.document_ai.normalized_stops import (
     NORMALIZED_STOP_FIELD_NOTES,
     NORMALIZED_STOP_FIELD_REFERENCE,
     NORMALIZED_STOP_FIELD_TIME,
+    NORMALIZED_STOP_FIELD_STATUS_CONFLICT,
+    NORMALIZED_STOP_FIELD_STATUS_MISSING,
+    NORMALIZED_STOP_FIELD_STATUS_RESOLVED,
+    build_normalized_stop,
+    build_normalized_stop_field,
+    build_normalized_stop_set,
     NORMALIZED_STOP_TYPE_DELIVERY,
     NORMALIZED_STOP_TYPE_PICKUP,
     NORMALIZED_STOP_TYPE_STOP,
@@ -347,6 +353,12 @@ def classify_anchor_type(line_feature):
     ):
         return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
 
+    if LINE_LABEL_STOP in categories and "pickup" in lower_text:
+        return STOP_SPAN_ANCHOR_TYPE_PICKUP
+    if LINE_LABEL_STOP in categories and (
+        "drop" in lower_text or "delivery" in lower_text
+    ):
+        return STOP_SPAN_ANCHOR_TYPE_DELIVERY
     if LINE_LABEL_PICKUP in categories and (explicit_pickup or not text):
         if re.search(r"\bpu\b", lower_text):
             return STOP_SPAN_ANCHOR_TYPE_PU
@@ -367,7 +379,7 @@ def classify_anchor_type(line_feature):
         if "destination" in lower_text:
             return STOP_SPAN_ANCHOR_TYPE_DESTINATION
         return STOP_SPAN_ANCHOR_TYPE_DELIVERY
-    if LINE_LABEL_STOP in categories:
+    if LINE_LABEL_STOP in categories and "route details" not in lower_text:
         return STOP_SPAN_ANCHOR_TYPE_STOP
     return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
 
@@ -746,6 +758,106 @@ def extract_stop_span_field_candidates(span, line_features, layout_artifact):
     candidates.extend(extract_reference_candidates_from_span(span, line_features, layout_artifact))
     candidates.extend(extract_notes_candidates_from_span(span, line_features, layout_artifact))
     return candidates
+
+
+def _field_status_for_candidates(candidates):
+    if not candidates:
+        return NORMALIZED_STOP_FIELD_STATUS_MISSING
+    if len(candidates) > 1:
+        return NORMALIZED_STOP_FIELD_STATUS_CONFLICT
+    return NORMALIZED_STOP_FIELD_STATUS_RESOLVED
+
+
+def _build_stop_field_from_span_candidates(field_name, candidates):
+    status = _field_status_for_candidates(candidates)
+    selected_candidate_id = candidates[0].get("candidate_id", "") if candidates else ""
+    evidence_refs = [
+        candidate.get("evidence_ref", {})
+        for candidate in candidates
+        if isinstance(candidate, dict) and isinstance(candidate.get("evidence_ref"), dict)
+    ]
+    warning_codes = []
+    if status == NORMALIZED_STOP_FIELD_STATUS_CONFLICT:
+        warning_codes.append(f"conflicting_span_{field_name}")
+    return build_normalized_stop_field(
+        field_name=field_name,
+        status=status,
+        selected_candidate_id=selected_candidate_id,
+        confidence=candidates[0].get("confidence", CANDIDATE_CONFIDENCE_UNKNOWN)
+        if candidates
+        else CANDIDATE_CONFIDENCE_UNKNOWN,
+        evidence_refs=evidence_refs,
+        reasons=["built_from_stop_span"],
+        warning_codes=warning_codes,
+    )
+
+
+def _candidate_map_for_span(field_candidates, span_id):
+    mapped = {}
+    for candidate in field_candidates or []:
+        if not isinstance(candidate, dict) or candidate.get("span_id") != span_id:
+            continue
+        mapped.setdefault(candidate.get("field_name", STOP_SPAN_FIELD_NOTES), []).append(candidate)
+    return mapped
+
+
+def _span_review_required(stop_type, fields, span):
+    if stop_type == NORMALIZED_STOP_TYPE_UNKNOWN:
+        return True
+    if (span or {}).get("warning_codes"):
+        return True
+    return any(
+        field.get("status")
+        in {
+            NORMALIZED_STOP_FIELD_STATUS_MISSING,
+            NORMALIZED_STOP_FIELD_STATUS_CONFLICT,
+        }
+        for field in fields
+    )
+
+
+def build_normalized_stop_set_from_spans(span_result, classification_result=None):
+    del classification_result
+    field_candidates = (span_result or {}).get("field_candidates", []) or []
+    normalized_stops = []
+    required_fields = [
+        STOP_SPAN_FIELD_LOCATION,
+        STOP_SPAN_FIELD_DATE,
+        STOP_SPAN_FIELD_TIME,
+        STOP_SPAN_FIELD_APPOINTMENT_WINDOW,
+        STOP_SPAN_FIELD_REFERENCE,
+        STOP_SPAN_FIELD_NOTES,
+    ]
+    for index, span in enumerate((span_result or {}).get("spans", []) or [], start=1):
+        if not isinstance(span, dict):
+            continue
+        by_field = _candidate_map_for_span(field_candidates, span.get("span_id", ""))
+        fields = [
+            _build_stop_field_from_span_candidates(field_name, by_field.get(field_name, []))
+            for field_name in required_fields
+        ]
+        stop_type = span.get("stop_type", NORMALIZED_STOP_TYPE_UNKNOWN)
+        stop = build_normalized_stop(
+            stop_id=f"span_stop_{index:03d}",
+            sequence=span.get("sequence"),
+            stop_type=stop_type,
+            source_group_ids=[span.get("span_id", "")],
+            page_numbers=[span.get("page_number", 0)],
+            section_roles=[span.get("section_role", "")],
+            table_ids=[span.get("table_id", "")],
+            row_indices=span.get("row_indices", []),
+            fields=fields,
+            confidence=span.get("confidence", CANDIDATE_CONFIDENCE_UNKNOWN),
+            reasons=["normalized_from_stop_span"],
+            warning_codes=span.get("warning_codes", []),
+            review_required=_span_review_required(stop_type, fields, span),
+        )
+        normalized_stops.append(stop)
+    return build_normalized_stop_set(
+        document_alias=(span_result or {}).get("document_alias", ""),
+        stops=normalized_stops,
+        warning_codes=(span_result or {}).get("warning_codes", []),
+    )
 
 
 def build_stop_span_anchor(
