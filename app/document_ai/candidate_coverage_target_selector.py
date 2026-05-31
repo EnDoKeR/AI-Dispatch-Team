@@ -26,6 +26,11 @@ from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     _normalize_output_dir,
 )
+from app.document_ai.target_disposition import (
+    is_target_selectable,
+    load_target_dispositions,
+    skipped_targets_for_registry,
+)
 
 
 TARGET_STOP_SPAN_DATE_CANDIDATE_GENERATION = "stop_span_date_candidate_generation"
@@ -175,7 +180,7 @@ def _field_counts(records):
     }
 
 
-def _best_target_from_scores(scores):
+def _target_scores_from_scores(scores):
     target_scores = {
         TARGET_STOP_SPAN_DATE_CANDIDATE_GENERATION: scores[
             "date_span_candidate_not_generated"
@@ -200,7 +205,25 @@ def _best_target_from_scores(scores):
         ],
         TARGET_OCR_DESIGN_LATER: scores["ocr_needed"],
     }
-    nonzero = {target: score for target, score in target_scores.items() if score > 0}
+    return target_scores
+
+
+def _best_target_from_scores(
+    scores,
+    target_disposition_registry=None,
+    allow_deferred_targets=False,
+):
+    target_scores = _target_scores_from_scores(scores)
+    nonzero = {
+        target: score
+        for target, score in target_scores.items()
+        if score > 0
+        and is_target_selectable(
+            target,
+            target_disposition_registry,
+            allow_deferred_targets=allow_deferred_targets,
+        )
+    }
     if not nonzero:
         return TARGET_HUMAN_REVIEW_REQUIRED
     priority = {
@@ -318,13 +341,26 @@ def _reason_lines(target, scores):
     return ["target selected from coverage scores"]
 
 
-def select_candidate_coverage_target(candidate_coverage_analysis, core_gap_analysis=None):
+def select_candidate_coverage_target(
+    candidate_coverage_analysis,
+    core_gap_analysis=None,
+    target_disposition_registry=None,
+    allow_deferred_targets=False,
+):
     del core_gap_analysis
     records = _records(candidate_coverage_analysis)
     scores = _supporting_counts(records)
-    target = _best_target_from_scores(scores)
+    target = _best_target_from_scores(
+        scores,
+        target_disposition_registry=target_disposition_registry,
+        allow_deferred_targets=allow_deferred_targets,
+    )
     aliases = _aliases_for_target(target, records)
     fields = _supporting_fields_for_target(target, records)
+    skipped_deferred_targets = skipped_targets_for_registry(
+        target_disposition_registry or {},
+        allow_deferred_targets=allow_deferred_targets,
+    )
     confidence = "high" if aliases and fields else "medium" if aliases else "low"
     if target in {TARGET_HUMAN_REVIEW_REQUIRED, TARGET_OCR_DESIGN_LATER}:
         confidence = "medium"
@@ -366,6 +402,8 @@ def select_candidate_coverage_target(candidate_coverage_analysis, core_gap_analy
         ),
         "evidence_summary_counts": scores,
         "field_counts": _field_counts(records),
+        "skipped_deferred_targets": skipped_deferred_targets,
+        "next_selectable_target": target,
         "confidence": confidence,
         "reasons": _reason_lines(target, scores),
         "warning_codes": [],
@@ -401,9 +439,15 @@ def load_candidate_coverage_target_inputs(
 
 def select_candidate_coverage_target_from_dir(
     input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    allow_deferred_targets=False,
 ):
     inputs = load_candidate_coverage_target_inputs(input_dir)
-    return select_candidate_coverage_target(**inputs)
+    registry = load_target_dispositions(input_dir)
+    return select_candidate_coverage_target(
+        **inputs,
+        target_disposition_registry=registry,
+        allow_deferred_targets=allow_deferred_targets,
+    )
 
 
 def candidate_coverage_target_markdown_lines(decision):
@@ -417,6 +461,8 @@ def candidate_coverage_target_markdown_lines(decision):
         f"Confidence: {decision.get('confidence', 'unknown')}",
         f"Affected aliases: {decision.get('affected_alias_count', 0)}",
         f"Affected field records: {decision.get('affected_field_count', 0)}",
+        f"Skipped deferred targets: {', '.join(decision.get('skipped_deferred_targets', []) or [])}",
+        f"Next selectable target: {decision.get('next_selectable_target', TARGET_UNKNOWN)}",
         "",
         "## Supporting Fields",
     ]

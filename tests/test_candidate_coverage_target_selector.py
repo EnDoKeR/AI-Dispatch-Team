@@ -25,6 +25,11 @@ from app.document_ai.candidate_coverage_target_selector import (
     select_candidate_coverage_target_from_dir,
     write_candidate_coverage_target_artifacts,
 )
+from app.document_ai.target_disposition import (
+    TARGET_DISPOSITION_STATUS_NO_SHARED_CODE_ROOT_CAUSE,
+    build_target_disposition_registry,
+    mark_target_deferred,
+)
 
 
 def _analysis(records):
@@ -157,6 +162,84 @@ class CandidateCoverageTargetSelectorTests(unittest.TestCase):
             decision["selected_target"],
             TARGET_RATE_CANDIDATE_GENERATION_OR_RESOLUTION,
         )
+
+    def test_deferred_load_identifier_is_skipped_for_next_target(self):
+        analysis = _analysis(
+            [
+                *[
+                    build_candidate_coverage_record(
+                        measurement_alias=f"RATECON_L{index}",
+                        field_name="load_number",
+                        stage=COVERAGE_STAGE_REVIEW_ROW,
+                        gap_reason=COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+                    )
+                    for index in range(1, 6)
+                ],
+                *[
+                    build_candidate_coverage_record(
+                        measurement_alias=f"RATECON_R{index}",
+                        field_name="rate",
+                        stage=COVERAGE_STAGE_REVIEW_ROW,
+                        status="conflict",
+                        gap_reason="unknown",
+                    )
+                    for index in range(1, 4)
+                ],
+            ]
+        )
+        registry = mark_target_deferred(
+            build_target_disposition_registry(),
+            TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
+            status=TARGET_DISPOSITION_STATUS_NO_SHARED_CODE_ROOT_CAUSE,
+        )
+
+        decision = select_candidate_coverage_target(
+            analysis,
+            target_disposition_registry=registry,
+        )
+
+        self.assertEqual(
+            decision["selected_target"],
+            TARGET_RATE_CANDIDATE_GENERATION_OR_RESOLUTION,
+        )
+        self.assertEqual(
+            decision["next_selectable_target"],
+            TARGET_RATE_CANDIDATE_GENERATION_OR_RESOLUTION,
+        )
+        self.assertIn(
+            TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
+            decision["skipped_deferred_targets"],
+        )
+
+    def test_deferred_target_override_allows_selection(self):
+        analysis = _analysis(
+            [
+                build_candidate_coverage_record(
+                    measurement_alias=f"RATECON_00{index}",
+                    field_name="load_number",
+                    stage=COVERAGE_STAGE_REVIEW_ROW,
+                    gap_reason=COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+                )
+                for index in range(1, 4)
+            ]
+        )
+        registry = mark_target_deferred(
+            build_target_disposition_registry(),
+            TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
+            status=TARGET_DISPOSITION_STATUS_NO_SHARED_CODE_ROOT_CAUSE,
+        )
+
+        decision = select_candidate_coverage_target(
+            analysis,
+            target_disposition_registry=registry,
+            allow_deferred_targets=True,
+        )
+
+        self.assertEqual(
+            decision["selected_target"],
+            TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
+        )
+        self.assertEqual(decision["skipped_deferred_targets"], [])
 
     def test_selects_human_review_when_no_clear_target(self):
         decision = select_candidate_coverage_target(

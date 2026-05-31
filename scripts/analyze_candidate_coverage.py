@@ -39,6 +39,11 @@ def _build_parser():
     parser.add_argument("--write-md", action="store_true")
     parser.add_argument("--write-json", action="store_true")
     parser.add_argument("--select-next-target", action="store_true")
+    parser.add_argument(
+        "--allow-deferred-targets",
+        action="store_true",
+        help="Allow targets marked deferred in the local disposition registry.",
+    )
     parser.add_argument("--include-local-document-names-local-only", action="store_true")
     parser.add_argument("--no-console-alias-details", action="store_true")
     return parser
@@ -72,9 +77,20 @@ def main(argv=None):
 
     decision = None
     if args.select_next_target:
-        decision = select_candidate_coverage_target(analysis)
+        from app.document_ai.target_disposition import load_target_dispositions
+
+        decision = select_candidate_coverage_target(
+            analysis,
+            target_disposition_registry=load_target_dispositions(root),
+            allow_deferred_targets=args.allow_deferred_targets,
+        )
         print("Candidate coverage target selection")
         print(f"selected_target: {decision.get('selected_target')}")
+        print(f"next_selectable_target: {decision.get('next_selectable_target')}")
+        print(
+            "skipped_deferred_targets: "
+            f"{decision.get('skipped_deferred_targets', [])}"
+        )
         print(f"affected_field_count: {decision.get('affected_field_count', 0)}")
         print(f"affected_alias_count: {decision.get('affected_alias_count', 0)}")
         print(f"supporting_fields: {decision.get('supporting_fields', [])}")
