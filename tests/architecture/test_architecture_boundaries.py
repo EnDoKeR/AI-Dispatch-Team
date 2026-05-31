@@ -1085,6 +1085,12 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         source_line_audit_source = source_text(
             DOCUMENT_AI_PACKAGE / "load_identifier_source_line_audit.py"
         )
+        target_disposition_source = source_text(
+            DOCUMENT_AI_PACKAGE / "target_disposition.py"
+        )
+        rate_forensics_source = source_text(
+            DOCUMENT_AI_PACKAGE / "rate_candidate_forensics.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1134,6 +1140,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"raw_text_included": False', source_line_audit_source)
         self.assertIn('"line_text_included": False', source_line_audit_source)
         self.assertNotIn("print(", source_line_audit_source)
+        self.assertIn("target_disposition_registry.json", target_disposition_source)
+        self.assertIn('"private_values_included": False', target_disposition_source)
+        self.assertIn('"money_values_included": False', target_disposition_source)
+        self.assertNotIn("print(", target_disposition_source)
+        self.assertIn("rate_candidate_forensics_raw.json", rate_forensics_source)
+        self.assertIn("rate_candidate_forensics.json", rate_forensics_source)
+        self.assertIn('"private_values_included": False', rate_forensics_source)
+        self.assertIn('"raw_text_included": False', rate_forensics_source)
+        self.assertIn('"money_values_included": False', rate_forensics_source)
+        self.assertNotIn("print(", rate_forensics_source)
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
@@ -1148,6 +1164,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             candidate_coverage_source,
             candidate_target_source,
             source_line_audit_source,
+            target_disposition_source,
+            rate_forensics_source,
             policy_source,
         ]:
             for forbidden in [
