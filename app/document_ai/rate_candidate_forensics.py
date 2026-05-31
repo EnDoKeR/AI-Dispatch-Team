@@ -570,6 +570,12 @@ def build_rate_forensics_result(records=None, document_count=0):
     }
 
 
+def _safe_summary_rows(root):
+    summary = _read_json(Path(root) / "safe_summary.json", default={})
+    rows = summary.get("rows", [])
+    return rows if isinstance(rows, list) else []
+
+
 def _read_json(path, default):
     try:
         return json.loads(Path(path).read_text(encoding="utf-8-sig"))
@@ -577,6 +583,44 @@ def _read_json(path, default):
         return default
     except json.JSONDecodeError as exc:
         raise LocalReviewAnalysisError(f"invalid JSON: {Path(path).name}") from exc
+
+
+def analyze_rate_forensics_from_measurement_rows(measurement_rows):
+    records = []
+    for row in measurement_rows or []:
+        if not isinstance(row, dict):
+            continue
+        row_records = row.get("rate_forensics_records", []) or []
+        records.extend(record for record in row_records if isinstance(record, dict))
+    return build_rate_forensics_result(
+        records,
+        document_count=len(measurement_rows or []),
+    )
+
+
+def analyze_rate_forensics(input_dir=None):
+    root = Path(input_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR)
+    raw_artifact = _read_json(root / RATE_FORENSICS_RAW_JSON, default=None)
+    if isinstance(raw_artifact, dict) and "records" in raw_artifact:
+        return build_rate_forensics_result(
+            raw_artifact.get("records", []),
+            document_count=(raw_artifact.get("aggregate", {}) or {}).get(
+                "document_count",
+                0,
+            ),
+        )
+    analysis_artifact = _read_json(root / RATE_FORENSICS_JSON, default=None)
+    if isinstance(analysis_artifact, dict) and "records" in analysis_artifact:
+        return build_rate_forensics_result(
+            analysis_artifact.get("records", []),
+            document_count=(analysis_artifact.get("aggregate", {}) or {}).get(
+                "document_count",
+                0,
+            ),
+        )
+    if not (root / "safe_summary.json").exists():
+        raise LocalReviewAnalysisError("missing rate forensics data")
+    return analyze_rate_forensics_from_measurement_rows(_safe_summary_rows(root))
 
 
 def rate_forensics_markdown_lines(analysis):
