@@ -1,0 +1,28 @@
+{
+  "fixture_id": "fake_header_terms_datetime_noise",
+  "expected_span_count": 1,
+  "expected_date_resolved": 0,
+  "expected_time_resolved": 0,
+  "layout_artifact": {
+    "artifact_id": "fake_header_terms_datetime_noise",
+    "document_id": "SYNTHETIC_LOCAL_REVIEW_DATETIME_006",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Header Printed 06/01/2099 0800", "page_number": 1, "reading_order_index": 1, "section_role": "HEADER"},
+          {"line_id": "l002", "text_redacted": "Pickup", "page_number": 1, "reading_order_index": 2, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Fake Pickup Facility", "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Terms Date 06/03/2099 1700", "page_number": 1, "reading_order_index": 4, "section_role": "LEGAL_TERMS"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

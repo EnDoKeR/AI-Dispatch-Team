@@ -1,0 +1,30 @@
+{
+  "fixture_id": "fake_landstar_target_window_datetime",
+  "expected_span_count": 2,
+  "expected_date_resolved": 2,
+  "expected_time_resolved": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_landstar_target_window_datetime",
+    "document_id": "SYNTHETIC_LOCAL_REVIEW_DATETIME_004",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Stop #1 Pickup", "page_number": 1, "reading_order_index": 1, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Pickup Site", "page_number": 1, "reading_order_index": 2, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Target Window 04/08/2099 0800-1100", "page_number": 1, "reading_order_index": 3, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Stop #2 Drop", "page_number": 1, "reading_order_index": 4, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l005", "text_redacted": "Fake Drop Site", "page_number": 1, "reading_order_index": 5, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l006", "text_redacted": "Target Window 04/09/2099 1200-1500", "page_number": 1, "reading_order_index": 6, "section_role": "MULTI_STOP_SECTION"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

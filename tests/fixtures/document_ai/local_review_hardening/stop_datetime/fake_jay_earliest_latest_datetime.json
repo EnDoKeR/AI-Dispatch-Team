@@ -1,0 +1,32 @@
+{
+  "fixture_id": "fake_jay_earliest_latest_datetime",
+  "expected_span_count": 2,
+  "expected_date_resolved": 2,
+  "expected_time_resolved": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_jay_earliest_latest_datetime",
+    "document_id": "SYNTHETIC_LOCAL_REVIEW_DATETIME_002",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Load At", "page_number": 1, "reading_order_index": 1, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Pickup Warehouse", "page_number": 1, "reading_order_index": 2, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Earliest Date February 04, 2099", "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Appointment 8 AM to 2 PM", "page_number": 1, "reading_order_index": 4, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l005", "text_redacted": "Deliver To", "page_number": 1, "reading_order_index": 5, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l006", "text_redacted": "Fake Delivery Warehouse", "page_number": 1, "reading_order_index": 6, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l007", "text_redacted": "Latest Date February 05, 2099", "page_number": 1, "reading_order_index": 7, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l008", "text_redacted": "Receiving Hours 9 AM to 5 PM", "page_number": 1, "reading_order_index": 8, "section_role": "DELIVERY_SECTION"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}
