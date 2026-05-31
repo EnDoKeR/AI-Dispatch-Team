@@ -102,6 +102,7 @@ Core architecture docs:
 * [Load Identifier Candidate Generation](docs/LOAD_IDENTIFIER_CANDIDATE_GENERATION.md)
 * [Load Identifier Coverage Audit](docs/LOAD_IDENTIFIER_COVERAGE_AUDIT.md)
 * [Load Identifier Source-Line Forensics](docs/LOAD_IDENTIFIER_SOURCE_LINE_FORENSICS.md)
+* [Target Deferral and Rate Forensics](docs/TARGET_DEFERRAL_AND_RATE_FORENSICS.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -153,6 +154,9 @@ Do not do yet:
 * load identifier source-line forensics found no shared code-fixable root cause;
   when `fix_allowed=false`, stop adding load-id rules and use local human review
   or select a different measured blocker
+* target disposition skips deferred targets by default; the current next
+  measured blocker is rate forensics, where source-priority typing improved
+  diagnostics but did not change readiness
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

@@ -180,6 +180,15 @@ were split, with no code-fixable bucket reaching the required three-alias
 threshold. The next load identifier action is local human review, while other
 core blockers should continue to be selected from policy-cleaned coverage data.
 
+The target disposition registry now prevents the deferred load identifier target
+from looping. With that target skipped, the next selected measured blocker is
+rate. Rate forensics first selected source-priority guardrails and preserved
+typed money categories. The safe result reduced
+`accessorial_confused_with_main_rate` from 10 to 3 and exposed 9 main-rate
+candidates, but rate conflict count and intake blockers stayed unchanged. The
+next rate root cause is `multiple_strong_totals`; treat that as a review-routing
+problem unless further evidence proves a safer deterministic resolution.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

@@ -364,6 +364,33 @@ no shared code-fixable load identifier root cause:
 No additional load identifier extraction fix was implemented because the root
 causes did not share one code-fixable pattern across at least three aliases.
 
+Rate candidate forensics can be emitted by adding `--write-rate-forensics` and
+analyzed with:
+
+```powershell
+py scripts/analyze_rate_candidate_forensics.py --write-md --write-json
+```
+
+Rate forensics reports safe counts only: rate candidate categories, source
+section categories, conflict reasons, aliases, and selected root cause. It must
+not contain money values, raw text, private labels, filenames, local paths, or
+broker identifiers.
+
+The first rate forensics pass ran after deferring load identifiers and selected
+`rate_source_priority_guardrails`:
+
+- accessorial/main-rate root cause: 10 -> 3;
+- main-rate candidates: 0 -> 9;
+- rate conflict count: 7 -> 7;
+- true intake blockers: 51 -> 51;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed unchanged: 4;
+- next measured rate root cause: `multiple_strong_totals`.
+
+The fix improved candidate typing and rate diagnostics but not private
+readiness. The next rate work should be conflict review routing only if the
+rate forensics report continues to prove that shared root cause.
+
 ## Command
 
 Run locally only:

@@ -50,6 +50,10 @@ Deferred or blocked targets are skipped by default. An explicit override may
 allow rerunning a deferred target when new evidence exists, but the default
 selector must not loop.
 
+The local registry is written only under ignored measurement output paths, for
+example `target_disposition_registry.json`. The registry stores target names,
+statuses, safe reasons, and supporting counts only.
+
 ## Next Measured Area
 
 The next measured area is rate conflict and main-rate resolution. Rate is a true
@@ -74,6 +78,54 @@ Rate forensics should determine whether conflicts come from:
 A rate fix is allowed only if a shared, code-fixable root cause is proven. If
 the root causes split across aliases or require private judgment, the correct
 outcome is local human review for rate fields.
+
+## Current Rate Forensics Result
+
+After deferring `load_identifier_candidate_generation`, target selection skips
+that target by default and selected `rate_candidate_generation_or_resolution`.
+
+The first rate forensics pass found a shared source-priority issue:
+
+- selected root cause: `accessorial_confused_with_main_rate`;
+- fix allowed: yes;
+- selected fix: `rate_source_priority_guardrails`;
+- supporting aliases: 10;
+- conflict-present records: 7.
+
+The targeted fix preserved typed money candidate categories in generic text
+candidate generation so main pay labels, accessorials, quickpay, deductions,
+and TONU payment amounts can be separated downstream.
+
+Post-fix safe delta:
+
+- main rate candidates: 0 -> 9;
+- `accessorial_confused_with_main_rate`: 10 -> 3;
+- rate conflict count: 7 -> 7;
+- true intake blockers: 51 -> 51;
+- readiness: unchanged;
+- next rate root cause: `multiple_strong_totals`.
+
+This means the source-priority fix improved diagnostics and candidate typing,
+but did not improve readiness. The next rate block should focus on conflict
+review routing only if measured evidence still supports it. Do not stack more
+source-priority patches without a new shared root cause.
+
+## Local Commands
+
+Create/update rate forensics artifacts during a private run by adding:
+
+```powershell
+--write-rate-forensics
+```
+
+Analyze existing local artifacts with:
+
+```powershell
+python scripts/analyze_rate_candidate_forensics.py --write-md --write-json --include-local-document-names-local-only
+```
+
+Console and Markdown output contain aliases, counts, categories, and conflict
+reasons only. They do not contain money values.
 
 ## Safe Sharing Rules
 

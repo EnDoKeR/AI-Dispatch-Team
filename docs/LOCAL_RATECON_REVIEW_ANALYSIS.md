@@ -207,6 +207,14 @@ references, and correctly non-primary labels. Because no code-fixable reason
 hit the three-alias threshold, `fix_allowed=false` and no further load-id
 hardening was added.
 
+After recording the load identifier target as deferred, target selection moves
+to rate forensics. Rate forensics separates main carrier-pay candidates from
+accessorials, quickpay, deductions, terms/billing amounts, TONU payments, and
+multiple strong totals. The first source-priority hardening pass improved safe
+rate diagnostics but did not change readiness, so future rate work should use
+the rate forensics report to decide whether conflict review routing is
+justified.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

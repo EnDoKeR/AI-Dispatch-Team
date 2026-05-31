@@ -40,7 +40,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
 | Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Provider-line stop spans | `app/document_ai/stop_span_extractor.py`, `scripts/run_private_ratecon_measurement.py` | Implemented behind `--enable-stop-span-extractor`; compares old stop groups to direct line-span normalized stops in safe measurement and review exports |
-| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py`, `app/document_ai/candidate_coverage_analysis.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, candidate coverage diagnostics, and clean target selection |
+| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py`, `app/document_ai/candidate_coverage_analysis.py`, `app/document_ai/target_disposition.py`, `app/document_ai/rate_candidate_forensics.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, candidate coverage diagnostics, target deferral, and rate forensics |
 | Google Sheets review sync | `app/integrations/google_sheets_review.py`, `scripts/sync_ratecon_review_to_google_sheet.py`, `scripts/download_ratecon_review_feedback_from_google_sheet.py` | Implemented explicit confirmation-gated review-tab sync and feedback download using local ignored config; no operational tab overwrite |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
@@ -142,6 +142,18 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   non-primary references. No shared code-fixable root cause reached the
   three-alias threshold, so `fix_allowed=false` and no new load-id hardening was
   implemented.
+- Target disposition now records deferred targets in ignored local output. The
+  current registry marks `load_identifier_candidate_generation` as
+  `no_shared_code_root_cause`, so target selection skips it by default and moves
+  to the next measured blocker.
+- Rate candidate forensics now emits `rate_candidate_forensics_raw.json`, `.md`,
+  `rate_candidate_forensics.json`, and `.md`. It reports only aliases, counts,
+  rate candidate categories, source sections, and conflict reasons. The first
+  rate fix preserved typed money candidate categories in generic text
+  extraction. Safe delta: main-rate candidates 0 -> 9,
+  `accessorial_confused_with_main_rate` 10 -> 3, rate conflict count 7 -> 7,
+  true intake blockers 51 -> 51, readiness unchanged, OCR-needed 4. The next
+  rate root cause is `multiple_strong_totals`.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.

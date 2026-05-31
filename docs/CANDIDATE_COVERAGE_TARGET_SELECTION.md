@@ -126,3 +126,13 @@ OCR/weak text, absent source lines, only non-primary references, and correctly
 non-primary labels. Because `fix_allowed=false`, the selector result should be
 treated as a broad remaining blocker, not permission to add another generic
 load-number rule.
+
+The target disposition registry now records
+`load_identifier_candidate_generation` as `no_shared_code_root_cause` for the
+current evidence set. With deferred targets excluded, candidate coverage target
+selection moves to `rate_candidate_generation_or_resolution`. The first rate
+forensics block selected `rate_source_priority_guardrails`, improved typed
+main-rate candidate visibility, and reduced the accessorial/main-rate root
+cause, but readiness stayed unchanged. The next selectable rate target is
+`multiple_strong_totals` / review routing, not another load-id or generic
+datetime patch.

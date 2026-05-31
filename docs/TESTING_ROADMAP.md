@@ -142,6 +142,14 @@ Required behavior:
   at least three aliases;
 - source-line audit tests prove section counts, label counts, primary mapping
   counts, OCR/weak-text handling, and no private line text in serialized output.
+- target disposition tests prove deferred targets are skipped by default and can
+  be overridden only explicitly;
+- rate forensics tests prove safe category/count output, CLI reporting without
+  money values, synthetic source-priority fixtures, and typed rate/accessorial
+  candidate behavior;
+- rate source-priority tests prove total carrier pay remains a main-rate
+  candidate while accessorial, quickpay, deduction, penalty, and TONU amounts
+  remain separate review evidence.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than
