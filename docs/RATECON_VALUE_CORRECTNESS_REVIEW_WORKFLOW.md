@@ -118,6 +118,52 @@ locally:
 Safe status summaries can be shared back as aliases, counts, statuses, issue
 types, and field names. Private workbook values and notes must stay local.
 
+## Direct Google Sheets Sync
+
+The optional Google Sheets sync publishes the same review packet into dedicated
+review tabs:
+
+- `RC_Document_Summary`
+- `RC_Stop_Review`
+- `RC_Field_Review`
+- `RC_Rate_Review`
+- `RC_Instructions`
+- `RC_Feedback_Summary`
+
+Share the spreadsheet with:
+
+```text
+ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com
+```
+
+Use ignored local config or environment variables for the spreadsheet ID and
+service account JSON path. Do not commit the JSON key.
+
+Status-only sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --status-only
+```
+
+Explicit private-values test sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --include-private-review-values-google-test-only
+```
+
+The private-values mode uploads review values to dedicated review tabs only and
+prints no values. It is still a review packet, not final truth.
+
+Completed review feedback can be downloaded later:
+
+```powershell
+py scripts/download_ratecon_review_feedback_from_google_sheet.py --confirm-google-feedback-download
+```
+
+The download summary reports rows, correct/incorrect/unknown counts, issue type
+counts, high-error aliases, and high-error fields. It does not print expected
+values or notes.
+
 ## Integrity Checks
 
 The review export runs count-only integrity checks before generating review

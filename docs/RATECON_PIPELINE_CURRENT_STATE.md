@@ -41,6 +41,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Provider-line stop spans | `app/document_ai/stop_span_extractor.py`, `scripts/run_private_ratecon_measurement.py` | Implemented behind `--enable-stop-span-extractor`; compares old stop groups to direct line-span normalized stops in safe measurement and review exports |
 | Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, and safe feedback import summaries |
+| Google Sheets review sync | `app/integrations/google_sheets_review.py`, `scripts/sync_ratecon_review_to_google_sheet.py`, `scripts/download_ratecon_review_feedback_from_google_sheet.py` | Implemented explicit confirmation-gated review-tab sync and feedback download using local ignored config; no operational tab overwrite |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -80,6 +81,14 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Provider-line stop span extraction behind explicit safe measurement flags.
 - Local-only review export now compares old stop-group counts with span
   extractor counts.
+- Stop span type count reporting now includes generic `stop` counts so
+  pickup + delivery + generic stop + unknown can reconcile to the normalized
+  stop denominator.
+- Google Sheets review sync can publish local review rows to dedicated
+  `RC_` tabs when `--confirm-google-review-sync` is passed. Status-only mode is
+  default; private-value test sync requires an additional explicit flag.
+- Google Sheets feedback download can write completed review tabs to ignored
+  local CSVs and summarize correct/incorrect/unknown counts and issue types.
 - Private measurement rows and aggregates now separate eligible RateCon documents
   from supplemental-only, non-RateCon, unknown-review, and OCR-needed documents.
 - Classification eligibility has been calibrated so carrier load tenders, load
@@ -138,6 +147,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Event writes from document extraction.
 - Telegram business logic for RateCon extraction.
 - Live DAT/API integration.
+- Google Sheet review feedback applying corrections to production intake data.
 
 ## Test Coverage
 

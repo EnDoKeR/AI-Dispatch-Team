@@ -92,6 +92,48 @@ Google sync always requires explicit confirmation:
 --confirm-google-review-sync
 ```
 
+## Commands
+
+Create the local review CSVs/workbook first:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-review-workbook --write-review-csvs --natural-sort-inputs
+```
+
+Status-only Google sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --status-only
+```
+
+Explicit private-values test sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --include-private-review-values-google-test-only
+```
+
+The private-values mode is for controlled local review only. It still prints
+only tab names, row counts, and sync mode.
+
+Feedback download:
+
+```powershell
+py scripts/download_ratecon_review_feedback_from_google_sheet.py --confirm-google-feedback-download
+```
+
+The measurement CLI can also sync immediately after writing review artifacts:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-review-csvs --sync-review-google-sheet --confirm-google-review-sync --natural-sort-inputs
+```
+
+Optional config flags:
+
+- `--google-config`
+- `--spreadsheet-id`
+- `--credentials-json`
+- `--worksheet-prefix`
+
 ## Review Flow
 
 The user reviews the Google Sheet tabs in this order:
@@ -112,6 +154,12 @@ Completed review feedback is later downloaded from the review tabs into ignored
 local CSVs, then summarized by the local feedback import tool. Feedback import
 reports counts and issue types only; it does not create DispatchCases or write
 production corrections in this block.
+
+Downloaded local filenames:
+
+- `google_feedback_stop_review.csv`
+- `google_feedback_field_review.csv`
+- `google_feedback_rate_review.csv`
 
 ## Safe To Share
 

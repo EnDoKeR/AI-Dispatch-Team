@@ -86,6 +86,28 @@ available, natural sorting, local-only output paths, readiness levels, integrity
 issue detection, feedback import summaries, explicit local-only private value
 guards, and no console printing of local document stems or predicted values.
 
+## Google Sheets Review Sync Tests
+
+The Google Sheets review sync is covered by fake/mocked tests only:
+
+- `tests/test_google_sheets_review_config.py`
+- `tests/test_google_sheets_review_client.py`
+- `tests/test_google_sheets_review_rows.py`
+- `tests/test_sync_ratecon_review_to_google_sheet.py`
+- `tests/test_download_ratecon_review_feedback_from_google_sheet.py`
+
+Required behavior:
+
+- local config loads from ignored config or environment variables;
+- service account JSON paths are never printed or committed;
+- sync refuses to run without `--confirm-google-review-sync`;
+- status-only mode redacts predicted values;
+- private-values test mode requires an explicit flag;
+- only dedicated `RC_` review tabs are updated;
+- feedback download refuses to run without confirmation;
+- feedback download summaries print counts and issue types only;
+- all Google client tests use mocks and make no real API calls.
+
 ## Current Test Categories Found
 
 Current tests already cover:

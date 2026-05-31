@@ -307,10 +307,10 @@ This writes ignored local files:
 - `ratecon_review_workbook.xlsx`, when a workbook writer is already available
   in the local environment
 
-The export is file-based only. It does not use Google APIs, OAuth, cloud
-services, OCR, Vision, Camelot, or new dependencies. Local document stems may
-appear inside the ignored export so the user can map aliases to local document
-order. They must not be printed to console or copied into chat.
+This export remains local and file-based. It does not use OCR, Vision, Camelot,
+or new dependencies. Local document stems may appear inside the ignored export
+so the user can map aliases to local document order. They must not be printed
+to console or copied into chat.
 
 Optional local value-correctness review workbook and CSVs:
 
@@ -330,6 +330,42 @@ The `--include-private-review-values-local-only` flag is explicit local review
 mode. It may write predicted private values to the ignored workbook/CSVs, but
 the console still prints only counts, statuses, issue counts, and basenames.
 Do not paste workbook rows into chat and do not commit generated review files.
+
+Optional Google Sheets review sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --status-only
+```
+
+Optional explicit private-values test sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --include-private-review-values-google-test-only
+```
+
+Optional measurement-and-sync command:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-review-csvs --sync-review-google-sheet --confirm-google-review-sync --natural-sort-inputs
+```
+
+Google sync uses only dedicated review tabs with prefix `RC_` by default and
+requires local ignored config or environment variables. It prints tab names,
+row counts, sync mode, and safety booleans only. It must not print private
+values, service account key material, spreadsheet IDs, local paths, or private
+filenames.
+
+Download completed Google feedback:
+
+```powershell
+py scripts/download_ratecon_review_feedback_from_google_sheet.py --confirm-google-feedback-download
+```
+
+Downloaded feedback is written to ignored local CSVs:
+
+- `google_feedback_stop_review.csv`;
+- `google_feedback_field_review.csv`;
+- `google_feedback_rate_review.csv`.
 
 Collect redacted template patterns before drafting private templates:
 
