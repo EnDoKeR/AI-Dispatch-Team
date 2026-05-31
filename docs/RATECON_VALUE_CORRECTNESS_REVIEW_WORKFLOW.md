@@ -142,14 +142,20 @@ service account JSON path. Do not commit the JSON key.
 Initialize local config:
 
 ```powershell
-python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json ".local_private\google-service-account.json"
 ```
+
+The credential file must stay ignored and local. The service account email is
+safe to share for sheet access; the JSON key is not.
 
 Run preflight before sync:
 
 ```powershell
 py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
 ```
+
+If preflight reports stale headers, regenerate the local review workbook/CSVs
+with the current exporter before syncing.
 
 Status-only sync:
 

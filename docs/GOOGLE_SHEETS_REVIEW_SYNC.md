@@ -79,18 +79,22 @@ keys must remain local.
 Initialize ignored local config with:
 
 ```powershell
-python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json ".local_private\google-service-account.json"
 ```
 
 The initializer prints only safety booleans. It does not print the credential
 path, spreadsheet ID, or JSON key content. If a config already exists, pass
 `--overwrite` intentionally.
 
+Place the service account JSON in `.local_private\google-service-account.json`
+or pass another ignored local credential path. Do not commit the JSON key and do
+not paste it into chat.
+
 To permit the controlled private-values test sync, set the local-only config
 field `allow_private_review_value_sync` to `true` by passing:
 
 ```powershell
-python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json" --allow-private-review-value-sync --overwrite
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json ".local_private\google-service-account.json" --allow-private-review-value-sync --overwrite
 ```
 
 ## Sync Modes
@@ -141,7 +145,9 @@ py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
 
 Preflight checks expected headers, row counts, and raw-text columns by basename
 only. If generated review CSVs are stale, rerun the local review export before
-syncing.
+syncing. A typical stale-schema failure is a missing review column after the
+exporter has changed; regenerate the review workbook/CSVs, then rerun
+`--preflight-only`.
 
 Feedback download:
 

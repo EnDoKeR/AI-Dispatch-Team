@@ -334,7 +334,7 @@ Do not paste workbook rows into chat and do not commit generated review files.
 Optional Google Sheets review sync:
 
 ```powershell
-python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json ".local_private\google-service-account.json"
 ```
 
 Share the spreadsheet with:
@@ -348,6 +348,9 @@ Run a safe local preflight first:
 ```powershell
 py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
 ```
+
+If preflight reports invalid review CSV headers, regenerate the review workbook
+and CSVs with the current measurement command before attempting a Google sync.
 
 ```powershell
 py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --status-only
