@@ -9,6 +9,20 @@ import json
 import os
 from pathlib import Path
 
+from app.document_ai.ratecon_review_workbook import (
+    DOCUMENT_SUMMARY_COLUMNS,
+    FIELD_REVIEW_COLUMNS,
+    INSTRUCTIONS_COLUMNS,
+    RATE_REVIEW_COLUMNS,
+    SHEET_DOCUMENT_SUMMARY,
+    SHEET_FIELD_REVIEW,
+    SHEET_INSTRUCTIONS,
+    SHEET_RATE_REVIEW,
+    SHEET_STOP_REVIEW,
+    STOP_REVIEW_COLUMNS,
+    build_ratecon_review_rows,
+)
+
 
 DEFAULT_GOOGLE_SHEETS_REVIEW_CONFIG = Path(
     ".local_private/google_sheets_review_config.json"
@@ -20,6 +34,9 @@ DEFAULT_WORKSHEET_PREFIX = "RC_"
 SYNC_MODE_STATUS_ONLY = "status_only"
 SYNC_MODE_PRIVATE_VALUES_TEST_ONLY = "private_values_test_only"
 SYNC_MODES = {SYNC_MODE_STATUS_ONLY, SYNC_MODE_PRIVATE_VALUES_TEST_ONLY}
+REVIEW_SYNC_WARNING = "LOCAL/TEST REVIEW DATA - DO NOT USE AS FINAL TRUTH"
+SHEET_FEEDBACK_SUMMARY = "Feedback_Summary"
+FEEDBACK_SUMMARY_COLUMNS = ["Metric", "Value"]
 
 
 class GoogleSheetsReviewConfigError(ValueError):
@@ -141,6 +158,82 @@ def _row_width(rows):
         if isinstance(row, (list, tuple)):
             width = max(width, len(row))
     return width
+
+
+def _tab_title(sheet_name, worksheet_prefix=DEFAULT_WORKSHEET_PREFIX):
+    prefix = _text(worksheet_prefix) or DEFAULT_WORKSHEET_PREFIX
+    name = _text(sheet_name)
+    return name if name.startswith(prefix) else f"{prefix}{name}"
+
+
+def _sheet_values(columns, dict_rows, note=REVIEW_SYNC_WARNING):
+    header = list(columns or [])
+    note_row = [note] + [""] * max(len(header) - 1, 0)
+    values = [note_row, header]
+    for row in dict_rows or []:
+        values.append([row.get(column, "") for column in header])
+    return values
+
+
+def _feedback_summary_rows(feedback_summary=None):
+    summary = feedback_summary if isinstance(feedback_summary, dict) else {}
+    rows = []
+    for key, value in sorted(summary.items()):
+        if isinstance(value, (dict, list, tuple, set)):
+            safe_value = json.dumps(value, sort_keys=True)
+        else:
+            safe_value = _text(value)
+        rows.append({"Metric": _text(key), "Value": safe_value})
+    if not rows:
+        rows.append({"Metric": "feedback_status", "Value": "not_downloaded"})
+    return rows
+
+
+def build_google_review_tab_rows(
+    measurement_rows,
+    local_document_names_by_alias=None,
+    sync_mode=SYNC_MODE_STATUS_ONLY,
+    include_private_values=False,
+    worksheet_prefix=DEFAULT_WORKSHEET_PREFIX,
+    feedback_summary=None,
+):
+    """Build dedicated review-tab payloads for Google Sheets sync."""
+
+    mode = _normalize_sync_mode(sync_mode)
+    include_values = bool(
+        include_private_values and mode == SYNC_MODE_PRIVATE_VALUES_TEST_ONLY
+    )
+    rows_by_sheet = build_ratecon_review_rows(
+        measurement_rows,
+        local_document_names_by_alias=local_document_names_by_alias,
+        include_private_values=include_values,
+    )
+    return {
+        _tab_title(SHEET_DOCUMENT_SUMMARY, worksheet_prefix): _sheet_values(
+            DOCUMENT_SUMMARY_COLUMNS,
+            rows_by_sheet.get(SHEET_DOCUMENT_SUMMARY, []),
+        ),
+        _tab_title(SHEET_STOP_REVIEW, worksheet_prefix): _sheet_values(
+            STOP_REVIEW_COLUMNS,
+            rows_by_sheet.get(SHEET_STOP_REVIEW, []),
+        ),
+        _tab_title(SHEET_FIELD_REVIEW, worksheet_prefix): _sheet_values(
+            FIELD_REVIEW_COLUMNS,
+            rows_by_sheet.get(SHEET_FIELD_REVIEW, []),
+        ),
+        _tab_title(SHEET_RATE_REVIEW, worksheet_prefix): _sheet_values(
+            RATE_REVIEW_COLUMNS,
+            rows_by_sheet.get(SHEET_RATE_REVIEW, []),
+        ),
+        _tab_title(SHEET_INSTRUCTIONS, worksheet_prefix): _sheet_values(
+            INSTRUCTIONS_COLUMNS,
+            rows_by_sheet.get(SHEET_INSTRUCTIONS, []),
+        ),
+        _tab_title(SHEET_FEEDBACK_SUMMARY, worksheet_prefix): _sheet_values(
+            FEEDBACK_SUMMARY_COLUMNS,
+            _feedback_summary_rows(feedback_summary),
+        ),
+    }
 
 
 def ensure_worksheet(spreadsheet, title, rows=1000, cols=26):
