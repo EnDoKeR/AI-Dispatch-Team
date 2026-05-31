@@ -6,6 +6,33 @@ values or raw document text.
 """
 
 from collections import Counter, defaultdict
+import json
+from pathlib import Path
+
+from app.document_ai.load_identifier_candidates import (
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER,
+)
+from app.document_ai.local_review_analysis import LocalReviewAnalysisError
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
+)
 
 
 LOAD_ID_AUDIT_STAGE_SOURCE_LINE = "source_line"
@@ -127,6 +154,32 @@ LOAD_IDENTIFIER_LABEL_CATEGORIES = {
 }
 
 LOAD_IDENTIFIER_COVERAGE_ANALYSIS_VERSION = "load_identifier_coverage_audit_v1"
+LOAD_IDENTIFIER_COVERAGE_JSON = "load_identifier_coverage.json"
+LOAD_IDENTIFIER_COVERAGE_MD = "load_identifier_coverage.md"
+LOAD_IDENTIFIER_COVERAGE_ANALYSIS_JSON = "load_identifier_coverage_audit.json"
+LOAD_IDENTIFIER_COVERAGE_ANALYSIS_MD = "load_identifier_coverage_audit.md"
+
+IDENTIFIER_TYPE_TO_LABEL_CATEGORY = {
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER: LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER: LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID: LOAD_ID_LABEL_CATEGORY_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER: LOAD_ID_LABEL_CATEGORY_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER: LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER: (
+        LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER
+    ),
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER: LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER: LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE: LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER: LOAD_ID_LABEL_CATEGORY_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER: LOAD_ID_LABEL_CATEGORY_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CARRIER_REFERENCE,
+}
 
 
 def _text(value):
@@ -313,5 +366,274 @@ def build_load_identifier_coverage_result(records, document_count=0):
         "aggregate": build_load_identifier_coverage_aggregate(
             normalized_records,
             document_count=document_count,
+        ),
+    }
+
+
+def _read_json(path, default):
+    try:
+        with Path(path).open("r", encoding="utf-8") as handle:
+            return json.load(handle)
+    except FileNotFoundError:
+        return default
+    except json.JSONDecodeError as exc:
+        raise LocalReviewAnalysisError(f"invalid JSON: {Path(path).name}") from exc
+
+
+def _safe_summary_rows(input_dir):
+    payload = _read_json(Path(input_dir) / "safe_summary.json", default={}) or {}
+    rows = payload.get("rows", []) if isinstance(payload, dict) else []
+    return rows if isinstance(rows, list) else []
+
+
+def _category_for_identifier_type(identifier_type):
+    return IDENTIFIER_TYPE_TO_LABEL_CATEGORY.get(
+        _token(identifier_type),
+        LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+    )
+
+
+def _records_from_metrics(row):
+    alias = _text((row or {}).get("document_alias"))
+    metrics = (row or {}).get("load_identifier_coverage_metrics", {}) or {}
+    if not isinstance(metrics, dict):
+        metrics = {}
+    label_count = _int(metrics.get("identifier_label_feature_count"))
+    primary_count = _int(metrics.get("primary_identifier_candidate_count"))
+    typed_ref_count = _int(metrics.get("typed_reference_candidate_count"))
+    rejected_count = _int(metrics.get("rejected_reference_as_load_id_count"))
+    core_mapping_count = _int(metrics.get("core_load_number_mapping_count"))
+    conflict_count = _int(metrics.get("conflicting_primary_identifiers"))
+    primary_type_counts = metrics.get("primary_identifier_type_counts", {}) or {}
+    typed_ref_type_counts = metrics.get("typed_reference_type_counts", {}) or {}
+    rejected_type_counts = metrics.get("rejected_reference_type_counts", {}) or {}
+    records = []
+
+    if label_count == 0:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_LABEL_DETECTED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_LABEL_NOT_DETECTED,
+            )
+        )
+    for identifier_type, count in sorted(primary_type_counts.items()):
+        category = _category_for_identifier_type(identifier_type)
+        for _ in range(_int(count)):
+            records.append(
+                build_load_identifier_coverage_record(
+                    measurement_alias=alias,
+                    stage=LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+                    status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                    reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                    identifier_label_category=category,
+                    candidate_count=1,
+                    primary_candidate_count=1,
+                )
+            )
+    for identifier_type, count in sorted(typed_ref_type_counts.items()):
+        category = _category_for_identifier_type(identifier_type)
+        for _ in range(_int(count)):
+            records.append(
+                build_load_identifier_coverage_record(
+                    measurement_alias=alias,
+                    stage=LOAD_ID_AUDIT_STAGE_LABEL_CLASSIFIED,
+                    status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                    reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                    identifier_label_category=category,
+                    candidate_count=1,
+                )
+            )
+    for identifier_type, count in sorted(rejected_type_counts.items()):
+        category = _category_for_identifier_type(identifier_type)
+        for _ in range(_int(count)):
+            records.append(
+                build_load_identifier_coverage_record(
+                    measurement_alias=alias,
+                    stage=LOAD_ID_AUDIT_STAGE_NON_PRIMARY_REFERENCE_REJECTED,
+                    status=LOAD_ID_AUDIT_STATUS_REJECTED,
+                    reason=LOAD_ID_AUDIT_REASON_ONLY_NON_PRIMARY_REFERENCES,
+                    identifier_label_category=category,
+                    candidate_count=1,
+                    typed_reference_count=1,
+                    rejected_non_primary_count=1,
+                )
+            )
+    if conflict_count:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_CONFLICT,
+                reason=LOAD_ID_AUDIT_REASON_MULTIPLE_PRIMARY_CONFLICT,
+                primary_candidate_count=primary_count,
+            )
+        )
+    elif core_mapping_count:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                primary_candidate_count=primary_count,
+                core_mapping_count=core_mapping_count,
+            )
+        )
+    elif primary_count:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_PRIMARY_NOT_CORE_MAPPED,
+                primary_candidate_count=primary_count,
+            )
+        )
+    elif label_count and rejected_count:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_ONLY_NON_PRIMARY_REFERENCES,
+                candidate_count=label_count,
+            )
+        )
+    elif label_count:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=alias,
+                stage=LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_PRIMARY_NOT_GENERATED,
+                candidate_count=label_count,
+            )
+        )
+    return records
+
+
+def analyze_load_identifier_coverage_from_rows(measurement_rows):
+    records = []
+    for row in measurement_rows or []:
+        if not isinstance(row, dict):
+            continue
+        audit_records = row.get("load_identifier_audit_records", []) or []
+        if audit_records:
+            records.extend(
+                build_load_identifier_coverage_record(**record)
+                for record in audit_records
+                if isinstance(record, dict)
+            )
+        else:
+            records.extend(_records_from_metrics(row))
+    return build_load_identifier_coverage_result(
+        records,
+        document_count=len(measurement_rows or []),
+    )
+
+
+def analyze_load_identifier_coverage(input_dir=None):
+    root = Path(input_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR)
+    artifact = _read_json(root / LOAD_IDENTIFIER_COVERAGE_JSON, default=None)
+    if isinstance(artifact, dict) and "records" in artifact and "aggregate" in artifact:
+        return build_load_identifier_coverage_result(
+            artifact.get("records", []),
+            document_count=(artifact.get("aggregate", {}) or {}).get("document_count", 0),
+        )
+    if not (root / "safe_summary.json").exists():
+        raise LocalReviewAnalysisError("missing safe_summary.json")
+    return analyze_load_identifier_coverage_from_rows(_safe_summary_rows(root))
+
+
+def load_identifier_coverage_markdown_lines(analysis):
+    aggregate = (analysis or {}).get("aggregate", {})
+    lines = [
+        "# Load Identifier Coverage Audit",
+        "",
+        "Local-only analysis. Safe to share: aliases, counts, statuses, and label categories.",
+        "Do not share private values, raw text, filenames, local paths, rates, addresses, references, or broker identifiers.",
+        "",
+        f"Documents analyzed: {aggregate.get('document_count', 0)}",
+        f"Recommended next fix: {aggregate.get('recommended_next_fix', 'local_human_review')}",
+        "",
+        "## Counts",
+        f"- primary candidates: {aggregate.get('primary_candidate_count', 0)}",
+        f"- typed references: {aggregate.get('typed_reference_count', 0)}",
+        f"- rejected non-primary references: {aggregate.get('rejected_non_primary_count', 0)}",
+        f"- core mappings: {aggregate.get('core_mapping_count', 0)}",
+        "",
+        "## Reasons",
+    ]
+    for reason, count in (aggregate.get("records_by_reason", {}) or {}).items():
+        lines.append(f"- {reason}: {count}")
+    lines.extend(["", "## Label Categories"])
+    for category, count in (
+        aggregate.get("records_by_label_category", {}) or {}
+    ).items():
+        lines.append(f"- {category}: {count}")
+    return lines
+
+
+def write_load_identifier_coverage_json(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        json.dumps(analysis, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "json": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def write_load_identifier_coverage_md(analysis, output_path):
+    path = Path(output_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        "\n".join(load_identifier_coverage_markdown_lines(analysis)) + "\n",
+        encoding="utf-8",
+    )
+    return {
+        "md": path.name,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def write_load_identifier_coverage_artifacts(
+    analysis,
+    output_dir=None,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    json_result = write_load_identifier_coverage_json(
+        analysis,
+        output_root / LOAD_IDENTIFIER_COVERAGE_JSON,
+    )
+    md_result = write_load_identifier_coverage_md(
+        analysis,
+        output_root / LOAD_IDENTIFIER_COVERAGE_MD,
+    )
+    return {
+        "paths": {
+            "load_identifier_coverage_json": output_root
+            / LOAD_IDENTIFIER_COVERAGE_JSON,
+            "load_identifier_coverage_md": output_root / LOAD_IDENTIFIER_COVERAGE_MD,
+        },
+        "aggregate": (analysis or {}).get("aggregate", {}),
+        "private_values_printed": bool(
+            json_result.get("private_values_printed")
+            or md_result.get("private_values_printed")
+        ),
+        "raw_text_printed": bool(
+            json_result.get("raw_text_printed")
+            or md_result.get("raw_text_printed")
         ),
     }

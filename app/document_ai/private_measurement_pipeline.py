@@ -444,8 +444,6 @@ def _load_identifier_audit_records(measurement_alias, candidates, resolution_res
                 reason=reason,
                 identifier_label_category=LOAD_ID_LABEL_CATEGORY_UNKNOWN,
                 candidate_count=len(identifier_candidates),
-                typed_reference_count=len(typed_reference_candidates),
-                rejected_non_primary_count=len(rejected_reference_candidates),
             )
         )
     for candidate in rejected_reference_candidates:
