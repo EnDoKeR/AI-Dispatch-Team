@@ -141,6 +141,14 @@ RATE_REVIEW_COLUMNS = [
     "Status",
     "Evidence Type",
     "Main Rate? yes/no/unknown",
+    "Rate Conflict Reason",
+    "Main Rate Candidate Count",
+    "Equivalent Rate Group Count",
+    "Different Strong Total Count",
+    "Rate Review Required Reason",
+    "Rate Selected? yes/no",
+    "Rate Core Mapped? yes/no",
+    "Rate Component Type",
     "User Correct? yes/no/unknown",
 ]
 
@@ -489,8 +497,26 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
     return rows
 
 
-def _rate_review_rows(field_rows):
+def _first_rate_conflict_audit_record(row):
+    for record in (row or {}).get("rate_conflict_audit_records", []) or []:
+        if isinstance(record, dict):
+            return record
+    return {}
+
+
+def _first_rate_forensics_record(row):
+    for record in (row or {}).get("rate_forensics_records", []) or []:
+        if isinstance(record, dict):
+            return record
+    return {}
+
+
+def _rate_review_rows(row, field_rows):
     rows = []
+    conflict_record = _first_rate_conflict_audit_record(row)
+    forensics_record = _first_rate_forensics_record(row)
+    conflict_reason = _token(conflict_record.get("conflict_reason"))
+    review_required = bool(conflict_record.get("review_required"))
     for field_row in field_rows or []:
         if _token(field_row.get("Field Name")) not in RATE_REVIEW_FIELD_NAMES:
             continue
@@ -505,6 +531,27 @@ def _rate_review_rows(field_rows):
                 "Status": field_row.get("Status", ""),
                 "Evidence Type": field_row.get("Evidence Type", ""),
                 "Main Rate? yes/no/unknown": "",
+                "Rate Conflict Reason": conflict_reason,
+                "Main Rate Candidate Count": _int(
+                    conflict_record.get("main_rate_candidate_count")
+                    or forensics_record.get("main_rate_candidate_count")
+                ),
+                "Equivalent Rate Group Count": _int(
+                    conflict_record.get("equivalent_candidate_group_count")
+                ),
+                "Different Strong Total Count": _int(
+                    conflict_record.get("different_strong_total_count")
+                ),
+                "Rate Review Required Reason": conflict_reason if review_required else "",
+                "Rate Selected? yes/no": _bool_text(
+                    conflict_record.get("selected_rate_present")
+                ),
+                "Rate Core Mapped? yes/no": _bool_text(
+                    conflict_record.get("core_rate_mapped")
+                ),
+                "Rate Component Type": _format_count_map(
+                    forensics_record.get("category_counts")
+                ),
                 "User Correct? yes/no/unknown": "",
             }
         )
@@ -664,7 +711,7 @@ def build_ratecon_review_rows(
         )
         stop_rows.extend(row_stop_rows)
         field_rows.extend(row_field_rows)
-        rate_rows.extend(_rate_review_rows(row_field_rows))
+        rate_rows.extend(_rate_review_rows(row, row_field_rows))
 
     return {
         SHEET_DOCUMENT_SUMMARY: document_rows,

@@ -69,6 +69,31 @@ def _fake_row():
             "private_values_included": False,
             "raw_text_included": False,
         },
+        "rate_forensics_records": [
+            {
+                "measurement_alias": "RATECON_001",
+                "main_rate_candidate_count": 2,
+                "category_counts": {"main_total_carrier_pay": 1, "linehaul": 1},
+                "private_values_included": False,
+                "raw_text_included": False,
+                "money_values_included": False,
+            }
+        ],
+        "rate_conflict_audit_records": [
+            {
+                "measurement_alias": "RATECON_001",
+                "main_rate_candidate_count": 2,
+                "equivalent_candidate_group_count": 1,
+                "different_strong_total_count": 0,
+                "selected_rate_present": True,
+                "core_rate_mapped": True,
+                "review_required": False,
+                "conflict_reason": "same_amount_multiple_sources",
+                "private_values_included": False,
+                "raw_text_included": False,
+                "money_values_included": False,
+            }
+        ],
         "field_statuses": [
             {
                 "field_name": "rate",
@@ -147,6 +172,13 @@ class RateConReviewWorkbookExportTests(unittest.TestCase):
 
             self.assertEqual(stop_rows[0]["Predicted Value LOCAL ONLY"], "Fake Pickup City")
             self.assertEqual(rate_rows[0]["Predicted Value LOCAL ONLY"], "$1234")
+            self.assertEqual(
+                rate_rows[0]["Rate Conflict Reason"],
+                "same_amount_multiple_sources",
+            )
+            self.assertEqual(rate_rows[0]["Main Rate Candidate Count"], "2")
+            self.assertEqual(rate_rows[0]["Equivalent Rate Group Count"], "1")
+            self.assertEqual(rate_rows[0]["Rate Core Mapped? yes/no"], "yes")
             self.assertTrue(output["include_private_values_local_only"])
             self.assertFalse(output["private_values_printed"])
 
