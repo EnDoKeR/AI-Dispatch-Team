@@ -17,6 +17,17 @@ from app.document_ai.private_measurement_outputs import (
     _normalize_output_dir,
 )
 from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.ratecon_core_field_policy import (
+    FIELD_POLICY_ROLE_DISPATCH_DECISION,
+    FIELD_POLICY_ROLE_INTAKE_CORE,
+    FIELD_REQUIREMENT_NON_APPLICABLE,
+    FIELD_REQUIREMENT_OPTIONAL,
+    FIELD_REQUIREMENT_REVIEW_REQUIRED,
+    build_document_context,
+    classify_field_policy_gap,
+    get_field_requirement,
+    is_field_blocker_for_level,
+)
 
 
 REVIEW_WORKBOOK_XLSX = "ratecon_review_workbook.xlsx"
@@ -58,6 +69,11 @@ DOCUMENT_SUMMARY_COLUMNS = [
     "Time Missing",
     "Review Required Stops",
     "Readiness Level",
+    "Extraction Review Blockers",
+    "Intake Core Blockers",
+    "Dispatch Decision Blockers",
+    "Optional Missing Fields",
+    "Non Applicable Fields",
     "Top Blocker",
     "Integrity Issues",
     "Recommended Review Priority",
@@ -97,6 +113,14 @@ FIELD_REVIEW_COLUMNS = [
     "Confidence Bucket",
     "Evidence Type",
     "Needs Review",
+    "Extraction Review Blocker",
+    "Intake Core Blocker",
+    "Dispatch Decision Blocker",
+    "Review Field",
+    "Optional Missing Field",
+    "Non Applicable Field",
+    "Field Requirement Level",
+    "Policy Gap Reason",
     "User Correct? yes/no/unknown",
     "User Expected Value LOCAL ONLY",
     "User Issue Type",
@@ -210,6 +234,83 @@ def _field_status(row, field_name):
     return ""
 
 
+def _field_status_map(row):
+    statuses = {}
+    for field_status in (row or {}).get("field_statuses", []) or []:
+        if not isinstance(field_status, dict):
+            continue
+        field_name = _token(field_status.get("field_name"))
+        if field_name:
+            statuses[field_name] = _token(field_status.get("status"))
+    for field_name in normalize_list((row or {}).get("missing_fields", [])):
+        statuses.setdefault(_token(field_name), "missing")
+    for field_name in normalize_list((row or {}).get("needs_check_fields", [])):
+        statuses.setdefault(_token(field_name), "needs_review")
+    for field_name in normalize_list((row or {}).get("conflict_fields", [])):
+        statuses[_token(field_name)] = "conflict"
+    for field_name in normalize_list((row or {}).get("non_applicable_fields", [])):
+        statuses[_token(field_name)] = "non_applicable"
+    return {key: value for key, value in statuses.items() if key}
+
+
+def _field_policy_columns(row, field_name, status):
+    statuses = _field_status_map(row)
+    context = build_document_context(row, field_statuses=statuses)
+    requirement = get_field_requirement(
+        field_name,
+        FIELD_POLICY_ROLE_INTAKE_CORE,
+        context,
+    )
+    intake_blocker = is_field_blocker_for_level(
+        field_name,
+        status,
+        FIELD_POLICY_ROLE_INTAKE_CORE,
+        context,
+    )
+    dispatch_blocker = is_field_blocker_for_level(
+        field_name,
+        status,
+        FIELD_POLICY_ROLE_DISPATCH_DECISION,
+        context,
+    )
+    optional_missing = (
+        _token(status) == "missing"
+        and requirement
+        in {
+            FIELD_REQUIREMENT_OPTIONAL,
+            FIELD_REQUIREMENT_REVIEW_REQUIRED,
+        }
+    )
+    non_applicable = requirement == FIELD_REQUIREMENT_NON_APPLICABLE
+    review_field = (
+        requirement
+        in {
+            FIELD_REQUIREMENT_OPTIONAL,
+            FIELD_REQUIREMENT_REVIEW_REQUIRED,
+        }
+        or dispatch_blocker
+    ) and not non_applicable
+    extraction_review_blocker = (
+        _text((row or {}).get("extraction_status")).upper() == "EMPTY_TEXT"
+        and _token(status) == "missing"
+    )
+    return {
+        "Extraction Review Blocker": _bool_text(extraction_review_blocker),
+        "Intake Core Blocker": _bool_text(intake_blocker),
+        "Dispatch Decision Blocker": _bool_text(dispatch_blocker),
+        "Review Field": _bool_text(review_field),
+        "Optional Missing Field": _bool_text(optional_missing),
+        "Non Applicable Field": _bool_text(non_applicable),
+        "Field Requirement Level": requirement,
+        "Policy Gap Reason": classify_field_policy_gap(
+            field_name,
+            status,
+            FIELD_POLICY_ROLE_INTAKE_CORE,
+            context,
+        ),
+    }
+
+
 def _top_blocker(row):
     blockers = normalize_list((row or {}).get("blocker_categories", []))
     return blockers[0] if blockers else ""
@@ -267,6 +368,7 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
             continue
         seen.add(field_name)
         status = _text(field.get("status"))
+        policy_columns = _field_policy_columns(row, field_name, status)
         rows.append(
             {
                 "Folder Order": folder_order,
@@ -284,6 +386,7 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
                     status
                     in {"missing", "low_confidence", "conflict", "needs_review"}
                 ),
+                **policy_columns,
                 "User Correct? yes/no/unknown": "",
                 "User Expected Value LOCAL ONLY": "",
                 "User Issue Type": "",
@@ -305,6 +408,7 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
                     "Confidence Bucket": "",
                     "Evidence Type": "",
                     "Needs Review": "yes",
+                    **_field_policy_columns(row, token, "missing"),
                     "User Correct? yes/no/unknown": "",
                     "User Expected Value LOCAL ONLY": "",
                     "User Issue Type": "",
@@ -409,6 +513,11 @@ def _document_summary_row(row, folder_order, local_name):
         "Time Missing": _int((row or {}).get("span_time_missing_count")),
         "Review Required Stops": _int((row or {}).get("span_review_required_count")),
         "Readiness Level": readiness.get("readiness_level", "not_ready"),
+        "Extraction Review Blockers": _join(readiness.get("extraction_review_blockers")),
+        "Intake Core Blockers": _join(readiness.get("intake_core_blockers")),
+        "Dispatch Decision Blockers": _join(readiness.get("dispatch_decision_blockers")),
+        "Optional Missing Fields": _join(readiness.get("optional_missing_fields")),
+        "Non Applicable Fields": _join(readiness.get("non_applicable_fields")),
         "Top Blocker": _top_blocker(row),
         "Integrity Issues": _join(issue_codes),
         "Recommended Review Priority": _review_priority(row, issues, readiness),
@@ -511,13 +620,36 @@ def summarize_ratecon_review_workbook_rows(rows_by_sheet):
     integrity_summary = summarize_integrity_issues(
         [{"issue_code": code, "severity": "warning"} for code in issue_codes if code]
     )
+    field_rows = (rows_by_sheet or {}).get(SHEET_FIELD_REVIEW, []) or []
+
+    def count_field_rows(flag_column):
+        counts = {}
+        for row in field_rows:
+            if _token(row.get(flag_column)) != "yes":
+                continue
+            field_name = _token(row.get("Field Name"))
+            if field_name:
+                counts[field_name] = counts.get(field_name, 0) + 1
+        return dict(sorted(counts.items()))
+
+    policy_misclassification_count = sum(
+        1
+        for row in field_rows
+        if _token(row.get("Policy Gap Reason")) == "optional_field_misclassified_as_core"
+    )
     return {
         "document_rows": len(document_rows),
         "stop_review_rows": len((rows_by_sheet or {}).get(SHEET_STOP_REVIEW, []) or []),
-        "field_review_rows": len((rows_by_sheet or {}).get(SHEET_FIELD_REVIEW, []) or []),
+        "field_review_rows": len(field_rows),
         "rate_review_rows": len((rows_by_sheet or {}).get(SHEET_RATE_REVIEW, []) or []),
         "readiness_level_counts": dict(sorted(readiness_counts.items())),
         "integrity_issue_counts": integrity_summary.get("issue_counts", {}),
+        "extraction_review_blocker_counts": count_field_rows("Extraction Review Blocker"),
+        "intake_core_blocker_counts": count_field_rows("Intake Core Blocker"),
+        "dispatch_decision_blocker_counts": count_field_rows("Dispatch Decision Blocker"),
+        "optional_missing_field_counts": count_field_rows("Optional Missing Field"),
+        "non_applicable_field_counts": count_field_rows("Non Applicable Field"),
+        "policy_misclassification_count": policy_misclassification_count,
         "raw_text_included": False,
         "private_values_printed": False,
     }

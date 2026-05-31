@@ -116,6 +116,25 @@ class RateConReviewWorkbookContractTests(unittest.TestCase):
             REVIEW_WORKBOOK_COLUMNS_BY_SHEET[SHEET_RATE_REVIEW],
             RATE_REVIEW_COLUMNS,
         )
+        for column in [
+            "Extraction Review Blocker",
+            "Intake Core Blocker",
+            "Dispatch Decision Blocker",
+            "Review Field",
+            "Optional Missing Field",
+            "Non Applicable Field",
+            "Field Requirement Level",
+            "Policy Gap Reason",
+        ]:
+            self.assertIn(column, FIELD_REVIEW_COLUMNS)
+        for column in [
+            "Extraction Review Blockers",
+            "Intake Core Blockers",
+            "Dispatch Decision Blockers",
+            "Optional Missing Fields",
+            "Non Applicable Fields",
+        ]:
+            self.assertIn(column, DOCUMENT_SUMMARY_COLUMNS)
 
     def test_build_rows_excludes_private_values_by_default(self):
         rows_by_sheet = build_ratecon_review_rows(
@@ -129,6 +148,8 @@ class RateConReviewWorkbookContractTests(unittest.TestCase):
         self.assertEqual(field_row["Predicted Value LOCAL ONLY"], "")
         self.assertEqual(stop_row["Local Document Name / File Stem"], "LoadConfirmation1")
         self.assertEqual(stop_row["Needs Review"], "yes")
+        self.assertIn("Intake Core Blocker", field_row)
+        self.assertIn("Policy Gap Reason", field_row)
 
     def test_build_rows_includes_fake_private_values_only_when_explicit(self):
         rows_by_sheet = build_ratecon_review_rows(
@@ -157,6 +178,9 @@ class RateConReviewWorkbookContractTests(unittest.TestCase):
         self.assertEqual(summary["stop_review_rows"], 2)
         self.assertIn("intake_core_ready", summary["readiness_level_counts"])
         self.assertIn("SPAN_TYPE_COUNT_MISMATCH", summary["integrity_issue_counts"])
+        self.assertIn("intake_core_blocker_counts", summary)
+        self.assertIn("optional_missing_field_counts", summary)
+        self.assertEqual(summary["policy_misclassification_count"], 0)
         self.assertFalse(summary["raw_text_included"])
 
     def test_instructions_include_local_only_warning(self):

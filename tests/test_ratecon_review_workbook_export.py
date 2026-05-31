@@ -105,6 +105,10 @@ class RateConReviewWorkbookExportTests(unittest.TestCase):
             with paths["stop_review_csv"].open(encoding="utf-8", newline="") as handle:
                 rows = list(csv.DictReader(handle))
             self.assertEqual(rows[0]["Predicted Value LOCAL ONLY"], "")
+            with paths["field_review_csv"].open(encoding="utf-8", newline="") as handle:
+                field_rows = list(csv.DictReader(handle))
+            self.assertIn("Intake Core Blocker", field_rows[0])
+            self.assertIn("Policy Gap Reason", field_rows[0])
 
     def test_private_values_written_only_when_explicit(self):
         with tempfile.TemporaryDirectory() as tmp:
