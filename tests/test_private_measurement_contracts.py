@@ -151,6 +151,31 @@ class PrivateMeasurementContractTests(unittest.TestCase):
         self.assertFalse(row["load_identifier_coverage_metrics"]["raw_text_included"])
         self.assertNotIn("FAKE-LOAD", payload)
 
+    def test_measurement_row_supports_safe_load_identifier_audit_records(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            load_identifier_audit_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "stage": "non_primary_reference_rejected",
+                    "status": "rejected",
+                    "reason": "only_non_primary_references_found",
+                    "identifier_label_category": "po_number",
+                    "private_values_included": False,
+                    "raw_text_included": False,
+                }
+            ],
+        )
+
+        payload = json.dumps(row)
+
+        self.assertEqual(len(row["load_identifier_audit_records"]), 1)
+        self.assertEqual(
+            row["load_identifier_audit_records"][0]["identifier_label_category"],
+            "po_number",
+        )
+        self.assertNotIn("FAKE-PO", payload)
+
     def test_aggregate_serializes(self):
         aggregate = build_private_ratecon_measurement_aggregate(
             document_count=2,

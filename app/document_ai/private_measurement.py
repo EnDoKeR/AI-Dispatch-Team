@@ -262,6 +262,7 @@ def build_private_ratecon_measurement_row(
     span_normalized_stop_set=None,
     stop_span_coverage_metrics=None,
     load_identifier_coverage_metrics=None,
+    load_identifier_audit_records=None,
     warning_codes=None,
     blocker_categories=None,
     intake_status="",
@@ -415,6 +416,11 @@ def build_private_ratecon_measurement_row(
             if isinstance(load_identifier_coverage_metrics, dict)
             else {}
         ),
+        "load_identifier_audit_records": [
+            record
+            for record in load_identifier_audit_records or []
+            if isinstance(record, dict)
+        ],
         "warning_codes": _normalize_list(warning_codes),
         "blocker_categories": _normalize_list(blocker_categories),
         "intake_status": _text(intake_status),

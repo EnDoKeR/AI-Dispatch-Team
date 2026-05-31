@@ -81,8 +81,60 @@ from app.document_ai.ratecon_candidates import (
     FIELD_WEIGHT,
 )
 from app.document_ai.load_identifier_candidates import (
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_UNKNOWN_REFERENCE,
     LOAD_IDENTIFIER_TYPES,
     NON_PRIMARY_REFERENCE_TYPES,
+)
+from app.document_ai.load_identifier_coverage_audit import (
+    LOAD_ID_AUDIT_REASON_LABEL_NOT_DETECTED,
+    LOAD_ID_AUDIT_REASON_MULTIPLE_PRIMARY_CONFLICT,
+    LOAD_ID_AUDIT_REASON_ONLY_NON_PRIMARY_REFERENCES,
+    LOAD_ID_AUDIT_REASON_PRIMARY_NOT_CORE_MAPPED,
+    LOAD_ID_AUDIT_REASON_PRIMARY_NOT_GENERATED,
+    LOAD_ID_AUDIT_REASON_UNKNOWN,
+    LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+    LOAD_ID_AUDIT_STAGE_LABEL_CLASSIFIED,
+    LOAD_ID_AUDIT_STAGE_LABEL_DETECTED,
+    LOAD_ID_AUDIT_STAGE_NON_PRIMARY_REFERENCE_REJECTED,
+    LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+    LOAD_ID_AUDIT_STATUS_CONFLICT,
+    LOAD_ID_AUDIT_STATUS_MISSING,
+    LOAD_ID_AUDIT_STATUS_PRESENT,
+    LOAD_ID_AUDIT_STATUS_REJECTED,
+    LOAD_ID_LABEL_CATEGORY_BOL_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_CARRIER_REFERENCE,
+    LOAD_ID_LABEL_CATEGORY_CUSTOMER_REFERENCE,
+    LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE,
+    LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_PO_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_PRO_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_TENDER_ID,
+    LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+    build_load_identifier_coverage_record,
 )
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
@@ -281,6 +333,172 @@ def _load_identifier_coverage_metrics(candidates, resolution_result):
         "private_values_included": False,
         "raw_text_included": False,
     }
+
+
+LOAD_IDENTIFIER_TYPE_TO_AUDIT_CATEGORY = {
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER: LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER: LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID: LOAD_ID_LABEL_CATEGORY_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER: LOAD_ID_LABEL_CATEGORY_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER: LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER: (
+        LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER
+    ),
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER: LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER: LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE: LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER: LOAD_ID_LABEL_CATEGORY_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER: LOAD_ID_LABEL_CATEGORY_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CARRIER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_UNKNOWN_REFERENCE: LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+}
+
+
+def _load_identifier_audit_category(candidate):
+    identifier_type = str(
+        (candidate or {}).get("identifier_type")
+        or (candidate or {}).get("value_type")
+        or ""
+    ).strip()
+    return LOAD_IDENTIFIER_TYPE_TO_AUDIT_CATEGORY.get(
+        identifier_type,
+        LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+    )
+
+
+def _load_identifier_audit_records(measurement_alias, candidates, resolution_result):
+    identifier_candidates = [
+        candidate
+        for candidate in candidates or []
+        if isinstance(candidate, dict)
+        and str(candidate.get("identifier_type") or candidate.get("value_type") or "").strip()
+        in LOAD_IDENTIFIER_TYPES
+    ]
+    primary_identifier_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if candidate.get("primary_load_identifier_candidate")
+        and str(candidate.get("field_name") or "").strip() == FIELD_LOAD_NUMBER
+    ]
+    typed_reference_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if str(candidate.get("field_name") or "").strip() == FIELD_REFERENCE
+    ]
+    rejected_reference_candidates = [
+        candidate
+        for candidate in typed_reference_candidates
+        if str(candidate.get("identifier_type") or candidate.get("value_type") or "").strip()
+        in NON_PRIMARY_REFERENCE_TYPES
+    ]
+    records = []
+    if not identifier_candidates:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_LABEL_DETECTED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_LABEL_NOT_DETECTED,
+                identifier_label_category=LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+            )
+        )
+    for candidate in identifier_candidates:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_LABEL_CLASSIFIED,
+                status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                identifier_label_category=_load_identifier_audit_category(candidate),
+                candidate_count=1,
+            )
+        )
+    for candidate in primary_identifier_candidates:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+                status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                identifier_label_category=_load_identifier_audit_category(candidate),
+                candidate_count=1,
+                primary_candidate_count=1,
+            )
+        )
+    if identifier_candidates and not primary_identifier_candidates:
+        reason = (
+            LOAD_ID_AUDIT_REASON_ONLY_NON_PRIMARY_REFERENCES
+            if rejected_reference_candidates
+            else LOAD_ID_AUDIT_REASON_PRIMARY_NOT_GENERATED
+        )
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_PRIMARY_CANDIDATE_CLASSIFIED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=reason,
+                identifier_label_category=LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+                candidate_count=len(identifier_candidates),
+                typed_reference_count=len(typed_reference_candidates),
+                rejected_non_primary_count=len(rejected_reference_candidates),
+            )
+        )
+    for candidate in rejected_reference_candidates:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_NON_PRIMARY_REFERENCE_REJECTED,
+                status=LOAD_ID_AUDIT_STATUS_REJECTED,
+                reason=LOAD_ID_AUDIT_REASON_ONLY_NON_PRIMARY_REFERENCES,
+                identifier_label_category=_load_identifier_audit_category(candidate),
+                candidate_count=1,
+                typed_reference_count=1,
+                rejected_non_primary_count=1,
+            )
+        )
+
+    resolution_statuses = _resolution_status_map(resolution_result)
+    load_number_status = resolution_statuses.get(FIELD_LOAD_NUMBER, "")
+    if load_number_status == "conflict":
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_CONFLICT,
+                reason=LOAD_ID_AUDIT_REASON_MULTIPLE_PRIMARY_CONFLICT,
+                candidate_count=len(primary_identifier_candidates),
+                primary_candidate_count=len(primary_identifier_candidates),
+            )
+        )
+    elif load_number_status and load_number_status != "missing":
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_PRESENT,
+                reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
+                candidate_count=len(primary_identifier_candidates),
+                primary_candidate_count=len(primary_identifier_candidates),
+                core_mapping_count=1,
+            )
+        )
+    elif primary_identifier_candidates:
+        records.append(
+            build_load_identifier_coverage_record(
+                measurement_alias=measurement_alias,
+                stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
+                status=LOAD_ID_AUDIT_STATUS_MISSING,
+                reason=LOAD_ID_AUDIT_REASON_PRIMARY_NOT_CORE_MAPPED,
+                candidate_count=len(primary_identifier_candidates),
+                primary_candidate_count=len(primary_identifier_candidates),
+            )
+        )
+    return records
 
 
 def _evidence_type_counts(candidates):
@@ -1315,6 +1533,11 @@ def measure_private_ratecon_pdf(
         resolution_candidate_result.get("candidates", []),
         resolution_result,
     )
+    load_identifier_audit_records = _load_identifier_audit_records(
+        document_alias,
+        resolution_candidate_result.get("candidates", []),
+        resolution_result,
+    )
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -1567,6 +1790,7 @@ def measure_private_ratecon_pdf(
             "stop_span_coverage_metrics", {}
         ),
         load_identifier_coverage_metrics=load_identifier_coverage_metrics,
+        load_identifier_audit_records=load_identifier_audit_records,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
