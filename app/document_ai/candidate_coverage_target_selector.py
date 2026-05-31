@@ -13,8 +13,11 @@ from app.document_ai.candidate_coverage_analysis import (
     CANDIDATE_COVERAGE_JSON,
     COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
     COVERAGE_GAP_OCR_NEEDED,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
     COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
     normalize_coverage_gap_reason,
     normalize_coverage_stage,
@@ -42,6 +45,12 @@ CANDIDATE_COVERAGE_TARGET_SELECTION_MD = "candidate_coverage_target_selection.md
 
 DATE_FIELDS = {"pickup_date", "delivery_date"}
 LOCATION_FIELDS = {"pickup_location", "delivery_location"}
+LOAD_IDENTIFIER_GAP_REASONS = {
+    COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
+}
 
 
 def _text(value):
@@ -118,7 +127,7 @@ def _supporting_counts(records):
         "load_number_candidate_not_generated": _count(
             records,
             lambda record: _field(record) == "load_number"
-            and _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+            and _reason(record) in LOAD_IDENTIFIER_GAP_REASONS,
         ),
         "broker_name_candidate_not_generated": _count(
             records,
@@ -260,7 +269,13 @@ def _aliases_for_target(target, records):
         return _aliases(
             records,
             lambda record: _field(record) in fields
-            and _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+            and (
+                _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED
+                or (
+                    _field(record) == "load_number"
+                    and _reason(record) in LOAD_IDENTIFIER_GAP_REASONS
+                )
+            ),
         )
     if target == TARGET_NORMALIZED_STOP_FIELD_MAPPING:
         return _aliases(
@@ -285,7 +300,7 @@ def _reason_lines(target, scores):
             "broad datetime work remains out of scope",
         ]
     if target == TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION:
-        return ["load_number candidate_not_generated is the strongest count"]
+        return ["load_number identifier candidate gap is the strongest count"]
     if target == TARGET_STOP_SPAN_LOCATION_CANDIDATE_GENERATION:
         return ["pickup/delivery location gaps reach spans without candidates"]
     if target == TARGET_RATE_CANDIDATE_GENERATION_OR_RESOLUTION:

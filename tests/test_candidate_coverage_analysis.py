@@ -9,8 +9,12 @@ from app.document_ai.candidate_coverage_analysis import (
     CANDIDATE_COVERAGE_MD,
     COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS,
+    COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
     COVERAGE_GAP_POLICY_EXCLUDED,
+    COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED,
     COVERAGE_GAP_UNKNOWN,
     COVERAGE_STAGE_CORE_FIELD_MAPPING,
     COVERAGE_STAGE_NORMALIZED_STOP_FIELD,
@@ -294,6 +298,153 @@ class CandidateCoverageAnalysisTests(unittest.TestCase):
 
         self.assertEqual(analysis["records"][0]["gap_reason"], COVERAGE_GAP_POLICY_EXCLUDED)
         self.assertEqual(analysis["records"][0]["status"], "filtered")
+
+    def test_load_identifier_coverage_shows_candidate_generated(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "load_identifier_coverage_metrics": {
+                        "identifier_label_feature_count": 2,
+                        "primary_identifier_candidate_count": 1,
+                        "typed_reference_candidate_count": 1,
+                        "core_load_number_mapping_count": 1,
+                        "rejected_reference_as_load_id_count": 1,
+                    },
+                    "field_statuses": [
+                        {"field_name": "load_number", "status": "resolved"}
+                    ],
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "load_number",
+                    "status": "resolved",
+                    "gap_reason": "unknown",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["stage"], COVERAGE_STAGE_REVIEW_ROW)
+        self.assertEqual(record["gap_reason"], COVERAGE_GAP_UNKNOWN)
+        self.assertEqual(record["candidate_count"], 1)
+        self.assertEqual(
+            record["evidence_type_counts"]["rejected_reference_as_load_id_count"],
+            1,
+        )
+
+    def test_load_identifier_coverage_shows_only_non_primary_reference(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "load_identifier_coverage_metrics": {
+                        "identifier_label_feature_count": 2,
+                        "primary_identifier_candidate_count": 0,
+                        "typed_reference_candidate_count": 2,
+                        "core_load_number_mapping_count": 0,
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "load_number",
+                    "status": "missing",
+                    "gap_reason": "no_candidate",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["gap_reason"], COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND)
+        self.assertEqual(
+            analysis["aggregate"]["top_missing_candidate_fields"],
+            ["load_number"],
+        )
+
+    def test_load_identifier_coverage_shows_missing_label(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "load_identifier_coverage_metrics": {
+                        "identifier_label_feature_count": 0,
+                        "primary_identifier_candidate_count": 0,
+                        "typed_reference_candidate_count": 0,
+                        "core_load_number_mapping_count": 0,
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "load_number",
+                    "status": "missing",
+                    "gap_reason": "no_candidate",
+                }
+            ],
+        )
+
+        self.assertEqual(
+            analysis["records"][0]["gap_reason"],
+            COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
+        )
+
+    def test_load_identifier_coverage_shows_conflict_and_weak_ref(self):
+        conflict_analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "load_identifier_coverage_metrics": {
+                        "identifier_label_feature_count": 2,
+                        "primary_identifier_candidate_count": 2,
+                        "core_load_number_mapping_count": 0,
+                        "conflicting_primary_identifiers": 1,
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "load_number",
+                    "status": "conflict",
+                    "gap_reason": "conflict",
+                }
+            ],
+        )
+        weak_analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_002",
+                    "load_identifier_coverage_metrics": {
+                        "identifier_label_feature_count": 1,
+                        "primary_identifier_candidate_count": 1,
+                        "core_load_number_mapping_count": 0,
+                        "weak_generic_reference_review_required": 1,
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_002",
+                    "field_name": "load_number",
+                    "status": "needs_review",
+                    "gap_reason": "review_required",
+                }
+            ],
+        )
+
+        self.assertEqual(
+            conflict_analysis["records"][0]["gap_reason"],
+            COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS,
+        )
+        self.assertEqual(
+            weak_analysis["records"][0]["gap_reason"],
+            COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED,
+        )
 
     def test_analyzes_from_measurement_rows_without_private_values(self):
         analysis = analyze_candidate_coverage_from_measurement_rows(

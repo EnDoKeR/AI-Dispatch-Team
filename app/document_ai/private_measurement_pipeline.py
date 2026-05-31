@@ -71,13 +71,16 @@ from app.document_ai.ratecon_candidates import (
     FIELD_DELIVERY_LOCATION,
     FIELD_DELIVERY_TIME,
     FIELD_EQUIPMENT,
+    FIELD_LOAD_NUMBER,
     FIELD_PICKUP_DATE,
     FIELD_PICKUP_LOCATION,
     FIELD_PICKUP_TIME,
     FIELD_RATE,
+    FIELD_REFERENCE,
     FIELD_SPECIAL_REQUIREMENT,
     FIELD_WEIGHT,
 )
+from app.document_ai.load_identifier_candidates import LOAD_IDENTIFIER_TYPES
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -214,6 +217,51 @@ def _candidate_counts(candidates):
         if field_name:
             counts[field_name] = counts.get(field_name, 0) + 1
     return dict(sorted(counts.items()))
+
+
+def _load_identifier_coverage_metrics(candidates, resolution_result):
+    identifier_candidates = [
+        candidate
+        for candidate in candidates or []
+        if isinstance(candidate, dict)
+        and str(candidate.get("identifier_type") or candidate.get("value_type") or "").strip()
+        in LOAD_IDENTIFIER_TYPES
+    ]
+    primary_identifier_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if candidate.get("primary_load_identifier_candidate")
+        and str(candidate.get("field_name") or "").strip() == FIELD_LOAD_NUMBER
+    ]
+    typed_reference_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if str(candidate.get("field_name") or "").strip() == FIELD_REFERENCE
+    ]
+    rejected_reference_candidates = [
+        candidate
+        for candidate in typed_reference_candidates
+        if "not_primary_load_identifier" in candidate.get("warnings", [])
+    ]
+    weak_generic_references = [
+        candidate
+        for candidate in primary_identifier_candidates
+        if "generic_identifier_requires_review" in candidate.get("warnings", [])
+    ]
+    resolution_statuses = _resolution_status_map(resolution_result)
+    load_number_status = resolution_statuses.get(FIELD_LOAD_NUMBER, "")
+    core_mapping_count = 1 if load_number_status and load_number_status != "missing" else 0
+    return {
+        "identifier_label_feature_count": len(identifier_candidates),
+        "primary_identifier_candidate_count": len(primary_identifier_candidates),
+        "typed_reference_candidate_count": len(typed_reference_candidates),
+        "core_load_number_mapping_count": core_mapping_count,
+        "rejected_reference_as_load_id_count": len(rejected_reference_candidates),
+        "conflicting_primary_identifiers": 1 if load_number_status == "conflict" else 0,
+        "weak_generic_reference_review_required": len(weak_generic_references),
+        "private_values_included": False,
+        "raw_text_included": False,
+    }
 
 
 def _evidence_type_counts(candidates):
@@ -1243,6 +1291,11 @@ def measure_private_ratecon_pdf(
         if fusion_fields.get("fused_candidate_result")
         else baseline_resolution_result
     )
+    resolution_candidate_result = _candidate_result_for_resolution(resolution_template_result)
+    load_identifier_coverage_metrics = _load_identifier_coverage_metrics(
+        resolution_candidate_result.get("candidates", []),
+        resolution_result,
+    )
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -1494,6 +1547,7 @@ def measure_private_ratecon_pdf(
         stop_span_coverage_metrics=stop_span_fields.get(
             "stop_span_coverage_metrics", {}
         ),
+        load_identifier_coverage_metrics=load_identifier_coverage_metrics,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

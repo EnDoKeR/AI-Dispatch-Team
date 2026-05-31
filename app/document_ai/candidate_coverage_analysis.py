@@ -78,6 +78,13 @@ COVERAGE_GAP_SPAN_BOUNDARY_EXCLUDED_LINE = "span_boundary_excluded_line"
 COVERAGE_GAP_CANDIDATE_NOT_GENERATED = "candidate_not_generated"
 COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED = "candidate_generated_but_not_normalized"
 COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED = "normalized_but_not_core_mapped"
+COVERAGE_GAP_IDENTIFIER_LABEL_MISSING = "identifier_label_missing"
+COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED = "identifier_candidate_not_generated"
+COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND = "only_non_primary_reference_found"
+COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS = "conflicting_primary_identifiers"
+COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED = (
+    "weak_generic_reference_review_required"
+)
 COVERAGE_GAP_SCOPE_FILTERED = "scope_filtered"
 COVERAGE_GAP_NON_APPLICABLE = "non_applicable"
 COVERAGE_GAP_OCR_NEEDED = "ocr_needed"
@@ -92,6 +99,11 @@ CANDIDATE_COVERAGE_GAP_REASONS = {
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
     COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
+    COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
+    COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
+    COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS,
+    COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED,
     COVERAGE_GAP_SCOPE_FILTERED,
     COVERAGE_GAP_NON_APPLICABLE,
     COVERAGE_GAP_OCR_NEEDED,
@@ -104,6 +116,12 @@ CANDIDATE_COVERAGE_JSON = "candidate_coverage.json"
 CANDIDATE_COVERAGE_MD = "candidate_coverage.md"
 CANDIDATE_COVERAGE_ANALYSIS_JSON = "candidate_coverage_analysis.json"
 CANDIDATE_COVERAGE_ANALYSIS_MD = "candidate_coverage_analysis.md"
+
+MISSING_CANDIDATE_GAP_REASONS = {
+    COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
+}
 
 STOP_COVERAGE_FIELDS = {
     "pickup_location",
@@ -194,6 +212,14 @@ def recommended_fix_bucket_for_coverage(field_name, gap_reason):
         return "normalized_stop_field_mapping"
     if reason == COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED:
         return "normalized_to_core_field_mapping"
+    if reason in {
+        COVERAGE_GAP_IDENTIFIER_LABEL_MISSING,
+        COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED,
+        COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
+        COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS,
+        COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED,
+    }:
+        return "load_identifier_candidate_generation"
     if field in {"pickup_location", "delivery_location"}:
         return "stop_span_location_candidate_generation"
     if field in {"pickup_date", "delivery_date", "pickup_time", "delivery_time"}:
@@ -284,7 +310,7 @@ def build_candidate_coverage_aggregate(records, document_count=0):
     missing_candidate_fields = Counter(
         record["field_name"]
         for record in normalized_records
-        if record["gap_reason"] == COVERAGE_GAP_CANDIDATE_NOT_GENERATED
+        if record["gap_reason"] in MISSING_CANDIDATE_GAP_REASONS
     )
     return {
         "document_count": _int(document_count),
@@ -420,6 +446,7 @@ def _coverage_record_from_core_gap(record, row, review_counts):
     alias = _text(record.get("measurement_alias"))
     field = _token(record.get("field_name"))
     metrics = (row or {}).get("stop_span_coverage_metrics", {}) or {}
+    load_identifier_metrics = (row or {}).get("load_identifier_coverage_metrics", {}) or {}
     candidate_counts = (row or {}).get("candidate_counts_by_field", {}) or {}
     span_fields = FIELD_TO_SPAN_FIELDS.get(field, ())
     label_categories = FIELD_TO_LABEL_CATEGORIES.get(field, ())
@@ -440,7 +467,40 @@ def _coverage_record_from_core_gap(record, row, review_counts):
     core_mapping_count = _int(
         (metrics.get("core_field_mapping_count_by_field", {}) or {}).get(field)
     )
-    if field not in STOP_COVERAGE_FIELDS:
+    evidence_type_counts = {}
+    if field == "load_number":
+        identifier_label_count = _int(
+            load_identifier_metrics.get("identifier_label_feature_count")
+        )
+        primary_identifier_count = _int(
+            load_identifier_metrics.get("primary_identifier_candidate_count")
+        )
+        typed_reference_count = _int(
+            load_identifier_metrics.get("typed_reference_candidate_count")
+        )
+        rejected_reference_count = _int(
+            load_identifier_metrics.get("rejected_reference_as_load_id_count")
+        )
+        conflicting_identifier_count = _int(
+            load_identifier_metrics.get("conflicting_primary_identifiers")
+        )
+        weak_reference_count = _int(
+            load_identifier_metrics.get("weak_generic_reference_review_required")
+        )
+        span_candidate_count = primary_identifier_count
+        normalized_count = 0
+        core_mapping_count = _int(
+            load_identifier_metrics.get("core_load_number_mapping_count")
+        )
+        evidence_type_counts = {
+            "identifier_label_feature_count": identifier_label_count,
+            "primary_identifier_candidate_count": primary_identifier_count,
+            "typed_reference_candidate_count": typed_reference_count,
+            "rejected_reference_as_load_id_count": rejected_reference_count,
+            "conflicting_primary_identifiers": conflicting_identifier_count,
+            "weak_generic_reference_review_required": weak_reference_count,
+        }
+    elif field not in STOP_COVERAGE_FIELDS:
         span_candidate_count = _int(candidate_counts.get(field))
         normalized_count = 0
         core_mapping_count = 1 if _field_status(row, field) in {"resolved", "needs_review", "conflict", "low_confidence"} else 0
@@ -497,6 +557,26 @@ def _coverage_record_from_core_gap(record, row, review_counts):
         else:
             stage = COVERAGE_STAGE_REVIEW_ROW
             reason = COVERAGE_GAP_UNKNOWN
+    elif field == "load_number":
+        if span_candidate_count == 0:
+            stage = COVERAGE_STAGE_REVIEW_ROW
+            if typed_reference_count > 0:
+                reason = COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND
+            elif identifier_label_count == 0:
+                reason = COVERAGE_GAP_IDENTIFIER_LABEL_MISSING
+            else:
+                reason = COVERAGE_GAP_IDENTIFIER_CANDIDATE_NOT_GENERATED
+        elif core_mapping_count == 0:
+            stage = COVERAGE_STAGE_CORE_FIELD_MAPPING
+            if conflicting_identifier_count > 0:
+                reason = COVERAGE_GAP_CONFLICTING_PRIMARY_IDENTIFIERS
+            elif weak_reference_count > 0:
+                reason = COVERAGE_GAP_WEAK_GENERIC_REFERENCE_REVIEW_REQUIRED
+            else:
+                reason = COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED
+        else:
+            stage = COVERAGE_STAGE_REVIEW_ROW
+            reason = COVERAGE_GAP_UNKNOWN
     else:
         if span_candidate_count == 0:
             stage = COVERAGE_STAGE_REVIEW_ROW
@@ -527,7 +607,7 @@ def _coverage_record_from_core_gap(record, row, review_counts):
         candidate_count=span_candidate_count,
         normalized_field_count=normalized_count,
         review_row_count=review_row_count,
-        evidence_type_counts={},
+        evidence_type_counts=evidence_type_counts,
         warning_codes=record.get("warning_codes", []),
     )
 

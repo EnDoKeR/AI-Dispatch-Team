@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.document_ai.candidate_coverage_analysis import (
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+    COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
     COVERAGE_STAGE_CORE_FIELD_MAPPING,
     COVERAGE_STAGE_REVIEW_ROW,
@@ -114,6 +115,27 @@ class CandidateCoverageTargetSelectorTests(unittest.TestCase):
             TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
         )
         self.assertEqual(decision["supporting_fields"], ["load_number"])
+
+    def test_selects_load_identifier_for_only_non_primary_references(self):
+        analysis = _analysis(
+            [
+                build_candidate_coverage_record(
+                    measurement_alias=f"RATECON_00{index}",
+                    field_name="load_number",
+                    stage=COVERAGE_STAGE_REVIEW_ROW,
+                    gap_reason=COVERAGE_GAP_ONLY_NON_PRIMARY_REFERENCE_FOUND,
+                )
+                for index in range(1, 3)
+            ]
+        )
+
+        decision = select_candidate_coverage_target(analysis)
+
+        self.assertEqual(
+            decision["selected_target"],
+            TARGET_LOAD_IDENTIFIER_CANDIDATE_GENERATION,
+        )
+        self.assertEqual(decision["affected_field_count"], 2)
 
     def test_selects_rate_when_rate_conflict_dominates(self):
         analysis = _analysis(
