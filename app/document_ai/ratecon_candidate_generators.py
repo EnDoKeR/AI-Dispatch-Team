@@ -153,6 +153,16 @@ SPECIAL_REQUIREMENT_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
+INLINE_IDENTIFIER_PATTERN = re.compile(
+    r"^\s*(?P<label>"
+    r"ref(?:erence)?\s*(?:#|no\.?|number|id)|"
+    r"confirmation\s*(?:#|no\.?|number)|"
+    r"booking\s*(?:#|no\.?|number)|"
+    r"tender\s+(?:ref|reference)"
+    r")\s*[:#-]?\s*(?P<value>[A-Za-z0-9][A-Za-z0-9_./-]{2,})\s*$",
+    re.IGNORECASE,
+)
+
 COMMODITY_LABELS = (
     "commodity",
     "commodity description",
@@ -222,6 +232,13 @@ def _split_label_value(line):
     return "", ""
 
 
+def _split_inline_identifier_label_value(line):
+    match = INLINE_IDENTIFIER_PATTERN.match(str(line or "").strip())
+    if not match:
+        return "", ""
+    return match.group("label").strip(), match.group("value").strip()
+
+
 def _label_matches(label, labels):
     token = str(label or "").strip().lower()
     for item in labels:
@@ -288,6 +305,41 @@ def _broker_context_candidate(lines, index, stripped):
         if position != index
     )
     return any(hint in context_window for hint in BROKER_CONTEXT_HINTS)
+
+
+def _load_identifier_candidate_from_label_value(
+    label,
+    value,
+    identifier_context,
+    page_number,
+    line_index,
+    context_before,
+    context_after,
+):
+    identifier = classify_identifier_label(label.lower(), identifier_context)
+    if identifier["confidence"] == CANDIDATE_CONFIDENCE_UNKNOWN:
+        return None
+    identifier_type = identifier["identifier_type"]
+    return build_load_identifier_candidate(
+        candidate_id=f"reference-{identifier_type}-p{page_number}-l{line_index}",
+        identifier_type=identifier_type,
+        raw_value=value,
+        normalized_value=value,
+        confidence=identifier["confidence"],
+        confidence_reasons=identifier["confidence_reasons"],
+        page_number=page_number,
+        line_number=line_index,
+        label=label,
+        context_before=context_before,
+        context_after=context_after,
+        source=SOURCE_LABEL_PATTERN,
+        warnings=identifier["warning_codes"],
+        section_role=identifier_context.get("section_role", ""),
+        page_role=identifier_context.get("page_role", ""),
+        primary_load_identifier_candidate=identifier[
+            "primary_load_identifier_candidate"
+        ],
+    )
 
 
 def _section_from_line(line):
@@ -533,76 +585,81 @@ def generate_identity_reference_candidates(artifact):
                     context_before=context_before,
                     context_after=context_after,
                 )
-                identifier = classify_identifier_label(lower_label, identifier_context)
-                if identifier["confidence"] != CANDIDATE_CONFIDENCE_UNKNOWN:
-                    identifier_type = identifier["identifier_type"]
+                identifier_candidate = _load_identifier_candidate_from_label_value(
+                    lower_label,
+                    value,
+                    identifier_context,
+                    page_number,
+                    line_index,
+                    context_before,
+                    context_after,
+                )
+                if identifier_candidate:
+                    candidates.append(identifier_candidate)
+
+            inline_label, inline_value = _split_inline_identifier_label_value(stripped)
+            if inline_value and not value:
+                identifier_context = _identifier_context(
+                    lines,
+                    line_index - 1,
+                    context_before=context_before,
+                    context_after=context_after,
+                )
+                identifier_candidate = _load_identifier_candidate_from_label_value(
+                    inline_label,
+                    inline_value,
+                    identifier_context,
+                    page_number,
+                    line_index,
+                    context_before,
+                    context_after,
+                )
+                if identifier_candidate:
+                    candidates.append(identifier_candidate)
+
+            if not value and not inline_value:
+                if (
+                    not page_has_labeled_broker_name
+                    and _broker_context_candidate(lines, line_index - 1, stripped)
+                ):
                     candidates.append(
-                        build_load_identifier_candidate(
-                            candidate_id=(
-                                f"reference-{identifier_type}-p{page_number}-l{line_index}"
-                            ),
-                            identifier_type=identifier_type,
-                            raw_value=value,
-                            normalized_value=value,
-                            confidence=identifier["confidence"],
-                            confidence_reasons=identifier["confidence_reasons"],
+                        build_field_candidate(
+                            candidate_id=f"broker-name-context-p{page_number}-l{line_index}",
+                            field_name=FIELD_BROKER_NAME,
+                            raw_value=stripped,
+                            normalized_value=stripped,
+                            confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+                            confidence_reasons=["broker_header_context"],
                             page_number=page_number,
                             line_number=line_index,
-                            label=label,
+                            label="broker context",
                             context_before=context_before,
                             context_after=context_after,
                             source=SOURCE_LABEL_PATTERN,
-                            warnings=identifier["warning_codes"],
-                            section_role=identifier_context.get("section_role", ""),
-                            page_role=identifier_context.get("page_role", ""),
-                            primary_load_identifier_candidate=identifier[
-                                "primary_load_identifier_candidate"
-                            ],
+                            value_type="name",
+                            warnings=["broker_identity_review_required"],
                         )
                     )
 
-            elif (
-                not page_has_labeled_broker_name
-                and _broker_context_candidate(lines, line_index - 1, stripped)
-            ):
-                candidates.append(
-                    build_field_candidate(
-                        candidate_id=f"broker-name-context-p{page_number}-l{line_index}",
-                        field_name=FIELD_BROKER_NAME,
-                        raw_value=stripped,
-                        normalized_value=stripped,
-                        confidence=CANDIDATE_CONFIDENCE_MEDIUM,
-                        confidence_reasons=["broker_header_context"],
-                        page_number=page_number,
-                        line_number=line_index,
-                        label="broker context",
-                        context_before=context_before,
-                        context_after=context_after,
-                        source=SOURCE_LABEL_PATTERN,
-                        value_type="name",
-                        warnings=["broker_identity_review_required"],
+                elif "reference" in lower_line:
+                    candidates.append(
+                        build_field_candidate(
+                            candidate_id=f"reference-unknown-p{page_number}-l{line_index}",
+                            field_name=FIELD_REFERENCE,
+                            raw_value=stripped,
+                            normalized_value=stripped,
+                            confidence=CANDIDATE_CONFIDENCE_LOW,
+                            confidence_reasons=["unstructured_reference_line"],
+                            page_number=page_number,
+                            line_number=line_index,
+                            label="reference",
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_LABEL_PATTERN,
+                            value_type="unknown_reference",
+                            warnings=["ambiguous_reference_label"],
+                        )
                     )
-                )
-
-            elif "reference" in lower_line:
-                candidates.append(
-                    build_field_candidate(
-                        candidate_id=f"reference-unknown-p{page_number}-l{line_index}",
-                        field_name=FIELD_REFERENCE,
-                        raw_value=stripped,
-                        normalized_value=stripped,
-                        confidence=CANDIDATE_CONFIDENCE_LOW,
-                        confidence_reasons=["unstructured_reference_line"],
-                        page_number=page_number,
-                        line_number=line_index,
-                        label="reference",
-                        context_before=context_before,
-                        context_after=context_after,
-                        source=SOURCE_LABEL_PATTERN,
-                        value_type="unknown_reference",
-                        warnings=["ambiguous_reference_label"],
-                    )
-                )
 
     return candidates
 

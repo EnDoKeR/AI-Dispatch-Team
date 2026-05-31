@@ -280,6 +280,42 @@ class RateConIdentityReferenceCandidatesTests(unittest.TestCase):
         self.assertIn("po_number", reference_types)
         self.assertIn("bol_number", reference_types)
 
+    def test_header_reference_no_generates_review_gated_primary_candidate(self):
+        artifact = build_load_identifier_fixture_artifact(
+            "fake_header_reference_no_review_candidate.txt"
+        )
+        candidates = generate_identity_reference_candidates(artifact)
+        primary = [
+            candidate
+            for candidate in candidates
+            if candidate.get("identifier_type") == "primary_reference"
+            and candidate.get("primary_load_identifier_candidate")
+        ]
+
+        self.assertTrue(primary)
+        self.assertEqual(primary[0]["field_name"], FIELD_LOAD_NUMBER)
+        self.assertIn("generic_identifier_requires_review", primary[0]["warnings"])
+
+    def test_stop_reference_no_remains_non_primary(self):
+        artifact = build_load_identifier_fixture_artifact(
+            "fake_stop_ref_not_primary_even_with_header.txt"
+        )
+        candidates = generate_identity_reference_candidates(artifact)
+        primary = [
+            candidate
+            for candidate in candidates
+            if candidate.get("primary_load_identifier_candidate")
+        ]
+        references = [
+            candidate
+            for candidate in candidates
+            if candidate.get("identifier_type") == "unknown_reference"
+            and candidate["field_name"] == FIELD_REFERENCE
+        ]
+
+        self.assertEqual(primary, [])
+        self.assertTrue(references)
+
 
 if __name__ == "__main__":
     unittest.main()
