@@ -1070,6 +1070,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         integrity_source = source_text(DOCUMENT_AI_PACKAGE / "measurement_integrity.py")
         feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
         local_analysis_source = source_text(DOCUMENT_AI_PACKAGE / "local_review_analysis.py")
+        core_gap_source = source_text(DOCUMENT_AI_PACKAGE / "core_field_gap_analysis.py")
         gitignore = source_text(ROOT / ".gitignore")
 
         self.assertIn(".local_outputs/", gitignore)
@@ -1087,6 +1088,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"private_values_included": False', local_analysis_source)
         self.assertIn('"raw_text_included": False', local_analysis_source)
         self.assertNotIn("print(", local_analysis_source)
+        self.assertIn("core_field_gap_analysis.json", core_gap_source)
+        self.assertIn("core_field_gap_analysis.md", core_gap_source)
+        self.assertIn('"private_values_included": False', core_gap_source)
+        self.assertIn('"raw_text_included": False', core_gap_source)
+        self.assertNotIn("print(", core_gap_source)
 
         for source in [
             workbook_source,
@@ -1094,6 +1100,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             integrity_source,
             feedback_source,
             local_analysis_source,
+            core_gap_source,
         ]:
             for forbidden in [
                 "DispatchCase(",
