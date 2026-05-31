@@ -9,6 +9,7 @@ MARKET_INTELLIGENCE = ROOT / "app" / "market_intelligence"
 INTAKE_PACKAGE = MARKET_INTELLIGENCE / "intake"
 DECISION_ENGINE_PACKAGE = MARKET_INTELLIGENCE / "decision_engine"
 DOCUMENT_AI_PACKAGE = APP / "document_ai"
+INTEGRATIONS_PACKAGE = APP / "integrations"
 SCRIPTS = ROOT / "scripts"
 
 
@@ -1096,6 +1097,68 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             ]:
                 with self.subTest(forbidden=forbidden):
                     self.assertNotIn(forbidden, source)
+
+    def test_google_sheets_review_sync_boundaries_are_safe(self):
+        integration_source = source_text(INTEGRATIONS_PACKAGE / "google_sheets_review.py")
+        sync_source = source_text(SCRIPTS / "sync_ratecon_review_to_google_sheet.py")
+        download_source = source_text(
+            SCRIPTS / "download_ratecon_review_feedback_from_google_sheet.py"
+        )
+        gitignore = source_text(ROOT / ".gitignore")
+
+        self.assertIn(".local_private/", gitignore)
+        self.assertIn("data/credentials/", gitignore)
+        self.assertIn("DEFAULT_WORKSHEET_PREFIX", integration_source)
+        self.assertIn("SHEET_DOCUMENT_SUMMARY", integration_source)
+        self.assertIn("SHEET_STOP_REVIEW", integration_source)
+        self.assertIn("SHEET_FIELD_REVIEW", integration_source)
+        self.assertIn("SHEET_RATE_REVIEW", integration_source)
+        self.assertIn("--confirm-google-review-sync", sync_source)
+        self.assertIn("--confirm-google-feedback-download", download_source)
+        self.assertIn("private_values_printed", sync_source)
+        self.assertIn("private_values_printed", download_source)
+        self.assertNotIn("print(", integration_source)
+
+        for source in [integration_source, sync_source, download_source]:
+            for forbidden in [
+                "DispatchCase",
+                "DecisionEngine",
+                "telegram",
+                "case_event",
+                "event_logger",
+                "openai",
+                "camelot",
+                "fitz",
+                "pytesseract",
+                "paddleocr",
+                "boto3",
+                "azure",
+                "ACCEPT",
+                "REJECT",
+            ]:
+                with self.subTest(forbidden=forbidden):
+                    self.assertNotIn(forbidden, source)
+
+    def test_service_account_json_keys_are_not_tracked(self):
+        forbidden_fragments = ['"private_key"', '"client_email"', "BEGIN PRIVATE KEY"]
+        allowed_paths = {
+            ROOT / "docs" / "examples" / "google_sheets_review_config.example.json",
+        }
+
+        for path in ROOT.rglob("*.json"):
+            if (
+                ".git" in path.parts
+                or ".local_private" in path.parts
+                or ".local_outputs" in path.parts
+                or (ROOT / "data" / "credentials") in path.parents
+            ):
+                continue
+            if path in allowed_paths:
+                continue
+            source = path.read_text(encoding="utf-8-sig", errors="ignore")
+            for fragment in forbidden_fragments:
+                with self.subTest(path=str(path), fragment=fragment):
+                    self.assertNotIn(fragment, source)
 
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"

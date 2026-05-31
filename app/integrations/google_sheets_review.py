@@ -1,7 +1,7 @@
 """Google Sheets review sync adapter contracts and config loading.
 
 The adapter is for explicit RateCon review sync only. It must not own business
-decisions, create DispatchCases, or print credentials/private values.
+decisions, create case records, or print credentials/private values.
 """
 
 from dataclasses import dataclass
