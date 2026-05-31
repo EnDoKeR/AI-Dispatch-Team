@@ -299,7 +299,7 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
         self.assertEqual(record["field_name"], CORE_FIELD_DELIVERY_DATE)
         self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_NO_CANDIDATE)
 
-    def test_stop_review_appointment_window_maps_to_stop_time(self):
+    def test_missing_stop_review_appointment_window_does_not_double_count_time_gap(self):
         analysis = analyze_core_field_gaps_from_rows(
             document_rows=[{"Measurement Alias": "RATECON_001"}],
             stop_rows=[
@@ -312,9 +312,24 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
             ],
         )
 
+        self.assertEqual(analysis["records"], [])
+
+    def test_conflicting_stop_review_appointment_window_maps_to_stop_time(self):
+        analysis = analyze_core_field_gaps_from_rows(
+            document_rows=[{"Measurement Alias": "RATECON_001"}],
+            stop_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Stop Type": "pickup",
+                    "Field Name": "appointment_window",
+                    "Status": "conflict",
+                }
+            ],
+        )
+
         record = analysis["records"][0]
         self.assertEqual(record["field_name"], CORE_FIELD_PICKUP_TIME)
-        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED)
+        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_CONFLICT)
 
     def test_analyzer_omits_resolved_and_non_core_rows(self):
         analysis = analyze_core_field_gaps_from_rows(

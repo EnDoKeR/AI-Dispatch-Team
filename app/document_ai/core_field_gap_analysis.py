@@ -390,10 +390,13 @@ def _stop_field_to_core_field(stop_type, field_name):
 
 def _record_from_stop_row(stop_row, document_rows_by_alias):
     alias = _text(stop_row.get("Measurement Alias"))
+    stop_field = _token(stop_row.get("Field Name"))
+    status = _token(stop_row.get("Status"))
+    if stop_field == "appointment_window" and status == "missing":
+        return None
     field = _stop_field_to_core_field(stop_row.get("Stop Type"), stop_row.get("Field Name"))
     if field == CORE_FIELD_UNKNOWN:
         return None
-    status = _token(stop_row.get("Status"))
     reason = classify_gap_reason(
         status,
         candidate_count=1 if status in {"conflict", "needs_review", "review_required"} else 0,
