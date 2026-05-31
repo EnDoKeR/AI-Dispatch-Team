@@ -1,8 +1,13 @@
 # Core Foundation Hardening currently uses the Python standard library.
 #
-# Optional legacy/manual workflows may require packages such as pypdf,
-# gspread, google-auth, or geopy, but they are intentionally not project-wide
-# requirements until those workflows are accepted as active integrations.
+# Optional legacy/manual workflows may require packages such as pypdf or geopy,
+# but they are intentionally not project-wide requirements until those workflows
+# are accepted as active integrations.
+
+# Approved Google Sheets review sync integration. This is Sheets API review sync
+# only; it is not Google Drive scanning, OCR, Vision, or cloud document AI.
+gspread==6.2.1
+google-auth==2.53.0
 
 # First approved digital-text layout provider candidate. OCR, Vision,
 # PyMuPDF, Camelot, and cloud extraction dependencies remain out of scope.
