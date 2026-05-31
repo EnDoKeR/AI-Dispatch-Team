@@ -77,14 +77,19 @@ class GoogleSheetsReviewConfig:
     worksheet_prefix: str = DEFAULT_WORKSHEET_PREFIX
     service_account_email: str = EXPECTED_SERVICE_ACCOUNT_EMAIL
     default_sync_mode: str = SYNC_MODE_STATUS_ONLY
+    allow_private_review_value_sync: bool = False
 
     def safe_summary(self):
         return {
             "spreadsheet_configured": bool(self.spreadsheet_id),
             "credentials_configured": bool(self.credentials_json_path),
+            "credentials_file_exists": Path(self.credentials_json_path).exists()
+            if self.credentials_json_path
+            else False,
             "worksheet_prefix": self.worksheet_prefix,
             "service_account_email": self.service_account_email,
             "default_sync_mode": self.default_sync_mode,
+            "private_value_sync_allowed": bool(self.allow_private_review_value_sync),
             "credentials_path_printed": False,
             "spreadsheet_id_printed": False,
         }
@@ -130,6 +135,7 @@ def build_google_sheets_review_config(payload=None):
     worksheet_prefix = _text(data.get("worksheet_prefix")) or DEFAULT_WORKSHEET_PREFIX
     service_account_email = _text(data.get("service_account_email")) or EXPECTED_SERVICE_ACCOUNT_EMAIL
     default_sync_mode = _normalize_sync_mode(data.get("default_sync_mode"))
+    allow_private_review_value_sync = bool(data.get("allow_private_review_value_sync"))
 
     if not spreadsheet_id:
         raise GoogleSheetsReviewConfigError("google sheets spreadsheet_id is missing")
@@ -142,6 +148,7 @@ def build_google_sheets_review_config(payload=None):
         worksheet_prefix=worksheet_prefix,
         service_account_email=service_account_email,
         default_sync_mode=default_sync_mode,
+        allow_private_review_value_sync=allow_private_review_value_sync,
     )
 
 
@@ -154,6 +161,43 @@ def load_google_sheets_review_config(config_path=""):
             raise GoogleSheetsReviewConfigError("google sheets review config file not found")
         payload = {}
     return build_google_sheets_review_config(payload)
+
+
+def validate_google_sheets_review_config(config, require_credentials_file=True):
+    if not isinstance(config, GoogleSheetsReviewConfig):
+        config = build_google_sheets_review_config(config)
+
+    credentials_file_exists = (
+        Path(config.credentials_json_path).exists()
+        if config.credentials_json_path
+        else False
+    )
+    service_account_email_expected = (
+        _text(config.service_account_email) == EXPECTED_SERVICE_ACCOUNT_EMAIL
+    )
+    warning_codes = []
+    if not _text(config.spreadsheet_id):
+        warning_codes.append("missing_spreadsheet_id")
+    if not _text(config.credentials_json_path):
+        warning_codes.append("missing_credentials_json_path")
+    if require_credentials_file and not credentials_file_exists:
+        warning_codes.append("missing_credentials_file")
+    if not service_account_email_expected:
+        warning_codes.append("service_account_email_mismatch")
+
+    return {
+        "spreadsheet_id_present": bool(_text(config.spreadsheet_id)),
+        "credentials_path_present": bool(_text(config.credentials_json_path)),
+        "credentials_file_exists": credentials_file_exists,
+        "worksheet_prefix": config.worksheet_prefix,
+        "service_account_email_expected": service_account_email_expected,
+        "private_value_sync_allowed": bool(config.allow_private_review_value_sync),
+        "sync_ready": not warning_codes,
+        "warning_codes": warning_codes,
+        "credentials_path_printed": False,
+        "spreadsheet_id_printed": False,
+        "private_key_printed": False,
+    }
 
 
 def _missing_google_dependency_error(exc):

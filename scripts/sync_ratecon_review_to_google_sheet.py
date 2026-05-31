@@ -45,6 +45,11 @@ def _config_with_overrides(args):
         worksheet_prefix=args.worksheet_prefix or config.worksheet_prefix,
         service_account_email=config.service_account_email,
         default_sync_mode=config.default_sync_mode,
+        allow_private_review_value_sync=getattr(
+            config,
+            "allow_private_review_value_sync",
+            False,
+        ),
     )
 
 
@@ -54,6 +59,11 @@ def _sync_mode(args):
             "choose status-only or private-values test mode, not both"
         )
     if args.include_private_review_values_google_test_only:
+        config = sheets.load_google_sheets_review_config(args.google_config)
+        if not config.allow_private_review_value_sync:
+            raise sheets.GoogleSheetsReviewConfigError(
+                "private review value sync requires allow_private_review_value_sync=true in local config"
+            )
         return sheets.SYNC_MODE_PRIVATE_VALUES_TEST_ONLY
     return sheets.SYNC_MODE_STATUS_ONLY
 

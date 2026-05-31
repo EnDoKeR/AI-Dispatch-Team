@@ -51,6 +51,11 @@ def _config_with_overrides(args):
         worksheet_prefix=args.worksheet_prefix or config.worksheet_prefix,
         service_account_email=config.service_account_email,
         default_sync_mode=config.default_sync_mode,
+        allow_private_review_value_sync=getattr(
+            config,
+            "allow_private_review_value_sync",
+            False,
+        ),
     )
 
 

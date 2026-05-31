@@ -459,6 +459,11 @@ def _load_google_review_config_from_args(args):
         worksheet_prefix=args.google_worksheet_prefix or config.worksheet_prefix,
         service_account_email=config.service_account_email,
         default_sync_mode=config.default_sync_mode,
+        allow_private_review_value_sync=getattr(
+            config,
+            "allow_private_review_value_sync",
+            False,
+        ),
     )
 
 
@@ -468,6 +473,12 @@ def _sync_google_review_tabs(report, args):
         if args.include_private_review_values_google_test_only
         else sheets_review.SYNC_MODE_STATUS_ONLY
     )
+    if args.include_private_review_values_google_test_only:
+        config = _load_google_review_config_from_args(args)
+        if not config.allow_private_review_value_sync:
+            raise sheets_review.GoogleSheetsReviewConfigError(
+                "private review value sync requires allow_private_review_value_sync=true in local config"
+            )
     rows_by_tab = sheets_review.build_google_review_tab_rows(
         report["rows"],
         local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
