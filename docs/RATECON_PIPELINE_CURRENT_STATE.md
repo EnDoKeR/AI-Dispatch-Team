@@ -40,7 +40,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
 | Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Provider-line stop spans | `app/document_ai/stop_span_extractor.py`, `scripts/run_private_ratecon_measurement.py` | Implemented behind `--enable-stop-span-extractor`; compares old stop groups to direct line-span normalized stops in safe measurement and review exports |
-| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, and clean target selection |
+| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py`, `app/document_ai/candidate_coverage_analysis.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, candidate coverage diagnostics, and clean target selection |
 | Google Sheets review sync | `app/integrations/google_sheets_review.py`, `scripts/sync_ratecon_review_to_google_sheet.py`, `scripts/download_ratecon_review_feedback_from_google_sheet.py` | Implemented explicit confirmation-gated review-tab sync and feedback download using local ignored config; no operational tab overwrite |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
@@ -105,6 +105,18 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   separately from extraction targets. Current cleanup result is zero policy
   misclassifications, 56 true intake blockers, 128 dispatch-decision blockers,
   and 56 optional missing fields.
+- Candidate coverage analysis now traces true intake fields through layout/line
+  feature, stop anchor, stop span, span field candidate, normalized field, core
+  mapping, and review-row stages. Current safe artifacts are
+  `candidate_coverage.json`, `candidate_coverage.md`,
+  `candidate_coverage_analysis.json`, and `candidate_coverage_analysis.md`.
+- The first selected candidate-generation fix targeted broker identity because
+  `broker_name` was the largest concrete `candidate_not_generated` field.
+  Safe rerun signal: broker-name candidate-not-generated improved from 10 to 6,
+  total candidate-not-generated improved from 27 to 20, and readiness remained
+  `extraction_review_ready=14`, `not_ready=4`.
+- The next clean target should come from the remaining candidate coverage
+  counts, not from stacking generic datetime or mapping heuristics.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.

@@ -118,6 +118,34 @@ date/time regex or span-to-core mapping tweak.
 The clean target-selection report is written locally as
 `clean_target_selection.md`. It is ignored and contains counts/statuses only.
 
+## Candidate Coverage Follow-Up
+
+The follow-up coverage block added `app/document_ai/candidate_coverage_analysis.py`
+and `scripts/analyze_candidate_coverage.py`. This separates true `no_candidate`
+gaps by pipeline stage:
+
+- line feature;
+- stop anchor;
+- stop span;
+- span field candidate;
+- normalized stop field;
+- core field mapping;
+- review row.
+
+The first selected candidate-generation target was broker identity. It added
+review-gated broker candidates from explicit broker/tender labels and
+broker-context header/contact blocks while preserving carrier-name separation.
+Safe local delta:
+
+- broker-name candidate-not-generated: 10 -> 6;
+- total candidate-not-generated: 27 -> 20;
+- true intake blockers: 56 -> 52;
+- dispatch-decision blockers: 128 -> 121;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`.
+
+Remaining blockers should be chosen from the updated coverage reports, not from
+the broad all-gap list.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

@@ -136,6 +136,43 @@ another datetime regex or span-to-core mapping tweak is not the clean next move.
 The next stop-focused block should inspect stop-span evidence/candidate
 generation and coverage before changing extraction behavior.
 
+## Candidate Coverage Analysis
+
+Candidate coverage analysis is run with:
+
+```powershell
+py scripts/analyze_candidate_coverage.py --write-md --write-json --include-local-document-names-local-only
+```
+
+It writes ignored local reports:
+
+- `candidate_coverage.md`
+- `candidate_coverage.json`
+- `candidate_coverage_analysis.md`
+- `candidate_coverage_analysis.json`
+
+This report distinguishes `no_candidate` from resolver conflicts by identifying
+where evidence disappears: line feature, stop anchor, stop span, span field
+candidate, normalized stop field, core field mapping, or review row.
+
+The first policy-cleaned coverage pass selected
+`broker_identity_candidate_generation` because `broker_name` was the largest
+concrete `candidate_not_generated` field. Synthetic fixtures cover broker
+contact blocks, broker-like header/logo text, explicit `Load Tendered By`
+labels, and carrier-name guard cases.
+
+Safe measured delta after the focused fix:
+
+- broker-name candidate-not-generated: 10 -> 6;
+- total candidate-not-generated: 27 -> 20;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- remaining top true intake blockers: delivery date, pickup date, load number,
+  rate, broker name, delivery location, and pickup location.
+
+The next extraction target should be selected from the remaining candidate
+coverage counts. Do not repeat datetime or mapping work unless the stage data
+shows that exact loss point.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

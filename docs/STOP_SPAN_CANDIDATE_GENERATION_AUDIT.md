@@ -87,6 +87,49 @@ Expected report names:
 The console may print aliases, field names, stage names, counts, statuses,
 gap reasons, and recommended fix buckets only.
 
+## Implemented Coverage Instrumentation
+
+The local measurement CLI can now emit safe candidate coverage artifacts with:
+
+```text
+--write-candidate-coverage
+```
+
+The coverage payload includes only counts and statuses:
+
+- line feature counts by label category;
+- stop anchor counts by type;
+- stop span counts by type;
+- span field candidate counts by field;
+- normalized stop field counts by field;
+- core field mapping counts by field;
+- review row counts by field.
+
+The standalone local analyzer is:
+
+```text
+python scripts/analyze_candidate_coverage.py --write-md --write-json
+```
+
+It reads the current `candidate_coverage.json` artifact when present so the
+analysis does not accidentally reuse stale core-gap reports.
+
+## Current Local Result
+
+The first coverage rerun selected `broker_identity_candidate_generation`
+because `broker_name` was the largest concrete `candidate_not_generated` field.
+The focused fix added deterministic broker-context candidate generation for
+explicit broker/tender labels and broker-context header/contact blocks while
+preserving the carrier-name guard.
+
+Safe before/after signal:
+
+- `broker_name` candidate-not-generated count improved from 10 to 6.
+- total `candidate_not_generated` count improved from 27 to 20.
+- readiness did not change: `extraction_review_ready=14`, `not_ready=4`.
+- remaining true intake blockers are still delivery date, pickup date, load
+  number, rate, broker name, delivery location, and pickup location.
+
 ## Decision Gate
 
 After coverage analysis, select exactly one candidate generation fix:

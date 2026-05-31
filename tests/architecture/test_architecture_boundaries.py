@@ -519,6 +519,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             ],
         )
         self.assertIn("--confirm-private-local-run", source)
+        self.assertIn("--write-candidate-coverage", source)
         self.assertIn("Refusing to run", source)
 
     def test_private_template_modules_do_not_import_business_memory_or_cloud_layers(self):
@@ -1071,6 +1072,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
         local_analysis_source = source_text(DOCUMENT_AI_PACKAGE / "local_review_analysis.py")
         core_gap_source = source_text(DOCUMENT_AI_PACKAGE / "core_field_gap_analysis.py")
+        candidate_coverage_source = source_text(
+            DOCUMENT_AI_PACKAGE / "candidate_coverage_analysis.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1094,6 +1098,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"private_values_included": False', core_gap_source)
         self.assertIn('"raw_text_included": False', core_gap_source)
         self.assertNotIn("print(", core_gap_source)
+        self.assertIn("candidate_coverage.json", candidate_coverage_source)
+        self.assertIn("candidate_coverage_analysis.json", candidate_coverage_source)
+        self.assertIn('"private_values_included": False', candidate_coverage_source)
+        self.assertIn('"raw_text_included": False', candidate_coverage_source)
+        self.assertNotIn("print(", candidate_coverage_source)
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
@@ -1105,6 +1114,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             feedback_source,
             local_analysis_source,
             core_gap_source,
+            candidate_coverage_source,
             policy_source,
         ]:
             for forbidden in [

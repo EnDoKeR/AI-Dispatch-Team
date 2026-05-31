@@ -95,7 +95,7 @@ until credentials are available.
 Run the local-only review export with the stop span extractor enabled:
 
 ```powershell
-py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --natural-sort-inputs
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --write-candidate-coverage --natural-sort-inputs
 ```
 
 The console prints only aliases, counts, statuses, and output basenames. The
@@ -106,6 +106,8 @@ ignored local outputs include:
 - `ratecon_review_stop_review.csv`;
 - `ratecon_review_field_review.csv`;
 - `ratecon_review_rate_review.csv`.
+- `candidate_coverage.json` and `candidate_coverage.md`, when
+  `--write-candidate-coverage` is used.
 
 The user should import the local CSVs into Google Sheets or open the workbook
 locally:
@@ -122,6 +124,16 @@ locally:
 
 Safe status summaries can be shared back as aliases, counts, statuses, issue
 types, and field names. Private workbook values and notes must stay local.
+
+Candidate coverage can be analyzed locally with:
+
+```powershell
+py scripts/analyze_candidate_coverage.py --write-md --write-json
+```
+
+Use this before selecting another extraction change. It identifies whether a
+field has no candidate, candidates that fail normalization, normalized fields
+that fail core mapping, or a policy/non-applicable reason.
 
 ## Direct Google Sheets Sync
 

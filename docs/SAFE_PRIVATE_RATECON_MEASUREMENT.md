@@ -222,10 +222,30 @@ The local review analysis loop reads the ignored review CSVs and writes:
 - `local_review_analysis.json`
 - `core_field_gap_analysis.md`
 - `core_field_gap_analysis.json`
+- `candidate_coverage.md`
+- `candidate_coverage.json`
+- `candidate_coverage_analysis.md`
+- `candidate_coverage_analysis.json`
 
 Those reports contain aliases, counts, statuses, field names, and issue
 categories only. They are used to choose one targeted deterministic hardening
 focus per block.
+
+Candidate coverage artifacts are written with:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-review-workbook --write-review-csvs --write-candidate-coverage --natural-sort-inputs
+```
+
+Then analyze the local-only coverage report:
+
+```powershell
+py scripts/analyze_candidate_coverage.py --write-md --write-json
+```
+
+The coverage reports trace required intake fields through line features,
+anchors, spans, span field candidates, normalized fields, core field mapping,
+and review rows. They contain counts/statuses only.
 
 Current safe local review metrics after policy-aware blocker cleanup:
 
@@ -248,6 +268,19 @@ intake-core blockers, dispatch-decision blockers, optional missing fields, and
 non-applicable fields. The current clean selection gate points to stop-span
 evidence/candidate generation and coverage before more datetime or mapping
 heuristics.
+
+After candidate coverage instrumentation, the first selected fix was broker
+identity candidate generation. Safe local delta:
+
+- broker-name candidate-not-generated count: 10 -> 6;
+- total candidate-not-generated count: 27 -> 20;
+- field review rows: 154 -> 156;
+- readiness unchanged: `extraction_review_ready=14`, `not_ready=4`;
+- OCR-needed unchanged: 4.
+
+Remaining true blockers should be selected from the policy-cleaned coverage
+counts. Do not repeat generic datetime or mapping heuristics unless the
+coverage stage data proves that exact failure point.
 
 ## Command
 
