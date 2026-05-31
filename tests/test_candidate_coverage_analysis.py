@@ -6,10 +6,12 @@ from app.document_ai.candidate_coverage_analysis import (
     COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
+    COVERAGE_GAP_POLICY_EXCLUDED,
     COVERAGE_STAGE_CORE_FIELD_MAPPING,
     COVERAGE_STAGE_NORMALIZED_STOP_FIELD,
     COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
     COVERAGE_STATUS_MISSING,
+    analyze_candidate_coverage_from_rows,
     build_candidate_coverage_aggregate,
     build_candidate_coverage_record,
     build_candidate_coverage_result,
@@ -128,6 +130,132 @@ class CandidateCoverageAnalysisTests(unittest.TestCase):
         self.assertFalse(payload["private_values_included"])
         self.assertFalse(payload["raw_text_included"])
         self.assertNotIn("Fake Broker", json.dumps(payload))
+
+    def test_analyzer_classifies_stop_candidate_not_generated(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "stop_span_coverage_metrics": {
+                        "line_feature_count_by_label_category": {
+                            "date": 1,
+                            "pickup": 1,
+                        },
+                        "anchor_count_by_type": {"pickup": 1},
+                        "span_count_by_type": {"pickup": 1},
+                        "span_field_candidate_count_by_field": {},
+                        "normalized_stop_field_count_by_field": {},
+                        "core_field_mapping_count_by_field": {},
+                    },
+                    "field_statuses": [
+                        {"field_name": "pickup_date", "status": "missing"}
+                    ],
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "pickup_date",
+                    "status": "missing",
+                    "gap_reason": "no_candidate",
+                }
+            ],
+            stop_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Stop Type": "pickup",
+                    "Field Name": "date",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["stage"], COVERAGE_STAGE_SPAN_FIELD_CANDIDATE)
+        self.assertEqual(record["gap_reason"], COVERAGE_GAP_CANDIDATE_NOT_GENERATED)
+        self.assertEqual(record["review_row_count"], 1)
+
+    def test_analyzer_classifies_candidate_generated_but_not_normalized(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "stop_span_coverage_metrics": {
+                        "line_feature_count_by_label_category": {
+                            "location": 1,
+                            "delivery": 1,
+                        },
+                        "anchor_count_by_type": {"delivery": 1},
+                        "span_count_by_type": {"delivery": 1},
+                        "span_field_candidate_count_by_field": {"location": 1},
+                        "normalized_stop_field_count_by_field": {},
+                        "core_field_mapping_count_by_field": {},
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "delivery_location",
+                    "status": "missing",
+                    "gap_reason": "no_candidate",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["stage"], COVERAGE_STAGE_NORMALIZED_STOP_FIELD)
+        self.assertEqual(
+            record["gap_reason"],
+            COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
+        )
+
+    def test_analyzer_classifies_normalized_but_not_core_mapped(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[
+                {
+                    "document_alias": "RATECON_001",
+                    "stop_span_coverage_metrics": {
+                        "line_feature_count_by_label_category": {
+                            "date": 1,
+                            "delivery": 1,
+                        },
+                        "anchor_count_by_type": {"delivery": 1},
+                        "span_count_by_type": {"delivery": 1},
+                        "span_field_candidate_count_by_field": {"date": 1},
+                        "normalized_stop_field_count_by_field": {"date": 1},
+                        "core_field_mapping_count_by_field": {},
+                    },
+                }
+            ],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "delivery_date",
+                    "status": "missing",
+                    "gap_reason": "no_candidate",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["stage"], COVERAGE_STAGE_CORE_FIELD_MAPPING)
+        self.assertEqual(record["gap_reason"], COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED)
+
+    def test_optional_core_gap_is_policy_excluded(self):
+        analysis = analyze_candidate_coverage_from_rows(
+            safe_summary_rows=[{"document_alias": "RATECON_001"}],
+            core_gap_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "field_name": "pickup_time",
+                    "status": "missing",
+                    "gap_reason": "optional_missing_field",
+                }
+            ],
+        )
+
+        self.assertEqual(analysis["records"][0]["gap_reason"], COVERAGE_GAP_POLICY_EXCLUDED)
+        self.assertEqual(analysis["records"][0]["status"], "filtered")
 
 
 if __name__ == "__main__":
