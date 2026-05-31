@@ -1,0 +1,10 @@
+{
+  "fixture_id": "fake_accessorial_confused_with_main_rate",
+  "selected_fix": "rate_source_priority_guardrails",
+  "expected": {
+    "main_rate_candidate_types": ["total_carrier_pay"],
+    "non_main_rate_candidate_types": ["detention_pay", "layover_pay", "quick_pay_discount"],
+    "expected_conflict_reason": "accessorial_confused_with_main_rate"
+  },
+  "private_values_included": false
+}

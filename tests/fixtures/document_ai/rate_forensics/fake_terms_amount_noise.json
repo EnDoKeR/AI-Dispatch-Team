@@ -1,0 +1,10 @@
+{
+  "fixture_id": "fake_terms_amount_noise",
+  "selected_fix": "rate_source_priority_guardrails",
+  "expected": {
+    "main_rate_candidate_types": ["agreed_amount"],
+    "non_main_rate_candidate_types": ["accessorial", "deduction"],
+    "expected_conflict_reason": "terms_amount_confused_with_main_rate"
+  },
+  "private_values_included": false
+}
