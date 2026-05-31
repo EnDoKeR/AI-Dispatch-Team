@@ -26,6 +26,10 @@ class GoogleSheetsReviewConfigError(ValueError):
     """Raised when review sync config is missing or unsafe."""
 
 
+class GoogleSheetsReviewClientError(RuntimeError):
+    """Raised when Google Sheets review sync cannot connect or update."""
+
+
 def _text(value):
     return str(value or "").strip()
 
@@ -118,3 +122,136 @@ def load_google_sheets_review_config(config_path=""):
             raise GoogleSheetsReviewConfigError("google sheets review config file not found")
         payload = {}
     return build_google_sheets_review_config(payload)
+
+
+def _missing_google_dependency_error(exc):
+    return GoogleSheetsReviewClientError(
+        "google sheets optional dependency is unavailable; install the existing "
+        "manual Google Sheets extras in the local environment"
+    )
+
+
+def _is_worksheet_not_found(exc):
+    return exc.__class__.__name__ in {"WorksheetNotFound", "WorksheetNotFoundException"}
+
+
+def _row_width(rows):
+    width = 1
+    for row in rows or []:
+        if isinstance(row, (list, tuple)):
+            width = max(width, len(row))
+    return width
+
+
+def ensure_worksheet(spreadsheet, title, rows=1000, cols=26):
+    """Return an existing worksheet or create a dedicated review worksheet."""
+
+    safe_title = _text(title)
+    if not safe_title:
+        raise GoogleSheetsReviewClientError("worksheet title is missing")
+
+    try:
+        return spreadsheet.worksheet(safe_title)
+    except Exception as exc:
+        if not _is_worksheet_not_found(exc):
+            raise
+
+    return spreadsheet.add_worksheet(
+        title=safe_title,
+        rows=str(max(int(rows or 1), 1)),
+        cols=str(max(int(cols or 1), 1)),
+    )
+
+
+def clear_and_update_worksheet(worksheet, rows):
+    """Clear and replace a worksheet with already-redacted review rows."""
+
+    payload = rows or []
+    worksheet.clear()
+    if not payload:
+        return {"row_count": 0, "private_values_printed": False}
+    try:
+        worksheet.update(payload, value_input_option="USER_ENTERED")
+    except TypeError:
+        worksheet.update("A1", payload)
+    return {"row_count": len(payload), "private_values_printed": False}
+
+
+def download_worksheet_rows(spreadsheet, title):
+    worksheet = spreadsheet.worksheet(_text(title))
+    rows = worksheet.get_all_values()
+    return {
+        "title": _text(title),
+        "rows": rows or [],
+        "row_count": len(rows or []),
+        "private_values_printed": False,
+    }
+
+
+class GoogleSheetsReviewClient:
+    """Small adapter for explicit review-tab Google Sheets operations."""
+
+    def __init__(self, spreadsheet):
+        self.spreadsheet = spreadsheet
+
+    def ensure_worksheet(self, title, rows=1000, cols=26):
+        return ensure_worksheet(self.spreadsheet, title, rows=rows, cols=cols)
+
+    def clear_and_update_worksheet(self, worksheet, rows):
+        return clear_and_update_worksheet(worksheet, rows)
+
+    def batch_update_review_tabs(self, rows_by_tab):
+        return batch_update_review_tabs(self, rows_by_tab)
+
+    def download_worksheet_rows(self, title):
+        return download_worksheet_rows(self.spreadsheet, title)
+
+
+def connect_to_google_sheet(config):
+    """Connect to a spreadsheet using local-only service account credentials."""
+
+    if not isinstance(config, GoogleSheetsReviewConfig):
+        config = build_google_sheets_review_config(config)
+    try:
+        import gspread
+        from google.oauth2.service_account import Credentials
+    except Exception as exc:
+        raise _missing_google_dependency_error(exc) from exc
+
+    scopes = ["https://www.googleapis.com/auth/spreadsheets"]
+    credentials = Credentials.from_service_account_file(
+        config.credentials_json_path,
+        scopes=scopes,
+    )
+    client = gspread.authorize(credentials)
+    return GoogleSheetsReviewClient(client.open_by_key(config.spreadsheet_id))
+
+
+def batch_update_review_tabs(client_or_spreadsheet, rows_by_tab):
+    """Replace dedicated review tabs and return counts only."""
+
+    if isinstance(client_or_spreadsheet, GoogleSheetsReviewClient):
+        client = client_or_spreadsheet
+    else:
+        client = GoogleSheetsReviewClient(client_or_spreadsheet)
+
+    row_counts = {}
+    updated = []
+    for title, rows in (rows_by_tab or {}).items():
+        row_payload = rows or []
+        worksheet = client.ensure_worksheet(
+            title,
+            rows=max(len(row_payload) + 10, 100),
+            cols=max(_row_width(row_payload), 1),
+        )
+        result = client.clear_and_update_worksheet(worksheet, row_payload)
+        row_counts[_text(title)] = int(result.get("row_count", 0) or 0)
+        updated.append(_text(title))
+
+    return {
+        "tabs_updated": updated,
+        "row_counts": row_counts,
+        "private_values_printed": False,
+        "credentials_printed": False,
+        "spreadsheet_id_printed": False,
+    }
