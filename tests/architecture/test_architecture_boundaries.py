@@ -871,6 +871,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "rate_fusion.py",
             DOCUMENT_AI_PACKAGE / "operational_fusion.py",
             DOCUMENT_AI_PACKAGE / "layout_field_delta_audit.py",
+            DOCUMENT_AI_PACKAGE / "extraction_readiness.py",
+            DOCUMENT_AI_PACKAGE / "measurement_integrity.py",
             DOCUMENT_AI_PACKAGE / "normalized_stops.py",
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
@@ -878,6 +880,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_review_workbook.py",
+            DOCUMENT_AI_PACKAGE / "review_feedback_import.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
             DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
@@ -1056,6 +1060,42 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         ]:
             with self.subTest(forbidden=forbidden):
                 self.assertNotIn(forbidden, source)
+
+    def test_review_workbook_modules_are_local_only_and_safe(self):
+        workbook_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_review_workbook.py")
+        readiness_source = source_text(DOCUMENT_AI_PACKAGE / "extraction_readiness.py")
+        integrity_source = source_text(DOCUMENT_AI_PACKAGE / "measurement_integrity.py")
+        feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
+        gitignore = source_text(ROOT / ".gitignore")
+
+        self.assertIn(".local_outputs/", gitignore)
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", workbook_source)
+        self.assertIn("ratecon_review_workbook.xlsx", workbook_source)
+        self.assertIn("ratecon_review_stop_review.csv", workbook_source)
+        self.assertIn("include_private_values=False", workbook_source)
+        self.assertIn('"private_values_printed": False', workbook_source)
+        self.assertIn('"raw_text_included": False', workbook_source)
+        self.assertNotIn("print(", workbook_source)
+        self.assertNotIn("print(", feedback_source)
+
+        for source in [workbook_source, readiness_source, integrity_source, feedback_source]:
+            for forbidden in [
+                "DispatchCase(",
+                "DecisionEngine(",
+                "telegram.",
+                "googleapiclient",
+                "google.oauth",
+                "openai",
+                "camelot",
+                "fitz",
+                "pytesseract",
+                "boto3",
+                "azure",
+                "ACCEPT",
+                "REJECT",
+            ]:
+                with self.subTest(forbidden=forbidden):
+                    self.assertNotIn(forbidden, source)
 
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
