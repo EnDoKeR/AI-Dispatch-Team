@@ -1,0 +1,145 @@
+# Google Sheets Review Sync
+
+This document defines the Google Sheets sync workflow for RateCon value
+correctness review. The sync publishes review packets to dedicated tabs. It is
+not final truth, not intake approval, and not dispatch automation.
+
+## Purpose
+
+The RateCon local workbook/CSV export lets a reviewer inspect extracted values
+without programming. Google Sheets sync makes the same review packet available
+in a shared spreadsheet so the user can mark fields as correct, incorrect, or
+unknown and assign issue types.
+
+The synced sheet remains a review surface only:
+
+- extracted candidate: deterministic or layout-derived signal;
+- resolved field: current resolver output and status;
+- reviewed field: user-marked row in the review sheet;
+- corrected field: user-provided expected value in local/private review data;
+- trusted intake field: a later validated field after feedback import and
+  policy checks.
+
+## Dedicated Tabs
+
+The sync uses dedicated review tabs instead of overwriting the operational
+sheet. This prevents review/testing rows from modifying live load operations.
+
+The review tabs are:
+
+- `RC_Document_Summary`
+- `RC_Stop_Review`
+- `RC_Field_Review`
+- `RC_Rate_Review`
+- `RC_Instructions`
+- `RC_Feedback_Summary`
+
+Only those tabs are created or updated by the review sync. Existing operational
+tabs are not touched unless a future block explicitly changes that policy.
+
+## Service Account
+
+Expected service account email:
+
+```text
+ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com
+```
+
+Share the target spreadsheet with this email before running sync. The service
+account JSON key must remain local and ignored. Do not commit it, paste it into
+docs, or print it to console.
+
+## Credential Safety
+
+Supported local config sources:
+
+- environment variables:
+  - `AI_DISPATCH_GOOGLE_SHEETS_CONFIG`
+  - `AI_DISPATCH_GOOGLE_CREDENTIALS_JSON`
+  - `AI_DISPATCH_GOOGLE_SPREADSHEET_ID`
+- ignored local config file:
+  - `.local_private/google_sheets_review_config.json`
+- explicit CLI flags:
+  - `--google-config`
+  - `--credentials-json`
+  - `--spreadsheet-id`
+
+The local config contains:
+
+- `spreadsheet_id`
+- `credentials_json_path`
+- `worksheet_prefix`, default `RC_`
+- `service_account_email`, optional
+- `default_sync_mode`, default `status_only`
+
+The repo may include a fake example config only. Real spreadsheet IDs and JSON
+keys must remain local.
+
+## Sync Modes
+
+`status_only` is the default. It excludes predicted private values and uploads
+aliases, statuses, counts, field names, evidence types, readiness levels, and
+review columns.
+
+`private_values_test_only` is explicit test mode. It may upload predicted
+private values to the review tabs, but only when the user passes the explicit
+private-value flag. Private values still must not be printed to console or
+committed.
+
+Google sync always requires explicit confirmation:
+
+```text
+--confirm-google-review-sync
+```
+
+## Review Flow
+
+The user reviews the Google Sheet tabs in this order:
+
+1. `RC_Document_Summary`
+2. `RC_Stop_Review`
+3. `RC_Field_Review`
+4. `RC_Rate_Review`
+
+Review fields:
+
+- `User Correct? yes/no/unknown`
+- `User Expected Value LOCAL ONLY`
+- `User Issue Type`
+- `User Notes Local Only`
+
+Completed review feedback is later downloaded from the review tabs into ignored
+local CSVs, then summarized by the local feedback import tool. Feedback import
+reports counts and issue types only; it does not create DispatchCases or write
+production corrections in this block.
+
+## Safe To Share
+
+Safe to share:
+
+- aliases;
+- row counts;
+- readiness counts;
+- integrity issue counts;
+- issue type counts;
+- field names;
+- review status counts.
+
+Do not share:
+
+- service account JSON key;
+- private predicted or expected values;
+- raw text;
+- private filenames or local paths;
+- broker names;
+- MC numbers;
+- rates;
+- addresses;
+- references.
+
+## Non-Goals
+
+This block does not add OCR, Vision AI, cloud document AI, PyMuPDF, Camelot,
+Tesseract, PaddleOCR, DispatchCase creation, DecisionEngine calls, Telegram
+calls, Event Timeline writes, operational sheet overwrites, or production
+automation claims.
