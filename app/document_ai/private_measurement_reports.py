@@ -407,7 +407,10 @@ def build_private_ratecon_measurement_aggregate(rows):
             safe_rows, "normalized_stop_missing_fields"
         ),
         stop_span_extractor_attempted_count=sum(
-            1 for row in safe_rows if row.get("stop_span_extractor_enabled")
+            1
+            for row in safe_rows
+            if row.get("stop_span_extractor_enabled")
+            and row.get("layout_provider_status") == "success"
         ),
         span_anchor_count_total=sum(
             int(row.get("span_anchor_count", 0) or 0) for row in safe_rows

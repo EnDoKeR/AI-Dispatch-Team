@@ -168,6 +168,7 @@ class PrivateMeasurementReportTests(unittest.TestCase):
         rows = [
             build_private_ratecon_measurement_row(
                 document_alias="RATECON_SPAN_001",
+                layout_provider_status="success",
                 stop_span_extractor_enabled=True,
                 span_anchor_count=2,
                 stop_span_count=2,
@@ -181,6 +182,7 @@ class PrivateMeasurementReportTests(unittest.TestCase):
             ),
             build_private_ratecon_measurement_row(
                 document_alias="RATECON_SPAN_002",
+                layout_provider_status="success",
                 stop_span_extractor_enabled=True,
                 span_anchor_count=4,
                 stop_span_count=4,
