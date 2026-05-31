@@ -2,10 +2,15 @@
 
 import re
 
+from app.document_ai.load_identifier_candidates import (
+    build_load_identifier_candidate,
+    classify_identifier_label,
+)
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
     CANDIDATE_CONFIDENCE_MEDIUM,
+    CANDIDATE_CONFIDENCE_UNKNOWN,
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_CARRIER_NAME,
@@ -105,31 +110,6 @@ COMPANY_NAME_PATTERN = re.compile(
     r"\b(?P<company>[A-Z][A-Za-z0-9&'., -]{2,}?\s+"
     r"(?:Logistics|Freight|Transport|Transportation|Brokerage|"
     r"Supply\s+Chain|Truckload|Services|LLC|Inc\.?|Company|Co\.?))\b"
-)
-
-REFERENCE_LABELS = (
-    ("load #", FIELD_LOAD_NUMBER, "broker_load_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("load number", FIELD_LOAD_NUMBER, "broker_load_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("load no", FIELD_LOAD_NUMBER, "broker_load_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("order #", FIELD_LOAD_NUMBER, "broker_load_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("shipment #", FIELD_LOAD_NUMBER, "broker_load_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("po #", FIELD_REFERENCE, "po_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("po number", FIELD_REFERENCE, "po_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("bol #", FIELD_REFERENCE, "bol_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("bol number", FIELD_REFERENCE, "bol_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("pickup #", FIELD_REFERENCE, "pickup_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("pickup number", FIELD_REFERENCE, "pickup_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("pickup confirmation", FIELD_REFERENCE, "pickup_confirmation", CANDIDATE_CONFIDENCE_HIGH),
-    ("delivery #", FIELD_REFERENCE, "delivery_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("delivery number", FIELD_REFERENCE, "delivery_number", CANDIDATE_CONFIDENCE_HIGH),
-    ("delivery confirmation", FIELD_REFERENCE, "delivery_confirmation", CANDIDATE_CONFIDENCE_HIGH),
-    ("customer ref", FIELD_REFERENCE, "customer_reference", CANDIDATE_CONFIDENCE_HIGH),
-    ("customer reference", FIELD_REFERENCE, "customer_reference", CANDIDATE_CONFIDENCE_HIGH),
-    ("appointment #", FIELD_REFERENCE, "appointment_number", CANDIDATE_CONFIDENCE_MEDIUM),
-    ("appointment number", FIELD_REFERENCE, "appointment_number", CANDIDATE_CONFIDENCE_MEDIUM),
-    ("ref #", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
-    ("reference #", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
-    ("reference", FIELD_REFERENCE, "unknown_reference", CANDIDATE_CONFIDENCE_LOW),
 )
 
 MC_PATTERN = re.compile(
@@ -250,6 +230,40 @@ def _label_matches(label, labels):
         if item not in {"broker", "carrier"} and item in token:
             return True
     return False
+
+
+def _identifier_context(lines, index, context_before="", context_after=""):
+    window = " ".join(
+        lines[position].strip().lower()
+        for position in range(max(0, index - 2), min(len(lines), index + 3))
+        if lines[position].strip()
+    )
+    section_role = ""
+    if any(marker in window for marker in ["pickup stop", "stop 1", "shipper"]):
+        section_role = "pickup stop"
+    elif any(marker in window for marker in ["delivery stop", "stop 2", "consignee"]):
+        section_role = "delivery stop"
+    elif any(marker in window for marker in ["billing", "remit", "payment terms"]):
+        section_role = "billing"
+    elif any(
+        marker in window
+        for marker in [
+            "load confirmation",
+            "rate confirmation",
+            "carrier load tender",
+            "route details",
+            "order confirmation",
+            "load details",
+        ]
+    ):
+        section_role = "load confirmation"
+
+    return {
+        "context_before": context_before,
+        "context_after": context_after,
+        "section_role": section_role,
+        "window": window,
+    }
 
 
 def _looks_like_company_name(value):
@@ -513,32 +527,39 @@ def generate_identity_reference_candidates(artifact):
                         )
                     )
 
-                for label_text, field_name, reference_type, confidence in REFERENCE_LABELS:
-                    if lower_label == label_text:
-                        candidates.append(
-                            build_field_candidate(
-                                candidate_id=(
-                                    f"reference-{reference_type}-p{page_number}-l{line_index}"
-                                ),
-                                field_name=field_name,
-                                raw_value=value,
-                                normalized_value=value,
-                                confidence=confidence,
-                                confidence_reasons=[f"{reference_type}_label"],
-                                page_number=page_number,
-                                line_number=line_index,
-                                label=label,
-                                context_before=context_before,
-                                context_after=context_after,
-                                source=SOURCE_LABEL_PATTERN,
-                                value_type=reference_type,
-                                warnings=(
-                                    ["ambiguous_reference_label"]
-                                    if reference_type == "unknown_reference"
-                                    else []
-                                ),
-                            )
+                identifier_context = _identifier_context(
+                    lines,
+                    line_index - 1,
+                    context_before=context_before,
+                    context_after=context_after,
+                )
+                identifier = classify_identifier_label(lower_label, identifier_context)
+                if identifier["confidence"] != CANDIDATE_CONFIDENCE_UNKNOWN:
+                    identifier_type = identifier["identifier_type"]
+                    candidates.append(
+                        build_load_identifier_candidate(
+                            candidate_id=(
+                                f"reference-{identifier_type}-p{page_number}-l{line_index}"
+                            ),
+                            identifier_type=identifier_type,
+                            raw_value=value,
+                            normalized_value=value,
+                            confidence=identifier["confidence"],
+                            confidence_reasons=identifier["confidence_reasons"],
+                            page_number=page_number,
+                            line_number=line_index,
+                            label=label,
+                            context_before=context_before,
+                            context_after=context_after,
+                            source=SOURCE_LABEL_PATTERN,
+                            warnings=identifier["warning_codes"],
+                            section_role=identifier_context.get("section_role", ""),
+                            page_role=identifier_context.get("page_role", ""),
+                            primary_load_identifier_candidate=identifier[
+                                "primary_load_identifier_candidate"
+                            ],
                         )
+                    )
 
             elif (
                 not page_has_labeled_broker_name

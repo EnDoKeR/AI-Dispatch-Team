@@ -28,11 +28,25 @@ BROKER_IDENTITY_FIXTURE_DIR = (
     / "candidate_coverage"
     / "broker_identity"
 )
+LOAD_IDENTIFIER_FIXTURE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "candidate_coverage"
+    / "load_identifier"
+)
 
 
 def build_broker_identity_fixture_artifact(name):
     return build_text_extraction_artifact_for_candidates(
         full_text=(BROKER_IDENTITY_FIXTURE_DIR / name).read_text(encoding="utf-8"),
+        source_name=name,
+    )
+
+
+def build_load_identifier_fixture_artifact(name):
+    return build_text_extraction_artifact_for_candidates(
+        full_text=(LOAD_IDENTIFIER_FIXTURE_DIR / name).read_text(encoding="utf-8"),
         source_name=name,
     )
 
@@ -215,6 +229,56 @@ class RateConIdentityReferenceCandidatesTests(unittest.TestCase):
 
         self.assertEqual(broker_names, [])
         self.assertTrue(carrier_names)
+
+    def test_load_identifier_fixtures_generate_expected_types(self):
+        manifest = json.loads(
+            (LOAD_IDENTIFIER_FIXTURE_DIR / "fixture_manifest.json").read_text(
+                encoding="utf-8"
+            )
+        )
+
+        for fixture in manifest["fixtures"]:
+            with self.subTest(fixture=fixture["file"]):
+                artifact = build_load_identifier_fixture_artifact(fixture["file"])
+                candidates = generate_identity_reference_candidates(artifact)
+                matching = [
+                    candidate
+                    for candidate in candidates
+                    if candidate.get("identifier_type")
+                    == fixture["expected_identifier_type"]
+                ]
+                primary_candidates = [
+                    candidate
+                    for candidate in candidates
+                    if candidate.get("primary_load_identifier_candidate")
+                    and candidate["field_name"] == FIELD_LOAD_NUMBER
+                ]
+
+                self.assertTrue(matching)
+                self.assertEqual(
+                    bool(primary_candidates),
+                    bool(fixture["expected_primary_candidate"]),
+                )
+
+    def test_multiple_identifier_fixture_preserves_secondary_references(self):
+        artifact = build_load_identifier_fixture_artifact(
+            "fake_multiple_identifiers_priority.txt"
+        )
+        candidates = generate_identity_reference_candidates(artifact)
+        primary_types = {
+            candidate["identifier_type"]
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_LOAD_NUMBER
+        }
+        reference_types = {
+            candidate["identifier_type"]
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_REFERENCE
+        }
+
+        self.assertIn("broker_load_number", primary_types)
+        self.assertIn("po_number", reference_types)
+        self.assertIn("bol_number", reference_types)
 
 
 if __name__ == "__main__":
