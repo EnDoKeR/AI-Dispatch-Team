@@ -1,13 +1,20 @@
-"""Local-only RateCon review workbook row contracts.
+"""Local-only RateCon review workbook row contracts and writers.
 
 The workbook rows are designed for ignored local review artifacts. Console and
 shareable summaries should only use the count metadata returned by this module.
 """
 
+import csv
+from pathlib import Path
+
 from app.document_ai.extraction_readiness import assess_extraction_readiness
 from app.document_ai.measurement_integrity import (
     check_measurement_row_integrity,
     summarize_integrity_issues,
+)
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
 )
 from app.document_ai.ratecon_candidates import normalize_list
 
@@ -507,6 +514,189 @@ def summarize_ratecon_review_workbook_rows(rows_by_sheet):
         "rate_review_rows": len((rows_by_sheet or {}).get(SHEET_RATE_REVIEW, []) or []),
         "readiness_level_counts": dict(sorted(readiness_counts.items())),
         "integrity_issue_counts": integrity_summary.get("issue_counts", {}),
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
+def _write_csv(path, rows, columns):
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        for row in rows or []:
+            writer.writerow({column: row.get(column, "") for column in columns})
+
+
+def write_ratecon_review_csvs(
+    measurement_rows,
+    output_dir=None,
+    local_document_names_by_alias=None,
+    include_private_values=False,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    rows_by_sheet = build_ratecon_review_rows(
+        measurement_rows,
+        local_document_names_by_alias=local_document_names_by_alias,
+        include_private_values=include_private_values,
+    )
+    csv_specs = {
+        "document_summary_csv": (
+            REVIEW_DOCUMENT_SUMMARY_CSV,
+            SHEET_DOCUMENT_SUMMARY,
+            DOCUMENT_SUMMARY_COLUMNS,
+        ),
+        "stop_review_csv": (
+            REVIEW_STOP_REVIEW_CSV,
+            SHEET_STOP_REVIEW,
+            STOP_REVIEW_COLUMNS,
+        ),
+        "field_review_csv": (
+            REVIEW_FIELD_REVIEW_CSV,
+            SHEET_FIELD_REVIEW,
+            FIELD_REVIEW_COLUMNS,
+        ),
+        "rate_review_csv": (
+            REVIEW_RATE_REVIEW_CSV,
+            SHEET_RATE_REVIEW,
+            RATE_REVIEW_COLUMNS,
+        ),
+    }
+    paths = {}
+    for key, (filename, sheet_name, columns) in csv_specs.items():
+        path = output_root / filename
+        _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
+        paths[key] = path
+
+    return {
+        "paths": paths,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_ratecon_review_workbook_rows(rows_by_sheet),
+        "include_private_values_local_only": bool(include_private_values),
+        "local_only": True,
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
+def _write_xlsx_if_available(path, rows_by_sheet):
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except Exception:
+        return False
+
+    workbook = Workbook()
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+    warning_fill = PatternFill("solid", fgColor="FDE68A")
+
+    for sheet_name, columns in REVIEW_WORKBOOK_COLUMNS_BY_SHEET.items():
+        sheet = workbook.create_sheet(title=sheet_name)
+        sheet.append(columns)
+        for row in rows_by_sheet.get(sheet_name, []) or []:
+            sheet.append([row.get(column, "") for column in columns])
+
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+            cell.fill = header_fill
+        if sheet_name == SHEET_INSTRUCTIONS:
+            for cell in sheet[2]:
+                cell.fill = warning_fill
+                cell.font = Font(bold=True)
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for index, column in enumerate(columns, start=1):
+            width = min(max(len(column) + 2, 12), 42)
+            sheet.column_dimensions[get_column_letter(index)].width = width
+
+    workbook.save(path)
+    return True
+
+
+def write_ratecon_review_workbook(
+    measurement_rows,
+    output_dir=None,
+    local_document_names_by_alias=None,
+    include_private_values=False,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    rows_by_sheet = build_ratecon_review_rows(
+        measurement_rows,
+        local_document_names_by_alias=local_document_names_by_alias,
+        include_private_values=include_private_values,
+    )
+    xlsx_path = output_root / REVIEW_WORKBOOK_XLSX
+    xlsx_written = _write_xlsx_if_available(xlsx_path, rows_by_sheet)
+    return {
+        "xlsx": xlsx_path if xlsx_written else None,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_ratecon_review_workbook_rows(rows_by_sheet),
+        "include_private_values_local_only": bool(include_private_values),
+        "local_only": True,
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
+def write_ratecon_review_artifacts(
+    measurement_rows,
+    output_dir=None,
+    local_document_names_by_alias=None,
+    include_private_values=False,
+    write_workbook=True,
+    write_csvs=True,
+    allow_custom_output_dir=False,
+):
+    rows_by_sheet = build_ratecon_review_rows(
+        measurement_rows,
+        local_document_names_by_alias=local_document_names_by_alias,
+        include_private_values=include_private_values,
+    )
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    paths = {}
+    csv_result = None
+    if write_csvs:
+        csv_result = write_ratecon_review_csvs(
+            measurement_rows,
+            output_dir=output_root,
+            local_document_names_by_alias=local_document_names_by_alias,
+            include_private_values=include_private_values,
+            allow_custom_output_dir=True,
+        )
+        paths.update(csv_result["paths"])
+    workbook_result = None
+    if write_workbook:
+        workbook_result = write_ratecon_review_workbook(
+            measurement_rows,
+            output_dir=output_root,
+            local_document_names_by_alias=local_document_names_by_alias,
+            include_private_values=include_private_values,
+            allow_custom_output_dir=True,
+        )
+        if workbook_result.get("xlsx"):
+            paths["review_workbook_xlsx"] = workbook_result["xlsx"]
+
+    return {
+        "paths": paths,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_ratecon_review_workbook_rows(rows_by_sheet),
+        "xlsx_written": bool(workbook_result and workbook_result.get("xlsx")),
+        "csvs_written": bool(csv_result),
+        "include_private_values_local_only": bool(include_private_values),
+        "local_only": True,
         "raw_text_included": False,
         "private_values_printed": False,
     }
