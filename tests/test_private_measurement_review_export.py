@@ -29,6 +29,20 @@ def _fake_row(alias="RATECON_001"):
         "post_noise_filter_stop_group_count": 1,
         "post_dedupe_stop_group_count": 1,
         "normalized_stop_count": 1,
+        "old_raw_stop_groups": 8,
+        "old_normalized_stops": 8,
+        "span_anchor_count": 2,
+        "stop_span_count": 2,
+        "span_normalized_stop_count": 2,
+        "span_pickup_count": 1,
+        "span_delivery_count": 1,
+        "span_unknown_count": 0,
+        "span_date_resolved_count": 2,
+        "span_date_missing_count": 0,
+        "span_time_resolved_count": 1,
+        "span_time_missing_count": 1,
+        "span_review_required_count": 1,
+        "span_passthrough_detected": False,
         "stop_duplicate_removed_count": 0,
         "stop_noise_removed_count": 0,
         "pickup_count": 1,
@@ -85,6 +99,11 @@ class PrivateMeasurementReviewExportTests(unittest.TestCase):
         self.assertEqual(set(rows[0]), set(REVIEW_EXPORT_COLUMNS))
         self.assertEqual(rows[0]["Local Document Name / File Stem"], "LoadConfirmation1")
         self.assertEqual(rows[0]["Post Single-Line Cluster"], 1)
+        self.assertEqual(rows[0]["Old Raw Stop Groups"], 8)
+        self.assertEqual(rows[0]["Stop Span Anchors"], 2)
+        self.assertEqual(rows[0]["Span Normalized Stops"], 2)
+        self.assertEqual(rows[0]["Old vs Span Delta"], 6)
+        self.assertEqual(rows[0]["Recommended Review Priority"], "medium")
         self.assertEqual(rows[0]["Root Cause Bucket"], "post_single_line_cluster")
 
     def test_csv_export_written_under_local_output_dir(self):

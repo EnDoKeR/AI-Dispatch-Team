@@ -33,6 +33,22 @@ REVIEW_EXPORT_COLUMNS = [
     "Post Noise Filter",
     "Post Dedupe",
     "Normalized Stops",
+    "Old Raw Stop Groups",
+    "Old Normalized Stops",
+    "Stop Span Anchors",
+    "Stop Spans",
+    "Span Normalized Stops",
+    "Span Pickup Count",
+    "Span Delivery Count",
+    "Span Unknown Count",
+    "Span Date Resolved",
+    "Span Date Missing",
+    "Span Time Resolved",
+    "Span Time Missing",
+    "Span Review Required Count",
+    "Stop Span Passthrough Detected",
+    "Old vs Span Delta",
+    "Recommended Review Priority",
     "Duplicate Removed",
     "Noise Removed",
     "Pickup Count",
@@ -119,6 +135,24 @@ def _recommended_action(row):
     return "review blocker bucket"
 
 
+def _old_vs_span_delta(row):
+    old_count = int(row.get("old_normalized_stops", row.get("normalized_stop_count", 0)) or 0)
+    span_count = int(row.get("span_normalized_stop_count", 0) or 0)
+    return old_count - span_count
+
+
+def _recommended_review_priority(row):
+    if row.get("span_passthrough_detected"):
+        return "high"
+    if int(row.get("span_normalized_stop_count", 0) or 0) == 0 and row.get("layout_provider_status") == "success":
+        return "high"
+    if int(row.get("span_review_required_count", 0) or 0):
+        return "medium"
+    if _old_vs_span_delta(row) > 0:
+        return "value_review"
+    return "normal"
+
+
 def build_review_export_rows(rows, local_document_names_by_alias=None):
     local_names = local_document_names_by_alias or {}
     export_rows = []
@@ -146,6 +180,22 @@ def build_review_export_rows(rows, local_document_names_by_alias=None):
                 "Post Noise Filter": int(row.get("post_noise_filter_stop_group_count", 0) or 0),
                 "Post Dedupe": int(row.get("post_dedupe_stop_group_count", 0) or 0),
                 "Normalized Stops": int(row.get("normalized_stop_count", 0) or 0),
+                "Old Raw Stop Groups": int(row.get("old_raw_stop_groups", row.get("raw_stop_group_count", 0)) or 0),
+                "Old Normalized Stops": int(row.get("old_normalized_stops", row.get("normalized_stop_count", 0)) or 0),
+                "Stop Span Anchors": int(row.get("span_anchor_count", 0) or 0),
+                "Stop Spans": int(row.get("stop_span_count", 0) or 0),
+                "Span Normalized Stops": int(row.get("span_normalized_stop_count", 0) or 0),
+                "Span Pickup Count": int(row.get("span_pickup_count", 0) or 0),
+                "Span Delivery Count": int(row.get("span_delivery_count", 0) or 0),
+                "Span Unknown Count": int(row.get("span_unknown_count", 0) or 0),
+                "Span Date Resolved": int(row.get("span_date_resolved_count", 0) or 0),
+                "Span Date Missing": int(row.get("span_date_missing_count", 0) or 0),
+                "Span Time Resolved": int(row.get("span_time_resolved_count", 0) or 0),
+                "Span Time Missing": int(row.get("span_time_missing_count", 0) or 0),
+                "Span Review Required Count": int(row.get("span_review_required_count", 0) or 0),
+                "Stop Span Passthrough Detected": bool(row.get("span_passthrough_detected")),
+                "Old vs Span Delta": _old_vs_span_delta(row),
+                "Recommended Review Priority": _recommended_review_priority(row),
                 "Duplicate Removed": int(row.get("stop_duplicate_removed_count", 0) or 0),
                 "Noise Removed": int(row.get("stop_noise_removed_count", 0) or 0),
                 "Pickup Count": int(row.get("pickup_count", 0) or 0),
