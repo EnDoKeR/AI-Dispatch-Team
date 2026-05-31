@@ -171,6 +171,15 @@ analysis still shows `load_number` among true intake blockers. This keeps the
 next useful step at label/section coverage inspection rather than resolver
 mapping or relaxed PO/BOL promotion.
 
+The label/section source-line forensics pass then confirmed there is no shared
+code-fixable load identifier root cause in the current private corpus. It
+counted 96 identifier-like source lines, 11 header/load-identity source lines,
+73 stop/billing/terms source lines, 96 detected labels, 24 classified labels,
+3 primary candidates, and 11 rejected non-primary references. The root causes
+were split, with no code-fixable bucket reaching the required three-alias
+threshold. The next load identifier action is local human review, while other
+core blockers should continue to be selected from policy-cleaned coverage data.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

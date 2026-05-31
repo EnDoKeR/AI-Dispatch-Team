@@ -101,6 +101,8 @@ The local-first hardening loop is covered by:
 - `tests/test_candidate_coverage_analysis.py`
 - `tests/test_analyze_candidate_coverage.py`
 - `tests/test_ratecon_identity_reference_candidates.py`
+- `tests/test_load_identifier_source_line_audit.py`
+- `tests/test_analyze_load_identifier_source_lines.py`
 - `tests/test_local_review_hardening_stop_datetime_fixtures.py`
 - `tests/test_local_review_hardening_stop_datetime.py`
 
@@ -135,6 +137,11 @@ Required behavior:
 - stop-span table-row date candidates are covered with fake fixtures for
   TQL-like rows, PU/SO right-side dates, target windows, shipping/receiving
   hours, and header/billing noise.
+- load identifier source-line forensics reports safe counts only and blocks
+  additional load-id code changes when no shared code-fixable root cause affects
+  at least three aliases;
+- source-line audit tests prove section counts, label counts, primary mapping
+  counts, OCR/weak-text handling, and no private line text in serialized output.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than

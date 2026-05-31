@@ -142,6 +142,28 @@ patterns in a measurable way. The next useful load-identifier work is not a
 broader regex pass; it is a label/section coverage audit for documents where
 identifier-like source lines are absent or not detected.
 
+## Source-Line Forensics Follow-Up
+
+The follow-up source-line audit wrote safe local artifacts
+`load_identifier_source_line_audit_raw.json`, `.md`,
+`load_identifier_source_line_audit.json`, and `.md`. It measured 96
+identifier-like source lines, 11 header/load-identity source lines, 73
+stop/billing/terms source lines, 96 detected labels, 24 classified labels, 3
+primary candidates, and 11 rejected non-primary references.
+
+The root-cause split was not shared enough for another code change:
+
+- `unknown=5`;
+- `ocr_needed_or_weak_text=4`;
+- `source_line_absent=4`;
+- `only_non_primary_refs_visible=3`;
+- `label_classified_non_primary=2`.
+
+No code-fixable reason reached the required three-alias threshold.
+`fix_allowed=false`, so the correct next action for load identifiers is local
+human review or a different candidate coverage target, not another generic
+load-number regex.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, create

@@ -101,6 +101,7 @@ Core architecture docs:
 * [Candidate Coverage Target Selection](docs/CANDIDATE_COVERAGE_TARGET_SELECTION.md)
 * [Load Identifier Candidate Generation](docs/LOAD_IDENTIFIER_CANDIDATE_GENERATION.md)
 * [Load Identifier Coverage Audit](docs/LOAD_IDENTIFIER_COVERAGE_AUDIT.md)
+* [Load Identifier Source-Line Forensics](docs/LOAD_IDENTIFIER_SOURCE_LINE_FORENSICS.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -149,6 +150,9 @@ Do not do yet:
 * load identifier audit outputs are local-only safe counts; a generic
   header-reference review-candidate fix did not move private counts, so do not
   relax PO/BOL/pickup/delivery reference safety
+* load identifier source-line forensics found no shared code-fixable root cause;
+  when `fix_allowed=false`, stop adding load-id rules and use local human review
+  or select a different measured blocker
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

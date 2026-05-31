@@ -151,6 +151,13 @@ added, but safe private counts stayed flat. Reviewers should therefore treat
 missing `load_number` rows as real review needs unless a later label/section
 coverage pass proves that primary identifier evidence is being missed.
 
+The label/section source-line coverage pass now emits
+`load_identifier_source_line_audit*` artifacts. It found no shared
+code-fixable load identifier root cause: source-line reasons are split across
+unknown, OCR/weak text, absent source lines, only non-primary references, and
+correctly non-primary labels. When `fix_allowed=false`, the workflow should
+stop adding load-id rules and use local human review for these rows.
+
 ## Direct Google Sheets Sync
 
 The optional Google Sheets sync publishes the same review packet into dedicated

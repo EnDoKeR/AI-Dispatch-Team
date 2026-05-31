@@ -133,6 +133,15 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   stayed flat: primary candidates 3, typed references 11, rejected non-primary
   references 11, and core mappings 1. The next measured work remains
   load-identifier label and section coverage.
+- Load identifier source-line forensics now emits
+  `load_identifier_source_line_audit_raw.json`, `.md`,
+  `load_identifier_source_line_audit.json`, and `.md`. The current safe result
+  counted 96 identifier-like source lines, 11 header/load-identity source
+  lines, 73 stop/billing/terms source lines, 96 detected labels, 24 classified
+  labels, 3 primary candidates, 2 source-line core mappings, and 11 rejected
+  non-primary references. No shared code-fixable root cause reached the
+  three-alias threshold, so `fix_allowed=false` and no new load-id hardening was
+  implemented.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.

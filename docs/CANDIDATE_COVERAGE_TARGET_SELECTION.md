@@ -118,3 +118,11 @@ non-primary references 11, core mappings 1, and readiness unchanged. The target
 selector still returns `load_identifier_candidate_generation`; the next specific
 work should inspect whether identifier-like source lines and load-identity
 sections are present before extending label rules again.
+
+That source-line inspection has now run. It found no shared code-fixable load
+identifier root cause: 96 identifier-like source lines were counted, but only
+11 were in header/load-identity sections, and root causes split across unknown,
+OCR/weak text, absent source lines, only non-primary references, and correctly
+non-primary labels. Because `fix_allowed=false`, the selector result should be
+treated as a broad remaining blocker, not permission to add another generic
+load-number rule.

@@ -81,6 +81,60 @@ The hard rule is that a code fix requires a shared, code-fixable root cause
 affecting at least three aliases. Otherwise the correct output is a local
 review recommendation.
 
+## Local Artifacts And CLI
+
+Private measurement can emit safe source-line audit artifacts with:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --write-candidate-coverage --write-load-identifier-audit --write-load-identifier-source-line-audit --natural-sort-inputs
+```
+
+This writes ignored local-only artifacts:
+
+- `load_identifier_source_line_audit_raw.json`;
+- `load_identifier_source_line_audit_raw.md`.
+
+Analyze the latest local-only audit with:
+
+```powershell
+py scripts/analyze_load_identifier_source_lines.py --write-md --write-json
+```
+
+The analyzer writes:
+
+- `load_identifier_source_line_audit.json`;
+- `load_identifier_source_line_audit.md`.
+
+All four artifacts contain only safe counts, statuses, aliases, label
+categories, section categories, and root-cause buckets. They do not contain
+identifier values or line text.
+
+## Latest Local Result
+
+The source-line audit ran after the load identifier coverage audit and measured
+the missing `load_number` aliases by source-line stage. Safe result:
+
+- documents analyzed: 18;
+- identifier-like source lines: 96;
+- header/load-identity source lines: 11;
+- stop/billing/terms source lines: 73;
+- labels detected / classified: 96 / 24;
+- primary candidates: 3;
+- core mappings: 2 in source-line accounting;
+- rejected non-primary references: 11;
+- top reasons: `unknown=5`, `ocr_needed_or_weak_text=4`,
+  `source_line_absent=4`, `only_non_primary_refs_visible=3`, and
+  `label_classified_non_primary=2`;
+- shared code-fixable root-cause candidates: none;
+- `fix_allowed=false`;
+- recommended next action: `local_human_review`.
+
+Because no shared code-fixable root cause affected at least three aliases, this
+block intentionally did not add fixtures or another extraction hardening rule.
+The candidate coverage selector may still name load identifier generation as a
+broad target, but source-line forensics says the current private-corpus evidence
+does not justify another generic load-id code change.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

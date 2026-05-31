@@ -193,6 +193,14 @@ load-number mappings stayed 1. Candidate coverage still selects
 `load_identifier_candidate_generation`, so the next target remains label and
 section coverage rather than primary mapping or resolver changes.
 
+The subsequent source-line forensics pass measured identifier visibility before
+adding any more load-id rules. It found 96 identifier-like source lines, but
+only 11 were in header/load-identity sections while 73 were in stop, billing,
+or terms contexts. The reasons were split across unknown cases, OCR/weak text,
+absent source lines, only non-primary references, and correctly non-primary
+labels. No shared code-fixable root cause reached the three-alias threshold, so
+no additional load identifier hardening was implemented.
+
 The console and committed docs must never include private identifier values,
 raw text, private filenames, local paths, screenshots, service account keys, or
 generated private outputs.

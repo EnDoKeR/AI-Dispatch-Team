@@ -198,6 +198,15 @@ honest negative measurement. The next local review step is to inspect safe
 label/section coverage counts for documents with no primary load identifier
 candidate.
 
+That label/section source-line audit has now run. It counted 96
+identifier-like source lines, 11 header/load-identity source lines, 73
+stop/billing/terms source lines, 96 detected labels, 24 classified labels, 3
+primary candidates, and 11 rejected non-primary references. Root causes were
+split across unknown, OCR/weak text, absent source lines, only non-primary
+references, and correctly non-primary labels. Because no code-fixable reason
+hit the three-alias threshold, `fix_allowed=false` and no further load-id
+hardening was added.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

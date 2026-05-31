@@ -230,6 +230,10 @@ The local review analysis loop reads the ignored review CSVs and writes:
 - `load_identifier_coverage.json`
 - `load_identifier_coverage_audit.md`
 - `load_identifier_coverage_audit.json`
+- `load_identifier_source_line_audit_raw.md`
+- `load_identifier_source_line_audit_raw.json`
+- `load_identifier_source_line_audit.md`
+- `load_identifier_source_line_audit.json`
 
 Those reports contain aliases, counts, statuses, field names, and issue
 categories only. They are used to choose one targeted deterministic hardening
@@ -262,6 +266,17 @@ This report traces load-identifier source lines, label classification, typed
 candidates, primary candidate classification, rejected non-primary references,
 core load-number mappings, and review-row status. It contains counts,
 categories, and aliases only.
+
+Load identifier source-line forensics can be emitted by adding
+`--write-load-identifier-source-line-audit` and analyzed with:
+
+```powershell
+py scripts/analyze_load_identifier_source_lines.py --write-md --write-json
+```
+
+This report separates source-line absence, label detection/classification,
+primary candidate generation, core mapping, only-non-primary references, and
+OCR/weak-text cases. It never writes identifier values or line text.
 
 Current safe local review metrics after policy-aware blocker cleanup:
 
@@ -333,6 +348,21 @@ did not change: primary identifier candidates stayed 3, typed references stayed
 11, rejected non-primary references stayed 11, core load-number mappings stayed
 1, and OCR-needed stayed 4. The next measured work should inspect label and
 section coverage, not relax PO/BOL/pickup/delivery reference safety.
+
+The source-line forensics pass inspected that label/section coverage and found
+no shared code-fixable load identifier root cause:
+
+- identifier-like source lines: 96;
+- header/load-identity source lines: 11;
+- stop/billing/terms source lines: 73;
+- labels detected / classified: 96 / 24;
+- primary identifier candidates: 3;
+- rejected non-primary references: 11;
+- `fix_allowed=false`;
+- recommended next action: local human review for load identifiers.
+
+No additional load identifier extraction fix was implemented because the root
+causes did not share one code-fixable pattern across at least three aliases.
 
 ## Command
 

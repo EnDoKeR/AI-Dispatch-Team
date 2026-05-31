@@ -1082,6 +1082,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         load_identifier_audit_source = source_text(
             DOCUMENT_AI_PACKAGE / "load_identifier_coverage_audit.py"
         )
+        source_line_audit_source = source_text(
+            DOCUMENT_AI_PACKAGE / "load_identifier_source_line_audit.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1121,6 +1124,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"private_values_included": False', load_identifier_audit_source)
         self.assertIn('"raw_text_included": False', load_identifier_audit_source)
         self.assertNotIn("print(", load_identifier_audit_source)
+        self.assertIn(
+            "load_identifier_source_line_audit_raw.json", source_line_audit_source
+        )
+        self.assertIn(
+            "load_identifier_source_line_audit.json", source_line_audit_source
+        )
+        self.assertIn('"private_values_included": False', source_line_audit_source)
+        self.assertIn('"raw_text_included": False', source_line_audit_source)
+        self.assertIn('"line_text_included": False', source_line_audit_source)
+        self.assertNotIn("print(", source_line_audit_source)
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
@@ -1134,6 +1147,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             core_gap_source,
             candidate_coverage_source,
             candidate_target_source,
+            source_line_audit_source,
             policy_source,
         ]:
             for forbidden in [
