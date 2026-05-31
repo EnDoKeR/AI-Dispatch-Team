@@ -17,6 +17,10 @@ from app.document_ai.review_issue_taxonomy import (
     build_review_feedback_aggregate,
     review_feedback_row_from_csv,
 )
+from app.document_ai.review_feedback_target_selector import (
+    select_repair_target_from_feedback,
+)
+from app.document_ai.target_disposition import load_target_dispositions
 
 
 REVIEW_FEEDBACK_SUMMARY_JSON = "review_feedback_summary.json"
@@ -156,6 +160,12 @@ def import_feedback(input_dir, output_dir):
         if records
         else _empty_result()
     )
+    target_decision = select_repair_target_from_feedback(
+        aggregate,
+        target_disposition_registry=load_target_dispositions(input_dir),
+    )
+    aggregate["recommended_next_repair_target"] = target_decision["selected_target"]
+    aggregate["target_selection"] = target_decision
     output_root = Path(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
     written = {
