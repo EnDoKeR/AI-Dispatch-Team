@@ -89,32 +89,34 @@ measurement interpretable.
 
 ## Current Forensics Result
 
-The first core-field gap pass found that the broad blocker names were hiding
-several different causes:
+The policy cleanup reconciled optional/review-only fields with readiness
+blocking:
 
-- optional/review-only fields were still visible as gaps, but should not drive
-  intake-core readiness by themselves;
-- stop-span fields had structured date/time/location evidence that was not
-  always surfaced in top-level field review statuses;
-- existing conflicts in pickup/delivery locations, dates, and rates remain the
-  dominant blockers for readiness;
-- broker identity and load identifiers remain separate measured targets.
+- `optional_field_misclassified_as_core` is now 0;
+- optional missing fields remain visible as review/dispatch gaps but do not
+  drive intake-core readiness;
+- readiness remains `extraction_review_ready=14`, `not_ready=4`;
+- supplemental, non-RateCon, unknown-review, OCR-needed, and TONU/payment-only
+  rows do not become dispatch-decision-ready just because normal-load fields are
+  non-applicable.
 
-The selected target for this pass was `stop_span_field_mapping`, not another
-date/time regex expansion. The implemented hardening maps resolved provider-line
-span stop fields into top-level pickup/delivery review statuses when the
-top-level status is missing or not applicable. It also treats resolved
-appointment windows as pickup/delivery time review evidence. Existing conflicts
-are preserved and not overwritten.
+The cleaned analysis now reports true intake blockers separately from all review
+gaps. Current safe counts:
 
-Missing appointment-window stop rows are not double-counted as core time gaps in
-the core-field gap analysis. Conflicting appointment-window rows remain mapped
-to pickup/delivery time because they are actionable review issues.
+- true intake blockers: 56;
+- dispatch-decision blockers: 128;
+- optional missing fields: 56;
+- true intake blocker reasons: `no_candidate=39`, `conflict=17`.
 
-Private rerun result: readiness and span counts did not materially improve.
-The mapped statuses make the local workbook more reviewable, but corpus-level
-blockers still come from unresolved stop-level gaps, broker identity gaps, load
-identifier gaps, and rate conflicts.
+Top true intake fields are delivery date, broker name, pickup date, load number,
+rate, delivery location, and pickup location. Stop-related fields remain the
+largest group, but the dominant reason is `no_candidate`, not a
+candidate-mapping failure. That means the next stop-focused block should inspect
+stop-span evidence/candidate generation and coverage rather than adding another
+date/time regex or span-to-core mapping tweak.
+
+The clean target-selection report is written locally as
+`clean_target_selection.md`. It is ignored and contains counts/statuses only.
 
 ## Non-Goals
 

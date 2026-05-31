@@ -156,6 +156,11 @@ The same field can have different meaning at different levels:
 If it appears frequently, that is a policy/reporting bug, not an extraction
 target.
 
+Policy-aware reports must also distinguish true intake blockers from all review
+gaps. Optional missing fields can remain numerous because they are useful for
+human review or dispatch decisioning, but they must not be counted as
+intake-core blockers.
+
 ## Measurement Rule
 
 Readiness policy must be measured separately from extraction accuracy.
@@ -164,6 +169,26 @@ A document can be extraction-review-ready while still wrong or incomplete. A
 document can be intake-core-ready while still missing dispatch-critical
 operational details. A document should not become dispatch-decision-ready until
 critical operational and risk fields are high-confidence or manually confirmed.
+
+Dispatch-decision readiness is applicable only to normal load movement context.
+Supplemental, non-RateCon, unknown-review, OCR-needed, and TONU/payment-only
+documents must not become dispatch-decision-ready merely because normal-load
+fields are non-applicable.
+
+## Current Policy Cleanup Result
+
+The current local policy-aware analysis reports:
+
+- `optional_field_misclassified_as_core=0`;
+- optional missing fields are counted separately from true intake blockers;
+- readiness counts remain `extraction_review_ready=14`, `not_ready=4`;
+- no document is marked `dispatch_decision_ready`;
+- true intake blockers are now limited to required broker/load/rate and
+  pickup/delivery location/date fields.
+
+The clean next-target gate should use `top_true_intake_core_gaps`,
+`intake_core_gap_counts`, and `dispatch_decision_gap_counts`, not the broad
+all-gap list.
 
 ## Privacy Boundary
 

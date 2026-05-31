@@ -119,20 +119,22 @@ names and root-cause buckets such as `no_candidate`, `conflict`,
 `candidate_exists_but_unresolved`, and
 `optional_field_misclassified_as_core`.
 
-Latest safe result after readiness calibration and span-field mapping:
+Latest safe result after policy-aware blocker cleanup:
 
 - readiness remained `extraction_review_ready=14`, `not_ready=4`;
 - span-normalized stops remained 29;
-- top missing/gap fields remained stop dates/times, references, broker name,
-  pickup location, and commodity;
-- top conflict fields remained pickup location, rate, delivery location,
-  delivery date, equipment, pickup date, pickup time, and delivery time;
-- selected target was `stop_span_field_mapping`;
-- targeted mapping improved review status surfacing, but did not reduce the
-  remaining corpus blockers.
+- `optional_field_misclassified_as_core=0`;
+- optional missing fields are separated from true intake blockers;
+- true intake blockers total 56;
+- dispatch-decision blockers total 128;
+- top true intake fields are delivery date, broker name, pickup date, load
+  number, rate, delivery location, and pickup location.
 
-The next target should be chosen from the remaining measured blockers, not by
-adding unrelated heuristics.
+The next target should be chosen from `top_true_intake_core_gaps`, not from the
+broad all-gap list. Current stop-field blockers are mostly `no_candidate`, so
+another datetime regex or span-to-core mapping tweak is not the clean next move.
+The next stop-focused block should inspect stop-span evidence/candidate
+generation and coverage before changing extraction behavior.
 
 ## Non-Goals
 

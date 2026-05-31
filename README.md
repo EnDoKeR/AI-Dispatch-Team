@@ -136,6 +136,9 @@ Do not do yet:
   under `.local_private/`
 * no waiting on Google credentials for local RateCon hardening; use local review
   outputs and analysis reports until sync credentials are available
+* no Dispatch Decision Ready claim from local review data unless the document is
+  normal load movement and dispatch-critical fields are high-confidence or
+  manually confirmed
 
 ---
 

@@ -237,6 +237,19 @@ broker MC, equipment, commodity, weight, references, and time windows should
 remain visible for review, but they should not be allowed to silently masquerade
 as required intake-core blockers.
 
+After policy cleanup, use the policy-aware fields first:
+
+- `top_true_intake_core_gaps`;
+- `intake_core_gap_counts`;
+- `dispatch_decision_gap_counts`;
+- `optional_missing_field_counts`;
+- `policy_misclassification_count`.
+
+The broad all-gap list can be useful for review planning, but it is not the
+target-selection list. Current cleanup expects
+`optional_field_misclassified_as_core` to be near zero. If it rises again, fix
+policy/reporting before changing extraction heuristics.
+
 ## Feedback Import
 
 Completed review CSVs can be imported later through local-only feedback import

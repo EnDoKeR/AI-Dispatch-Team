@@ -227,7 +227,7 @@ Those reports contain aliases, counts, statuses, field names, and issue
 categories only. They are used to choose one targeted deterministic hardening
 focus per block.
 
-Current safe local review metrics after the stop datetime hardening pass:
+Current safe local review metrics after policy-aware blocker cleanup:
 
 - documents analyzed: 18;
 - readiness counts: `extraction_review_ready=14`, `not_ready=4`;
@@ -236,16 +236,18 @@ Current safe local review metrics after the stop datetime hardening pass:
 - span date resolved / missing: 8 / 21;
 - span time resolved / missing: 10 / 19.
 
-The private rerun did not change span date/time aggregate counts, so the next
-block should use the local review workbook or analysis report to select the
-next blocker instead of adding more date/time heuristics blindly.
+Policy cleanup reports `optional_field_misclassified_as_core=0`. Optional
+missing fields remain visible for review and dispatch decisioning, but they are
+not counted as intake-core blockers. The next block should use true intake
+blocker counts, not the all-gap list, to select work.
 
 Core-field forensics now breaks broad `missing_core_field` and
-`conflict_core_field` blockers down by concrete fields and safe root-cause
-buckets. The latest targeted hardening maps resolved stop-span pickup/delivery
-fields into top-level review statuses when those statuses were missing or not
-applicable. It does not overwrite conflicts, and it does not make production
-readiness claims.
+`conflict_core_field` blockers down by concrete fields, policy level, and safe
+root-cause buckets. Reports separate extraction-review blockers, true
+intake-core blockers, dispatch-decision blockers, optional missing fields, and
+non-applicable fields. The current clean selection gate points to stop-span
+evidence/candidate generation and coverage before more datetime or mapping
+heuristics.
 
 ## Command
 
@@ -754,21 +756,26 @@ The latest safe result: 6 layout attempts, 112 old normalized stops, 29 span
 normalized stops, 0 span passthrough, 8 resolved dates, 10 resolved times, and
 29 review-required span stops.
 
-The local value-correctness review rerun produced:
+The local value-correctness and policy cleanup rerun produced:
 
 - documents measured: 18
 - old normalized stops: 112
 - span normalized stops: 29
 - stop review rows: 174
-- field review rows: 153
+- field review rows: 154
 - rate review rows: 10
 - readiness level counts: `extraction_review_ready=14`, `not_ready=4`
-- integrity issue counts: `SPAN_TYPE_COUNT_MISMATCH=1`
+- integrity issue counts: none
+- policy misclassification count: 0
+- true intake blockers: 56
+- dispatch-decision blockers: 128
+- optional missing fields: 56
 - OCR-needed unchanged: 4
 
-This confirms the next default step is local workbook review and feedback
-import, not more stop heuristics. The known integrity mismatch must remain
-visible until span stop type counts reconcile with the span stop denominator.
+This confirms the next default step is policy-clean target selection from true
+intake blockers. Stop-related required fields remain the largest group, but the
+dominant reason is `no_candidate`, so the next stop block should audit candidate
+generation/coverage instead of stacking regex or mapping heuristics.
 
 ## Safe To Paste Back
 

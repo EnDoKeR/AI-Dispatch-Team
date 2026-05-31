@@ -40,7 +40,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
 | Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Provider-line stop spans | `app/document_ai/stop_span_extractor.py`, `scripts/run_private_ratecon_measurement.py` | Implemented behind `--enable-stop-span-extractor`; compares old stop groups to direct line-span normalized stops in safe measurement and review exports |
-| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, and core field gap forensics |
+| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, and clean target selection |
 | Google Sheets review sync | `app/integrations/google_sheets_review.py`, `scripts/sync_ratecon_review_to_google_sheet.py`, `scripts/download_ratecon_review_feedback_from_google_sheet.py` | Implemented explicit confirmation-gated review-tab sync and feedback download using local ignored config; no operational tab overwrite |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
@@ -98,6 +98,13 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Core field gap forensics breaks `missing_core_field` and
   `conflict_core_field` into concrete field names, root-cause buckets, and
   readiness blocker levels.
+- RateCon core field policy separates extraction-review blockers, true
+  intake-core blockers, dispatch-decision blockers, review-only fields,
+  optional missing fields, and non-applicable fields.
+- Policy-aware local analysis now reports `optional_field_misclassified_as_core`
+  separately from extraction targets. Current cleanup result is zero policy
+  misclassifications, 56 true intake blockers, 128 dispatch-decision blockers,
+  and 56 optional missing fields.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.
@@ -338,21 +345,24 @@ Private value-review CSV output is local-only and ignored.
   112 to 29 without span passthrough. Local review exports now produce
   `Document_Summary`, `Stop_Review`, `Field_Review`, and `Rate_Review` rows
   with predicted values only in explicit local-only mode. The latest safe
-  review export reported 18 document rows, 174 stop review rows, 153 field
+  review export reported 18 document rows, 174 stop review rows, 154 field
   review rows, 10 rate review rows, readiness counts of 14
-  `extraction_review_ready` and 4 `not_ready`, and one
-  `SPAN_TYPE_COUNT_MISMATCH` integrity issue. That mismatch is expected from
-  the known 29 span stops versus 27 typed stops and must stay visible.
+  `extraction_review_ready` and 4 `not_ready`, and no integrity issues.
+- Policy-clean core field analysis shows stop-related required fields remain the
+  largest true intake blocker group, but mostly as `no_candidate`, not as a
+  mapping conflict. The next stop-focused block should inspect stop-span
+  evidence/candidate generation and coverage before adding more deterministic
+  date/time or mapping heuristics.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after the value-correctness review export:
+Next safe block after policy-aware blocker cleanup:
 
 ```text
-User/local workbook review, then feedback import and hardening of the top
-reviewed issue types. Fix the span type-count integrity mismatch before any
-trusted intake or dispatch decision claim.
+Audit stop-span evidence/candidate generation and coverage for required
+pickup/delivery date and location fields, or use local human review if the
+review workbook shows those gaps are expected document-specific omissions.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen
