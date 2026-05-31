@@ -80,7 +80,10 @@ from app.document_ai.ratecon_candidates import (
     FIELD_SPECIAL_REQUIREMENT,
     FIELD_WEIGHT,
 )
-from app.document_ai.load_identifier_candidates import LOAD_IDENTIFIER_TYPES
+from app.document_ai.load_identifier_candidates import (
+    LOAD_IDENTIFIER_TYPES,
+    NON_PRIMARY_REFERENCE_TYPES,
+)
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -241,7 +244,8 @@ def _load_identifier_coverage_metrics(candidates, resolution_result):
     rejected_reference_candidates = [
         candidate
         for candidate in typed_reference_candidates
-        if "not_primary_load_identifier" in candidate.get("warnings", [])
+        if str(candidate.get("identifier_type") or candidate.get("value_type") or "").strip()
+        in NON_PRIMARY_REFERENCE_TYPES
     ]
     weak_generic_references = [
         candidate
