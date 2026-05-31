@@ -76,6 +76,10 @@ The local Google Sheets-compatible export is covered by:
 - `tests/test_private_measurement_review_export.py`
 - `tests/test_ratecon_review_workbook_contracts.py`
 - `tests/test_ratecon_review_workbook_export.py`
+- `tests/test_generate_ratecon_review_packet_v2.py`
+- `tests/test_import_ratecon_review_feedback_cli.py`
+- `tests/test_review_issue_taxonomy.py`
+- `tests/test_review_feedback_target_selector.py`
 - `tests/test_extraction_readiness.py`
 - `tests/test_measurement_integrity.py`
 - `tests/test_review_feedback_import.py`
@@ -85,6 +89,9 @@ These tests verify CSV generation, optional workbook generation when a writer is
 available, natural sorting, local-only output paths, readiness levels, integrity
 issue detection, feedback import summaries, explicit local-only private value
 guards, and no console printing of local document stems or predicted values.
+The v2 packet and feedback tests additionally verify focused review rows,
+expected-value presence booleans, safe issue-type aggregation, and repair target
+selection from completed feedback.
 
 ## Local Review Analysis And Hardening Tests
 
@@ -150,6 +157,9 @@ Required behavior:
 - rate source-priority tests prove total carrier pay remains a main-rate
   candidate while accessorial, quickpay, deduction, penalty, and TONU amounts
   remain separate review evidence.
+- human review gate tests prove no completed feedback produces
+  `human_review_continue`, while reviewed issue types can reopen deferred
+  targets only when feedback supports the repair target.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than

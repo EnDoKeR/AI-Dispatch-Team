@@ -197,6 +197,13 @@ threshold, no additional rate resolver fix is justified in this evidence set.
 The local workbook exposes the conflict reason and rate group counts so a human
 can review rate fields without copying money values into reports or docs.
 
+The current gate is local human review. Deterministic hardening is paused for
+load identifiers, rate conflict routing, and generic stop datetime/mapping
+until completed v2 feedback ranks a reviewed issue type. Generate
+`ratecon_review_v2_*` with `scripts/generate_ratecon_review_packet_v2.py`,
+import completed feedback with `scripts/import_ratecon_review_feedback.py`, and
+use the feedback-selected repair target for the next hardening block.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

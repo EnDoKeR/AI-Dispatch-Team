@@ -109,6 +109,28 @@ ignored local outputs include:
 - `candidate_coverage.json` and `candidate_coverage.md`, when
   `--write-candidate-coverage` is used.
 
+For day-to-day human review, generate the smaller v2 packet from the current
+local outputs:
+
+```powershell
+py scripts/generate_ratecon_review_packet_v2.py --include-private-values-local-only --natural-sort-inputs
+```
+
+The v2 packet writes `ratecon_review_v2_workbook.xlsx` plus focused
+document-summary, core-field, stop, rate, load-ID, and instruction CSVs.
+Reviewers should fill `User Correct? yes/no/unknown`, `User Issue Type`, and
+`User Expected Value LOCAL ONLY` only when needed.
+
+Completed feedback can be saved as `*_completed.csv` files or edited in place
+locally, then imported with:
+
+```powershell
+py scripts/import_ratecon_review_feedback.py
+```
+
+If the import reports `no_completed_feedback_found`, do not add another
+extraction hardening change. Complete the v2 review packet first.
+
 The user should import the local CSVs into Google Sheets or open the workbook
 locally:
 
@@ -127,6 +149,11 @@ locally:
 
 Safe status summaries can be shared back as aliases, counts, statuses, issue
 types, and field names. Private workbook values and notes must stay local.
+
+Current deterministic hardening is paused for load identifiers, rate conflict
+routing, and generic stop datetime/mapping until completed feedback ranks a
+reviewed issue type. This prevents repeated heuristic work where forensics did
+not prove a shared code-fixable root cause.
 
 Candidate coverage can be analyzed locally with:
 

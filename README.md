@@ -104,6 +104,7 @@ Core architecture docs:
 * [Load Identifier Source-Line Forensics](docs/LOAD_IDENTIFIER_SOURCE_LINE_FORENSICS.md)
 * [Target Deferral and Rate Forensics](docs/TARGET_DEFERRAL_AND_RATE_FORENSICS.md)
 * [Rate Conflict Review Routing](docs/RATE_CONFLICT_REVIEW_ROUTING.md)
+* [Human Review Gate and Feedback Loop](docs/HUMAN_REVIEW_GATE_AND_FEEDBACK_LOOP.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -162,6 +163,11 @@ Do not do yet:
   resolver fix: deeper buckets split into accessorial residuals, two different
   strong-total aliases, TONU context, and unknown reasons; use local human
   review for rate fields unless new safe evidence changes the distribution
+* deterministic RateCon hardening is paused until local human feedback exists;
+  generate `ratecon_review_v2_*` with
+  `scripts/generate_ratecon_review_packet_v2.py`, import completed feedback
+  with `scripts/import_ratecon_review_feedback.py`, then harden the top
+  reviewed issue type
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

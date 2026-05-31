@@ -40,6 +40,8 @@ Candidate quality:
 - rate conflict audit counts when `--write-rate-conflict-audit` is enabled:
   equivalent rate groups, different strong totals, selected-rate status,
   core-mapped status, and conflict reasons.
+- local human review feedback counts when v2 completed feedback CSVs are
+  imported.
 
 Layout provider quality when explicitly enabled:
 
@@ -510,6 +512,28 @@ The `--include-private-review-values-local-only` flag is explicit local review
 mode. It may write predicted private values to the ignored workbook/CSVs, but
 the console still prints only counts, statuses, issue counts, and basenames.
 Do not paste workbook rows into chat and do not commit generated review files.
+
+Generate the smaller human-review packet v2 from those local outputs:
+
+```powershell
+py scripts/generate_ratecon_review_packet_v2.py --include-private-values-local-only --natural-sort-inputs
+```
+
+This writes `ratecon_review_v2_*` workbook/CSV artifacts under the ignored
+local output directory. The packet focuses on document status, intake-core
+fields, high-priority pickup/delivery stop fields, rate review, and load-ID
+review.
+
+After local review, import completed feedback:
+
+```powershell
+py scripts/import_ratecon_review_feedback.py
+```
+
+The feedback import writes `review_feedback_summary.json` and
+`review_feedback_summary.md`. It reports issue counts and the next repair target
+without printing expected values, private notes, raw text, paths, filenames, or
+money amounts.
 
 Optional Google Sheets review sync:
 

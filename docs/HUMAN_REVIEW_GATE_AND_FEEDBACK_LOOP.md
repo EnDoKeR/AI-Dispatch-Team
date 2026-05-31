@@ -42,6 +42,25 @@ it does not create dispatch cases, decisions, or events.
 3. **Completed feedback CSV**: a local reviewer-edited CSV with `User Correct?`,
    `User Issue Type`, and optional local-only expected values or notes.
 
+Generate the simplified packet locally:
+
+```powershell
+py scripts/generate_ratecon_review_packet_v2.py --include-private-values-local-only --natural-sort-inputs
+```
+
+This writes ignored local artifacts named `ratecon_review_v2_*`. Console output
+reports row counts and basenames only.
+
+Import completed feedback after review:
+
+```powershell
+py scripts/import_ratecon_review_feedback.py
+```
+
+If completed feedback CSVs are missing or contain no review decisions, the
+import returns `no_completed_feedback_found` and the next action remains local
+human review.
+
 ## Recommended Review Order
 
 1. `Document_Summary`: confirm document type, OCR status, extraction relevance,
@@ -85,6 +104,13 @@ Completed feedback is summarized into issue counts by field, alias, and issue
 type. The next repair target should be selected from those reviewed counts.
 Deferred targets remain skipped unless feedback proves they are the dominant
 reviewed issue type.
+
+Current deterministic hardening is review-gated for:
+
+- `load_identifier_candidate_generation`
+- `rate_conflict_review_routing`
+- `generic_stop_datetime_mapping`
+- `generic_stop_span_mapping`
 
 Safe summaries may include issue counts, field names, aliases, readiness counts,
 and status categories. They must not include predicted values, expected values,

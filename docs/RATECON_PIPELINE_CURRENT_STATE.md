@@ -40,7 +40,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
 | Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Provider-line stop spans | `app/document_ai/stop_span_extractor.py`, `scripts/run_private_ratecon_measurement.py` | Implemented behind `--enable-stop-span-extractor`; compares old stop groups to direct line-span normalized stops in safe measurement and review exports |
-| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py`, `app/document_ai/candidate_coverage_analysis.py`, `app/document_ai/target_disposition.py`, `app/document_ai/rate_candidate_forensics.py` | Implemented local-only review workbook/CSV rows, readiness status contracts, count integrity checks, safe feedback import summaries, local issue analysis reports, policy-aware core field gap forensics, candidate coverage diagnostics, target deferral, and rate forensics |
+| Local value correctness review | `app/document_ai/extraction_readiness.py`, `app/document_ai/measurement_integrity.py`, `app/document_ai/ratecon_review_workbook.py`, `app/document_ai/review_feedback_import.py`, `app/document_ai/review_issue_taxonomy.py`, `app/document_ai/review_feedback_target_selector.py`, `app/document_ai/local_review_analysis.py`, `app/document_ai/core_field_gap_analysis.py`, `app/document_ai/ratecon_core_field_policy.py`, `app/document_ai/candidate_coverage_analysis.py`, `app/document_ai/target_disposition.py`, `app/document_ai/rate_candidate_forensics.py` | Implemented local-only review workbook/CSV rows, simplified review packet v2, readiness status contracts, count integrity checks, safe feedback import summaries, feedback-based repair target selection, local issue analysis reports, policy-aware core field gap forensics, candidate coverage diagnostics, target deferral, and rate forensics |
 | Google Sheets review sync | `app/integrations/google_sheets_review.py`, `scripts/sync_ratecon_review_to_google_sheet.py`, `scripts/download_ratecon_review_feedback_from_google_sheet.py` | Implemented explicit confirmation-gated review-tab sync and feedback download using local ignored config; no operational tab overwrite |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
@@ -92,6 +92,13 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Google Sheets live sync is currently paused until a full local service account
   JSON is available. Local review analysis and workbook review continue without
   Google credentials.
+- Simplified local review packet v2 writes focused document, core-field, stop,
+  rate, load-ID, and instruction files as ignored `ratecon_review_v2_*`
+  artifacts. It is the preferred packet for quick human review before the next
+  extraction hardening block.
+- Completed local v2 feedback can be imported with
+  `scripts/import_ratecon_review_feedback.py`; the safe summary ranks issue
+  types and selects the next repair target from reviewed evidence only.
 - Local review analysis reports summarize ignored review CSVs into safe issue
   category counts, top fields needing review, readiness counts, and next-fix
   buckets.
@@ -424,6 +431,9 @@ Private value-review CSV output is local-only and ignored.
   from the current evidence. The review workbook now exposes rate conflict
   reason and rate-group counts for local human review without printing money
   values.
+- Deterministic hardening is paused for unresolved load identifier, rate
+  conflict, and generic stop datetime/mapping targets until completed v2 local
+  feedback ranks a reviewed issue type.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
@@ -431,8 +441,8 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after rate conflict audit:
 
 ```text
-Use local human review for rate fields, then continue with the next measured
-candidate coverage target only when new safe evidence supports a code fix.
+Generate and review the local v2 packet, import completed feedback, then harden
+the top reviewed issue type only if the feedback supports a code fix.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

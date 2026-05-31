@@ -22,6 +22,27 @@ Private values may exist in local-only outputs when explicitly generated for
 local review. They must not be printed, committed, copied into tests, or pasted
 into chat.
 
+The reviewer-friendly v2 packet is generated from the current local outputs:
+
+```powershell
+py scripts/generate_ratecon_review_packet_v2.py --include-private-values-local-only --natural-sort-inputs
+```
+
+It narrows the packet to document summary, intake-core fields, high-priority
+pickup/delivery stop fields, rate rows, and load-ID rows. This keeps review
+focused on the blockers a user can check quickly instead of asking them to sort
+through every diagnostic row.
+
+Completed v2 feedback is imported locally with:
+
+```powershell
+py scripts/import_ratecon_review_feedback.py
+```
+
+The import reports only counts, issue types, fields, aliases, and the
+recommended next repair target. Expected values and private notes are read
+locally only and are never printed.
+
 ## What Can Be Analyzed
 
 Without human review, local analysis can safely measure:
@@ -205,6 +226,11 @@ The current conflict audit does not permit another rate code fix. It found
 `tonu_non_normal_load=1`, and `unknown=3`, which does not meet the threshold
 for a safe shared arbitration change. Use local human review for rate fields
 unless new evidence changes that distribution.
+
+Because load identifier and rate forensics did not prove a shared deterministic
+fix, deterministic hardening is paused until completed feedback ranks the next
+reviewed issue type. If no completed feedback exists, the correct next action is
+to review the v2 packet locally, not to add another extractor rule.
 
 The load identifier pass implemented typed primary identifiers and typed
 references, then regenerated local review and coverage outputs. The review
