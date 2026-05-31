@@ -883,6 +883,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
             DOCUMENT_AI_PACKAGE / "ratecon_review_workbook.py",
             DOCUMENT_AI_PACKAGE / "review_feedback_import.py",
+            DOCUMENT_AI_PACKAGE / "local_review_analysis.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
             DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
@@ -913,6 +914,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
+            DOCUMENT_AI_PACKAGE / "local_review_analysis.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
             DOCUMENT_AI_PACKAGE / "stop_span_extractor.py",
@@ -1067,6 +1069,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         readiness_source = source_text(DOCUMENT_AI_PACKAGE / "extraction_readiness.py")
         integrity_source = source_text(DOCUMENT_AI_PACKAGE / "measurement_integrity.py")
         feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
+        local_analysis_source = source_text(DOCUMENT_AI_PACKAGE / "local_review_analysis.py")
         gitignore = source_text(ROOT / ".gitignore")
 
         self.assertIn(".local_outputs/", gitignore)
@@ -1078,8 +1081,20 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"raw_text_included": False', workbook_source)
         self.assertNotIn("print(", workbook_source)
         self.assertNotIn("print(", feedback_source)
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", local_analysis_source)
+        self.assertIn("local_review_analysis.json", local_analysis_source)
+        self.assertIn("local_review_analysis.md", local_analysis_source)
+        self.assertIn('"private_values_included": False', local_analysis_source)
+        self.assertIn('"raw_text_included": False', local_analysis_source)
+        self.assertNotIn("print(", local_analysis_source)
 
-        for source in [workbook_source, readiness_source, integrity_source, feedback_source]:
+        for source in [
+            workbook_source,
+            readiness_source,
+            integrity_source,
+            feedback_source,
+            local_analysis_source,
+        ]:
             for forbidden in [
                 "DispatchCase(",
                 "DecisionEngine(",

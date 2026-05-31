@@ -89,6 +89,8 @@ PRIVATE_VALUE_COLUMNS = {
 }
 
 LOCAL_REVIEW_ANALYSIS_VERSION = "local_review_analysis_v1"
+LOCAL_REVIEW_ANALYSIS_MD = "local_review_analysis.md"
+LOCAL_REVIEW_ANALYSIS_JSON = "local_review_analysis.json"
 
 
 class LocalReviewAnalysisError(ValueError):

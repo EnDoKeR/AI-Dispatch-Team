@@ -9,6 +9,8 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.document_ai.local_review_analysis import (
+    LOCAL_REVIEW_ANALYSIS_JSON,
+    LOCAL_REVIEW_ANALYSIS_MD,
     LocalReviewAnalysisError,
     analyze_local_review_outputs,
     write_local_review_analysis_json,
@@ -17,11 +19,6 @@ from app.document_ai.local_review_analysis import (
 from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
 )
-
-
-LOCAL_REVIEW_ANALYSIS_MD = "local_review_analysis.md"
-LOCAL_REVIEW_ANALYSIS_JSON = "local_review_analysis.json"
-
 
 def _build_parser():
     parser = argparse.ArgumentParser(
