@@ -1104,6 +1104,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             INTEGRATIONS_PACKAGE / "google_sheets_review_preflight.py"
         )
         init_source = source_text(SCRIPTS / "init_google_sheets_review_config.py")
+        credential_import_source = source_text(
+            SCRIPTS / "import_google_service_account_local.py"
+        )
         sync_source = source_text(SCRIPTS / "sync_ratecon_review_to_google_sheet.py")
         download_source = source_text(
             SCRIPTS / "download_ratecon_review_feedback_from_google_sheet.py"
@@ -1125,6 +1128,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn("--confirm-google-review-sync", sync_source)
         self.assertIn("--spreadsheet-id", init_source)
         self.assertIn("--credentials-json", init_source)
+        self.assertIn("AI_DISPATCH_GOOGLE_SERVICE_ACCOUNT_JSON", credential_import_source)
+        self.assertIn(".local_private", credential_import_source)
+        self.assertIn("private_key_printed", credential_import_source)
         self.assertIn("--confirm-google-review-sync", sync_source)
         self.assertIn("--confirm-google-feedback-download", download_source)
         self.assertIn("private_values_printed", sync_source)
@@ -1135,6 +1141,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             integration_source,
             preflight_source,
             init_source,
+            credential_import_source,
             sync_source,
             download_source,
         ]:
