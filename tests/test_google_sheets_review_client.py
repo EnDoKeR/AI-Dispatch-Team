@@ -7,11 +7,13 @@ from app.integrations.google_sheets_review import (
     GoogleSheetsReviewClient,
     GoogleSheetsReviewClientError,
     GoogleSheetsReviewConfig,
+    allowed_google_review_tab_titles,
     batch_update_review_tabs,
     clear_and_update_worksheet,
     connect_to_google_sheet,
     download_worksheet_rows,
     ensure_worksheet,
+    validate_google_review_tab_titles,
 )
 
 
@@ -104,6 +106,39 @@ class GoogleSheetsReviewClientTests(unittest.TestCase):
         )
         self.assertEqual(set(result["tabs_updated"]), set(rows_by_tab))
         self.assertFalse(result["credentials_printed"])
+
+    def test_batch_update_refuses_non_review_tab(self):
+        spreadsheet = FakeSpreadsheet()
+        with self.assertRaises(GoogleSheetsReviewClientError) as ctx:
+            batch_update_review_tabs(
+                spreadsheet,
+                {"Operational_Dispatch": [["must not update"]]},
+            )
+
+        self.assertIn("dedicated RC_* review tabs", str(ctx.exception))
+        self.assertEqual(spreadsheet.created, [])
+
+    def test_tab_validator_allows_only_dedicated_review_tabs(self):
+        tabs = allowed_google_review_tab_titles()
+
+        result = validate_google_review_tab_titles({title: [["ok"]] for title in tabs})
+
+        self.assertTrue(result["tabs_allowed"])
+        self.assertIn("RC_Document_Summary", result["tabs_checked"])
+
+    def test_existing_operational_tab_is_ignored(self):
+        spreadsheet = FakeSpreadsheet()
+        spreadsheet.worksheets["Operational_Dispatch"] = FakeWorksheet(
+            "Operational_Dispatch",
+            values=[["existing"]],
+        )
+
+        batch_update_review_tabs(
+            spreadsheet,
+            {"RC_Document_Summary": [["alias"], ["RATECON_001"]]},
+        )
+
+        self.assertFalse(spreadsheet.worksheets["Operational_Dispatch"].cleared)
 
     def test_download_worksheet_rows_returns_counts_only(self):
         spreadsheet = FakeSpreadsheet()

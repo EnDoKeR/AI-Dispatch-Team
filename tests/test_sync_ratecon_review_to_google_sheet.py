@@ -139,6 +139,51 @@ class SyncRateConReviewToGoogleSheetTests(unittest.TestCase):
         self.assertIn("RC_Stop_Review", result["row_counts"])
         self.assertFalse(result["private_values_printed"])
 
+    def test_dry_run_lists_only_allowed_review_tabs(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write_fake_review_csvs(Path(tmp))
+            result = sync_script.run_sync(
+                sync_script._build_parser().parse_args(
+                    [
+                        "--input-dir",
+                        tmp,
+                        "--confirm-google-review-sync",
+                        "--dry-run",
+                    ]
+                )
+            )
+
+        self.assertEqual(
+            set(result["tabs_updated"]),
+            {
+                "RC_Document_Summary",
+                "RC_Stop_Review",
+                "RC_Field_Review",
+                "RC_Rate_Review",
+                "RC_Instructions",
+                "RC_Feedback_Summary",
+            },
+        )
+
+    def test_refuses_unexpected_worksheet_prefix(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            _write_fake_review_csvs(Path(tmp))
+            with self.assertRaises(Exception) as ctx:
+                sync_script.run_sync(
+                    sync_script._build_parser().parse_args(
+                        [
+                            "--input-dir",
+                            tmp,
+                            "--confirm-google-review-sync",
+                            "--dry-run",
+                            "--worksheet-prefix",
+                            "OPS_",
+                        ]
+                    )
+                )
+
+        self.assertIn("dedicated RC_* review tabs", str(ctx.exception))
+
     def test_status_only_redacts_private_values_from_upload_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)

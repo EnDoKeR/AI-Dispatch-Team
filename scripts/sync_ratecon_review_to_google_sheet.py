@@ -122,6 +122,7 @@ def run_sync(args):
         include_private_values=include_values,
         worksheet_prefix=args.worksheet_prefix,
     )
+    sheets.validate_google_review_tab_titles(rows_by_tab)
     row_counts = {title: len(rows) for title, rows in rows_by_tab.items()}
     if args.dry_run:
         return {

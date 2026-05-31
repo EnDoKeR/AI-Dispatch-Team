@@ -46,6 +46,14 @@ PRIVATE_REVIEW_VALUE_COLUMNS = {
     "Predicted Value LOCAL ONLY",
     "User Expected Value LOCAL ONLY",
 }
+REVIEW_SYNC_ALLOWED_BASE_SHEETS = {
+    SHEET_DOCUMENT_SUMMARY,
+    SHEET_STOP_REVIEW,
+    SHEET_FIELD_REVIEW,
+    SHEET_RATE_REVIEW,
+    SHEET_INSTRUCTIONS,
+    SHEET_FEEDBACK_SUMMARY,
+}
 REVIEW_CSV_SPECS = {
     SHEET_DOCUMENT_SUMMARY: (REVIEW_DOCUMENT_SUMMARY_CSV, DOCUMENT_SUMMARY_COLUMNS),
     SHEET_STOP_REVIEW: (REVIEW_STOP_REVIEW_CSV, STOP_REVIEW_COLUMNS),
@@ -227,6 +235,29 @@ def _tab_title(sheet_name, worksheet_prefix=DEFAULT_WORKSHEET_PREFIX):
 
 def google_review_tab_title(sheet_name, worksheet_prefix=DEFAULT_WORKSHEET_PREFIX):
     return _tab_title(sheet_name, worksheet_prefix)
+
+
+def allowed_google_review_tab_titles():
+    return sorted(
+        _tab_title(sheet_name, DEFAULT_WORKSHEET_PREFIX)
+        for sheet_name in REVIEW_SYNC_ALLOWED_BASE_SHEETS
+    )
+
+
+def validate_google_review_tab_titles(rows_by_tab):
+    allowed = set(allowed_google_review_tab_titles())
+    unexpected = sorted(
+        title for title in (_text(title) for title in (rows_by_tab or {})) if title not in allowed
+    )
+    if unexpected:
+        raise GoogleSheetsReviewClientError(
+            "google sheets review sync can update dedicated RC_* review tabs only"
+        )
+    return {
+        "tabs_allowed": True,
+        "tabs_checked": sorted(_text(title) for title in (rows_by_tab or {})),
+        "unexpected_tabs": [],
+    }
 
 
 def _sheet_values(columns, dict_rows, note=REVIEW_SYNC_WARNING):
@@ -507,6 +538,8 @@ def connect_to_google_sheet(config):
 
 def batch_update_review_tabs(client_or_spreadsheet, rows_by_tab):
     """Replace dedicated review tabs and return counts only."""
+
+    validate_google_review_tab_titles(rows_by_tab)
 
     if isinstance(client_or_spreadsheet, GoogleSheetsReviewClient):
         client = client_or_spreadsheet
