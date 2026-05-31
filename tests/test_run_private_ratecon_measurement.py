@@ -464,6 +464,24 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("requires --write-stop-review-packet", stderr.getvalue())
 
+    def test_cli_refuses_private_review_values_without_review_export(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--include-private-review-values-local-only",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn("requires --write-review-workbook or --write-review-csvs", stderr.getvalue())
+
     def test_cli_writes_shareable_stop_review_packet_without_values(self):
         fake_report = {
             "rows": [
@@ -692,6 +710,107 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("google_sheet_export_written", console_output)
         self.assertIn("ratecon_review_google_sheet.csv", console_output)
         self.assertIn("LoadConfirmation1", csv_text)
+        self.assertNotIn("LoadConfirmation1", console_output)
+        self.assertNotIn(output_dir, console_output)
+
+    def test_cli_writes_local_review_workbook_export_without_printing_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "document_type": "LOAD_CONFIRMATION",
+                    "classification_status": "classified",
+                    "extraction_relevant": True,
+                    "normal_load_movement": True,
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "layout_provider_status": "success",
+                    "span_normalized_stop_count": 1,
+                    "span_pickup_count": 1,
+                    "span_delivery_count": 0,
+                    "span_unknown_count": 0,
+                    "span_date_resolved_count": 0,
+                    "span_date_missing_count": 1,
+                    "span_time_resolved_count": 0,
+                    "span_time_missing_count": 1,
+                    "span_review_required_count": 1,
+                    "span_normalized_stop_set": {
+                        "document_alias": "RATECON_001",
+                        "stops": [
+                            {
+                                "stop_id": "span_stop_001",
+                                "stop_type": "pickup",
+                                "sequence": 1,
+                                "review_required": True,
+                                "fields": [
+                                    {
+                                        "field_name": "location",
+                                        "status": "resolved",
+                                        "confidence": "high",
+                                        "selected_value": "FAKE_PRIVATE_LOCATION",
+                                        "evidence_refs": [
+                                            {"evidence_type": "layout_line", "page_number": 1}
+                                        ],
+                                    }
+                                ],
+                            }
+                        ],
+                    },
+                    "field_statuses": [
+                        {
+                            "field_name": "rate",
+                            "status": "resolved",
+                            "selected_value": "FAKE_PRIVATE_RATE",
+                        },
+                        {"field_name": "broker_name", "status": "needs_review"},
+                        {"field_name": "load_number", "status": "resolved"},
+                        {"field_name": "pickup_location", "status": "resolved"},
+                        {"field_name": "pickup_date", "status": "needs_review"},
+                        {"field_name": "delivery_location", "status": "resolved"},
+                        {"field_name": "delivery_date", "status": "resolved"},
+                    ],
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+            "local_document_names_by_alias": {"RATECON_001": "LoadConfirmation1"},
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-review-workbook",
+                            "--write-review-csvs",
+                            "--include-private-review-values-local-only",
+                        ]
+                    )
+            stop_csv = (Path(output_dir) / "ratecon_review_stop_review.csv").read_text(
+                encoding="utf-8"
+            )
+            rate_csv = (Path(output_dir) / "ratecon_review_rate_review.csv").read_text(
+                encoding="utf-8"
+            )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("review_workbook_export_written", console_output)
+        self.assertIn("ratecon_review_stop_review.csv", console_output)
+        self.assertIn("readiness_level_counts", console_output)
+        self.assertIn("integrity_issue_counts", console_output)
+        self.assertIn("FAKE_PRIVATE_LOCATION", stop_csv)
+        self.assertIn("FAKE_PRIVATE_RATE", rate_csv)
+        self.assertNotIn("FAKE_PRIVATE_LOCATION", console_output)
+        self.assertNotIn("FAKE_PRIVATE_RATE", console_output)
         self.assertNotIn("LoadConfirmation1", console_output)
         self.assertNotIn(output_dir, console_output)
 

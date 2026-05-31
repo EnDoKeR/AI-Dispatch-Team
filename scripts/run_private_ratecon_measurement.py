@@ -31,6 +31,7 @@ from app.document_ai.private_measurement_pipeline import measure_private_ratecon
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
+from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
@@ -493,10 +494,13 @@ def main(argv=None):
     parser.add_argument("--write-stop-review-packet", action="store_true")
     parser.add_argument("--write-stop-provenance-report", action="store_true")
     parser.add_argument("--write-google-sheet-export", action="store_true")
+    parser.add_argument("--write-review-workbook", action="store_true")
+    parser.add_argument("--write-review-csvs", action="store_true")
     parser.add_argument("--natural-sort-inputs", action="store_true")
     parser.add_argument("--enable-stop-span-extractor", action="store_true")
     parser.add_argument("--compare-stop-span-to-stop-group-pipeline", action="store_true")
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
+    parser.add_argument("--include-private-review-values-local-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -549,6 +553,14 @@ def main(argv=None):
     if args.include_private_stop_values_local_only and not args.write_stop_review_packet:
         _print_expected_config_error(
             "--include-private-stop-values-local-only requires --write-stop-review-packet"
+        )
+        return 2
+
+    if args.include_private_review_values_local_only and not (
+        args.write_review_workbook or args.write_review_csvs
+    ):
+        _print_expected_config_error(
+            "--include-private-review-values-local-only requires --write-review-workbook or --write-review-csvs"
         )
         return 2
 
@@ -644,6 +656,38 @@ def main(argv=None):
             if export.get("xlsx"):
                 labels["xlsx"] = Path(export["xlsx"]).name
             print(f"google_sheet_export_written: {labels}")
+        if not args.dry_run and (args.write_review_workbook or args.write_review_csvs):
+            review = write_ratecon_review_artifacts(
+                report["rows"],
+                output_dir=args.output_dir,
+                local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
+                include_private_values=args.include_private_review_values_local_only,
+                write_workbook=args.write_review_workbook,
+                write_csvs=args.write_review_csvs,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            labels = {
+                "files": _safe_output_file_labels(review.get("paths", {})),
+                "document_rows": review["summary"].get("document_rows", 0),
+                "stop_review_rows": review["summary"].get("stop_review_rows", 0),
+                "field_review_rows": review["summary"].get("field_review_rows", 0),
+                "rate_review_rows": review["summary"].get("rate_review_rows", 0),
+                "readiness_level_counts": review["summary"].get(
+                    "readiness_level_counts",
+                    {},
+                ),
+                "integrity_issue_counts": review["summary"].get(
+                    "integrity_issue_counts",
+                    {},
+                ),
+                "include_private_values_local_only": review.get(
+                    "include_private_values_local_only",
+                    False,
+                ),
+                "xlsx_written": review.get("xlsx_written", False),
+                "csvs_written": review.get("csvs_written", False),
+            }
+            print(f"review_workbook_export_written: {labels}")
         if not args.dry_run and args.write_stop_provenance_report:
             provenance_report = write_stop_group_provenance_report(
                 report["rows"],
