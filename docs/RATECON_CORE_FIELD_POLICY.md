@@ -1,83 +1,173 @@
 # RateCon Core Field Policy
 
-This policy aligns RateCon dry-run extraction with the user's working review table. It is local/dry-run intake policy only. It does not create or link DispatchCases, write events, call Google Maps, add Google Sheets, add OCR, or change Telegram behavior.
+This policy defines how RateCon fields participate in review readiness,
+intake-core readiness, and dispatch-decision readiness. It is local extraction
+and review policy only. It does not create DispatchCases, call DecisionEngine,
+call Telegram, write Event Timeline events, run Google sync, add OCR/Vision, or
+make production automation claims.
 
-## Required Core Fields
+## Readiness Levels
 
-RateCon review should treat these fields as the current core extraction target:
+### Extraction Review Ready
 
-- `customer_name`
-- `load_label`
-- `pickup_location`
-- `pickup_date`
-- `delivery_location`
-- `delivery_date`
-- `load_number`
-- `rate`
-- `commodity`
-- `weight`
+Purpose: enough extraction, candidate, or status data exists for a human to
+review. Values may still be wrong, incomplete, conflicting, or missing.
 
-Field aliases are allowed for compatibility:
+This level is not dispatch-ready and is not enough to create final intake data.
 
-- `customer_name` may be represented by existing `broker_name` until the parser emits the newer field directly.
-- `load_number` may be represented by existing `reference_id` until the parser emits the newer field directly.
-- `load_label` may later accept `load_type` or `load_title`.
+### Intake Core Ready
 
-## Optional Fields
+Purpose: enough core information exists to create a reviewed
+`RateConfirmationIntake` draft after human review. It is not necessarily ready
+for dispatch decisions or driver matching.
 
-These fields are useful but must not make current RateCon core extraction fail:
+For normal load movement documents, intake-core readiness requires resolved or
+reviewable evidence for:
 
-- `broker_mc`
-- `equipment`
+- broker/customer identity candidate;
+- load/order/pro/tender identifier or equivalent recognized load ID;
+- rate/payment candidate;
+- pickup location;
+- pickup date;
+- delivery location;
+- delivery date.
 
-Broker MC is often absent from RateCons. Equipment is useful when present, but missing equipment alone should not block core RateCon review.
+### Dispatch Decision Ready
 
-## Deferred Fields
+Purpose: enough reliable operational information exists for DecisionEngine,
+driver matching, or dispatch review after explicit review/approval.
 
-Loaded miles are usually not present in RateCons. The user normally gets miles from Google Maps, which is not part of this block.
+This level is stricter than intake-core readiness and includes equipment,
+weight, commodity, special requirements, appointment windows, broker
+identity/risk, and driver compatibility inputs.
 
-Until a later Google Maps/mileage block exists:
+## Field Matrix
 
-```text
-loaded_miles = ""
-miles_status = DEFERRED_GOOGLE_MAPS
-miles_source = NOT_FROM_RATECON
-```
+### Broker / Customer Identity
 
-Missing loaded miles must not make RateCon dry-run fail.
+`broker_name` or an equivalent broker/customer candidate:
 
-## Generic Intake Compatibility
+- extraction review: useful;
+- intake core: required as resolved or reviewable evidence;
+- dispatch decision: high confidence or broker-memory/risk-resolvable.
 
-Existing generic `IntakeRecord.missing_fields` may remain for older tests and report compatibility. User-facing RateCon dry-run result categories should use `missing_core_fields` from the RateCon core policy instead of generic mandatory fields.
+`broker_mc`:
 
-## Success Rule
+- extraction review: useful;
+- intake core: not a hard blocker by itself;
+- dispatch decision: review/risk blocker when broker identity is uncertain.
 
-RateCon dry-run is core-ready when all required core fields are present or safely mapped through aliases.
+### Load Identity
 
-RateCon dry-run should not be downgraded to field-fix status only because:
+`load_number`, `order_number`, `pro_number`, `tender_id`, or an equivalent typed
+load identifier:
 
-- `broker_mc` is absent;
-- `equipment` is absent;
-- `loaded_miles` is absent.
+- extraction review: useful;
+- intake core: required as resolved or reviewable evidence;
+- dispatch decision: required or manually confirmed.
+
+Generic `reference` values are useful review fields, but they are not enough by
+themselves unless typed or recognized as the load identifier.
+
+### Rate / Payment
+
+`rate`, total carrier pay, agreed amount, or equivalent payment candidate:
+
+- extraction review: useful;
+- intake core: required as resolved or reviewable evidence;
+- dispatch decision: required at high confidence or manually confirmed.
+
+Accessorials, quickpay discounts, deductions, penalties, and line items are
+review fields. They must not become the main rate unless the document labels
+them as total/main agreed pay.
+
+### Stops For Normal Load Movement
+
+For normal load movement documents:
+
+- `pickup_location`: intake-core required as resolved or reviewable evidence;
+- `pickup_date`: intake-core required as resolved or reviewable evidence;
+- `delivery_location`: intake-core required as resolved or reviewable evidence;
+- `delivery_date`: intake-core required as resolved or reviewable evidence.
+
+`pickup_time` and `delivery_time` are review/dispatch fields. They are not hard
+intake-core blockers by themselves, but missing or conflicting appointment
+windows should block dispatch-decision readiness or route to review.
+
+### Operational Details
+
+`equipment`:
+
+- extraction review: useful;
+- intake core: review field, not a hard blocker by itself;
+- dispatch decision: blocker for driver matching if missing or unresolved.
+
+`weight`:
+
+- extraction review: useful;
+- intake core: review field, not a hard blocker by itself;
+- dispatch decision: blocker for driver/load compatibility if missing.
+
+`commodity`:
+
+- extraction review: useful;
+- intake core: review field, not a hard blocker by itself;
+- dispatch decision: blocker when safety, compatibility, or special handling
+  could be impacted.
+
+`special_requirements`:
+
+- extraction review: useful;
+- intake core: review field;
+- dispatch decision: blocker if critical and unresolved.
+
+### Non-Normal Documents
+
+TONU/payment confirmations:
+
+- normal pickup/delivery movement fields may be non-applicable;
+- broker/load/rate/payment evidence can still be reviewable;
+- missing normal stop fields should not be counted as normal-load extraction
+  failures.
+
+OCR-needed documents:
+
+- do not count missing RateCon core fields as digital extraction failures;
+- route to OCR queue / not-ready status until local OCR design exists.
+
+Supplemental or non-RateCon documents:
+
+- RateCon core fields are non-applicable;
+- do not count missing RateCon fields as extraction blockers.
+
+## Blocker Taxonomy
+
+The same field can have different meaning at different levels:
+
+- extraction review blocker: there is not enough structure to review;
+- intake-core blocker: a required core intake group is not resolved or
+  reviewable;
+- dispatch-decision blocker: an operational or risk field is missing,
+  conflicting, or low confidence;
+- review-only field: useful for review but not hard intake-core gating;
+- non-applicable field: not expected for the document context.
+
+`optional_field_misclassified_as_core` should be near-zero after policy cleanup.
+If it appears frequently, that is a policy/reporting bug, not an extraction
+target.
+
+## Measurement Rule
+
+Readiness policy must be measured separately from extraction accuracy.
+
+A document can be extraction-review-ready while still wrong or incomplete. A
+document can be intake-core-ready while still missing dispatch-critical
+operational details. A document should not become dispatch-decision-ready until
+critical operational and risk fields are high-confidence or manually confirmed.
 
 ## Privacy Boundary
 
-Tracked tests and docs must use fake values only. Do not commit private PDFs, extracted text, real customer/broker/contact names, MCs, addresses, phone numbers, emails, reference numbers, appointment details, or document snippets.
-
-## Current Dry-run Closeout
-
-The local private batch rerun confirmed the policy behavior:
-
-- `loaded_miles` is reported as deferred, not missing;
-- missing `broker_mc` does not block current core extraction by itself;
-- missing `equipment` does not block current core extraction by itself;
-- value-review CSV output is local-only and ignored by Git;
-- private extracted values may be reviewed locally by the user but must not be committed or copied into tracked docs/tests.
-
-Recommended next action:
-
-```text
-User reviews the ignored local value-review CSV and shares only safe field-status feedback.
-```
-
-If core fields still miss repeatedly, parser improvements should come from new fake/anonymized table or layout scenarios, not private document text.
+Tracked tests and docs must use fake values only. Do not commit private PDFs,
+extracted text, real customer/broker/contact names, MCs, addresses, rates,
+phone numbers, emails, reference numbers, appointment details, screenshots, or
+document snippets.
