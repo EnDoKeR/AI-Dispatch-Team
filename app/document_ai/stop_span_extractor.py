@@ -140,6 +140,11 @@ LOCATION_RE = re.compile(
     re.IGNORECASE,
 )
 MONEY_RE = re.compile(r"(?:\$|usd|rate|pay|total|amount)", re.IGNORECASE)
+BOUNDARY_RE = re.compile(
+    r"\b(payment|rate|carrier freight pay|total carrier pay|instructions|remarks|"
+    r"comments|billing|signature|please sign|terms|agreement|carrier requirements)\b",
+    re.IGNORECASE,
+)
 
 PICKUP_LABEL_RE = re.compile(
     r"\b(?:pu(?:\s*#?\s*\d+)?|pickup|pick[- ]?up|load at|shipper|origin|"
@@ -152,6 +157,17 @@ DELIVERY_LABEL_RE = re.compile(
     re.IGNORECASE,
 )
 STOP_LABEL_RE = re.compile(r"\b(?:stop\s*#?\s*\d+|route details|shipment stop)\b", re.IGNORECASE)
+EXPLICIT_PICKUP_ANCHOR_RE = re.compile(
+    r"^\s*(?:pu(?:\s*#?\s*\d+)?|pickup\b|pick[- ]?up\s+location|"
+    r"load at\b|shipper\b|origin\b|shipper pickup\b|pick ups\b)",
+    re.IGNORECASE,
+)
+EXPLICIT_DELIVERY_ANCHOR_RE = re.compile(
+    r"^\s*(?:so(?:\s*#?\s*\d+)?|delivery\b(?!\s+(?:date|time))|"
+    r"deliver to\b|drop(?:\s*\d+)?\b|consignee\b|receiver\b|destination\b|"
+    r"consignee delivery\b|deliveries\b)",
+    re.IGNORECASE,
+)
 
 
 def _text(value):
@@ -209,6 +225,14 @@ def detect_line_is_noise(line):
     if any(token in section_role for token in NOISE_SECTION_ROLE_TOKENS):
         return True
     return bool(NOISE_TEXT_RE.search(text))
+
+
+def _line_is_boundary(line):
+    text = _line_text(line)
+    section_role = _line_section_role(line)
+    if any(token in section_role for token in NOISE_SECTION_ROLE_TOKENS):
+        return True
+    return bool(BOUNDARY_RE.search(text))
 
 
 def detect_line_has_date(line):
@@ -291,6 +315,7 @@ def build_layout_line_features(layout_artifact, classification_result=None, incl
                 "has_reference_like": LINE_LABEL_REFERENCE in label_categories,
                 "has_money": LINE_LABEL_RATE in label_categories,
                 "is_noise_candidate": LINE_LABEL_NOISE in label_categories,
+                "is_boundary_candidate": _line_is_boundary(line),
                 "warning_codes": normalize_list(line.get("warning_codes")),
             }
             if include_safe_text:
@@ -310,11 +335,13 @@ def classify_anchor_type(line_feature):
     categories = set(normalize_list((line_feature or {}).get("label_categories")))
     if LINE_LABEL_NOISE in categories:
         return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
-    section_role = _token((line_feature or {}).get("section_role", ""))
     text = _text((line_feature or {}).get("safe_text_redacted", ""))
     lower_text = text.lower()
 
-    if "pickup" in categories:
+    explicit_pickup = bool(EXPLICIT_PICKUP_ANCHOR_RE.search(text))
+    explicit_delivery = bool(EXPLICIT_DELIVERY_ANCHOR_RE.search(text))
+
+    if LINE_LABEL_PICKUP in categories and (explicit_pickup or not text):
         if re.search(r"\bpu\b", lower_text):
             return STOP_SPAN_ANCHOR_TYPE_PU
         if "load at" in lower_text:
@@ -324,7 +351,7 @@ def classify_anchor_type(line_feature):
         if "origin" in lower_text:
             return STOP_SPAN_ANCHOR_TYPE_ORIGIN
         return STOP_SPAN_ANCHOR_TYPE_PICKUP
-    if "delivery" in categories:
+    if LINE_LABEL_DELIVERY in categories and (explicit_delivery or not text):
         if re.search(r"\bso\b", lower_text):
             return STOP_SPAN_ANCHOR_TYPE_SO
         if "deliver to" in lower_text:
@@ -336,10 +363,6 @@ def classify_anchor_type(line_feature):
         return STOP_SPAN_ANCHOR_TYPE_DELIVERY
     if LINE_LABEL_STOP in categories:
         return STOP_SPAN_ANCHOR_TYPE_STOP
-    if "pickup" in section_role:
-        return STOP_SPAN_ANCHOR_TYPE_PICKUP
-    if "delivery" in section_role:
-        return STOP_SPAN_ANCHOR_TYPE_DELIVERY
     return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
 
 
@@ -404,6 +427,135 @@ def detect_stop_span_anchors(line_features, classification_result=None):
         anchor["stop_type"] = _anchor_stop_type(anchor_type)
         anchors.append(anchor)
     return anchors
+
+
+def detect_stop_span_boundaries(line_features):
+    return [
+        feature
+        for feature in line_features or []
+        if isinstance(feature, dict) and feature.get("is_boundary_candidate")
+    ]
+
+
+def _feature_sort_key(feature):
+    return (
+        int((feature or {}).get("page_number") or 0),
+        int((feature or {}).get("reading_order_index") or 0),
+        (feature or {}).get("line_id", ""),
+    )
+
+
+def _feature_by_line_id(line_features):
+    return {
+        feature.get("line_id", ""): feature
+        for feature in line_features or []
+        if isinstance(feature, dict) and feature.get("line_id")
+    }
+
+
+def _sequence_from_anchor_feature(feature):
+    text = _text((feature or {}).get("safe_text_redacted", ""))
+    match = re.search(r"\b(?:stop\s*#?|pu|so|drop)\s*(\d+)\b", text, re.IGNORECASE)
+    if match:
+        return int(match.group(1))
+    return ""
+
+
+def _span_id(anchor, index):
+    anchor_id = (anchor or {}).get("anchor_id", "")
+    return f"span_{anchor_id}" if anchor_id else f"span_{index:03d}"
+
+
+def find_span_end(anchor, next_anchor, boundaries, line_features):
+    features_by_id = _feature_by_line_id(line_features)
+    anchor_feature = features_by_id.get((anchor or {}).get("line_id", ""))
+    if not anchor_feature:
+        return None
+
+    anchor_key = _feature_sort_key(anchor_feature)
+    candidate_end_key = None
+    if next_anchor and next_anchor.get("page_number") == anchor.get("page_number"):
+        next_feature = features_by_id.get(next_anchor.get("line_id", ""))
+        if next_feature:
+            candidate_end_key = _feature_sort_key(next_feature)
+
+    for boundary in sorted(boundaries or [], key=_feature_sort_key):
+        if boundary.get("page_number") != anchor.get("page_number"):
+            continue
+        boundary_key = _feature_sort_key(boundary)
+        if boundary_key <= anchor_key:
+            continue
+        if candidate_end_key is None or boundary_key < candidate_end_key:
+            candidate_end_key = boundary_key
+
+    if candidate_end_key is None:
+        page_features = [
+            feature
+            for feature in line_features or []
+            if feature.get("page_number") == anchor.get("page_number")
+        ]
+        return max(page_features, key=_feature_sort_key, default=anchor_feature)
+
+    span_features = [
+        feature
+        for feature in line_features or []
+        if feature.get("page_number") == anchor.get("page_number")
+        and anchor_key <= _feature_sort_key(feature) < candidate_end_key
+    ]
+    return max(span_features, key=_feature_sort_key, default=anchor_feature)
+
+
+def build_stop_spans_from_anchors(line_features, anchors, classification_result=None):
+    del classification_result
+    ordered_features = sorted(line_features or [], key=_feature_sort_key)
+    features_by_id = _feature_by_line_id(ordered_features)
+    boundaries = detect_stop_span_boundaries(ordered_features)
+    spans = []
+
+    for index, anchor in enumerate(anchors or [], start=1):
+        if not isinstance(anchor, dict):
+            continue
+        anchor_feature = features_by_id.get(anchor.get("line_id", ""))
+        if not anchor_feature:
+            continue
+        next_anchor = None
+        for later_anchor in anchors[index:]:
+            if later_anchor.get("page_number") == anchor.get("page_number"):
+                next_anchor = later_anchor
+                break
+        end_feature = find_span_end(anchor, next_anchor, boundaries, ordered_features)
+        start_key = _feature_sort_key(anchor_feature)
+        end_key = _feature_sort_key(end_feature or anchor_feature)
+        included = [
+            feature
+            for feature in ordered_features
+            if feature.get("page_number") == anchor.get("page_number")
+            and start_key <= _feature_sort_key(feature) <= end_key
+            and not feature.get("is_noise_candidate")
+            and not (
+                feature.get("is_boundary_candidate")
+                and feature.get("line_id") != anchor.get("line_id")
+            )
+        ]
+        if not included:
+            continue
+        line_ids = [feature.get("line_id", "") for feature in included if feature.get("line_id")]
+        span = build_stop_span(
+            span_id=_span_id(anchor, index),
+            anchor=anchor,
+            page_number=anchor.get("page_number", 0),
+            start_line_id=line_ids[0] if line_ids else "",
+            end_line_id=line_ids[-1] if line_ids else "",
+            line_ids=line_ids,
+            section_role=anchor_feature.get("section_role", ""),
+            stop_type=anchor.get("stop_type", NORMALIZED_STOP_TYPE_UNKNOWN),
+            sequence=_sequence_from_anchor_feature(anchor_feature),
+            confidence=anchor.get("confidence", CANDIDATE_CONFIDENCE_UNKNOWN),
+            reasons=["bounded_by_next_anchor_or_section_boundary"],
+            warning_codes=anchor.get("warning_codes"),
+        )
+        spans.append(span)
+    return spans
 
 
 def build_stop_span_anchor(
