@@ -181,6 +181,10 @@ def _tab_title(sheet_name, worksheet_prefix=DEFAULT_WORKSHEET_PREFIX):
     return name if name.startswith(prefix) else f"{prefix}{name}"
 
 
+def google_review_tab_title(sheet_name, worksheet_prefix=DEFAULT_WORKSHEET_PREFIX):
+    return _tab_title(sheet_name, worksheet_prefix)
+
+
 def _sheet_values(columns, dict_rows, note=REVIEW_SYNC_WARNING):
     header = list(columns or [])
     note_row = [note] + [""] * max(len(header) - 1, 0)
