@@ -564,6 +564,9 @@ def analyze_candidate_coverage_from_rows(
 
 
 def analyze_candidate_coverage(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
+    artifact = _read_json(Path(input_dir) / CANDIDATE_COVERAGE_JSON, default=None)
+    if isinstance(artifact, dict) and "records" in artifact and "aggregate" in artifact:
+        return artifact
     inputs = load_candidate_coverage_inputs(input_dir)
     return analyze_candidate_coverage_from_rows(**inputs)
 

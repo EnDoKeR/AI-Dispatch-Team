@@ -7,6 +7,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 
 from app.document_ai.candidate_coverage_analysis import (
+    CANDIDATE_COVERAGE_JSON,
     CANDIDATE_COVERAGE_ANALYSIS_JSON,
     CANDIDATE_COVERAGE_ANALYSIS_MD,
 )
@@ -148,6 +149,58 @@ class AnalyzeCandidateCoverageCliTests(unittest.TestCase):
 
         self.assertEqual(result, 0)
         self.assertNotIn("aliases_for_", stdout.getvalue())
+
+    def test_cli_prefers_current_candidate_coverage_artifact(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            (root / CANDIDATE_COVERAGE_JSON).write_text(
+                json.dumps(
+                    {
+                        "records": [
+                            {
+                                "measurement_alias": "RATECON_001",
+                                "field_name": "load_number",
+                                "stage": "review_row",
+                                "status": "missing",
+                                "gap_reason": "candidate_not_generated",
+                                "candidate_count": 0,
+                                "normalized_field_count": 0,
+                                "review_row_count": 0,
+                                "evidence_type_counts": {},
+                                "warning_codes": [],
+                                "recommended_fix_bucket": (
+                                    "load_identifier_candidate_generation"
+                                ),
+                            }
+                        ],
+                        "aggregate": {
+                            "document_count": 1,
+                            "top_missing_candidate_fields": ["load_number"],
+                            "coverage_counts_by_stage": {"review_row": 1},
+                            "gap_reason_counts": {"candidate_not_generated": 1},
+                            "aliases_by_gap_reason": {
+                                "candidate_not_generated": ["RATECON_001"]
+                            },
+                            "top_gap_reasons": ["candidate_not_generated"],
+                            "recommended_next_fix": (
+                                "load_identifier_candidate_generation"
+                            ),
+                        },
+                        "analysis_version": "candidate_coverage_analysis_v1",
+                        "private_values_included": False,
+                        "raw_text_included": False,
+                    }
+                ),
+                encoding="utf-8",
+            )
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                result = cli.main(["--input-dir", str(root)])
+
+        self.assertEqual(result, 0)
+        output = stdout.getvalue()
+        self.assertIn("load_identifier_candidate_generation", output)
+        self.assertIn("load_number", output)
 
 
 if __name__ == "__main__":
