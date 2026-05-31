@@ -373,7 +373,7 @@ def _stop_field_to_core_field(stop_type, field_name):
             return CORE_FIELD_PICKUP_DATE
         if stop_type_token == "delivery":
             return CORE_FIELD_DELIVERY_DATE
-    if field_token == "time":
+    if field_token in {"time", "appointment_window"}:
         if stop_type_token == "pickup":
             return CORE_FIELD_PICKUP_TIME
         if stop_type_token == "delivery":

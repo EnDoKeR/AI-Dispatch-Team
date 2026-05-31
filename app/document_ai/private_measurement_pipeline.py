@@ -710,6 +710,82 @@ def _field_statuses(resolution_result, candidate_counts):
     return statuses
 
 
+_STOP_SPAN_FLAT_FIELD_FILLABLE_STATUSES = {
+    FIELD_STATUS_MISSING,
+    FIELD_STATUS_NOT_APPLICABLE,
+    "",
+}
+_STOP_SPAN_FLAT_FIELD_WARNING = "mapped_from_stop_span"
+
+
+def _field_status_by_name(field_statuses):
+    ordered = []
+    mapped = {}
+    for status in field_statuses or []:
+        if not isinstance(status, dict):
+            continue
+        field_name = str(status.get("field_name") or "").strip()
+        if not field_name:
+            continue
+        if field_name not in mapped:
+            ordered.append(field_name)
+        mapped[field_name] = status
+    return ordered, mapped
+
+
+def _merge_field_status_tokens(current, key, extra):
+    values = list((current or {}).get(key) or [])
+    for item in extra or []:
+        text = str(item or "").strip()
+        if text and text not in values:
+            values.append(text)
+    return values
+
+
+def _stop_span_mapped_status(current, field_name, status):
+    candidate_count = max(int((current or {}).get("candidate_count") or 0), 1)
+    return build_field_status_summary(
+        field_name=field_name,
+        status=status,
+        confidence_bucket=CONFIDENCE_BUCKET_MEDIUM,
+        candidate_count=candidate_count,
+        selected_candidate_present=status == FIELD_STATUS_RESOLVED,
+        warning_codes=_merge_field_status_tokens(
+            current,
+            "warning_codes",
+            [_STOP_SPAN_FLAT_FIELD_WARNING],
+        ),
+        safe_reasons=_merge_field_status_tokens(
+            current,
+            "safe_reasons",
+            [_STOP_SPAN_FLAT_FIELD_WARNING],
+        ),
+    )
+
+
+def _merge_stop_span_flat_fields_into_field_statuses(field_statuses, span_stop_set):
+    flat_updates = flat_field_updates_from_normalized_stop_set(span_stop_set)
+    ordered, mapped = _field_status_by_name(field_statuses)
+
+    def maybe_update(field_name, new_status):
+        current = mapped.get(field_name, {})
+        current_status = current.get("status", "") if isinstance(current, dict) else ""
+        if current_status not in _STOP_SPAN_FLAT_FIELD_FILLABLE_STATUSES:
+            return
+        if field_name not in mapped:
+            ordered.append(field_name)
+        mapped[field_name] = _stop_span_mapped_status(current, field_name, new_status)
+
+    for field_name in flat_updates.get("resolved_fields", []) or []:
+        maybe_update(field_name, FIELD_STATUS_RESOLVED)
+    for field_name in flat_updates.get("conflict_fields", []) or []:
+        maybe_update(field_name, FIELD_STATUS_CONFLICT)
+    for field_name in flat_updates.get("review_required_fields", []) or []:
+        maybe_update(field_name, FIELD_STATUS_NEEDS_REVIEW)
+
+    return [mapped[field_name] for field_name in ordered if field_name in mapped]
+
+
 def _fields_with_resolution_status(resolution_result, statuses):
     wanted = set(statuses)
     fields = []
@@ -1161,6 +1237,10 @@ def measure_private_ratecon_pdf(
     safe_template_summary = build_safe_template_selection_summary(template_selection)
     template_status = template_selection.get("status", "unknown")
     field_statuses = _field_statuses(resolution_result, candidate_counts)
+    field_statuses = _merge_stop_span_flat_fields_into_field_statuses(
+        field_statuses,
+        stop_span_fields.get("span_normalized_stop_set", {}),
+    )
     low_confidence_fields = _fields_with_resolution_status(
         resolution_result,
         [FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE],

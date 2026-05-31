@@ -12,6 +12,7 @@ from app.document_ai.core_field_gap_analysis import (
     CORE_FIELD_GAP_OCR_NEEDED,
     CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED,
     CORE_FIELD_PICKUP_DATE,
+    CORE_FIELD_PICKUP_TIME,
     CORE_FIELD_RATE,
     analyze_core_field_gaps_from_rows,
     build_core_field_gap_aggregate,
@@ -297,6 +298,23 @@ class CoreFieldGapAnalysisTests(unittest.TestCase):
         record = analysis["records"][0]
         self.assertEqual(record["field_name"], CORE_FIELD_DELIVERY_DATE)
         self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_NO_CANDIDATE)
+
+    def test_stop_review_appointment_window_maps_to_stop_time(self):
+        analysis = analyze_core_field_gaps_from_rows(
+            document_rows=[{"Measurement Alias": "RATECON_001"}],
+            stop_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Stop Type": "pickup",
+                    "Field Name": "appointment_window",
+                    "Status": "missing",
+                }
+            ],
+        )
+
+        record = analysis["records"][0]
+        self.assertEqual(record["field_name"], CORE_FIELD_PICKUP_TIME)
+        self.assertEqual(record["gap_reason"], CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED)
 
     def test_analyzer_omits_resolved_and_non_core_rows(self):
         analysis = analyze_core_field_gaps_from_rows(
