@@ -130,6 +130,8 @@ Do not do yet:
 * no low-confidence DispatchCase automation
 * no Google Sheets operational-tab writes from RateCon review sync; use the
   dedicated `RC_*` review tabs only
+* no committed Google service account JSON; import full local credentials only
+  under `.local_private/`
 
 ---
 

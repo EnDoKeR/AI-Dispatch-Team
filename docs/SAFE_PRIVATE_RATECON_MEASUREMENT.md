@@ -343,6 +343,16 @@ Share the spreadsheet with:
 ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com
 ```
 
+If the credential JSON is not already under `.local_private`, import a full
+service account JSON safely:
+
+```powershell
+python scripts/import_google_service_account_local.py --from-file "C:\path\to\service-account.json"
+```
+
+The service account email is not the credential. A short key ID, hash, API key,
+or private key fragment is not enough for Google Sheets writes.
+
 Run a safe local preflight first:
 
 ```powershell

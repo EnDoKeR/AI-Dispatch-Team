@@ -148,6 +148,15 @@ python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREAD
 The credential file must stay ignored and local. The service account email is
 safe to share for sheet access; the JSON key is not.
 
+If the credential is not already local, import it safely:
+
+```powershell
+python scripts/import_google_service_account_local.py --from-file "C:\path\to\service-account.json"
+```
+
+This requires the full Google service account JSON. Do not use or paste a
+one-line key ID, hash, API key, or private key fragment.
+
 Run preflight before sync:
 
 ```powershell

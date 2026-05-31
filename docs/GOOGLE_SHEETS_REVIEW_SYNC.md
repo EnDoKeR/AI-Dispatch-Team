@@ -90,6 +90,18 @@ Place the service account JSON in `.local_private\google-service-account.json`
 or pass another ignored local credential path. Do not commit the JSON key and do
 not paste it into chat.
 
+If the credential is not already local, import a full service account JSON with:
+
+```powershell
+python scripts/import_google_service_account_local.py --from-file "C:\path\to\service-account.json"
+```
+
+The helper also supports `AI_DISPATCH_GOOGLE_SERVICE_ACCOUNT_JSON`,
+`AI_DISPATCH_GOOGLE_SERVICE_ACCOUNT_JSON_B64`, and `--from-stdin`. The input
+must be the complete Google service account JSON with `private_key`,
+`client_email`, and `token_uri`; a one-line `private_key_id`, hash, or API key
+is not sufficient for Google Sheets writes.
+
 To permit the controlled private-values test sync, set the local-only config
 field `allow_private_review_value_sync` to `true` by passing:
 
