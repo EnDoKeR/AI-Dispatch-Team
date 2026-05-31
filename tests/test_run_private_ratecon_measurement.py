@@ -1016,6 +1016,65 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("FAKE_RATE", console_output + json_text + md_text)
         self.assertNotIn(output_dir, console_output)
 
+    def test_cli_writes_rate_conflict_audit_without_money_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "rate_conflict_audit_records": [
+                        {
+                            "measurement_alias": "RATECON_001",
+                            "rate_candidate_count": 2,
+                            "main_rate_candidate_count": 2,
+                            "different_strong_total_count": 2,
+                            "conflict_present": True,
+                            "conflict_reason": "multiple_different_strong_totals",
+                            "review_required": True,
+                            "private_values_included": False,
+                            "raw_text_included": False,
+                            "money_values_included": False,
+                        }
+                    ],
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-rate-conflict-audit",
+                        ]
+                    )
+            json_text = (Path(output_dir) / "rate_conflict_audit_raw.json").read_text(
+                encoding="utf-8"
+            )
+            md_text = (Path(output_dir) / "rate_conflict_audit_raw.md").read_text(
+                encoding="utf-8"
+            )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("rate_conflict_audit_written", console_output)
+        self.assertIn("rate_conflict_audit_raw.json", console_output)
+        self.assertIn("multiple_different_strong_totals", json_text)
+        self.assertIn("Rate Conflict Audit", md_text)
+        self.assertNotIn("$", console_output + json_text + md_text)
+        self.assertNotIn("FAKE_RATE", console_output + json_text + md_text)
+        self.assertNotIn(output_dir, console_output)
+
     def test_cli_writes_local_review_workbook_export_without_printing_values(self):
         fake_report = {
             "rows": [

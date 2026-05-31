@@ -47,6 +47,10 @@ from app.document_ai.rate_candidate_forensics import (
     analyze_rate_forensics_from_measurement_rows,
     write_rate_forensics_artifacts,
 )
+from app.document_ai.rate_conflict_audit import (
+    analyze_rate_conflict_audit_from_measurement_rows,
+    write_rate_conflict_audit_artifacts,
+)
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
@@ -563,6 +567,7 @@ def main(argv=None):
     parser.add_argument("--write-load-identifier-audit", action="store_true")
     parser.add_argument("--write-load-identifier-source-line-audit", action="store_true")
     parser.add_argument("--write-rate-forensics", action="store_true")
+    parser.add_argument("--write-rate-conflict-audit", action="store_true")
     parser.add_argument("--sync-review-google-sheet", action="store_true")
     parser.add_argument("--confirm-google-review-sync", action="store_true")
     parser.add_argument("--google-config", default="")
@@ -940,6 +945,47 @@ def main(argv=None):
                 ),
             }
             print(f"rate_forensics_written: {labels}")
+        if not args.dry_run and args.write_rate_conflict_audit:
+            rate_conflict_analysis = analyze_rate_conflict_audit_from_measurement_rows(
+                report["rows"],
+            )
+            rate_conflict_audit = write_rate_conflict_audit_artifacts(
+                rate_conflict_analysis,
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+                raw=True,
+            )
+            aggregate = rate_conflict_audit.get("aggregate", {})
+            labels = {
+                "files": rate_conflict_audit.get("files", {}),
+                "document_count": aggregate.get("document_count", 0),
+                "equivalent_group_count": aggregate.get(
+                    "equivalent_group_count",
+                    0,
+                ),
+                "different_strong_total_count": aggregate.get(
+                    "different_strong_total_count",
+                    0,
+                ),
+                "conflict_count": aggregate.get("conflict_count", 0),
+                "records_by_conflict_reason": aggregate.get(
+                    "records_by_conflict_reason",
+                    {},
+                ),
+                "private_values_printed": rate_conflict_audit.get(
+                    "private_values_printed",
+                    False,
+                ),
+                "raw_text_printed": rate_conflict_audit.get(
+                    "raw_text_printed",
+                    False,
+                ),
+                "money_values_printed": rate_conflict_audit.get(
+                    "money_values_printed",
+                    False,
+                ),
+            }
+            print(f"rate_conflict_audit_written: {labels}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {
