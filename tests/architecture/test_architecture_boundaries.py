@@ -874,6 +874,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "normalized_stops.py",
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_provenance.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
@@ -899,6 +901,8 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "normalized_stops.py",
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_provenance.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
@@ -918,6 +922,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "normalized_stops.py",
             DOCUMENT_AI_PACKAGE / "stop_normalization.py",
             DOCUMENT_AI_PACKAGE / "stop_group_diagnostics.py",
+            DOCUMENT_AI_PACKAGE / "stop_group_provenance.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
         ]
         forbidden_fragments = [
@@ -979,6 +984,22 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"raw_text_included": False', classifier_source)
         self.assertNotIn("print(", classifier_source)
 
+    def test_stop_group_provenance_reports_are_local_only_and_redacted(self):
+        contract_source = source_text(DOCUMENT_AI_PACKAGE / "stop_group_provenance.py")
+        report_source = source_text(DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py")
+
+        self.assertIn('"raw_text_included": False', contract_source)
+        self.assertIn('"private_values_redacted": True', contract_source)
+        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", report_source)
+        self.assertIn("stop_group_provenance.json", report_source)
+        self.assertIn("stop_group_provenance_report.md", report_source)
+        self.assertIn('"raw_text_saved": False', report_source)
+        self.assertIn('"private_values_redacted": True', report_source)
+        self.assertNotIn("print(", report_source)
+        for forbidden in ["DispatchCase", "DecisionEngine", "telegram", "openai", "pytesseract"]:
+            with self.subTest(forbidden=forbidden):
+                self.assertNotIn(forbidden, report_source)
+
     def test_layout_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "layout_artifacts"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
@@ -990,6 +1011,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_stop_normalization_fixture_directory_contains_no_pdf_or_screenshots(self):
         fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "stop_normalization"
+        banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
+
+        for path in fixture_dir.rglob("*"):
+            if path.is_file():
+                with self.subTest(path=str(path)):
+                    self.assertNotIn(path.suffix.lower(), banned_suffixes)
+
+    def test_stop_provenance_fixture_directory_contains_no_pdf_or_screenshots(self):
+        fixture_dir = ROOT / "tests" / "fixtures" / "document_ai" / "stop_provenance"
         banned_suffixes = {".pdf", ".png", ".jpg", ".jpeg", ".webp"}
 
         for path in fixture_dir.rglob("*"):
