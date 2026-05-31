@@ -87,6 +87,35 @@ local review CSVs
 Only one major extraction target should be changed in a block. This keeps the
 measurement interpretable.
 
+## Current Forensics Result
+
+The first core-field gap pass found that the broad blocker names were hiding
+several different causes:
+
+- optional/review-only fields were still visible as gaps, but should not drive
+  intake-core readiness by themselves;
+- stop-span fields had structured date/time/location evidence that was not
+  always surfaced in top-level field review statuses;
+- existing conflicts in pickup/delivery locations, dates, and rates remain the
+  dominant blockers for readiness;
+- broker identity and load identifiers remain separate measured targets.
+
+The selected target for this pass was `stop_span_field_mapping`, not another
+date/time regex expansion. The implemented hardening maps resolved provider-line
+span stop fields into top-level pickup/delivery review statuses when the
+top-level status is missing or not applicable. It also treats resolved
+appointment windows as pickup/delivery time review evidence. Existing conflicts
+are preserved and not overwritten.
+
+Missing appointment-window stop rows are not double-counted as core time gaps in
+the core-field gap analysis. Conflicting appointment-window rows remain mapped
+to pickup/delivery time because they are actionable review issues.
+
+Private rerun result: readiness and span counts did not materially improve.
+The mapped statuses make the local workbook more reviewable, but corpus-level
+blockers still come from unresolved stop-level gaps, broker identity gaps, load
+identifier gaps, and rate conflicts.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

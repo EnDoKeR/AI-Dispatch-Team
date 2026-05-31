@@ -92,6 +92,10 @@ The local-first hardening loop is covered by:
 
 - `tests/test_local_review_analysis.py`
 - `tests/test_analyze_local_ratecon_review_outputs.py`
+- `tests/test_core_field_gap_analysis.py`
+- `tests/test_analyze_core_field_gaps.py`
+- `tests/test_core_field_hardening_stop_span_field_mapping_fixtures.py`
+- `tests/test_stop_span_field_mapping.py`
 - `tests/test_local_review_hardening_stop_datetime_fixtures.py`
 - `tests/test_local_review_hardening_stop_datetime.py`
 
@@ -104,6 +108,12 @@ Required behavior:
 - selected hardening fixtures use fake values only;
 - stop span date/time hardening covers deterministic formats without attaching
   header, terms, billing, or footer dates to stops.
+- core-field gap analysis reports only aliases, counts, statuses, field names,
+  and root-cause buckets;
+- readiness calibration keeps optional/review-only fields visible without
+  making them automatic intake-core blockers;
+- stop-span field mapping may fill missing top-level review statuses but must
+  preserve existing conflicts.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than

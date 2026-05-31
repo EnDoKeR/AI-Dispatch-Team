@@ -224,6 +224,19 @@ The report is local-only and ignored. It summarizes readiness counts, OCR-needed
 counts, issue categories, top fields needing review, and recommended next fix
 buckets. It does not print private values or raw text.
 
+For core-field root-cause analysis, run:
+
+```powershell
+py scripts/analyze_core_field_gaps.py --write-md --write-json --include-local-document-names-local-only
+```
+
+The core-field report separates missing, conflict, low-confidence, optional,
+non-applicable, and OCR-needed causes by field. It is the source of truth for
+choosing the next deterministic hardening target. Optional fields such as
+broker MC, equipment, commodity, weight, references, and time windows should
+remain visible for review, but they should not be allowed to silently masquerade
+as required intake-core blockers.
+
 ## Feedback Import
 
 Completed review CSVs can be imported later through local-only feedback import

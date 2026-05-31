@@ -101,6 +101,39 @@ After the rerun, the top issue categories are:
 The next measured blocker should be chosen from those categories or by local
 human review of the workbook rows.
 
+## Core Field Gap Forensics
+
+The broader core-field analysis is run with:
+
+```powershell
+py scripts/analyze_core_field_gaps.py --write-md --write-json --include-local-document-names-local-only
+```
+
+It writes ignored local reports:
+
+- `core_field_gap_analysis.md`
+- `core_field_gap_analysis.json`
+
+This report breaks `missing_core_field` and `conflict_core_field` into field
+names and root-cause buckets such as `no_candidate`, `conflict`,
+`candidate_exists_but_unresolved`, and
+`optional_field_misclassified_as_core`.
+
+Latest safe result after readiness calibration and span-field mapping:
+
+- readiness remained `extraction_review_ready=14`, `not_ready=4`;
+- span-normalized stops remained 29;
+- top missing/gap fields remained stop dates/times, references, broker name,
+  pickup location, and commodity;
+- top conflict fields remained pickup location, rate, delivery location,
+  delivery date, equipment, pickup date, pickup time, and delivery time;
+- selected target was `stop_span_field_mapping`;
+- targeted mapping improved review status surfacing, but did not reduce the
+  remaining corpus blockers.
+
+The next target should be chosen from the remaining measured blockers, not by
+adding unrelated heuristics.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

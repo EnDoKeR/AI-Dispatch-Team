@@ -220,6 +220,8 @@ The local review analysis loop reads the ignored review CSVs and writes:
 
 - `local_review_analysis.md`
 - `local_review_analysis.json`
+- `core_field_gap_analysis.md`
+- `core_field_gap_analysis.json`
 
 Those reports contain aliases, counts, statuses, field names, and issue
 categories only. They are used to choose one targeted deterministic hardening
@@ -237,6 +239,13 @@ Current safe local review metrics after the stop datetime hardening pass:
 The private rerun did not change span date/time aggregate counts, so the next
 block should use the local review workbook or analysis report to select the
 next blocker instead of adding more date/time heuristics blindly.
+
+Core-field forensics now breaks broad `missing_core_field` and
+`conflict_core_field` blockers down by concrete fields and safe root-cause
+buckets. The latest targeted hardening maps resolved stop-span pickup/delivery
+fields into top-level review statuses when those statuses were missing or not
+applicable. It does not overwrite conflicts, and it does not make production
+readiness claims.
 
 ## Command
 

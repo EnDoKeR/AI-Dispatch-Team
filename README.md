@@ -96,6 +96,7 @@ Core architecture docs:
 * [Provider-Line Stop Span Extractor](docs/PROVIDER_LINE_STOP_SPAN_EXTRACTOR.md)
 * [RateCon Value Correctness Review Workflow](docs/RATECON_VALUE_CORRECTNESS_REVIEW_WORKFLOW.md)
 * [Local RateCon Review Analysis](docs/LOCAL_RATECON_REVIEW_ANALYSIS.md)
+* [Core Field Gap Forensics](docs/CORE_FIELD_GAP_FORENSICS.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
