@@ -490,6 +490,68 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("FAKE_PRIVATE_DATE_VALUE", md_text)
         self.assertNotIn("FAKE_PRIVATE_DATE_VALUE", console_output)
 
+    def test_cli_writes_safe_stop_provenance_report(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "normalized_stop_count": 2,
+                    "stop_duplicate_removed_count": 0,
+                    "stop_noise_removed_count": 0,
+                    "stop_group_provenance_summary": {
+                        "document_alias": "RATECON_001",
+                        "raw_group_count": 2,
+                        "groups_by_source_type": {"table_row": 2},
+                        "groups_by_page": {"1": 2},
+                        "groups_by_table": {"T1": 2},
+                        "groups_by_row_key": {"1|T1|1": 1, "1|T1|2": 1},
+                        "groups_by_section_role": {"STOP_TABLE": 2},
+                        "groups_by_trigger_label": {"pickup": 1, "delivery": 1},
+                        "table_row_merge_candidate_count": 0,
+                        "section_cluster_merge_candidate_count": 0,
+                        "duplicate_candidate_count": 0,
+                        "noise_candidate_count": 0,
+                        "warning_codes": [],
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-stop-provenance-report",
+                        ]
+                    )
+            md_text = (Path(output_dir) / "stop_group_provenance_report.md").read_text(
+                encoding="utf-8"
+            )
+            json_text = (Path(output_dir) / "stop_group_provenance.json").read_text(
+                encoding="utf-8"
+            )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("stop_provenance_report_written", console_output)
+        self.assertIn("stop_group_provenance_report.md", console_output)
+        self.assertNotIn(output_dir, console_output)
+        self.assertIn("RATECON_001", md_text)
+        self.assertIn("RATECON_001", json_text)
+        self.assertNotIn("FAKE_SECRET_STOP_VALUE", md_text + json_text + console_output)
+
     def test_report_shows_tonu_and_non_ratecon_without_core_failure_values(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

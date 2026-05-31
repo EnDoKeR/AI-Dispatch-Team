@@ -31,6 +31,9 @@ from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
 from app.document_ai.stop_review_packet import write_stop_review_packet
+from app.document_ai.stop_group_provenance_report import (
+    write_stop_group_provenance_report,
+)
 
 
 DEFAULT_TEMPLATE_DIR = REPO_ROOT / "tests" / "fixtures" / "document_ai" / "broker_templates"
@@ -429,6 +432,7 @@ def main(argv=None):
     parser.add_argument("--allow-layout-regression-for-debug", action="store_true")
     parser.add_argument("--compare-layout-to-text-baseline", action="store_true")
     parser.add_argument("--write-stop-review-packet", action="store_true")
+    parser.add_argument("--write-stop-provenance-report", action="store_true")
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
@@ -542,6 +546,18 @@ def main(argv=None):
                 f"'row_count': {packet['row_count']}, "
                 f"'include_private_values_local_only': "
                 f"{packet['include_private_values_local_only']}}}"
+            )
+        if not args.dry_run and args.write_stop_provenance_report:
+            provenance_report = write_stop_group_provenance_report(
+                report["rows"],
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            print(
+                "stop_provenance_report_written: "
+                f"{{'json': '{Path(provenance_report['json']).name}', "
+                f"'md': '{Path(provenance_report['md']).name}', "
+                f"'row_count': {provenance_report['row_count']}}}"
             )
         if not args.dry_run and args.layout_diagnostics:
             diagnostics_path = write_layout_provider_diagnostics_report(

@@ -97,6 +97,7 @@ from app.document_ai.stop_normalization import (
     build_normalized_stop_set,
     flat_field_updates_from_normalized_stop_set,
 )
+from app.document_ai.stop_group_provenance import build_stop_group_provenance_summary
 from app.document_ai.stop_review_packet import build_stop_review_packet_summary
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.market_intelligence.intake.rate_confirmation_validation import (
@@ -334,6 +335,7 @@ def _default_fusion_fields(enable_layout_fusion=False):
         "normalized_stop_flat_fields": {},
         "stop_field_status_counts": {},
         "stop_review_summary": {},
+        "stop_group_provenance_summary": {},
     }
 
 
@@ -393,6 +395,10 @@ def _layout_fusion_fields(
     table_stops = build_stop_groups_from_layout_tables(layout_artifact)
     section_stops = build_stop_groups_from_layout_sections(layout_artifact)
     stop_association = _combine_stop_association_results(table_stops, section_stops)
+    stop_group_provenance_summary = build_stop_group_provenance_summary(
+        stop_groups=stop_association.get("stop_groups", []),
+        warning_codes=stop_association.get("warning_codes", []),
+    )
     normalized_stop_set = build_normalized_stop_set(
         stop_association,
         classification_result=classification_result
@@ -507,6 +513,7 @@ def _layout_fusion_fields(
             "normalized_stop_flat_fields": normalized_flat_fields,
             "stop_field_status_counts": _stop_field_status_counts(normalized_stop_set),
             "stop_review_summary": stop_review_summary,
+            "stop_group_provenance_summary": stop_group_provenance_summary,
             "fused_candidate_result": _build_fused_candidate_result(
                 text_candidate_result,
                 layout_candidates,
@@ -1173,6 +1180,9 @@ def measure_private_ratecon_pdf(
             fusion_fields.get("normalized_stop_flat_fields", {}) or {}
         ).get("missing_fields", []),
         normalized_stop_set=fusion_fields.get("normalized_stop_set", {}),
+        stop_group_provenance_summary=fusion_fields.get(
+            "stop_group_provenance_summary", {}
+        ),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
