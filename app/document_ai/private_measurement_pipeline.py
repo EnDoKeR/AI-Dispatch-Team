@@ -470,7 +470,6 @@ def _load_identifier_audit_records(measurement_alias, candidates, resolution_res
                 status=LOAD_ID_AUDIT_STATUS_CONFLICT,
                 reason=LOAD_ID_AUDIT_REASON_MULTIPLE_PRIMARY_CONFLICT,
                 candidate_count=len(primary_identifier_candidates),
-                primary_candidate_count=len(primary_identifier_candidates),
             )
         )
     elif load_number_status and load_number_status != "missing":
@@ -481,7 +480,6 @@ def _load_identifier_audit_records(measurement_alias, candidates, resolution_res
                 status=LOAD_ID_AUDIT_STATUS_PRESENT,
                 reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
                 candidate_count=len(primary_identifier_candidates),
-                primary_candidate_count=len(primary_identifier_candidates),
                 core_mapping_count=1,
             )
         )
@@ -493,7 +491,6 @@ def _load_identifier_audit_records(measurement_alias, candidates, resolution_res
                 status=LOAD_ID_AUDIT_STATUS_MISSING,
                 reason=LOAD_ID_AUDIT_REASON_PRIMARY_NOT_CORE_MAPPED,
                 candidate_count=len(primary_identifier_candidates),
-                primary_candidate_count=len(primary_identifier_candidates),
             )
         )
     return records

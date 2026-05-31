@@ -58,7 +58,7 @@ def main(argv=None):
     print(f"top_reasons: {aggregate.get('records_by_reason', {})}")
     print(
         "rejected_non_primary_categories: "
-        f"{aggregate.get('records_by_label_category', {})}"
+        f"{aggregate.get('rejected_non_primary_counts_by_label_category', {})}"
     )
     print(f"recommended_next_fix: {aggregate.get('recommended_next_fix')}")
     print("private_values_printed: False")

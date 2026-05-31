@@ -310,6 +310,12 @@ def build_load_identifier_coverage_aggregate(records, document_count=0):
     label_counts = Counter(
         record["identifier_label_category"] for record in normalized_records
     )
+    rejected_label_counts = Counter(
+        record["identifier_label_category"]
+        for record in normalized_records
+        if record["stage"] == LOAD_ID_AUDIT_STAGE_NON_PRIMARY_REFERENCE_REJECTED
+        or record["rejected_non_primary_count"] > 0
+    )
     aliases_by_reason = defaultdict(list)
     aliases_by_label_category = defaultdict(list)
     fix_counts = Counter()
@@ -330,6 +336,9 @@ def build_load_identifier_coverage_aggregate(records, document_count=0):
         "records_by_reason": dict(sorted(reason_counts.items())),
         "records_by_stage": dict(sorted(stage_counts.items())),
         "records_by_label_category": dict(sorted(label_counts.items())),
+        "rejected_non_primary_counts_by_label_category": dict(
+            sorted(rejected_label_counts.items())
+        ),
         "primary_candidate_count": sum(
             record["primary_candidate_count"] for record in normalized_records
         ),
@@ -467,7 +476,6 @@ def _records_from_metrics(row):
                 stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
                 status=LOAD_ID_AUDIT_STATUS_CONFLICT,
                 reason=LOAD_ID_AUDIT_REASON_MULTIPLE_PRIMARY_CONFLICT,
-                primary_candidate_count=primary_count,
             )
         )
     elif core_mapping_count:
@@ -477,7 +485,6 @@ def _records_from_metrics(row):
                 stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
                 status=LOAD_ID_AUDIT_STATUS_PRESENT,
                 reason=LOAD_ID_AUDIT_REASON_UNKNOWN,
-                primary_candidate_count=primary_count,
                 core_mapping_count=core_mapping_count,
             )
         )
@@ -488,7 +495,6 @@ def _records_from_metrics(row):
                 stage=LOAD_ID_AUDIT_STAGE_CORE_LOAD_NUMBER_MAPPED,
                 status=LOAD_ID_AUDIT_STATUS_MISSING,
                 reason=LOAD_ID_AUDIT_REASON_PRIMARY_NOT_CORE_MAPPED,
-                primary_candidate_count=primary_count,
             )
         )
     elif label_count and rejected_count:
@@ -571,6 +577,11 @@ def load_identifier_coverage_markdown_lines(analysis):
     lines.extend(["", "## Label Categories"])
     for category, count in (
         aggregate.get("records_by_label_category", {}) or {}
+    ).items():
+        lines.append(f"- {category}: {count}")
+    lines.extend(["", "## Rejected Non-Primary Categories"])
+    for category, count in (
+        aggregate.get("rejected_non_primary_counts_by_label_category", {}) or {}
     ).items():
         lines.append(f"- {category}: {count}")
     return lines
