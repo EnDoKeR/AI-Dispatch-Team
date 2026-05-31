@@ -136,6 +136,10 @@ from app.document_ai.load_identifier_coverage_audit import (
     LOAD_ID_LABEL_CATEGORY_UNKNOWN,
     build_load_identifier_coverage_record,
 )
+from app.document_ai.load_identifier_source_line_audit import (
+    build_load_id_source_line_record_from_metrics,
+    build_load_identifier_source_line_metrics,
+)
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -1533,6 +1537,21 @@ def measure_private_ratecon_pdf(
         resolution_candidate_result.get("candidates", []),
         resolution_result,
     )
+    load_identifier_source_line_metrics = build_load_identifier_source_line_metrics(
+        full_artifact=artifact,
+        scoped_artifact=scoped_artifact,
+        candidates=resolution_candidate_result.get("candidates", []),
+        resolution_result=resolution_result,
+    )
+    load_identifier_source_line_records = [
+        build_load_id_source_line_record_from_metrics(
+            measurement_alias=document_alias,
+            metrics=load_identifier_source_line_metrics,
+            triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
+            extraction_status=extraction_status,
+            char_count=extraction.get("char_count", triage_result.get("char_count", 0)),
+        )
+    ]
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -1786,6 +1805,8 @@ def measure_private_ratecon_pdf(
         ),
         load_identifier_coverage_metrics=load_identifier_coverage_metrics,
         load_identifier_audit_records=load_identifier_audit_records,
+        load_identifier_source_line_metrics=load_identifier_source_line_metrics,
+        load_identifier_source_line_records=load_identifier_source_line_records,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

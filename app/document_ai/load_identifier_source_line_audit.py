@@ -6,6 +6,30 @@ or local paths.
 """
 
 from collections import Counter, defaultdict
+import re
+
+from app.document_ai.load_identifier_candidates import (
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER,
+    LOAD_IDENTIFIER_TYPES,
+    NON_PRIMARY_REFERENCE_TYPES,
+)
+from app.document_ai.ratecon_candidates import FIELD_LOAD_NUMBER, FIELD_REFERENCE
 
 
 LOAD_ID_SOURCE_STAGE_SOURCE_LINE = "source_line"
@@ -130,6 +154,70 @@ CODE_FIXABLE_REASONS = {
     LOAD_ID_SOURCE_REASON_PRIMARY_CANDIDATE_NOT_GENERATED,
     LOAD_ID_SOURCE_REASON_PRIMARY_CANDIDATE_NOT_CORE_MAPPED,
 }
+
+PRIMARY_LABEL_CATEGORIES = {
+    LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_TENDER_ID,
+    LOAD_ID_LABEL_CATEGORY_PRO_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER,
+    LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE,
+}
+
+NON_PRIMARY_LABEL_CATEGORIES = LOAD_ID_LABEL_CATEGORIES - PRIMARY_LABEL_CATEGORIES - {
+    LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+}
+
+IDENTIFIER_TYPE_TO_LABEL_CATEGORY = {
+    LOAD_IDENTIFIER_TYPE_BROKER_LOAD_NUMBER: LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER,
+    LOAD_IDENTIFIER_TYPE_ORDER_NUMBER: LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER,
+    LOAD_IDENTIFIER_TYPE_TENDER_ID: LOAD_ID_LABEL_CATEGORY_TENDER_ID,
+    LOAD_IDENTIFIER_TYPE_PRO_NUMBER: LOAD_ID_LABEL_CATEGORY_PRO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_SHIPMENT_NUMBER: LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER,
+    LOAD_IDENTIFIER_TYPE_FREIGHT_BILL_NUMBER: (
+        LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER
+    ),
+    LOAD_IDENTIFIER_TYPE_TRIP_NUMBER: LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DISPATCH_NUMBER: LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE: LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_PO_NUMBER: LOAD_ID_LABEL_CATEGORY_PO_NUMBER,
+    LOAD_IDENTIFIER_TYPE_BOL_NUMBER: LOAD_ID_LABEL_CATEGORY_BOL_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_NUMBER: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_PICKUP_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_NUMBER: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_DELIVERY_CONFIRMATION: LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER,
+    LOAD_IDENTIFIER_TYPE_CUSTOMER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CUSTOMER_REFERENCE,
+    LOAD_IDENTIFIER_TYPE_CARRIER_REFERENCE: LOAD_ID_LABEL_CATEGORY_CARRIER_REFERENCE,
+}
+
+LABEL_CATEGORY_PATTERNS = (
+    (LOAD_ID_LABEL_CATEGORY_LOAD_NUMBER, re.compile(r"\bload\s*(?:#|no\.?|number|id)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_ORDER_NUMBER, re.compile(r"\border\s*(?:#|no\.?|number|id)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_TENDER_ID, re.compile(r"\btender\s*(?:#|no\.?|number|id|ref|reference)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_PRO_NUMBER, re.compile(r"\bpro\s*(?:#|no\.?|number)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_FREIGHT_BILL_NUMBER, re.compile(r"\bfreight\s+bill\s*(?:#|no\.?|number)?\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_SHIPMENT_NUMBER, re.compile(r"\bshipment\s*(?:#|no\.?|number|id)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_TRIP_NUMBER, re.compile(r"\btrip\s*(?:#|no\.?|number|id)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_DISPATCH_NUMBER, re.compile(r"\bdispatch\s*(?:#|no\.?|number|id)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_PO_NUMBER, re.compile(r"\bpo\s*(?:#|no\.?|number)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_BOL_NUMBER, re.compile(r"\bbol\s*(?:#|no\.?|number)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_PICKUP_NUMBER, re.compile(r"\bpick\s*up\s*(?:#|no\.?|number)|\bpickup\s*(?:#|no\.?|number|confirmation)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_DELIVERY_NUMBER, re.compile(r"\bdelivery\s*(?:#|no\.?|number|confirmation)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_APPOINTMENT_NUMBER, re.compile(r"\bappointment\s*(?:#|no\.?|number)\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_CUSTOMER_REFERENCE, re.compile(r"\bcustomer\s*(?:ref|reference)\s*(?:#|no\.?|number)?\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_CARRIER_REFERENCE, re.compile(r"\bcarrier\s*(?:ref|reference)\s*(?:#|no\.?|number)?\b", re.I)),
+    (LOAD_ID_LABEL_CATEGORY_GENERIC_REFERENCE, re.compile(r"\b(?:ref|reference|confirmation|booking)\s*(?:#|no\.?\b|number\b|id\b)", re.I)),
+)
+
+BROAD_IDENTIFIER_LIKE_PATTERN = re.compile(
+    r"\b(?:load|order|tender|shipment|freight\s+bill|pro|trip|dispatch|"
+    r"reference|ref|confirmation|booking|po|bol|pickup|delivery|appointment|"
+    r"customer|carrier)\b.{0,30}(?:#|no\.?|number|id|ref|reference)",
+    re.I,
+)
 
 FIX_BLOCKED_REASONS = {
     LOAD_ID_SOURCE_REASON_SOURCE_LINE_ABSENT,
@@ -337,3 +425,330 @@ def build_load_id_source_line_result(records, document_count=0):
             document_count=document_count,
         ),
     }
+
+
+def _artifact_pages(artifact):
+    if isinstance(artifact, dict):
+        return artifact.get("pages", []) or []
+    return getattr(artifact, "pages", []) or []
+
+
+def _line_categories(line):
+    text = str(line or "")
+    categories = [
+        category
+        for category, pattern in LABEL_CATEGORY_PATTERNS
+        if pattern.search(text)
+    ]
+    if categories:
+        return categories
+    if BROAD_IDENTIFIER_LIKE_PATTERN.search(text):
+        return [LOAD_ID_LABEL_CATEGORY_UNKNOWN]
+    return []
+
+
+def _section_for_line(lines, index):
+    window = " ".join(
+        str(lines[position] or "").strip().lower()
+        for position in range(max(0, index - 3), min(len(lines), index + 4))
+        if str(lines[position] or "").strip()
+    )
+    if any(marker in window for marker in ["signature", "authorized", "sign here"]):
+        return LOAD_ID_SOURCE_SECTION_SIGNATURE
+    if any(marker in window for marker in ["terms", "conditions", "agreement"]):
+        return LOAD_ID_SOURCE_SECTION_TERMS
+    if any(marker in window for marker in ["billing", "remit", "payment terms"]):
+        return LOAD_ID_SOURCE_SECTION_BILLING
+    if any(
+        marker in window
+        for marker in [
+            "pickup",
+            "pick up",
+            "delivery",
+            "shipper",
+            "consignee",
+            "receiver",
+            "stop",
+        ]
+    ):
+        return LOAD_ID_SOURCE_SECTION_STOP_SECTION
+    if any(
+        marker in window
+        for marker in [
+            "load confirmation",
+            "rate confirmation",
+            "carrier load tender",
+            "load tender",
+            "order confirmation",
+            "route details",
+            "load details",
+        ]
+    ):
+        return LOAD_ID_SOURCE_SECTION_LOAD_IDENTITY
+    if index <= 8:
+        return LOAD_ID_SOURCE_SECTION_HEADER
+    return LOAD_ID_SOURCE_SECTION_UNKNOWN
+
+
+def scan_load_identifier_source_lines(artifact):
+    """Return safe source-line counts for one text/layout artifact."""
+    section_counts = Counter()
+    label_counts = Counter()
+    identifier_like_count = 0
+    detected_label_count = 0
+    classified_label_count = 0
+    primary_label_count = 0
+    non_primary_label_count = 0
+
+    for page in _artifact_pages(artifact):
+        lines = str((page or {}).get("text", "") or "").splitlines()
+        for index, line in enumerate(lines):
+            categories = _line_categories(line)
+            if not categories:
+                continue
+            identifier_like_count += 1
+            section = _section_for_line(lines, index)
+            section_counts[section] += 1
+            detected_label_count += 1
+            for category in categories:
+                normalized_category = normalize_load_id_label_category(category)
+                label_counts[normalized_category] += 1
+                if normalized_category != LOAD_ID_LABEL_CATEGORY_UNKNOWN:
+                    classified_label_count += 1
+                if normalized_category in PRIMARY_LABEL_CATEGORIES:
+                    primary_label_count += 1
+                elif normalized_category in NON_PRIMARY_LABEL_CATEGORIES:
+                    non_primary_label_count += 1
+
+    return {
+        "identifier_like_line_count": identifier_like_count,
+        "section_counts": dict(sorted(section_counts.items())),
+        "label_category_counts": dict(sorted(label_counts.items())),
+        "detected_label_count": detected_label_count,
+        "classified_label_count": classified_label_count,
+        "primary_label_count": primary_label_count,
+        "non_primary_label_count": non_primary_label_count,
+        "private_values_included": False,
+        "raw_text_included": False,
+        "line_text_included": False,
+    }
+
+
+def _identifier_type(candidate):
+    return _token(
+        (candidate or {}).get("identifier_type")
+        or (candidate or {}).get("value_type")
+    )
+
+
+def _identifier_candidates(candidates):
+    return [
+        candidate
+        for candidate in candidates or []
+        if isinstance(candidate, dict) and _identifier_type(candidate) in LOAD_IDENTIFIER_TYPES
+    ]
+
+
+def _type_counts(candidates):
+    counts = Counter()
+    for candidate in candidates or []:
+        category = IDENTIFIER_TYPE_TO_LABEL_CATEGORY.get(
+            _identifier_type(candidate),
+            LOAD_ID_LABEL_CATEGORY_UNKNOWN,
+        )
+        counts[category] += 1
+    return dict(sorted(counts.items()))
+
+
+def _resolution_core_mapping_count(resolution_result):
+    for resolution in (resolution_result or {}).get("resolutions", []) or []:
+        if not isinstance(resolution, dict):
+            continue
+        if str(resolution.get("field_name") or "").strip() != FIELD_LOAD_NUMBER:
+            continue
+        status = str(resolution.get("status") or "").strip()
+        return 1 if status and status != "missing" else 0
+    return 0
+
+
+def build_load_identifier_source_line_metrics(
+    full_artifact=None,
+    scoped_artifact=None,
+    candidates=None,
+    resolution_result=None,
+):
+    full_scan = scan_load_identifier_source_lines(full_artifact or {})
+    scoped_scan = scan_load_identifier_source_lines(scoped_artifact or full_artifact or {})
+    identifier_candidates = _identifier_candidates(candidates)
+    primary_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if candidate.get("primary_load_identifier_candidate")
+        and str(candidate.get("field_name") or "").strip() == FIELD_LOAD_NUMBER
+    ]
+    typed_reference_candidates = [
+        candidate
+        for candidate in identifier_candidates
+        if str(candidate.get("field_name") or "").strip() == FIELD_REFERENCE
+    ]
+    rejected_non_primary_candidates = [
+        candidate
+        for candidate in typed_reference_candidates
+        if _identifier_type(candidate) in NON_PRIMARY_REFERENCE_TYPES
+    ]
+    scope_filtered_count = max(
+        0,
+        full_scan["identifier_like_line_count"]
+        - scoped_scan["identifier_like_line_count"],
+    )
+    return {
+        "identifier_like_source_line_count": full_scan["identifier_like_line_count"],
+        "scoped_identifier_like_source_line_count": scoped_scan[
+            "identifier_like_line_count"
+        ],
+        "source_line_scope_filtered_count": scope_filtered_count,
+        "header_identifier_like_line_count": full_scan["section_counts"].get(
+            LOAD_ID_SOURCE_SECTION_HEADER,
+            0,
+        ),
+        "load_identity_identifier_like_line_count": full_scan["section_counts"].get(
+            LOAD_ID_SOURCE_SECTION_LOAD_IDENTITY,
+            0,
+        ),
+        "stop_section_identifier_like_line_count": full_scan["section_counts"].get(
+            LOAD_ID_SOURCE_SECTION_STOP_SECTION,
+            0,
+        ),
+        "billing_terms_identifier_like_line_count": (
+            full_scan["section_counts"].get(LOAD_ID_SOURCE_SECTION_BILLING, 0)
+            + full_scan["section_counts"].get(LOAD_ID_SOURCE_SECTION_TERMS, 0)
+        ),
+        "source_section_counts": full_scan["section_counts"],
+        "label_category_counts": full_scan["label_category_counts"],
+        "label_detected_count": scoped_scan["detected_label_count"],
+        "label_classified_count": scoped_scan["classified_label_count"],
+        "primary_label_count": scoped_scan["primary_label_count"],
+        "non_primary_label_count": scoped_scan["non_primary_label_count"],
+        "typed_candidate_count": len(identifier_candidates),
+        "primary_candidate_count": len(primary_candidates),
+        "typed_reference_count": len(typed_reference_candidates),
+        "rejected_non_primary_count": len(rejected_non_primary_candidates),
+        "core_mapping_count": _resolution_core_mapping_count(resolution_result),
+        "candidate_label_category_counts": _type_counts(identifier_candidates),
+        "private_values_included": False,
+        "raw_text_included": False,
+        "line_text_included": False,
+    }
+
+
+def build_load_id_source_line_record_from_metrics(
+    measurement_alias="",
+    metrics=None,
+    triage_route="",
+    extraction_status="",
+    char_count=0,
+):
+    metrics = metrics if isinstance(metrics, dict) else {}
+    identifier_lines = _int(metrics.get("identifier_like_source_line_count"))
+    scoped_identifier_lines = _int(
+        metrics.get("scoped_identifier_like_source_line_count")
+    )
+    label_detected = _int(metrics.get("label_detected_count"))
+    label_classified = _int(metrics.get("label_classified_count"))
+    typed_candidates = _int(metrics.get("typed_candidate_count"))
+    primary_candidates = _int(metrics.get("primary_candidate_count"))
+    core_mappings = _int(metrics.get("core_mapping_count"))
+    rejected_non_primary = _int(metrics.get("rejected_non_primary_count"))
+    category_counts = metrics.get("label_category_counts", {}) or {}
+    section_counts = metrics.get("source_section_counts", {}) or {}
+    top_category = (
+        max(sorted(category_counts.items()), key=lambda item: item[1])[0]
+        if category_counts
+        else LOAD_ID_LABEL_CATEGORY_UNKNOWN
+    )
+    top_section = (
+        max(sorted(section_counts.items()), key=lambda item: item[1])[0]
+        if section_counts
+        else LOAD_ID_SOURCE_SECTION_UNKNOWN
+    )
+
+    if _token(triage_route) == "ocr_needed" or _token(extraction_status) in {
+        "empty_text",
+        "broken_or_unsupported",
+        "extraction_failed",
+    }:
+        reason = LOAD_ID_SOURCE_REASON_OCR_NEEDED_OR_WEAK_TEXT
+        stage = LOAD_ID_SOURCE_STAGE_SOURCE_LINE
+    elif not _int(char_count) and not identifier_lines:
+        reason = LOAD_ID_SOURCE_REASON_OCR_NEEDED_OR_WEAK_TEXT
+        stage = LOAD_ID_SOURCE_STAGE_SOURCE_LINE
+    elif identifier_lines == 0:
+        reason = LOAD_ID_SOURCE_REASON_SOURCE_LINE_ABSENT
+        stage = LOAD_ID_SOURCE_STAGE_SOURCE_LINE
+    elif scoped_identifier_lines == 0 and identifier_lines:
+        reason = LOAD_ID_SOURCE_REASON_SOURCE_LINE_SCOPE_FILTERED
+        stage = LOAD_ID_SOURCE_STAGE_LINE_FEATURE
+    elif label_detected == 0:
+        reason = LOAD_ID_SOURCE_REASON_SOURCE_LINE_PRESENT_LABEL_MISSING
+        stage = LOAD_ID_SOURCE_STAGE_LABEL_DETECTED
+    elif label_classified == 0:
+        reason = LOAD_ID_SOURCE_REASON_LABEL_DETECTED_UNCLASSIFIED
+        stage = LOAD_ID_SOURCE_STAGE_LABEL_CLASSIFIED
+    elif typed_candidates and primary_candidates == 0 and rejected_non_primary:
+        reason = LOAD_ID_SOURCE_REASON_ONLY_NON_PRIMARY_REFS_VISIBLE
+        stage = LOAD_ID_SOURCE_STAGE_PRIMARY_CLASSIFIED
+    elif typed_candidates and primary_candidates == 0:
+        reason = LOAD_ID_SOURCE_REASON_PRIMARY_CANDIDATE_NOT_GENERATED
+        stage = LOAD_ID_SOURCE_STAGE_CANDIDATE_GENERATED
+    elif primary_candidates and core_mappings == 0:
+        reason = LOAD_ID_SOURCE_REASON_PRIMARY_CANDIDATE_NOT_CORE_MAPPED
+        stage = LOAD_ID_SOURCE_STAGE_CORE_MAPPED
+    elif rejected_non_primary:
+        reason = LOAD_ID_SOURCE_REASON_LABEL_CLASSIFIED_NON_PRIMARY
+        stage = LOAD_ID_SOURCE_STAGE_LABEL_CLASSIFIED
+    else:
+        reason = LOAD_ID_SOURCE_REASON_UNKNOWN
+        stage = LOAD_ID_SOURCE_STAGE_REVIEW_ROW
+
+    return build_load_id_source_line_record(
+        measurement_alias=measurement_alias,
+        stage=stage,
+        reason=reason,
+        label_category=top_category,
+        source_section_category=top_section,
+        identifier_like_line_count=identifier_lines,
+        detected_label_count=label_detected,
+        classified_label_count=label_classified,
+        typed_candidate_count=typed_candidates,
+        primary_candidate_count=primary_candidates,
+        core_mapping_count=core_mappings,
+        rejected_non_primary_count=rejected_non_primary,
+    )
+
+
+def analyze_load_id_source_lines_from_rows(measurement_rows):
+    records = []
+    for row in measurement_rows or []:
+        if not isinstance(row, dict):
+            continue
+        explicit_records = row.get("load_identifier_source_line_records", []) or []
+        if explicit_records:
+            records.extend(
+                build_load_id_source_line_record(**record)
+                for record in explicit_records
+                if isinstance(record, dict)
+            )
+            continue
+        records.append(
+            build_load_id_source_line_record_from_metrics(
+                measurement_alias=row.get("document_alias", ""),
+                metrics=row.get("load_identifier_source_line_metrics", {}),
+                triage_route=row.get("triage_route", ""),
+                extraction_status=row.get("extraction_status", ""),
+                char_count=row.get("char_count", 0),
+            )
+        )
+    return build_load_id_source_line_result(
+        records,
+        document_count=len(measurement_rows or []),
+    )

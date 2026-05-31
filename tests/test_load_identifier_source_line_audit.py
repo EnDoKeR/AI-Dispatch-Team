@@ -15,9 +15,12 @@ from app.document_ai.load_identifier_source_line_audit import (
     LOAD_ID_SOURCE_STAGE_CORE_MAPPED,
     LOAD_ID_SOURCE_STAGE_LABEL_CLASSIFIED,
     LOAD_ID_SOURCE_STAGE_SOURCE_LINE,
+    analyze_load_id_source_lines_from_rows,
+    build_load_identifier_source_line_metrics,
     build_load_id_source_line_aggregate,
     build_load_id_source_line_record,
     build_load_id_source_line_result,
+    scan_load_identifier_source_lines,
 )
 
 
@@ -123,6 +126,83 @@ class LoadIdentifierSourceLineAuditTests(unittest.TestCase):
         self.assertFalse(payload["raw_text_included"])
         self.assertFalse(payload["line_text_included"])
         self.assertNotIn("FAKE-LOAD", json.dumps(payload))
+
+    def test_fake_header_identifier_line_counts_as_header_source(self):
+        artifact = {
+            "pages": [
+                {
+                    "text": "Rate Confirmation\nLoad Number: FAKE-LOAD-001\nCarrier Name: FAKE CARRIER"
+                }
+            ]
+        }
+
+        scan = scan_load_identifier_source_lines(artifact)
+
+        self.assertEqual(scan["identifier_like_line_count"], 1)
+        self.assertEqual(scan["section_counts"]["load_identity"], 1)
+        self.assertEqual(scan["label_category_counts"]["load_number"], 1)
+        self.assertFalse(scan["line_text_included"])
+        self.assertNotIn("FAKE-LOAD-001", json.dumps(scan))
+
+    def test_stop_reference_counts_as_non_primary_stop_section(self):
+        artifact = {
+            "pages": [
+                {
+                    "text": "Pickup Stop\nReference #: FAKE-REF-001\nDelivery Stop"
+                }
+            ]
+        }
+
+        scan = scan_load_identifier_source_lines(artifact)
+
+        self.assertEqual(scan["identifier_like_line_count"], 1)
+        self.assertEqual(scan["section_counts"]["stop_section"], 1)
+        self.assertEqual(scan["label_category_counts"]["generic_reference"], 1)
+
+    def test_metrics_track_primary_and_core_mapping_counts(self):
+        artifact = {"pages": [{"text": "Load Number: FAKE-LOAD-001"}]}
+        candidate = {
+            "field_name": "load_number",
+            "identifier_type": "broker_load_number",
+            "value_type": "broker_load_number",
+            "primary_load_identifier_candidate": True,
+        }
+        resolution = {
+            "resolutions": [
+                {"field_name": "load_number", "status": "resolved"},
+            ]
+        }
+
+        metrics = build_load_identifier_source_line_metrics(
+            full_artifact=artifact,
+            scoped_artifact=artifact,
+            candidates=[candidate],
+            resolution_result=resolution,
+        )
+
+        self.assertEqual(metrics["identifier_like_source_line_count"], 1)
+        self.assertEqual(metrics["primary_candidate_count"], 1)
+        self.assertEqual(metrics["core_mapping_count"], 1)
+        self.assertFalse(metrics["line_text_included"])
+
+    def test_analyzer_marks_ocr_rows_as_not_code_fixable(self):
+        result = analyze_load_id_source_lines_from_rows(
+            [
+                {
+                    "document_alias": "RATECON_001",
+                    "triage_route": "OCR_NEEDED",
+                    "extraction_status": "EMPTY_TEXT",
+                    "char_count": 0,
+                }
+            ]
+        )
+
+        aggregate = result["aggregate"]
+        self.assertFalse(aggregate["fix_allowed"])
+        self.assertEqual(
+            aggregate["records_by_reason"]["ocr_needed_or_weak_text"],
+            1,
+        )
 
 
 if __name__ == "__main__":
