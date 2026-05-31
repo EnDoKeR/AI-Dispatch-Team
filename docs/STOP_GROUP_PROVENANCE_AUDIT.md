@@ -138,6 +138,54 @@ include:
 - references;
 - local paths.
 
+## Safe Provenance Audit Result
+
+The local-only provenance audit reported:
+
+- raw stop groups: 112;
+- normalized stops: 112;
+- source types: `single_line=70`, `table_row=42`;
+- trigger labels: pickup 45, delivery 37, stop 30;
+- suspected root causes:
+  - `NORMALIZER_PASSTHROUGH`: 6 aliases;
+  - `ONE_GROUP_PER_LINE`: 6 aliases;
+  - `DATE_TIME_SPLIT_FROM_LOCATION`: 6 aliases;
+- table row merge candidates: 0;
+- section cluster merge candidates: 0;
+- duplicate candidates: 0;
+- noise candidates: 0.
+
+The audit did not confirm one-group-per-cell on the private run. It showed that
+four attempted aliases were entirely `single_line` groups, while two attempted
+aliases were mostly `table_row` groups from one provider table each. The table
+issue is therefore not cell splitting; it is likely overclassification of
+provider table rows as stop rows.
+
+## Provenance-Based Refactor Result
+
+The first provenance-based refactor added explicit provenance metadata,
+local-only provenance reports, synthetic provenance fixtures, section line
+cluster scaffolding, structural dedupe hardening, date/time candidate retargeting
+after merge, and normalized stop stage counts.
+
+The safe rerun after this refactor reported:
+
+- raw stop signals/groups: 112 / 112;
+- premerge groups: 112;
+- post row merge groups: 112;
+- post section merge groups: 112;
+- post noise filter groups: 112;
+- post dedupe groups: 112;
+- normalized stops: 112;
+- duplicate / noise removed: 0 / 0;
+- date generated / attached: 10 / 10;
+- time generated / attached: 9 / 9.
+
+This means the current grouping changes did not reduce private stop
+fragmentation. The next block should be a deeper provider-line clustering and
+stop-line classification rewrite. The stage counts are still valuable because
+they prove where the current algorithm is a passthrough.
+
 ## Process Gate
 
 Implementation fixes must wait until a safe provenance audit has been run and a

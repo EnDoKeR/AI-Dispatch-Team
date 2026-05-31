@@ -120,11 +120,26 @@ local value correctness corpus is useful.
 
 ## Current Decision Gate
 
-The next block is deeper stop grouping and merge hardening:
+The provenance audit and first grouping-stage refactor confirmed the next block
+is still deeper stop grouping and merge hardening. The latest safe rerun showed
+no reduction across stage counts:
+
+- raw stop signals/groups: 112 / 112;
+- premerge groups: 112;
+- post row merge groups: 112;
+- post section merge groups: 112;
+- post noise filter groups: 112;
+- post dedupe groups: 112;
+- normalized stops: 112.
+
+The current grouping logic is still effectively passthrough on private
+provider artifacts. The next block should:
 
 - merge provider-created section/line/table fragments into one logical stop
   when evidence points to the same row or stop context;
-- reduce one-stop-per-cell and split location/date/time patterns;
+- reduce one-stop-per-line and split location/date/time patterns;
+- tighten provider table-row stop classification so non-stop rows do not become
+  stops;
 - make duplicate/noise counters nonzero when repeated headers, terms, or
   footer-like groups are safely identified;
 - keep no-regression fusion active;

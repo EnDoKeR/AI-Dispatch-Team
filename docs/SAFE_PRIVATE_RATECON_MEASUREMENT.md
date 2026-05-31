@@ -284,6 +284,17 @@ number, and warnings. They do not include private stop values. The
 `--include-private-stop-values-local-only` flag is explicit local review mode
 only, is ignored, must not be committed, and must not be pasted into chat.
 
+Optional stop provenance report:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report
+```
+
+The provenance report is local-only and ignored. It includes aliases, counts,
+source types, grouping keys, trigger categories, stage counts, and suspected
+root-cause labels. It must not include raw text, filenames, broker names, MCs,
+rates, addresses, exact dates/times, references, or local paths.
+
 Collect redacted template patterns before drafting private templates:
 
 ```powershell
@@ -304,6 +315,8 @@ Generated files:
 - `safe_aggregate.md`
 - `value_review_template.csv` when requested
 - `stop_review_packet.csv` and `stop_review_packet.md` when requested
+- `stop_group_provenance.json` and `stop_group_provenance_report.md` when
+  requested
 
 These outputs are local-only and ignored by Git.
 
@@ -462,6 +475,26 @@ This means date/time evidence now reaches the diagnostics layer, but grouping is
 still too fragmented. Because `pdfplumber` is already producing layout evidence,
 the next default block is deeper stop grouping/merge hardening. Camelot, OCR,
 and Vision remain decision-gated.
+
+The stop provenance rerun after the first grouping-stage refactor reported:
+
+- documents measured: 18
+- layout attempted: 6
+- raw stop signals/groups: 112 / 112
+- premerge group count: 112
+- post row merge group count: 112
+- post section merge group count: 112
+- post noise filter group count: 112
+- post dedupe group count: 112
+- normalized stop count: 112
+- duplicate / noise removed: 0 / 0
+- date candidates generated / attached: 10 / 10
+- time candidates generated / attached: 9 / 9
+- OCR-needed unchanged: 4
+
+This confirms the private run is still a passthrough at every stop grouping
+stage. The next default block should rewrite provider-line clustering and
+stop-line classification before local private value correctness review.
 
 Layout diagnostic issue buckets:
 

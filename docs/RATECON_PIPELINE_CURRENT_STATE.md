@@ -38,7 +38,7 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 | Layout provider pilot | `app/document_ai/layout_provider.py`, `app/document_ai/pdfplumber_layout_provider.py`, `app/document_ai/layout_pipeline.py`, `app/document_ai/layout_provider_diagnostics.py` | Implemented `pdfplumber` provider, safe diagnostics, and table-profile comparison behind explicit safe measurement flags |
 | Layout-aware candidate scaffold | `app/document_ai/layout_candidate_extraction.py`, `app/document_ai/layout_rate_candidates.py`, `app/document_ai/layout_stop_candidates.py`, `app/document_ai/layout_operational_candidates.py` | Implemented for synthetic layout artifacts only |
 | Layout fusion and stop association | `app/document_ai/candidate_fusion.py`, `app/document_ai/stop_association.py`, `app/document_ai/rate_fusion.py`, `app/document_ai/operational_fusion.py` | Implemented behind explicit safe measurement flags |
-| Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
+| Normalized stops and review readiness | `app/document_ai/normalized_stops.py`, `app/document_ai/stop_normalization.py`, `app/document_ai/stop_group_diagnostics.py`, `app/document_ai/stop_group_provenance.py`, `app/document_ai/stop_group_provenance_report.py`, `app/document_ai/stop_review_packet.py` | Implemented normalized stop contracts, provenance metadata/reporting, dedupe/noise filtering, sequencing, field association, safe measurement reporting, and local-only review packets |
 | Generic candidates | `app/document_ai/ratecon_candidates.py`, `app/document_ai/ratecon_candidate_generators.py`, `app/document_ai/ratecon_candidate_extraction.py` | Implemented for fake/anonymized text artifacts |
 | Broker template contract/registry | `app/document_ai/broker_templates.py`, `app/document_ai/broker_template_registry.py` | Implemented for fake/anonymized JSON templates |
 | Private broker template overlay | `app/document_ai/broker_template_registry.py`, `scripts/run_private_ratecon_measurement.py` | Implemented as explicit local-only overlay support |
@@ -104,6 +104,9 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
 - Normalized stop set contracts, raw stop group diagnostics, conservative
   dedupe/noise filtering, sequencing/type resolution, field association, and
   local-only stop review packets.
+- Stop group provenance metadata, local-only provenance reports, synthetic
+  provenance fixtures, and normalized stop stage counts for raw/premerge,
+  row-merge, section-merge, noise-filter, dedupe, and normalized stages.
 
 ## Scaffolding Only
 
@@ -182,6 +185,11 @@ Current relevant tests include:
   - `tests/test_normalized_stop_set_builder.py`
   - `tests/test_normalized_stop_field_resolution.py`
   - `tests/test_stop_review_packet.py`
+  - `tests/test_stop_group_provenance.py`
+  - `tests/test_stop_group_provenance_report.py`
+  - `tests/test_stop_provenance_fixtures.py`
+  - `tests/test_stop_date_time_merge.py`
+  - `tests/test_stop_pipeline_ordering.py`
 - Broker templates:
   - `tests/test_broker_templates_contract.py`
   - `tests/test_broker_template_fixtures.py`
@@ -226,6 +234,7 @@ print raw private text:
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-pdfplumber-table-profiles --compare-layout-to-text-baseline --write-json --write-csv --write-md`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report`
 - `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
@@ -276,6 +285,14 @@ Private value-review CSV output is local-only and ignored.
   point to location/date split, table-cell over-grouping, row-not-merged, and
   residual pickup/delivery overclassification. Fusion worsened fields stayed at
   zero.
+- The provenance rerun after the first grouping-stage refactor still reported
+  passthrough counts at every stage: raw/premerge/post-row/post-section/
+  post-noise/post-dedupe/normalized were all 112. Source types were
+  `single_line=70` and `table_row=42`; root causes remained
+  `NORMALIZER_PASSTHROUGH`, `ONE_GROUP_PER_LINE`, and
+  `DATE_TIME_SPLIT_FROM_LOCATION`. The next block should rewrite provider-line
+  clustering and table-row stop classification before local value correctness
+  review.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
@@ -284,9 +301,9 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after the stop calibration rerun:
 
 ```text
-Deeper stop grouping/merge hardening for provider-created row, cell, section,
-and line fragments. Local-only correctness review should wait until normalized
-stop counts and date/time attachment are plausible.
+Deeper provider-line clustering and stop-line classification rewrite. Local-only
+correctness review should wait until normalized stop counts and date/time
+attachment are plausible.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

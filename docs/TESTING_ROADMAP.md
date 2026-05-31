@@ -187,9 +187,16 @@ Required coverage for candidate generators and resolvers:
 - stop calibration tests for local-only pattern classification, table-cell
   over-grouping, table-row-not-merged cases, date/time split from location,
   generic pickup/delivery overclassification, and safe review diagnostics.
+- stop provenance tests for source metadata, local-only provenance reports,
+  synthetic provenance fixtures, structural dedupe, post-merge date/time
+  attachment, and normalized pipeline stage counts.
 - next stop grouping tests should assert that provider-style row, cell, section,
   and line fragments merge into plausible logical stops before local value
   correctness review begins.
+- because the current private rerun still shows identical raw/premerge/
+  post-row/post-section/post-noise/post-dedupe/normalized counts, the next test
+  block should prove provider-style single-line fragments cluster into fewer
+  logical stops without collapsing true multi-stop loads.
 - resolver readiness tests for choosing among provider-derived stop groups,
   preserving unresolved/review status when layout evidence is ambiguous, and
   avoiding private values in evaluation output.

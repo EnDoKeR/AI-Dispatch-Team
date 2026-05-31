@@ -144,6 +144,23 @@ than the current normalizer can merge into logical pickup/delivery/stop rows.
 The next block should target row/section fragment merging and duplicate/noise
 reduction before moving to local value correctness evaluation.
 
+## Provenance Rerun Result
+
+The provenance audit added source metadata and stage counts. The safe rerun
+reported:
+
+- source types: `single_line=70`, `table_row=42`;
+- suspected root causes: `NORMALIZER_PASSTHROUGH`,
+  `ONE_GROUP_PER_LINE`, and `DATE_TIME_SPLIT_FROM_LOCATION`;
+- raw/premerge/post-row/post-section/post-noise/post-dedupe/normalized counts:
+  112 / 112 / 112 / 112 / 112 / 112 / 112;
+- duplicate / noise removed: 0 / 0;
+- OCR-needed unchanged: 4.
+
+This means normalized stop extraction is not ready for value correctness
+evaluation. The next implementation should rewrite provider-line clustering and
+stop-line classification using the provenance report as the feedback loop.
+
 ## Review Packet
 
 Private measurement can write a local-only stop review packet:
@@ -192,6 +209,8 @@ After normalized stop measurement:
   harden stop deduplication and noise filtering.
 - If raw and normalized stop counts both increase after date/time calibration,
   harden row/section fragment merging before reviewing private values.
+- If every stage count remains equal after a grouping refactor, run a deeper
+  provider-line clustering rewrite before changing providers.
 - If provider tables/cells exist but stop groups are poor, revisit provider
   table calibration or design a table-specific provider checkpoint.
 - If layout candidates are strong but correctness is unknown, build a local
