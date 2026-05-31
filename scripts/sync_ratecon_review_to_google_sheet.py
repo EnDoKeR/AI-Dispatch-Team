@@ -110,6 +110,13 @@ def run_sync(args):
             "--confirm-google-review-sync is required"
         )
 
+    preflight = preflight_google_review_outputs(args.input_dir)
+    if not preflight.get("sync_ready"):
+        warning_codes = ",".join(preflight.get("warning_codes", []))
+        raise sheets.GoogleSheetsReviewConfigError(
+            f"local review outputs are not sync-ready: {warning_codes}"
+        )
+
     mode = _sync_mode(args)
     include_values = bool(
         mode == sheets.SYNC_MODE_PRIVATE_VALUES_TEST_ONLY

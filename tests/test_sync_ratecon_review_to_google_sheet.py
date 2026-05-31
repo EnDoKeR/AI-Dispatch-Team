@@ -184,6 +184,35 @@ class SyncRateConReviewToGoogleSheetTests(unittest.TestCase):
 
         self.assertIn("dedicated RC_* review tabs", str(ctx.exception))
 
+    def test_refuses_sync_when_preflight_headers_are_stale(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_fake_review_csvs(root)
+            stale_columns = [
+                column
+                for column in DOCUMENT_SUMMARY_COLUMNS
+                if column != "Generic Stop Count"
+            ]
+            _write_csv(
+                root / REVIEW_DOCUMENT_SUMMARY_CSV,
+                stale_columns,
+                [{"Measurement Alias": "RATECON_001"}],
+            )
+
+            with self.assertRaises(Exception) as ctx:
+                sync_script.run_sync(
+                    sync_script._build_parser().parse_args(
+                        [
+                            "--input-dir",
+                            tmp,
+                            "--confirm-google-review-sync",
+                            "--dry-run",
+                        ]
+                    )
+                )
+
+        self.assertIn("not sync-ready", str(ctx.exception))
+
     def test_status_only_redacts_private_values_from_upload_rows(self):
         with tempfile.TemporaryDirectory() as tmp:
             root = Path(tmp)
