@@ -7,6 +7,35 @@ local paths, or raw text.
 
 from collections import Counter, defaultdict
 
+from app.document_ai.rate_candidate_forensics import (
+    RATE_CATEGORY_ACCESSORIAL,
+    RATE_CATEGORY_AGREED_AMOUNT,
+    RATE_CATEGORY_BILLING_AMOUNT,
+    RATE_CATEGORY_DEDUCTION,
+    RATE_CATEGORY_DETENTION,
+    RATE_CATEGORY_LAYOVER,
+    RATE_CATEGORY_LINEHAUL,
+    RATE_CATEGORY_LUMPER,
+    RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY,
+    RATE_CATEGORY_PENALTY,
+    RATE_CATEGORY_QUICKPAY_DISCOUNT,
+    RATE_CATEGORY_TERMS_AMOUNT,
+    RATE_CATEGORY_TOTAL_CHARGE,
+    RATE_CATEGORY_TONU,
+    classify_rate_candidate_category,
+)
+from app.document_ai.ratecon_candidates import (
+    CANDIDATE_CONFIDENCE_HIGH,
+    CANDIDATE_CONFIDENCE_MEDIUM,
+    FIELD_ACCESSORIAL_TERM,
+    FIELD_RATE,
+    normalize_confidence,
+)
+from app.document_ai.ratecon_field_resolution import (
+    FIELD_RESOLUTION_STATUS_CONFLICT,
+    FIELD_RESOLUTION_STATUS_RESOLVED,
+)
+
 
 RATE_CONFLICT_AUDIT_VERSION = "rate_conflict_audit_v1"
 RATE_CONFLICT_AUDIT_RAW_JSON = "rate_conflict_audit_raw.json"
@@ -116,6 +145,225 @@ def recommended_rate_conflict_fix_bucket(reason):
     if normalized == RATE_AUDIT_CANDIDATE_NOT_RESOLVED:
         return "rate_conflict_review_routing"
     return "local_human_review_for_rate"
+
+
+def _is_rate_candidate(candidate):
+    return _text((candidate or {}).get("field_name")) in {
+        FIELD_RATE,
+        FIELD_ACCESSORIAL_TERM,
+    }
+
+
+def _resolution_for_rate(resolution_result):
+    for resolution in (resolution_result or {}).get("resolutions", []) or []:
+        if _text(resolution.get("field_name")) == FIELD_RATE:
+            return resolution
+    return {}
+
+
+def _warnings(candidate):
+    return {
+        _token(item)
+        for item in (candidate or {}).get("warnings", []) or []
+        if _token(item)
+    }
+
+
+def _is_strong_candidate(candidate):
+    confidence = normalize_confidence((candidate or {}).get("confidence"))
+    return confidence in {CANDIDATE_CONFIDENCE_HIGH, CANDIDATE_CONFIDENCE_MEDIUM}
+
+
+def _is_current_or_revised(candidate):
+    text = " ".join(
+        [
+            _token((candidate or {}).get("label")),
+            _token((candidate or {}).get("value_type")),
+            " ".join(sorted(_warnings(candidate))),
+        ]
+    )
+    return any(token in text for token in {"revised", "current", "updated"})
+
+
+def _is_original_or_previous(candidate):
+    text = " ".join(
+        [
+            _token((candidate or {}).get("label")),
+            _token((candidate or {}).get("value_type")),
+            " ".join(sorted(_warnings(candidate))),
+        ]
+    )
+    return any(token in text for token in {"original", "previous", "prior"})
+
+
+def _safe_rate_candidates(text_candidates=None, layout_candidates=None):
+    return [
+        candidate
+        for candidate in list(text_candidates or []) + list(layout_candidates or [])
+        if isinstance(candidate, dict) and _is_rate_candidate(candidate)
+    ]
+
+
+def _main_rate_candidates(candidates):
+    main_categories = {
+        RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY,
+        RATE_CATEGORY_AGREED_AMOUNT,
+        RATE_CATEGORY_LINEHAUL,
+        RATE_CATEGORY_TOTAL_CHARGE,
+    }
+    return [
+        candidate
+        for candidate in candidates or []
+        if classify_rate_candidate_category(candidate) in main_categories
+    ]
+
+
+def _has_explicit_total(candidates):
+    return any(
+        classify_rate_candidate_category(candidate)
+        in {
+            RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY,
+            RATE_CATEGORY_AGREED_AMOUNT,
+            RATE_CATEGORY_TOTAL_CHARGE,
+        }
+        for candidate in candidates or []
+    )
+
+
+def _equivalence_summary_for_candidates(candidates):
+    from app.document_ai.rate_candidate_equivalence import (
+        classify_rate_candidate_equivalence_group,
+        group_equivalent_rate_candidates,
+    )
+
+    groups = group_equivalent_rate_candidates(candidates)
+    equivalent_groups = [
+        group
+        for group in groups
+        if len(group.get("candidates", [])) > 1
+        and classify_rate_candidate_equivalence_group(group) != RATE_EQUIVALENT_UNKNOWN
+    ]
+    strong_main_groups = [
+        group
+        for group in groups
+        if (group.get("fingerprint", {}) or {}).get("category_family") == "main_rate"
+        and any(_is_strong_candidate(candidate) for candidate in group.get("candidates", []))
+    ]
+    return {
+        "groups": groups,
+        "equivalent_group_count": len(equivalent_groups),
+        "strong_main_group_count": len(strong_main_groups),
+    }
+
+
+def build_rate_conflict_audit_record_from_candidates(
+    measurement_alias="",
+    text_candidates=None,
+    layout_candidates=None,
+    rate_fusion_result=None,
+    resolution_result=None,
+    document_type="",
+):
+    candidates = _safe_rate_candidates(text_candidates, layout_candidates)
+    category_counts = Counter(
+        classify_rate_candidate_category(candidate) for candidate in candidates
+    )
+    main_candidates = _main_rate_candidates(candidates)
+    linehaul_candidate_count = category_counts.get(RATE_CATEGORY_LINEHAUL, 0)
+    accessorial_candidate_count = sum(
+        category_counts.get(category, 0)
+        for category in {
+            RATE_CATEGORY_ACCESSORIAL,
+            RATE_CATEGORY_DETENTION,
+            RATE_CATEGORY_LAYOVER,
+            RATE_CATEGORY_LUMPER,
+        }
+    )
+    quickpay_deduction_candidate_count = sum(
+        category_counts.get(category, 0)
+        for category in {
+            RATE_CATEGORY_QUICKPAY_DISCOUNT,
+            RATE_CATEGORY_DEDUCTION,
+            RATE_CATEGORY_PENALTY,
+        }
+    )
+    terms_billing_candidate_count = sum(
+        category_counts.get(category, 0)
+        for category in {
+            RATE_CATEGORY_TERMS_AMOUNT,
+            RATE_CATEGORY_BILLING_AMOUNT,
+        }
+    )
+    revised_current_candidate_count = sum(
+        1 for candidate in candidates if _is_current_or_revised(candidate)
+    )
+    original_previous_candidate_count = sum(
+        1 for candidate in candidates if _is_original_or_previous(candidate)
+    )
+
+    equivalence = _equivalence_summary_for_candidates(main_candidates)
+    different_strong_total_count = (
+        equivalence["strong_main_group_count"]
+        if equivalence["strong_main_group_count"] > 1
+        else 0
+    )
+    fusion = rate_fusion_result or {}
+    resolution = _resolution_for_rate(resolution_result)
+    conflict_present = (
+        fusion.get("fused_status") == "conflict"
+        or _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_CONFLICT
+    )
+    selected_rate_present = bool(
+        fusion.get("selected_candidate_id")
+        or resolution.get("selected_candidate")
+    )
+    core_rate_mapped = _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_RESOLVED
+    document_type_token = _token(document_type)
+
+    reason = RATE_AUDIT_UNKNOWN
+    if selected_rate_present and not core_rate_mapped:
+        reason = RATE_AUDIT_SELECTED_RATE_NOT_CORE_MAPPED
+    elif conflict_present and category_counts.get(RATE_CATEGORY_TONU, 0) and document_type_token in {
+        "truck_order_not_used",
+        "tonu",
+    }:
+        reason = RATE_AUDIT_TONU_NON_NORMAL_LOAD
+    elif conflict_present and revised_current_candidate_count and original_previous_candidate_count:
+        reason = RATE_AUDIT_REVISED_ORIGINAL_CONFLICT
+    elif conflict_present and linehaul_candidate_count and _has_explicit_total(main_candidates):
+        reason = RATE_AUDIT_LINEHAUL_TOTAL_CONFLICT
+    elif conflict_present and different_strong_total_count:
+        reason = RATE_AUDIT_MULTIPLE_DIFFERENT_STRONG_TOTALS
+    elif conflict_present and equivalence["equivalent_group_count"]:
+        reason = RATE_AUDIT_SAME_AMOUNT_MULTIPLE_SOURCES
+    elif conflict_present and accessorial_candidate_count:
+        reason = RATE_AUDIT_ACCESSORIAL_NOISE_REMAINING
+    elif conflict_present and quickpay_deduction_candidate_count:
+        reason = RATE_AUDIT_QUICKPAY_DEDUCTION_NOISE_REMAINING
+    elif conflict_present and terms_billing_candidate_count:
+        reason = RATE_AUDIT_TERMS_BILLING_NOISE_REMAINING
+    elif candidates and fusion.get("fused_status") in {"missing", "needs_review", "low_confidence", ""}:
+        reason = RATE_AUDIT_CANDIDATE_NOT_RESOLVED
+
+    return build_rate_conflict_audit_record(
+        measurement_alias=measurement_alias,
+        rate_candidate_count=len(candidates),
+        main_rate_candidate_count=len(main_candidates),
+        equivalent_candidate_group_count=equivalence["equivalent_group_count"],
+        different_strong_total_count=different_strong_total_count,
+        linehaul_candidate_count=linehaul_candidate_count,
+        accessorial_candidate_count=accessorial_candidate_count,
+        quickpay_deduction_candidate_count=quickpay_deduction_candidate_count,
+        terms_billing_candidate_count=terms_billing_candidate_count,
+        revised_current_candidate_count=revised_current_candidate_count,
+        original_previous_candidate_count=original_previous_candidate_count,
+        selected_rate_present=selected_rate_present,
+        core_rate_mapped=core_rate_mapped,
+        conflict_present=conflict_present,
+        conflict_reason=reason,
+        review_required=bool(fusion.get("review_required") or conflict_present),
+        warning_codes=fusion.get("warning_codes", []),
+    )
 
 
 def build_rate_conflict_audit_record(

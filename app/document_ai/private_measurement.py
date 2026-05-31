@@ -266,6 +266,7 @@ def build_private_ratecon_measurement_row(
     load_identifier_source_line_metrics=None,
     load_identifier_source_line_records=None,
     rate_forensics_records=None,
+    rate_conflict_audit_records=None,
     warning_codes=None,
     blocker_categories=None,
     intake_status="",
@@ -437,6 +438,11 @@ def build_private_ratecon_measurement_row(
         "rate_forensics_records": [
             record
             for record in rate_forensics_records or []
+            if isinstance(record, dict)
+        ],
+        "rate_conflict_audit_records": [
+            record
+            for record in rate_conflict_audit_records or []
             if isinstance(record, dict)
         ],
         "warning_codes": _normalize_list(warning_codes),

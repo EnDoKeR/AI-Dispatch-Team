@@ -67,6 +67,9 @@ from app.document_ai.rate_fusion import fuse_rate_candidates
 from app.document_ai.rate_candidate_forensics import (
     build_rate_forensics_record_from_candidates,
 )
+from app.document_ai.rate_conflict_audit import (
+    build_rate_conflict_audit_record_from_candidates,
+)
 from app.document_ai.ratecon_candidates import (
     FIELD_ACCESSORIAL_TERM,
     FIELD_COMMODITY,
@@ -1568,6 +1571,18 @@ def measure_private_ratecon_pdf(
             document_type=classification_result.get("document_type", ""),
         )
     ]
+    rate_conflict_audit_records = [
+        build_rate_conflict_audit_record_from_candidates(
+            measurement_alias=document_alias,
+            text_candidates=resolver_candidate_result.get("candidates", []),
+            layout_candidates=(
+                (layout_fields.get("layout_candidate_result") or {}).get("candidates", [])
+            ),
+            rate_fusion_result=fusion_fields.get("rate_fusion_result", {}),
+            resolution_result=resolution_result,
+            document_type=classification_result.get("document_type", ""),
+        )
+    ]
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -1824,6 +1839,7 @@ def measure_private_ratecon_pdf(
         load_identifier_source_line_metrics=load_identifier_source_line_metrics,
         load_identifier_source_line_records=load_identifier_source_line_records,
         rate_forensics_records=rate_forensics_records,
+        rate_conflict_audit_records=rate_conflict_audit_records,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),
