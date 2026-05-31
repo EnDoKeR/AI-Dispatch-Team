@@ -14,6 +14,8 @@ from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     _normalize_output_dir,
 )
+from app.document_ai.ratecon_candidates import FIELD_ACCESSORIAL_TERM, FIELD_RATE
+from app.document_ai.ratecon_field_resolution import FIELD_RESOLUTION_STATUS_CONFLICT
 
 
 RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY = "main_total_carrier_pay"
@@ -179,6 +181,225 @@ def _safe_counts(counts, normalizer):
     for key, value in counts.items():
         normalized[normalizer(key)] += _int(value)
     return dict(sorted(normalized.items()))
+
+
+def _warnings(candidate):
+    return {
+        _token(item)
+        for item in (candidate or {}).get("warnings", [])
+        if _token(item)
+    }
+
+
+def classify_rate_candidate_category(candidate):
+    value_type = _token((candidate or {}).get("value_type"))
+    warnings = _warnings(candidate)
+    field_name = _text((candidate or {}).get("field_name"))
+    section = _token((candidate or {}).get("layout_section_role"))
+
+    if value_type in {"total_carrier_pay", "carrier_freight_pay"}:
+        return RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY
+    if value_type == "agreed_amount":
+        return RATE_CATEGORY_AGREED_AMOUNT
+    if value_type == "linehaul":
+        return RATE_CATEGORY_LINEHAUL
+    if value_type == "total_charge":
+        return RATE_CATEGORY_TOTAL_CHARGE
+    if value_type in {"detention", "detention_pay"}:
+        return RATE_CATEGORY_DETENTION
+    if value_type in {"layover", "layover_pay"}:
+        return RATE_CATEGORY_LAYOVER
+    if value_type in {"lumper", "lumper_pay"}:
+        return RATE_CATEGORY_LUMPER
+    if value_type in {"tonu", "tonu_pay"} or "tonu_payment_not_normal_linehaul" in warnings:
+        return RATE_CATEGORY_TONU
+    if value_type in {"quickpay_discount", "quick_pay_discount"}:
+        return RATE_CATEGORY_QUICKPAY_DISCOUNT
+    if value_type == "deduction":
+        return RATE_CATEGORY_DEDUCTION
+    if value_type == "penalty":
+        return RATE_CATEGORY_PENALTY
+    if section in {"billing_instructions", "billing"}:
+        return RATE_CATEGORY_BILLING_AMOUNT
+    if section in {
+        "legal_terms",
+        "payment_terms",
+        "deductions_penalties",
+        "terms",
+        "legal",
+    }:
+        return RATE_CATEGORY_TERMS_AMOUNT
+    if field_name == FIELD_ACCESSORIAL_TERM or value_type in {
+        "accessorial",
+        "tracking_bonus",
+        "on_time_bonus",
+        "fee",
+    }:
+        return RATE_CATEGORY_ACCESSORIAL
+    return RATE_CATEGORY_UNKNOWN_MONEY
+
+
+def classify_rate_candidate_source_section(candidate):
+    section = _token((candidate or {}).get("layout_section_role"))
+    if section == "rate_summary":
+        return RATE_SECTION_RATE_SUMMARY
+    if section == "rate_breakdown":
+        return RATE_SECTION_RATE_BREAKDOWN
+    if section == "payment_summary":
+        return RATE_SECTION_PAYMENT_SUMMARY
+    if section in {"load_identity_header", "header", "main_rateconf"}:
+        return RATE_SECTION_LOAD_IDENTITY_HEADER
+    if section in {"billing_instructions", "billing"}:
+        return RATE_SECTION_BILLING
+    if section in {"quick_pay", "quickpay"}:
+        return RATE_SECTION_QUICKPAY
+    if section in {"legal_terms", "payment_terms", "deductions_penalties", "terms"}:
+        return RATE_SECTION_TERMS
+    if section == "legal":
+        return RATE_SECTION_LEGAL
+    if section in {"stop_section", "stop_table", "pickup_section", "delivery_section"}:
+        return RATE_SECTION_STOP_SECTION
+    return RATE_SECTION_UNKNOWN
+
+
+def _is_rate_candidate(candidate):
+    return _text((candidate or {}).get("field_name")) in {
+        FIELD_RATE,
+        FIELD_ACCESSORIAL_TERM,
+    }
+
+
+def _resolution_for_rate(resolution_result):
+    for resolution in (resolution_result or {}).get("resolutions", []) or []:
+        if _text(resolution.get("field_name")) == FIELD_RATE:
+            return resolution
+    return {}
+
+
+def classify_rate_conflict_reason_from_signals(
+    category_counts=None,
+    source_section_counts=None,
+    rate_fusion_result=None,
+    resolution_result=None,
+    document_type="",
+):
+    category_counts = Counter(category_counts or {})
+    source_section_counts = Counter(source_section_counts or {})
+    fusion = rate_fusion_result or {}
+    resolution = _resolution_for_rate(resolution_result)
+    warning_codes = set(_token(item) for item in fusion.get("warning_codes", []) or [])
+
+    if _token(document_type) in {"truck_order_not_used", "tonu"} and category_counts.get(
+        RATE_CATEGORY_TONU,
+        0,
+    ):
+        return RATE_CONFLICT_TONU_NON_NORMAL_LOAD
+    if "rate_fusion_conflicting_strong_totals" in warning_codes:
+        if category_counts.get(RATE_CATEGORY_LINEHAUL, 0) and (
+            category_counts.get(RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY, 0)
+            or category_counts.get(RATE_CATEGORY_TOTAL_CHARGE, 0)
+            or category_counts.get(RATE_CATEGORY_AGREED_AMOUNT, 0)
+        ):
+            return RATE_CONFLICT_LINEHAUL_TOTAL
+        return RATE_CONFLICT_MULTIPLE_STRONG_TOTALS
+    if category_counts.get(RATE_CATEGORY_ACCESSORIAL, 0) and not (
+        category_counts.get(RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY, 0)
+        or category_counts.get(RATE_CATEGORY_AGREED_AMOUNT, 0)
+        or category_counts.get(RATE_CATEGORY_TOTAL_CHARGE, 0)
+    ):
+        return RATE_CONFLICT_ACCESSORIAL_AS_MAIN_RATE
+    if category_counts.get(RATE_CATEGORY_QUICKPAY_DISCOUNT, 0):
+        return RATE_CONFLICT_QUICKPAY_AS_MAIN_RATE
+    if category_counts.get(RATE_CATEGORY_DEDUCTION, 0) or category_counts.get(
+        RATE_CATEGORY_PENALTY,
+        0,
+    ):
+        return RATE_CONFLICT_DEDUCTION_PENALTY_AS_MAIN_RATE
+    if category_counts.get(RATE_CATEGORY_TERMS_AMOUNT, 0) or source_section_counts.get(
+        RATE_SECTION_TERMS,
+        0,
+    ):
+        return RATE_CONFLICT_TERMS_AMOUNT_AS_MAIN_RATE
+    if _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_CONFLICT:
+        return RATE_CONFLICT_CANDIDATE_NOT_RESOLVED
+    if (
+        category_counts
+        and fusion.get("fused_status") in {"missing", "needs_review", "low_confidence", ""}
+    ):
+        return RATE_CONFLICT_CANDIDATE_NOT_RESOLVED
+    return RATE_CONFLICT_UNKNOWN
+
+
+def build_rate_forensics_record_from_candidates(
+    measurement_alias="",
+    text_candidates=None,
+    layout_candidates=None,
+    rate_fusion_result=None,
+    resolution_result=None,
+    document_type="",
+):
+    candidates = [
+        candidate
+        for candidate in list(text_candidates or []) + list(layout_candidates or [])
+        if isinstance(candidate, dict) and _is_rate_candidate(candidate)
+    ]
+    category_counts = Counter(
+        classify_rate_candidate_category(candidate) for candidate in candidates
+    )
+    source_section_counts = Counter(
+        classify_rate_candidate_source_section(candidate) for candidate in candidates
+    )
+    main_categories = {
+        RATE_CATEGORY_MAIN_TOTAL_CARRIER_PAY,
+        RATE_CATEGORY_AGREED_AMOUNT,
+        RATE_CATEGORY_LINEHAUL,
+        RATE_CATEGORY_TOTAL_CHARGE,
+    }
+    accessorial_categories = {
+        RATE_CATEGORY_ACCESSORIAL,
+        RATE_CATEGORY_DETENTION,
+        RATE_CATEGORY_LAYOVER,
+        RATE_CATEGORY_LUMPER,
+        RATE_CATEGORY_TONU,
+    }
+    fusion = rate_fusion_result or {}
+    resolution = _resolution_for_rate(resolution_result)
+    conflict_present = (
+        fusion.get("fused_status") == "conflict"
+        or _text(resolution.get("status")) == FIELD_RESOLUTION_STATUS_CONFLICT
+    )
+    selected_rate_present = bool(
+        fusion.get("selected_candidate_id")
+        or resolution.get("selected_candidate")
+    )
+    reason = classify_rate_conflict_reason_from_signals(
+        category_counts=category_counts,
+        source_section_counts=source_section_counts,
+        rate_fusion_result=fusion,
+        resolution_result=resolution_result,
+        document_type=document_type,
+    )
+
+    return build_rate_forensics_record(
+        measurement_alias=measurement_alias,
+        rate_candidate_count=len(candidates),
+        main_rate_candidate_count=sum(category_counts.get(item, 0) for item in main_categories),
+        accessorial_candidate_count=sum(
+            category_counts.get(item, 0) for item in accessorial_categories
+        ),
+        quickpay_candidate_count=category_counts.get(
+            RATE_CATEGORY_QUICKPAY_DISCOUNT,
+            0,
+        ),
+        terms_candidate_count=category_counts.get(RATE_CATEGORY_TERMS_AMOUNT, 0),
+        billing_candidate_count=category_counts.get(RATE_CATEGORY_BILLING_AMOUNT, 0),
+        selected_rate_present=selected_rate_present,
+        conflict_present=conflict_present,
+        conflict_reason=reason,
+        category_counts=category_counts,
+        source_section_counts=source_section_counts,
+        warning_codes=fusion.get("warning_codes", []),
+    )
 
 
 def build_rate_forensics_record(

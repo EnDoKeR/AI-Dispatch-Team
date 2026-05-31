@@ -64,6 +64,9 @@ from app.document_ai.private_measurement_blockers import (
     classify_private_ratecon_measurement_blockers,
 )
 from app.document_ai.rate_fusion import fuse_rate_candidates
+from app.document_ai.rate_candidate_forensics import (
+    build_rate_forensics_record_from_candidates,
+)
 from app.document_ai.ratecon_candidates import (
     FIELD_ACCESSORIAL_TERM,
     FIELD_COMMODITY,
@@ -942,6 +945,7 @@ def _layout_fusion_fields(
             "stop_field_status_counts": _stop_field_status_counts(normalized_stop_set),
             "stop_review_summary": stop_review_summary,
             "stop_group_provenance_summary": stop_group_provenance_summary,
+            "rate_fusion_result": rate_fusion,
             "fused_candidate_result": _build_fused_candidate_result(
                 text_candidate_result,
                 layout_candidates,
@@ -1552,6 +1556,18 @@ def measure_private_ratecon_pdf(
             char_count=extraction.get("char_count", triage_result.get("char_count", 0)),
         )
     ]
+    rate_forensics_records = [
+        build_rate_forensics_record_from_candidates(
+            measurement_alias=document_alias,
+            text_candidates=resolver_candidate_result.get("candidates", []),
+            layout_candidates=(
+                (layout_fields.get("layout_candidate_result") or {}).get("candidates", [])
+            ),
+            rate_fusion_result=fusion_fields.get("rate_fusion_result", {}),
+            resolution_result=resolution_result,
+            document_type=classification_result.get("document_type", ""),
+        )
+    ]
     intake = build_ratecon_intake_from_resolution(resolution_result)
     validation = validate_rate_confirmation_intake(intake)
     template_selection = template_result.get("template_selection_result", {})
@@ -1807,6 +1823,7 @@ def measure_private_ratecon_pdf(
         load_identifier_audit_records=load_identifier_audit_records,
         load_identifier_source_line_metrics=load_identifier_source_line_metrics,
         load_identifier_source_line_records=load_identifier_source_line_records,
+        rate_forensics_records=rate_forensics_records,
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

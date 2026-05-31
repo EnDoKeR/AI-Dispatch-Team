@@ -176,6 +176,33 @@ class PrivateMeasurementContractTests(unittest.TestCase):
         )
         self.assertNotIn("FAKE-PO", payload)
 
+    def test_measurement_row_supports_safe_rate_forensics_records(self):
+        row = build_private_ratecon_measurement_row(
+            document_alias="RATECON_001",
+            rate_forensics_records=[
+                {
+                    "measurement_alias": "RATECON_001",
+                    "rate_candidate_count": 2,
+                    "main_rate_candidate_count": 1,
+                    "conflict_reason": "multiple_strong_totals",
+                    "category_counts": {"main_total_carrier_pay": 2},
+                    "private_values_included": False,
+                    "money_values_included": False,
+                    "raw_text_included": False,
+                }
+            ],
+        )
+
+        payload = json.dumps(row)
+
+        self.assertEqual(len(row["rate_forensics_records"]), 1)
+        self.assertEqual(
+            row["rate_forensics_records"][0]["conflict_reason"],
+            "multiple_strong_totals",
+        )
+        self.assertNotIn("$", payload)
+        self.assertNotIn("FAKE_RATE", payload)
+
     def test_aggregate_serializes(self):
         aggregate = build_private_ratecon_measurement_aggregate(
             document_count=2,
