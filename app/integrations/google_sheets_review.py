@@ -5,6 +5,7 @@ decisions, create DispatchCases, or print credentials/private values.
 """
 
 from dataclasses import dataclass
+import csv
 import json
 import os
 from pathlib import Path
@@ -14,6 +15,10 @@ from app.document_ai.ratecon_review_workbook import (
     FIELD_REVIEW_COLUMNS,
     INSTRUCTIONS_COLUMNS,
     RATE_REVIEW_COLUMNS,
+    REVIEW_DOCUMENT_SUMMARY_CSV,
+    REVIEW_FIELD_REVIEW_CSV,
+    REVIEW_RATE_REVIEW_CSV,
+    REVIEW_STOP_REVIEW_CSV,
     SHEET_DOCUMENT_SUMMARY,
     SHEET_FIELD_REVIEW,
     SHEET_INSTRUCTIONS,
@@ -37,6 +42,16 @@ SYNC_MODES = {SYNC_MODE_STATUS_ONLY, SYNC_MODE_PRIVATE_VALUES_TEST_ONLY}
 REVIEW_SYNC_WARNING = "LOCAL/TEST REVIEW DATA - DO NOT USE AS FINAL TRUTH"
 SHEET_FEEDBACK_SUMMARY = "Feedback_Summary"
 FEEDBACK_SUMMARY_COLUMNS = ["Metric", "Value"]
+PRIVATE_REVIEW_VALUE_COLUMNS = {
+    "Predicted Value LOCAL ONLY",
+    "User Expected Value LOCAL ONLY",
+}
+REVIEW_CSV_SPECS = {
+    SHEET_DOCUMENT_SUMMARY: (REVIEW_DOCUMENT_SUMMARY_CSV, DOCUMENT_SUMMARY_COLUMNS),
+    SHEET_STOP_REVIEW: (REVIEW_STOP_REVIEW_CSV, STOP_REVIEW_COLUMNS),
+    SHEET_FIELD_REVIEW: (REVIEW_FIELD_REVIEW_CSV, FIELD_REVIEW_COLUMNS),
+    SHEET_RATE_REVIEW: (REVIEW_RATE_REVIEW_CSV, RATE_REVIEW_COLUMNS),
+}
 
 
 class GoogleSheetsReviewConfigError(ValueError):
@@ -187,6 +202,128 @@ def _feedback_summary_rows(feedback_summary=None):
     if not rows:
         rows.append({"Metric": "feedback_status", "Value": "not_downloaded"})
     return rows
+
+
+def _instruction_rows_for_google_sync(include_private_values=False):
+    rows = [
+        {
+            "Section": "Local/test review",
+            "Instruction": REVIEW_SYNC_WARNING,
+        },
+        {
+            "Section": "Review flow",
+            "Instruction": "Mark correct, incorrect, or unknown; add issue type and local notes when useful.",
+        },
+        {
+            "Section": "Safe sharing",
+            "Instruction": "Share aliases, counts, statuses, issue type counts, and field names only.",
+        },
+        {
+            "Section": "Do not share",
+            "Instruction": "Do not share service account keys, private values, raw text, local paths, rates, addresses, or references.",
+        },
+    ]
+    if include_private_values:
+        rows.append(
+            {
+                "Section": "Private values",
+                "Instruction": "Private predicted values were uploaded for local test review only.",
+            }
+        )
+    return rows
+
+
+def _sanitize_review_rows(rows, include_private_values=False):
+    sanitized = []
+    for row in rows or []:
+        if not isinstance(row, dict):
+            continue
+        clean = dict(row)
+        if not include_private_values:
+            for column in PRIVATE_REVIEW_VALUE_COLUMNS:
+                if column in clean:
+                    clean[column] = ""
+        sanitized.append(clean)
+    return sanitized
+
+
+def read_local_review_csv_rows(input_dir):
+    """Read local review CSVs from ignored output without printing file paths."""
+
+    root = Path(input_dir)
+    rows_by_sheet = {}
+    missing = []
+    for sheet_name, (filename, columns) in REVIEW_CSV_SPECS.items():
+        path = root / filename
+        if not path.exists():
+            missing.append(filename)
+            rows_by_sheet[sheet_name] = []
+            continue
+        with path.open("r", newline="", encoding="utf-8") as handle:
+            reader = csv.DictReader(handle)
+            rows_by_sheet[sheet_name] = [
+                {column: row.get(column, "") for column in columns}
+                for row in reader
+            ]
+    return {
+        "rows_by_sheet": rows_by_sheet,
+        "missing_csv_basenames": missing,
+        "input_path_printed": False,
+        "private_values_printed": False,
+    }
+
+
+def build_google_review_tab_rows_from_review_csvs(
+    input_dir,
+    sync_mode=SYNC_MODE_STATUS_ONLY,
+    include_private_values=False,
+    worksheet_prefix=DEFAULT_WORKSHEET_PREFIX,
+    feedback_summary=None,
+):
+    mode = _normalize_sync_mode(sync_mode)
+    include_values = bool(
+        include_private_values and mode == SYNC_MODE_PRIVATE_VALUES_TEST_ONLY
+    )
+    loaded = read_local_review_csv_rows(input_dir)
+    rows_by_sheet = loaded["rows_by_sheet"]
+    return {
+        _tab_title(SHEET_DOCUMENT_SUMMARY, worksheet_prefix): _sheet_values(
+            DOCUMENT_SUMMARY_COLUMNS,
+            _sanitize_review_rows(
+                rows_by_sheet.get(SHEET_DOCUMENT_SUMMARY, []),
+                include_private_values=include_values,
+            ),
+        ),
+        _tab_title(SHEET_STOP_REVIEW, worksheet_prefix): _sheet_values(
+            STOP_REVIEW_COLUMNS,
+            _sanitize_review_rows(
+                rows_by_sheet.get(SHEET_STOP_REVIEW, []),
+                include_private_values=include_values,
+            ),
+        ),
+        _tab_title(SHEET_FIELD_REVIEW, worksheet_prefix): _sheet_values(
+            FIELD_REVIEW_COLUMNS,
+            _sanitize_review_rows(
+                rows_by_sheet.get(SHEET_FIELD_REVIEW, []),
+                include_private_values=include_values,
+            ),
+        ),
+        _tab_title(SHEET_RATE_REVIEW, worksheet_prefix): _sheet_values(
+            RATE_REVIEW_COLUMNS,
+            _sanitize_review_rows(
+                rows_by_sheet.get(SHEET_RATE_REVIEW, []),
+                include_private_values=include_values,
+            ),
+        ),
+        _tab_title(SHEET_INSTRUCTIONS, worksheet_prefix): _sheet_values(
+            INSTRUCTIONS_COLUMNS,
+            _instruction_rows_for_google_sync(include_private_values=include_values),
+        ),
+        _tab_title(SHEET_FEEDBACK_SUMMARY, worksheet_prefix): _sheet_values(
+            FEEDBACK_SUMMARY_COLUMNS,
+            _feedback_summary_rows(feedback_summary),
+        ),
+    }
 
 
 def build_google_review_tab_rows(
