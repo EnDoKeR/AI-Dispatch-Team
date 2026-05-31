@@ -239,7 +239,7 @@ def load_target_dispositions(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
     path = Path(input_dir) / TARGET_DISPOSITION_REGISTRY_JSON
     if not path.exists():
         return build_target_disposition_registry()
-    payload = json.loads(path.read_text(encoding="utf-8"))
+    payload = json.loads(path.read_text(encoding="utf-8-sig"))
     return build_target_disposition_registry(payload.get("records", []))
 
 
