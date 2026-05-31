@@ -8,7 +8,7 @@ making dispatch recommendations.
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
-CANDIDATE_CONFIDENCE_MEDIUM,
+    CANDIDATE_CONFIDENCE_MEDIUM,
     FIELD_BROKER_MC,
     FIELD_BROKER_NAME,
     FIELD_COMMODITY,
@@ -20,6 +20,10 @@ CANDIDATE_CONFIDENCE_MEDIUM,
     FIELD_PICKUP_LOCATION,
     FIELD_RATE,
     FIELD_WEIGHT,
+)
+from app.document_ai.load_identifier_candidates import (
+    LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE,
+    identifier_type_priority,
 )
 
 FIELD_RESOLUTION_STATUS_RESOLVED = "resolved"
@@ -64,6 +68,7 @@ REVIEW_WARNING_MARKERS = {
     "accessorial_label_not_main_rate",
 }
 RATE_CONTEXT_REVIEW_WARNING = "needs_rate_context_review"
+LOAD_IDENTIFIER_REVIEW_WARNING = "generic_identifier_requires_review"
 RATE_CURRENT_LABELS = (
     "revised rate confirmation",
     "revised carrier pay",
@@ -472,9 +477,152 @@ def _resolution_for_rate(field_name, candidates):
     )
 
 
+def _candidate_identifier_type(candidate):
+    return str(
+        candidate.get("identifier_type")
+        or candidate.get("value_type")
+        or ""
+    ).strip()
+
+
+def _candidate_identifier_sort_key(candidate):
+    return (
+        -_candidate_confidence_rank(candidate),
+        identifier_type_priority(_candidate_identifier_type(candidate)),
+        _candidate_value(candidate),
+    )
+
+
+def _resolution_for_load_number(field_name, candidates):
+    if not candidates:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_MISSING,
+            reasons=["no_candidate"],
+        )
+
+    sorted_candidates = sorted(candidates, key=_candidate_identifier_sort_key)
+    best = sorted_candidates[0]
+    best_rank = _candidate_confidence_rank(best)
+    best_warnings = _candidate_warning_set(best)
+    evidence_refs = [
+        evidence_ref
+        for evidence_ref in [_candidate_evidence_ref(best)]
+        if evidence_ref
+    ]
+    high_candidates = [
+        candidate
+        for candidate in sorted_candidates
+        if _candidate_confidence_rank(candidate) >= CONFIDENCE_RANKS[CANDIDATE_CONFIDENCE_HIGH]
+    ]
+    high_values = _candidate_values(high_candidates)
+
+    if len(high_values) > 1:
+        selected = sorted(high_candidates, key=_candidate_identifier_sort_key)[0]
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_CONFLICT,
+            selected_candidate=selected,
+            rejected_candidates=[
+                candidate
+                for candidate in sorted_candidates
+                if candidate is not selected
+            ],
+            confidence=selected.get("confidence", ""),
+            reasons=["multiple_strong_primary_identifier_values"],
+            evidence_refs=[
+                ref
+                for ref in [_candidate_evidence_ref(candidate) for candidate in high_candidates]
+                if ref
+            ],
+            warnings=["field_conflict_requires_review"],
+            conflict_candidate_ids=_candidate_diagnostic_ids(high_candidates),
+        )
+
+    if high_candidates:
+        selected = sorted(high_candidates, key=_candidate_identifier_sort_key)[0]
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_RESOLVED,
+            selected_candidate=selected,
+            rejected_candidates=[
+                candidate
+                for candidate in sorted_candidates
+                if candidate is not selected
+            ],
+            confidence=selected.get("confidence", ""),
+            reasons=["selected_primary_load_identifier_candidate"],
+            evidence_refs=[
+                ref
+                for ref in [_candidate_evidence_ref(selected)]
+                if ref
+            ],
+            warnings=selected.get("warnings", []),
+        )
+
+    if best_rank < MIN_RESOLVE_CONFIDENCE_RANK:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["best_candidate_below_threshold"],
+            evidence_refs=evidence_refs,
+            warnings=["field_requires_review"],
+        )
+
+    if (
+        LOAD_IDENTIFIER_REVIEW_WARNING in best_warnings
+        or _candidate_identifier_type(best) == LOAD_IDENTIFIER_TYPE_PRIMARY_REFERENCE
+    ):
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_NEEDS_REVIEW,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["generic_primary_reference_requires_review"],
+            evidence_refs=evidence_refs,
+            warnings=best.get("warnings", []) + ["field_requires_review"],
+        )
+
+    strong_candidates = _strong_candidates(sorted_candidates)
+    strong_values = _candidate_values(strong_candidates)
+    if len(strong_values) > 1:
+        return build_field_resolution(
+            field_name=field_name,
+            status=FIELD_RESOLUTION_STATUS_CONFLICT,
+            selected_candidate=best,
+            rejected_candidates=sorted_candidates[1:],
+            confidence=best.get("confidence", ""),
+            reasons=["multiple_reviewable_identifier_values"],
+            evidence_refs=[
+                ref
+                for ref in [_candidate_evidence_ref(candidate) for candidate in strong_candidates]
+                if ref
+            ],
+            warnings=["field_conflict_requires_review"],
+            conflict_candidate_ids=_candidate_diagnostic_ids(strong_candidates),
+        )
+
+    return build_field_resolution(
+        field_name=field_name,
+        status=FIELD_RESOLUTION_STATUS_RESOLVED,
+        selected_candidate=best,
+        rejected_candidates=sorted_candidates[1:],
+        confidence=best.get("confidence", ""),
+        reasons=["selected_primary_load_identifier_candidate"],
+        evidence_refs=evidence_refs,
+        warnings=best.get("warnings", []),
+    )
+
+
 def _resolution_for_field(field_name, candidates):
     if field_name == FIELD_RATE:
         return _resolution_for_rate(field_name, candidates)
+    if field_name == FIELD_LOAD_NUMBER:
+        return _resolution_for_load_number(field_name, candidates)
 
     if not candidates:
         return build_field_resolution(
