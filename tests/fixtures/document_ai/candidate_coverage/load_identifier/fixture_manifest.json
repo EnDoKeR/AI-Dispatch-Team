@@ -68,6 +68,30 @@
       "pattern": "header reference near load confirmation context"
     },
     {
+      "file": "fake_header_reference_no_review_candidate.txt",
+      "expected_identifier_type": "primary_reference",
+      "expected_primary_candidate": true,
+      "pattern": "header Reference No. review candidate"
+    },
+    {
+      "file": "fake_header_confirmation_no_review_candidate.txt",
+      "expected_identifier_type": "primary_reference",
+      "expected_primary_candidate": true,
+      "pattern": "header Confirmation No. review candidate"
+    },
+    {
+      "file": "fake_tender_ref_review_candidate.txt",
+      "expected_identifier_type": "primary_reference",
+      "expected_primary_candidate": true,
+      "pattern": "tender reference review candidate"
+    },
+    {
+      "file": "fake_stop_ref_not_primary_even_with_header.txt",
+      "expected_identifier_type": "unknown_reference",
+      "expected_primary_candidate": false,
+      "pattern": "stop reference remains non-primary"
+    },
+    {
       "file": "fake_stop_reference_should_not_be_load_id.txt",
       "expected_identifier_type": "unknown_reference",
       "expected_primary_candidate": false,

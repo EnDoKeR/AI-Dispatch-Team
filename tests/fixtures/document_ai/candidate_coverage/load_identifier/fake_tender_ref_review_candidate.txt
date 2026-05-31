@@ -1,0 +1,5 @@
+FAKE CARRIER LOAD TENDER
+Tender Ref FAKE-TENDER-REF-103
+Rate: $1234.00
+Pickup: Fake Origin, AA
+Delivery: Fake Destination, BB

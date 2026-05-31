@@ -1,0 +1,8 @@
+FAKE RATE CONFIRMATION
+Carrier Pay: $1234.00
+Pickup Stop
+Reference No. FAKE-STOP-104
+Pickup: Fake Origin, AA
+Delivery Stop
+Reference No. FAKE-STOP-105
+Delivery: Fake Destination, BB

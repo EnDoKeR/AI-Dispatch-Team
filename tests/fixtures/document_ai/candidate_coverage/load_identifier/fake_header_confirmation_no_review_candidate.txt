@@ -1,0 +1,5 @@
+FAKE LOAD CONFIRMATION
+Confirmation No. FAKE-CONF-102
+Equipment: Fake Van
+Pickup: Fake Origin, AA
+Delivery: Fake Destination, BB

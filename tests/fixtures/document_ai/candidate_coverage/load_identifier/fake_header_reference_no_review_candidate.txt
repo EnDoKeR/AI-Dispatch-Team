@@ -1,0 +1,5 @@
+FAKE RATE CONFIRMATION
+Reference No. FAKE-REF-101
+Carrier Pay: $1234.00
+Pickup: Fake City, AA
+Delivery: Sample Town, BB
