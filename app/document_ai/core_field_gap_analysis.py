@@ -1,12 +1,30 @@
-"""Safe core-field gap analysis contracts.
+"""Safe core-field gap analysis contracts and local-output analyzer.
 
 This module summarizes local review-output gaps by field, reason, and readiness
 level. It must not expose private review values.
 """
 
+import json
 from collections import Counter, defaultdict
+from pathlib import Path
 
+from app.document_ai.local_review_analysis import (
+    LocalReviewAnalysisError,
+    load_document_summary_csv,
+    load_field_review_csv,
+    load_rate_review_csv,
+    load_stop_review_csv,
+)
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+)
 from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.ratecon_review_workbook import (
+    REVIEW_DOCUMENT_SUMMARY_CSV,
+    REVIEW_FIELD_REVIEW_CSV,
+    REVIEW_RATE_REVIEW_CSV,
+    REVIEW_STOP_REVIEW_CSV,
+)
 
 
 CORE_FIELD_BROKER_NAME = "broker_name"
@@ -111,6 +129,14 @@ OPTIONAL_FOR_INTAKE_CORE = {
     CORE_FIELD_REFERENCE,
 }
 
+ACTIONABLE_STATUSES = {
+    "missing",
+    "conflict",
+    "low_confidence",
+    "needs_review",
+    "review_required",
+}
+
 TARGET_PRIORITY = [
     "broker_load_identity_extraction",
     "load_identifier_extraction",
@@ -133,6 +159,10 @@ def _int(value):
         return int(value or 0)
     except (TypeError, ValueError):
         return 0
+
+
+def _boolish(value):
+    return _token(value) in {"1", "true", "yes", "y"}
 
 
 def normalize_core_field_name(value):
@@ -166,6 +196,48 @@ def recommended_fix_bucket_for_field(field_name, gap_reason=CORE_FIELD_GAP_UNKNO
     if reason == CORE_FIELD_GAP_OCR_NEEDED:
         return "ocr_queue"
     return "local_human_review"
+
+
+def classify_gap_reason(status, candidate_count=0, document_row=None, field_name=""):
+    status_token = _token(status)
+    field = normalize_core_field_name(field_name)
+    if _boolish((document_row or {}).get("OCR Needed")):
+        return CORE_FIELD_GAP_OCR_NEEDED
+    if status_token in {"not_applicable", "non_applicable"}:
+        return CORE_FIELD_GAP_NON_APPLICABLE
+    if field in OPTIONAL_FOR_INTAKE_CORE and status_token == "missing":
+        return CORE_FIELD_GAP_OPTIONAL_MISCLASSIFIED
+    if status_token == "conflict":
+        return CORE_FIELD_GAP_CONFLICT
+    if status_token == "low_confidence":
+        return CORE_FIELD_GAP_LOW_CONFIDENCE
+    if status_token in {"needs_review", "review_required"}:
+        return CORE_FIELD_GAP_REVIEW_REQUIRED
+    if status_token == "missing":
+        return (
+            CORE_FIELD_GAP_CANDIDATE_EXISTS_BUT_UNRESOLVED
+            if _int(candidate_count) > 0
+            else CORE_FIELD_GAP_NO_CANDIDATE
+        )
+    return CORE_FIELD_GAP_UNKNOWN
+
+
+def classify_readiness_blockers(field_name, gap_reason):
+    field = normalize_core_field_name(field_name)
+    reason = normalize_core_field_gap_reason(gap_reason)
+    if reason in {CORE_FIELD_GAP_NON_APPLICABLE, CORE_FIELD_GAP_OCR_NEEDED}:
+        return {
+            "extraction_review_blocker": reason == CORE_FIELD_GAP_OCR_NEEDED,
+            "intake_core_blocker": False,
+            "dispatch_decision_blocker": False,
+        }
+    intake_core_blocker = field in INTAKE_CORE_FIELDS
+    dispatch_decision_blocker = field in DISPATCH_DECISION_FIELDS
+    return {
+        "extraction_review_blocker": False,
+        "intake_core_blocker": intake_core_blocker,
+        "dispatch_decision_blocker": dispatch_decision_blocker,
+    }
 
 
 def build_core_field_gap_record(
@@ -203,6 +275,203 @@ def build_core_field_gap_record(
         or recommended_fix_bucket_for_field(field, reason),
         "safe_notes": normalize_list(safe_notes),
     }
+
+
+def _rows_by_alias(rows, alias_key="Measurement Alias"):
+    return {
+        _text(row.get(alias_key)): row
+        for row in rows or []
+        if isinstance(row, dict) and _text(row.get(alias_key))
+    }
+
+
+def _safe_summary_by_alias(rows):
+    return {
+        _text(row.get("document_alias")): row
+        for row in rows or []
+        if isinstance(row, dict) and _text(row.get("document_alias"))
+    }
+
+
+def _field_status_index(safe_summary_rows):
+    indexed = {}
+    for row in safe_summary_rows or []:
+        alias = _text(row.get("document_alias"))
+        if not alias:
+            continue
+        for field in row.get("field_statuses", []) or []:
+            if not isinstance(field, dict):
+                continue
+            field_name = normalize_core_field_name(field.get("field_name"))
+            indexed[(alias, field_name)] = field
+    return indexed
+
+
+def _safe_summary_rows_from_path(path):
+    summary_path = Path(path)
+    if not summary_path.exists():
+        return []
+    payload = json.loads(summary_path.read_text(encoding="utf-8"))
+    return [
+        row
+        for row in payload.get("rows", []) or []
+        if isinstance(row, dict)
+    ]
+
+
+def load_core_field_gap_inputs(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
+    root = Path(input_dir)
+    return {
+        "document_rows": load_document_summary_csv(root / REVIEW_DOCUMENT_SUMMARY_CSV),
+        "stop_rows": load_stop_review_csv(root / REVIEW_STOP_REVIEW_CSV),
+        "field_rows": load_field_review_csv(root / REVIEW_FIELD_REVIEW_CSV),
+        "rate_rows": load_rate_review_csv(root / REVIEW_RATE_REVIEW_CSV),
+        "safe_summary_rows": _safe_summary_rows_from_path(root / "safe_summary.json"),
+    }
+
+
+def _record_from_field_row(field_row, document_rows_by_alias, status_index):
+    alias = _text(field_row.get("Measurement Alias"))
+    field = normalize_core_field_name(field_row.get("Field Name"))
+    status = _token(field_row.get("Status"))
+    field_status = status_index.get((alias, field), {})
+    candidate_count = _int(field_status.get("candidate_count"))
+    if not candidate_count:
+        candidate_count = _int((field_status or {}).get("candidate_count"))
+    reason = classify_gap_reason(
+        status,
+        candidate_count=candidate_count,
+        document_row=document_rows_by_alias.get(alias),
+        field_name=field,
+    )
+    blockers = classify_readiness_blockers(field, reason)
+    warnings = normalize_list((field_status or {}).get("warning_codes"))
+    notes = normalize_list((field_status or {}).get("safe_reasons"))
+    return build_core_field_gap_record(
+        measurement_alias=alias,
+        field_name=field,
+        status=status,
+        gap_reason=reason,
+        candidate_count=candidate_count,
+        conflict_count=1 if reason == CORE_FIELD_GAP_CONFLICT else 0,
+        confidence_bucket=(field_status or {}).get("confidence_bucket")
+        or field_row.get("Confidence Bucket"),
+        readiness_blocker=any(blockers.values()),
+        extraction_review_blocker=blockers["extraction_review_blocker"],
+        intake_core_blocker=blockers["intake_core_blocker"],
+        dispatch_decision_blocker=blockers["dispatch_decision_blocker"],
+        warning_codes=warnings,
+        safe_notes=notes,
+    )
+
+
+def _stop_field_to_core_field(stop_type, field_name):
+    stop_type_token = _token(stop_type)
+    field_token = _token(field_name)
+    if field_token == "date":
+        if stop_type_token == "pickup":
+            return CORE_FIELD_PICKUP_DATE
+        if stop_type_token == "delivery":
+            return CORE_FIELD_DELIVERY_DATE
+    if field_token == "time":
+        if stop_type_token == "pickup":
+            return CORE_FIELD_PICKUP_TIME
+        if stop_type_token == "delivery":
+            return CORE_FIELD_DELIVERY_TIME
+    if field_token == "location":
+        if stop_type_token == "pickup":
+            return CORE_FIELD_PICKUP_LOCATION
+        if stop_type_token == "delivery":
+            return CORE_FIELD_DELIVERY_LOCATION
+    if field_token == "reference":
+        return CORE_FIELD_REFERENCE
+    return CORE_FIELD_UNKNOWN
+
+
+def _record_from_stop_row(stop_row, document_rows_by_alias):
+    alias = _text(stop_row.get("Measurement Alias"))
+    field = _stop_field_to_core_field(stop_row.get("Stop Type"), stop_row.get("Field Name"))
+    if field == CORE_FIELD_UNKNOWN:
+        return None
+    status = _token(stop_row.get("Status"))
+    reason = classify_gap_reason(
+        status,
+        candidate_count=1 if status in {"conflict", "needs_review", "review_required"} else 0,
+        document_row=document_rows_by_alias.get(alias),
+        field_name=field,
+    )
+    blockers = classify_readiness_blockers(field, reason)
+    warnings = []
+    if field in {CORE_FIELD_PICKUP_DATE, CORE_FIELD_DELIVERY_DATE, CORE_FIELD_PICKUP_TIME, CORE_FIELD_DELIVERY_TIME}:
+        warnings.append("stop_review_field_gap")
+    return build_core_field_gap_record(
+        measurement_alias=alias,
+        field_name=field,
+        status=status,
+        gap_reason=reason,
+        candidate_count=0,
+        conflict_count=1 if reason == CORE_FIELD_GAP_CONFLICT else 0,
+        confidence_bucket=stop_row.get("Confidence Bucket"),
+        readiness_blocker=any(blockers.values()),
+        extraction_review_blocker=blockers["extraction_review_blocker"],
+        intake_core_blocker=blockers["intake_core_blocker"],
+        dispatch_decision_blocker=blockers["dispatch_decision_blocker"],
+        warning_codes=warnings,
+    )
+
+
+def analyze_core_field_gaps_from_rows(
+    document_rows,
+    stop_rows=None,
+    field_rows=None,
+    rate_rows=None,
+    safe_summary_rows=None,
+):
+    del rate_rows
+    document_rows_by_alias = _rows_by_alias(document_rows)
+    status_index = _field_status_index(safe_summary_rows)
+    records = []
+
+    for row in field_rows or []:
+        status = _token(row.get("Status"))
+        field = normalize_core_field_name(row.get("Field Name"))
+        if field == CORE_FIELD_UNKNOWN or status not in ACTIONABLE_STATUSES:
+            continue
+        records.append(_record_from_field_row(row, document_rows_by_alias, status_index))
+
+    field_record_keys = {
+        (record["measurement_alias"], record["field_name"], record["status"])
+        for record in records
+    }
+    for row in stop_rows or []:
+        status = _token(row.get("Status"))
+        if status not in ACTIONABLE_STATUSES:
+            continue
+        record = _record_from_stop_row(row, document_rows_by_alias)
+        if not record:
+            continue
+        key = (record["measurement_alias"], record["field_name"], record["status"])
+        # Keep stop-level gaps only when the field review sheet does not already
+        # carry the same alias/field/status.
+        if key in field_record_keys:
+            continue
+        records.append(record)
+
+    return {
+        "records": records,
+        "aggregate": build_core_field_gap_aggregate(
+            records,
+            document_count=len(document_rows or []),
+        ),
+        "analysis_version": CORE_FIELD_GAP_ANALYSIS_VERSION,
+        "private_values_included": False,
+        "raw_text_included": False,
+    }
+
+
+def analyze_core_field_gaps(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR):
+    inputs = load_core_field_gap_inputs(input_dir)
+    return analyze_core_field_gaps_from_rows(**inputs)
 
 
 def _sorted_counter(counter):
