@@ -65,10 +65,12 @@ SAFE_CSV_COLUMNS = [
     "raw_stop_group_count",
     "raw_stop_signal_count",
     "premerge_stop_group_count",
+    "post_single_line_cluster_stop_group_count",
     "post_row_merge_stop_group_count",
     "post_section_merge_stop_group_count",
     "post_noise_filter_stop_group_count",
     "post_dedupe_stop_group_count",
+    "post_date_time_attachment_stop_group_count",
     "normalized_stop_count",
     "pickup_count",
     "delivery_count",
@@ -77,8 +79,11 @@ SAFE_CSV_COLUMNS = [
     "stop_group_quality_bucket",
     "stop_noise_removed_count",
     "stop_duplicate_removed_count",
+    "single_line_cluster_merge_count",
     "table_row_merge_count",
     "section_context_merge_count",
+    "stop_pipeline_passthrough_detected",
+    "stop_pipeline_first_changed_stage",
     "stop_pattern_counts_summary",
     "date_candidate_generated_count",
     "date_candidate_attached_count",
@@ -210,10 +215,16 @@ def _safe_csv_row(row):
         "raw_stop_group_count": row.get("raw_stop_group_count", 0),
         "raw_stop_signal_count": row.get("raw_stop_signal_count", 0),
         "premerge_stop_group_count": row.get("premerge_stop_group_count", 0),
+        "post_single_line_cluster_stop_group_count": row.get(
+            "post_single_line_cluster_stop_group_count", 0
+        ),
         "post_row_merge_stop_group_count": row.get("post_row_merge_stop_group_count", 0),
         "post_section_merge_stop_group_count": row.get("post_section_merge_stop_group_count", 0),
         "post_noise_filter_stop_group_count": row.get("post_noise_filter_stop_group_count", 0),
         "post_dedupe_stop_group_count": row.get("post_dedupe_stop_group_count", 0),
+        "post_date_time_attachment_stop_group_count": row.get(
+            "post_date_time_attachment_stop_group_count", 0
+        ),
         "normalized_stop_count": row.get("normalized_stop_count", 0),
         "pickup_count": row.get("pickup_count", 0),
         "delivery_count": row.get("delivery_count", 0),
@@ -222,8 +233,15 @@ def _safe_csv_row(row):
         "stop_group_quality_bucket": row.get("stop_group_quality_bucket", ""),
         "stop_noise_removed_count": row.get("stop_noise_removed_count", 0),
         "stop_duplicate_removed_count": row.get("stop_duplicate_removed_count", 0),
+        "single_line_cluster_merge_count": row.get("single_line_cluster_merge_count", 0),
         "table_row_merge_count": row.get("table_row_merge_count", 0),
         "section_context_merge_count": row.get("section_context_merge_count", 0),
+        "stop_pipeline_passthrough_detected": bool(
+            (row.get("stop_pipeline_trace", {}) or {}).get("passthrough_detected")
+        ),
+        "stop_pipeline_first_changed_stage": (
+            row.get("stop_pipeline_trace", {}) or {}
+        ).get("first_stage_that_changed", ""),
         "stop_pattern_counts_summary": _candidate_counts_summary(
             row.get("stop_pattern_counts", {})
         ),
@@ -360,10 +378,12 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
         f"- raw_stop_group_count_total: {aggregate.get('raw_stop_group_count_total', 0)}",
         f"- raw_stop_signal_count_total: {aggregate.get('raw_stop_signal_count_total', 0)}",
         f"- premerge_stop_group_count_total: {aggregate.get('premerge_stop_group_count_total', 0)}",
+        f"- post_single_line_cluster_stop_group_count_total: {aggregate.get('post_single_line_cluster_stop_group_count_total', 0)}",
         f"- post_row_merge_stop_group_count_total: {aggregate.get('post_row_merge_stop_group_count_total', 0)}",
         f"- post_section_merge_stop_group_count_total: {aggregate.get('post_section_merge_stop_group_count_total', 0)}",
         f"- post_noise_filter_stop_group_count_total: {aggregate.get('post_noise_filter_stop_group_count_total', 0)}",
         f"- post_dedupe_stop_group_count_total: {aggregate.get('post_dedupe_stop_group_count_total', 0)}",
+        f"- post_date_time_attachment_stop_group_count_total: {aggregate.get('post_date_time_attachment_stop_group_count_total', 0)}",
         f"- normalized_stop_count_total: {aggregate.get('normalized_stop_count_total', 0)}",
         f"- pickup_count_total: {aggregate.get('pickup_count_total', 0)}",
         f"- delivery_count_total: {aggregate.get('delivery_count_total', 0)}",
@@ -372,8 +392,11 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
         f"- stop_group_quality_bucket_counts: {aggregate.get('stop_group_quality_bucket_counts', {})}",
         f"- stop_noise_removed_count_total: {aggregate.get('stop_noise_removed_count_total', 0)}",
         f"- stop_duplicate_removed_count_total: {aggregate.get('stop_duplicate_removed_count_total', 0)}",
+        f"- single_line_cluster_merge_count_total: {aggregate.get('single_line_cluster_merge_count_total', 0)}",
         f"- table_row_merge_count_total: {aggregate.get('table_row_merge_count_total', 0)}",
         f"- section_context_merge_count_total: {aggregate.get('section_context_merge_count_total', 0)}",
+        f"- stop_pipeline_passthrough_count: {aggregate.get('stop_pipeline_passthrough_count', 0)}",
+        f"- stop_pipeline_first_changed_stage_counts: {aggregate.get('stop_pipeline_first_changed_stage_counts', {})}",
         f"- stop_pattern_counts: {aggregate.get('stop_pattern_counts', {})}",
         f"- date_candidate_generated_count_total: {aggregate.get('date_candidate_generated_count_total', 0)}",
         f"- date_candidate_attached_count_total: {aggregate.get('date_candidate_attached_count_total', 0)}",

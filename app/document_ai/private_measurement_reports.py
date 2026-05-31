@@ -306,6 +306,10 @@ def build_private_ratecon_measurement_aggregate(rows):
         premerge_stop_group_count_total=sum(
             int(row.get("premerge_stop_group_count", 0) or 0) for row in safe_rows
         ),
+        post_single_line_cluster_stop_group_count_total=sum(
+            int(row.get("post_single_line_cluster_stop_group_count", 0) or 0)
+            for row in safe_rows
+        ),
         post_row_merge_stop_group_count_total=sum(
             int(row.get("post_row_merge_stop_group_count", 0) or 0) for row in safe_rows
         ),
@@ -317,6 +321,10 @@ def build_private_ratecon_measurement_aggregate(rows):
         ),
         post_dedupe_stop_group_count_total=sum(
             int(row.get("post_dedupe_stop_group_count", 0) or 0) for row in safe_rows
+        ),
+        post_date_time_attachment_stop_group_count_total=sum(
+            int(row.get("post_date_time_attachment_stop_group_count", 0) or 0)
+            for row in safe_rows
         ),
         normalized_stop_count_total=sum(int(row.get("normalized_stop_count", 0) or 0) for row in safe_rows),
         pickup_count_total=sum(int(row.get("pickup_count", 0) or 0) for row in safe_rows),
@@ -332,11 +340,30 @@ def build_private_ratecon_measurement_aggregate(rows):
         stop_duplicate_removed_count_total=sum(
             int(row.get("stop_duplicate_removed_count", 0) or 0) for row in safe_rows
         ),
+        single_line_cluster_merge_count_total=sum(
+            int(row.get("single_line_cluster_merge_count", 0) or 0) for row in safe_rows
+        ),
         table_row_merge_count_total=sum(
             int(row.get("table_row_merge_count", 0) or 0) for row in safe_rows
         ),
         section_context_merge_count_total=sum(
             int(row.get("section_context_merge_count", 0) or 0) for row in safe_rows
+        ),
+        stop_pipeline_passthrough_count=sum(
+            1
+            for row in safe_rows
+            if (row.get("stop_pipeline_trace", {}) or {}).get("passthrough_detected")
+        ),
+        stop_pipeline_first_changed_stage_counts=_count_by_key(
+            [
+                {
+                    "first_changed": (row.get("stop_pipeline_trace", {}) or {}).get(
+                        "first_stage_that_changed", ""
+                    )
+                }
+                for row in safe_rows
+            ],
+            "first_changed",
         ),
         stop_pattern_counts=_sum_mapping_values(safe_rows, "stop_pattern_counts"),
         date_candidate_generated_count_total=sum(

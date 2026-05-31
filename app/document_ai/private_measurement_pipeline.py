@@ -1112,6 +1112,9 @@ def measure_private_ratecon_pdf(
         premerge_stop_group_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("premerge_group_count", 0),
+        post_single_line_cluster_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_single_line_cluster_group_count", 0),
         post_row_merge_stop_group_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("post_row_merge_group_count", 0),
@@ -1124,6 +1127,9 @@ def measure_private_ratecon_pdf(
         post_dedupe_stop_group_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("post_dedupe_group_count", 0),
+        post_date_time_attachment_stop_group_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("post_date_time_attachment_group_count", 0),
         normalized_stop_count=len(
             (fusion_fields.get("normalized_stop_set", {}) or {}).get("stops", []) or []
         ),
@@ -1148,11 +1154,14 @@ def measure_private_ratecon_pdf(
         stop_duplicate_removed_count=(
             fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("stop_duplicate_removed_count", 0),
+        single_line_cluster_merge_count=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("single_line_cluster_merge_count", 0),
         table_row_merge_count=(
-            fusion_fields.get("stop_review_summary", {}) or {}
+            fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("table_row_merge_count", 0),
         section_context_merge_count=(
-            fusion_fields.get("stop_review_summary", {}) or {}
+            fusion_fields.get("normalized_stop_set", {}) or {}
         ).get("section_context_merge_count", 0),
         stop_pattern_counts=(
             fusion_fields.get("stop_review_summary", {}) or {}
@@ -1201,6 +1210,9 @@ def measure_private_ratecon_pdf(
         stop_group_provenance_summary=fusion_fields.get(
             "stop_group_provenance_summary", {}
         ),
+        stop_pipeline_trace=(
+            fusion_fields.get("normalized_stop_set", {}) or {}
+        ).get("stop_pipeline_trace", {}),
         warning_codes=all_warnings,
         blocker_categories=classify_private_ratecon_measurement_blockers(
             triage_route=triage_result.get("recommended_route", DIGITAL_TEXT),

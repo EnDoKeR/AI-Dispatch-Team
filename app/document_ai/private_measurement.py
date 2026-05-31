@@ -205,10 +205,12 @@ def build_private_ratecon_measurement_row(
     raw_stop_group_count=0,
     raw_stop_signal_count=0,
     premerge_stop_group_count=0,
+    post_single_line_cluster_stop_group_count=0,
     post_row_merge_stop_group_count=0,
     post_section_merge_stop_group_count=0,
     post_noise_filter_stop_group_count=0,
     post_dedupe_stop_group_count=0,
+    post_date_time_attachment_stop_group_count=0,
     normalized_stop_count=0,
     pickup_count=0,
     delivery_count=0,
@@ -217,8 +219,10 @@ def build_private_ratecon_measurement_row(
     stop_group_quality_bucket="",
     stop_noise_removed_count=0,
     stop_duplicate_removed_count=0,
+    single_line_cluster_merge_count=0,
     table_row_merge_count=0,
     section_context_merge_count=0,
+    stop_pipeline_trace=None,
     stop_pattern_counts=None,
     date_candidate_generated_count=0,
     date_candidate_attached_count=0,
@@ -316,10 +320,16 @@ def build_private_ratecon_measurement_row(
         "raw_stop_group_count": int(raw_stop_group_count or 0),
         "raw_stop_signal_count": int(raw_stop_signal_count or 0),
         "premerge_stop_group_count": int(premerge_stop_group_count or 0),
+        "post_single_line_cluster_stop_group_count": int(
+            post_single_line_cluster_stop_group_count or 0
+        ),
         "post_row_merge_stop_group_count": int(post_row_merge_stop_group_count or 0),
         "post_section_merge_stop_group_count": int(post_section_merge_stop_group_count or 0),
         "post_noise_filter_stop_group_count": int(post_noise_filter_stop_group_count or 0),
         "post_dedupe_stop_group_count": int(post_dedupe_stop_group_count or 0),
+        "post_date_time_attachment_stop_group_count": int(
+            post_date_time_attachment_stop_group_count or 0
+        ),
         "normalized_stop_count": int(normalized_stop_count or 0),
         "pickup_count": int(pickup_count or 0),
         "delivery_count": int(delivery_count or 0),
@@ -328,6 +338,7 @@ def build_private_ratecon_measurement_row(
         "stop_group_quality_bucket": _text(stop_group_quality_bucket),
         "stop_noise_removed_count": int(stop_noise_removed_count or 0),
         "stop_duplicate_removed_count": int(stop_duplicate_removed_count or 0),
+        "single_line_cluster_merge_count": int(single_line_cluster_merge_count or 0),
         "table_row_merge_count": int(table_row_merge_count or 0),
         "section_context_merge_count": int(section_context_merge_count or 0),
         "stop_pattern_counts": _normalize_mapping(stop_pattern_counts),
@@ -347,6 +358,7 @@ def build_private_ratecon_measurement_row(
         "normalized_stop_missing_fields": _normalize_list(normalized_stop_missing_fields),
         "normalized_stop_set": normalized_stop_set if isinstance(normalized_stop_set, dict) else {},
         "stop_group_provenance_summary": _normalize_mapping(stop_group_provenance_summary),
+        "stop_pipeline_trace": stop_pipeline_trace if isinstance(stop_pipeline_trace, dict) else {},
         "warning_codes": _normalize_list(warning_codes),
         "blocker_categories": _normalize_list(blocker_categories),
         "intake_status": _text(intake_status),
@@ -411,10 +423,12 @@ def build_private_ratecon_measurement_aggregate(
     raw_stop_group_count_total=0,
     raw_stop_signal_count_total=0,
     premerge_stop_group_count_total=0,
+    post_single_line_cluster_stop_group_count_total=0,
     post_row_merge_stop_group_count_total=0,
     post_section_merge_stop_group_count_total=0,
     post_noise_filter_stop_group_count_total=0,
     post_dedupe_stop_group_count_total=0,
+    post_date_time_attachment_stop_group_count_total=0,
     normalized_stop_count_total=0,
     pickup_count_total=0,
     delivery_count_total=0,
@@ -423,8 +437,11 @@ def build_private_ratecon_measurement_aggregate(
     stop_group_quality_bucket_counts=None,
     stop_noise_removed_count_total=0,
     stop_duplicate_removed_count_total=0,
+    single_line_cluster_merge_count_total=0,
     table_row_merge_count_total=0,
     section_context_merge_count_total=0,
+    stop_pipeline_passthrough_count=0,
+    stop_pipeline_first_changed_stage_counts=None,
     stop_pattern_counts=None,
     date_candidate_generated_count_total=0,
     date_candidate_attached_count_total=0,
@@ -513,6 +530,9 @@ def build_private_ratecon_measurement_aggregate(
         "raw_stop_group_count_total": int(raw_stop_group_count_total or 0),
         "raw_stop_signal_count_total": int(raw_stop_signal_count_total or 0),
         "premerge_stop_group_count_total": int(premerge_stop_group_count_total or 0),
+        "post_single_line_cluster_stop_group_count_total": int(
+            post_single_line_cluster_stop_group_count_total or 0
+        ),
         "post_row_merge_stop_group_count_total": int(
             post_row_merge_stop_group_count_total or 0
         ),
@@ -525,6 +545,9 @@ def build_private_ratecon_measurement_aggregate(
         "post_dedupe_stop_group_count_total": int(
             post_dedupe_stop_group_count_total or 0
         ),
+        "post_date_time_attachment_stop_group_count_total": int(
+            post_date_time_attachment_stop_group_count_total or 0
+        ),
         "normalized_stop_count_total": int(normalized_stop_count_total or 0),
         "pickup_count_total": int(pickup_count_total or 0),
         "delivery_count_total": int(delivery_count_total or 0),
@@ -533,8 +556,13 @@ def build_private_ratecon_measurement_aggregate(
         "stop_group_quality_bucket_counts": _normalize_mapping(stop_group_quality_bucket_counts),
         "stop_noise_removed_count_total": int(stop_noise_removed_count_total or 0),
         "stop_duplicate_removed_count_total": int(stop_duplicate_removed_count_total or 0),
+        "single_line_cluster_merge_count_total": int(single_line_cluster_merge_count_total or 0),
         "table_row_merge_count_total": int(table_row_merge_count_total or 0),
         "section_context_merge_count_total": int(section_context_merge_count_total or 0),
+        "stop_pipeline_passthrough_count": int(stop_pipeline_passthrough_count or 0),
+        "stop_pipeline_first_changed_stage_counts": _normalize_mapping(
+            stop_pipeline_first_changed_stage_counts
+        ),
         "stop_pattern_counts": _normalize_mapping(stop_pattern_counts),
         "date_candidate_generated_count_total": int(date_candidate_generated_count_total or 0),
         "date_candidate_attached_count_total": int(date_candidate_attached_count_total or 0),
