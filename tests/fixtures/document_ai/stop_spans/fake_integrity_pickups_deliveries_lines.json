@@ -1,0 +1,26 @@
+{
+  "fixture_id": "fake_integrity_pickups_deliveries_lines",
+  "expected_span_count": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_integrity_pickups_deliveries_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_007",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Pick Ups", "page_number": 1, "reading_order_index": 1, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Pickup Group", "page_number": 1, "reading_order_index": 2, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Date 07/15/2099 Time FCFS", "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Deliveries", "page_number": 1, "reading_order_index": 4, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l005", "text_redacted": "Fake Delivery Group", "page_number": 1, "reading_order_index": 5, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l006", "text_redacted": "Date 07/16/2099 Time FCFS", "page_number": 1, "reading_order_index": 6, "section_role": "DELIVERY_SECTION"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

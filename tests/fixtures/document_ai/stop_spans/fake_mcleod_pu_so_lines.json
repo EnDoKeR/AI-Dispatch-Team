@@ -1,0 +1,27 @@
+{
+  "fixture_id": "fake_mcleod_pu_so_lines",
+  "expected_span_count": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_mcleod_pu_so_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_003",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "PU 1", "page_number": 1, "reading_order_index": 1, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Pickup Site", "page_number": 1, "reading_order_index": 2, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Appt 03/06/2099 07:30", "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l004", "text_redacted": "SO 2", "page_number": 1, "reading_order_index": 4, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l005", "text_redacted": "Fake Delivery Site", "page_number": 1, "reading_order_index": 5, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l006", "text_redacted": "Appt 03/07/2099 14:00", "page_number": 1, "reading_order_index": 6, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l007", "text_redacted": "Signature", "page_number": 1, "reading_order_index": 7, "section_role": "SIGNATURE_BLOCK"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "fixture_id": "fake_terms_billing_lines",
+  "expected_span_count": 0,
+  "layout_artifact": {
+    "artifact_id": "fake_terms_billing_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_009",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Billing Instructions", "page_number": 1, "reading_order_index": 1, "section_role": "BILLING_INSTRUCTIONS"},
+          {"line_id": "l002", "text_redacted": "Quick Pay terms fake amount", "page_number": 1, "reading_order_index": 2, "section_role": "QUICK_PAY"},
+          {"line_id": "l003", "text_redacted": "Payment due by 08/20/2099", "page_number": 1, "reading_order_index": 3, "section_role": "LEGAL_TERMS"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

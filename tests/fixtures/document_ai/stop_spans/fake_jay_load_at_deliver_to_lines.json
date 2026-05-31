@@ -1,0 +1,28 @@
+{
+  "fixture_id": "fake_jay_load_at_deliver_to_lines",
+  "expected_span_count": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_jay_load_at_deliver_to_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_002",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Load At", "page_number": 1, "reading_order_index": 1, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Origin Warehouse", "page_number": 1, "reading_order_index": 2, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Earliest Date 02/04/2099", "page_number": 1, "reading_order_index": 3, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Latest Date 02/04/2099", "page_number": 1, "reading_order_index": 4, "section_role": "PICKUP_SECTION"},
+          {"line_id": "l005", "text_redacted": "Deliver To", "page_number": 1, "reading_order_index": 5, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l006", "text_redacted": "Fake Destination Warehouse", "page_number": 1, "reading_order_index": 6, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l007", "text_redacted": "Earliest Date 02/05/2099", "page_number": 1, "reading_order_index": 7, "section_role": "DELIVERY_SECTION"},
+          {"line_id": "l008", "text_redacted": "Comments fake delivery note", "page_number": 1, "reading_order_index": 8, "section_role": "SPECIAL_INSTRUCTIONS"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

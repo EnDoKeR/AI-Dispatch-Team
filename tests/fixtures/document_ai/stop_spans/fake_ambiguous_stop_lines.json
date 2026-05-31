@@ -1,0 +1,24 @@
+{
+  "fixture_id": "fake_ambiguous_stop_lines",
+  "expected_span_count": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_ambiguous_stop_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_010",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Stop 1", "page_number": 1, "reading_order_index": 1, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l002", "text_redacted": "Fake Stop Location A", "page_number": 1, "reading_order_index": 2, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l003", "text_redacted": "Stop 2", "page_number": 1, "reading_order_index": 3, "section_role": "MULTI_STOP_SECTION"},
+          {"line_id": "l004", "text_redacted": "Fake Stop Location B", "page_number": 1, "reading_order_index": 4, "section_role": "MULTI_STOP_SECTION"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

@@ -1,0 +1,31 @@
+{
+  "fixture_id": "fake_tql_blue_table_lines",
+  "expected_span_count": 2,
+  "layout_artifact": {
+    "artifact_id": "fake_tql_blue_table_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_001",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "width": 612,
+        "height": 792,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Pick-up Location", "page_number": 1, "reading_order_index": 1, "section_role": "STOP_TABLE"},
+          {"line_id": "l002", "text_redacted": "Fake Shipper Facility", "page_number": 1, "reading_order_index": 2, "section_role": "STOP_TABLE"},
+          {"line_id": "l003", "text_redacted": "PU Date 01/02/2099", "page_number": 1, "reading_order_index": 3, "section_role": "STOP_TABLE"},
+          {"line_id": "l004", "text_redacted": "PU Time 08:00-10:00", "page_number": 1, "reading_order_index": 4, "section_role": "STOP_TABLE"},
+          {"line_id": "l005", "text_redacted": "Delivery Location", "page_number": 1, "reading_order_index": 5, "section_role": "STOP_TABLE"},
+          {"line_id": "l006", "text_redacted": "Fake Consignee Facility", "page_number": 1, "reading_order_index": 6, "section_role": "STOP_TABLE"},
+          {"line_id": "l007", "text_redacted": "Delivery Date 01/03/2099", "page_number": 1, "reading_order_index": 7, "section_role": "STOP_TABLE"},
+          {"line_id": "l008", "text_redacted": "Delivery Time 13:00-15:00", "page_number": 1, "reading_order_index": 8, "section_role": "STOP_TABLE"},
+          {"line_id": "l009", "text_redacted": "Carrier Freight Pay FAKE_AMOUNT", "page_number": 1, "reading_order_index": 9, "section_role": "RATE_SUMMARY"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}

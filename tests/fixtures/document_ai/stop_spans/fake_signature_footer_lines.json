@@ -1,0 +1,23 @@
+{
+  "fixture_id": "fake_signature_footer_lines",
+  "expected_span_count": 0,
+  "layout_artifact": {
+    "artifact_id": "fake_signature_footer_lines",
+    "document_id": "SYNTHETIC_STOP_SPAN_008",
+    "source_method": "synthetic_fixture",
+    "provider": "synthetic",
+    "pages": [
+      {
+        "page_number": 1,
+        "lines": [
+          {"line_id": "l001", "text_redacted": "Signature", "page_number": 1, "reading_order_index": 1, "section_role": "SIGNATURE_BLOCK"},
+          {"line_id": "l002", "text_redacted": "Please Sign and Return", "page_number": 1, "reading_order_index": 2, "section_role": "SIGNATURE_BLOCK"},
+          {"line_id": "l003", "text_redacted": "Page 1 of 1", "page_number": 1, "reading_order_index": 3, "section_role": "FOOTER"}
+        ],
+        "tables": []
+      }
+    ],
+    "raw_text_included": false,
+    "private_values_redacted": true
+  }
+}
