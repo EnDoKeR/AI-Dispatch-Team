@@ -21,6 +21,42 @@ Do not use bare `py -m unittest discover`. It can discover zero tests from the
 repo root. `scripts/run_tests.py` pins discovery to `tests` and fails if the
 discovered test count is zero.
 
+## Stop Pipeline Wiring Tests
+
+The stop wiring audit adds invariant tests that must fail if mergeable stop
+groups remain passthrough:
+
+- `tests/test_stop_pipeline_trace.py`
+- `tests/test_stop_pipeline_wiring_fixtures.py`
+- `tests/test_stop_pipeline_wiring.py`
+- `tests/test_stop_cluster_date_time.py`
+- `tests/test_stop_cluster_noise_filter.py`
+- `tests/test_stop_cluster_dedupe.py`
+
+Required invariant behavior:
+
+- mergeable single-line fixtures reduce after `post_single_line_cluster`;
+- distinct non-mergeable stops remain distinct;
+- signature/footer noise is removed;
+- stage trace records the first changed stage;
+- private reruns must report `NOT FIXED` if stage counts remain unchanged.
+
+The current private rerun is still `NOT FIXED`, even though synthetic wiring
+tests pass. That means the next tests should target provider-style line
+clustering from actual `pdfplumber` line/bbox metadata using fake provider
+artifacts.
+
+## Local Review Export Tests
+
+The local Google Sheets-compatible export is covered by:
+
+- `tests/test_private_measurement_review_export.py`
+- `tests/test_run_private_ratecon_measurement.py`
+
+These tests verify CSV generation, optional workbook generation when a writer is
+available, natural sorting, local-only output paths, and no console printing of
+local document stems.
+
 ## Current Test Categories Found
 
 Current tests already cover:

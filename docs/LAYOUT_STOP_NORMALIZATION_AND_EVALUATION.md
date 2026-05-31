@@ -161,6 +161,35 @@ This means normalized stop extraction is not ready for value correctness
 evaluation. The next implementation should rewrite provider-line clustering and
 stop-line classification using the provenance report as the feedback loop.
 
+## Wiring Audit Result
+
+The stop pipeline now records a safe stage trace:
+
+- raw signals;
+- premerge groups;
+- post single-line cluster;
+- post table row merge;
+- post section cluster;
+- post noise filter;
+- post structural dedupe;
+- post date/time attachment;
+- normalized stops.
+
+Synthetic fixtures prove the stage wiring can reduce mergeable single-line stop
+fragments. The private safe rerun did not improve private normalized stop
+counts:
+
+- raw stop groups: 112;
+- post single-line cluster groups: 112;
+- post dedupe groups: 112;
+- normalized stops: 112;
+- first changed stage counts: none.
+
+The private state is therefore `NOT FIXED`. The next block should derive better
+provider-line cluster keys from adjacent line order, bbox/proximity, page and
+section context, and field context. A local value correctness corpus is
+premature until normalized stop counts become plausible.
+
 ## Review Packet
 
 Private measurement can write a local-only stop review packet:

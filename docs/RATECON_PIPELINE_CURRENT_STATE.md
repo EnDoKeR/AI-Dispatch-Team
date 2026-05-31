@@ -293,6 +293,15 @@ Private value-review CSV output is local-only and ignored.
   `DATE_TIME_SPLIT_FROM_LOCATION`. The next block should rewrite provider-line
   clustering and table-row stop classification before local value correctness
   review.
+- The stop wiring audit added synthetic invariant tests, a first-class stage
+  trace, a `post_single_line_cluster` stage, and a local Google Sheets-compatible
+  review export. Synthetic fixtures now reduce mergeable line groups, but the
+  private safe rerun remained `NOT FIXED`: raw, premerge, post-single-line,
+  post-row, post-section, post-noise, post-dedupe, and normalized counts all
+  stayed at 112; first changed stage counts were empty; passthrough aliases were
+  6. The next block must inspect provider line evidence directly and derive
+  better cluster keys from line order, bbox/proximity, page/section context, and
+  field context.
 - Template scoring adjusts candidates but does not guarantee final field resolution.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
@@ -301,9 +310,9 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after the stop calibration rerun:
 
 ```text
-Deeper provider-line clustering and stop-line classification rewrite. Local-only
-correctness review should wait until normalized stop counts and date/time
-attachment are plausible.
+Direct provider-line clustering and stop-line field extraction rewrite.
+Local-only correctness review should wait until normalized stop counts and
+date/time attachment are plausible.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

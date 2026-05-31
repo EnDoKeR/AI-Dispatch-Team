@@ -295,6 +295,23 @@ source types, grouping keys, trigger categories, stage counts, and suspected
 root-cause labels. It must not include raw text, filenames, broker names, MCs,
 rates, addresses, exact dates/times, references, or local paths.
 
+Optional Google Sheets-compatible local review export:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --natural-sort-inputs
+```
+
+This writes ignored local files:
+
+- `ratecon_review_google_sheet.csv`
+- `ratecon_review_workbook.xlsx`, when a workbook writer is already available
+  in the local environment
+
+The export is file-based only. It does not use Google APIs, OAuth, cloud
+services, OCR, Vision, Camelot, or new dependencies. Local document stems may
+appear inside the ignored export so the user can map aliases to local document
+order. They must not be printed to console or copied into chat.
+
 Collect redacted template patterns before drafting private templates:
 
 ```powershell
@@ -317,6 +334,8 @@ Generated files:
 - `stop_review_packet.csv` and `stop_review_packet.md` when requested
 - `stop_group_provenance.json` and `stop_group_provenance_report.md` when
   requested
+- `ratecon_review_google_sheet.csv` and optional `ratecon_review_workbook.xlsx`
+  when requested
 
 These outputs are local-only and ignored by Git.
 

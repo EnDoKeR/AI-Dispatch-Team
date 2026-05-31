@@ -106,6 +106,50 @@ warning codes, and pattern categories. It must not include private values,
 filenames, broker names, MC numbers, rates, addresses, dates/times, references,
 local paths, screenshots, or PDFs.
 
+## Wiring Refactor Result
+
+The wiring block added:
+
+- `StopPipelineTrace` stage-count contracts;
+- synthetic stop wiring fixtures;
+- invariant tests that fail when mergeable single-line groups remain
+  passthrough;
+- a single-line clustering stage in the normalized stop pipeline;
+- per-row and aggregate fields for `post_single_line_cluster`;
+- local-only Google Sheets-compatible review export files.
+
+The synthetic fixtures now prove the wiring path can reduce mergeable
+single-line groups. The private safe rerun, however, still reported unchanged
+private stage counts:
+
+- raw stop groups: 112;
+- premerge groups: 112;
+- post single-line cluster groups: 112;
+- post row merge groups: 112;
+- post section cluster groups: 112;
+- post noise filter groups: 112;
+- post dedupe groups: 112;
+- normalized stops: 112;
+- passthrough aliases: 6;
+- first changed stage counts: none.
+
+This block is therefore `NOT FIXED` for private provider artifacts. The
+implementation improved instrumentation and protected the synthetic wiring
+invariants, but the real `pdfplumber` stop groups still need a deeper provider
+line clustering rewrite.
+
+## Current Decision Gate
+
+Because private stage counts remain unchanged, the next block should inspect
+provider line evidence directly and derive cluster keys from adjacent line
+order, bbox proximity, page/section context, and field context. The current
+per-line provenance keys are too unique for private artifacts.
+
+Do not move to a local value correctness corpus until private normalized stop
+counts become plausible. Do not move to Camelot unless provider-line clustering
+and table-row stop classification still fail after this deeper rewrite. OCR
+remains queued only for OCR-needed documents. Vision remains deferred.
+
 ## Google Sheets Review Export
 
 This block may add a local-only Google Sheets-compatible export to support
@@ -118,6 +162,21 @@ included only in local-only output files and must never be printed to console.
 Natural sorting should be available for local review workflows so names like
 `LoadConfirmation1`, `LoadConfirmation2`, and `LoadConfirmation10` appear in
 human order.
+
+Safe local command shape:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-private-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --natural-sort-inputs
+```
+
+The command writes local-only ignored files:
+
+- `ratecon_review_google_sheet.csv`;
+- `ratecon_review_workbook.xlsx`, when the local environment already has a
+  workbook writer available.
+
+Console output must print only output basenames, row counts, aliases, counts,
+statuses, field names, and blocker categories.
 
 ## Non-Goals
 

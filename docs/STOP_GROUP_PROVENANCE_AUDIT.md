@@ -186,6 +186,28 @@ fragmentation. The next block should be a deeper provider-line clustering and
 stop-line classification rewrite. The stage counts are still valuable because
 they prove where the current algorithm is a passthrough.
 
+## Wiring Audit Follow-Up
+
+The stop pipeline wiring audit added a first-class stage trace and an explicit
+`post_single_line_cluster` stage. Synthetic wiring fixtures now prove that
+mergeable single-line groups can be reduced when the groups share stable
+section keys.
+
+The private rerun still reported:
+
+- raw stop groups: 112;
+- post single-line cluster groups: 112;
+- post row merge groups: 112;
+- post section cluster groups: 112;
+- post noise filter groups: 112;
+- post dedupe groups: 112;
+- normalized stops: 112;
+- passthrough aliases: 6.
+
+This confirms the private-provider issue is not just missing stage wiring. The
+real provider line groups still need better cluster keys derived from adjacent
+line order, bbox/proximity, and stop field context.
+
 ## Process Gate
 
 Implementation fixes must wait until a safe provenance audit has been run and a

@@ -149,6 +149,23 @@ Camelot is still not the default next step because `pdfplumber` sees tables,
 cells, words, and stop labels. OCR remains queued only for empty-text documents.
 Vision remains deferred.
 
+## Wiring Audit Result
+
+The wiring audit added synthetic invariant tests and a stage trace. Those tests
+prove the normalized pipeline can reduce mergeable synthetic single-line
+fixtures. The private safe rerun remains `NOT FIXED`:
+
+- raw stop groups: 112;
+- post single-line cluster groups: 112;
+- normalized stops: 112;
+- duplicate / noise removed: 0 / 0;
+- first changed stage counts: none;
+- passthrough aliases: 6.
+
+The next debug target is not another generic heuristic. It is a direct
+provider-line clustering rewrite that builds stop clusters from adjacent line
+order, bbox proximity, page/section context, and field context.
+
 ## Non-Goals
 
 This block does not add:
