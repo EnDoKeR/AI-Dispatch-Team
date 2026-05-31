@@ -16,11 +16,18 @@ from app.document_ai.local_review_analysis import (
 )
 from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
 )
 from app.document_ai.ratecon_candidates import normalize_list
+from app.document_ai.core_field_gap_analysis import analyze_core_field_gaps_from_rows
 from app.document_ai.ratecon_review_workbook import (
     REVIEW_FIELD_REVIEW_CSV,
     REVIEW_STOP_REVIEW_CSV,
+    SHEET_DOCUMENT_SUMMARY,
+    SHEET_FIELD_REVIEW,
+    SHEET_RATE_REVIEW,
+    SHEET_STOP_REVIEW,
+    build_ratecon_review_rows,
 )
 
 
@@ -561,6 +568,29 @@ def analyze_candidate_coverage(input_dir=DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR)
     return analyze_candidate_coverage_from_rows(**inputs)
 
 
+def analyze_candidate_coverage_from_measurement_rows(
+    measurement_rows,
+    review_rows_by_sheet=None,
+):
+    rows_by_sheet = review_rows_by_sheet or build_ratecon_review_rows(
+        measurement_rows,
+        include_private_values=False,
+    )
+    core_analysis = analyze_core_field_gaps_from_rows(
+        document_rows=rows_by_sheet.get(SHEET_DOCUMENT_SUMMARY, []),
+        stop_rows=rows_by_sheet.get(SHEET_STOP_REVIEW, []),
+        field_rows=rows_by_sheet.get(SHEET_FIELD_REVIEW, []),
+        rate_rows=rows_by_sheet.get(SHEET_RATE_REVIEW, []),
+        safe_summary_rows=measurement_rows,
+    )
+    return analyze_candidate_coverage_from_rows(
+        measurement_rows,
+        core_gap_records=core_analysis.get("records", []),
+        field_rows=rows_by_sheet.get(SHEET_FIELD_REVIEW, []),
+        stop_rows=rows_by_sheet.get(SHEET_STOP_REVIEW, []),
+    )
+
+
 def candidate_coverage_markdown_lines(analysis):
     aggregate = (analysis or {}).get("aggregate", {})
     lines = [
@@ -605,4 +635,38 @@ def write_candidate_coverage_md(analysis, output_path):
         "md": path.name,
         "private_values_printed": False,
         "raw_text_printed": False,
+    }
+
+
+def write_candidate_coverage_artifacts(
+    analysis,
+    output_dir=None,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    json_result = write_candidate_coverage_json(
+        analysis,
+        output_root / CANDIDATE_COVERAGE_JSON,
+    )
+    md_result = write_candidate_coverage_md(
+        analysis,
+        output_root / CANDIDATE_COVERAGE_MD,
+    )
+    return {
+        "paths": {
+            "candidate_coverage_json": output_root / CANDIDATE_COVERAGE_JSON,
+            "candidate_coverage_md": output_root / CANDIDATE_COVERAGE_MD,
+        },
+        "aggregate": (analysis or {}).get("aggregate", {}),
+        "private_values_printed": bool(
+            json_result.get("private_values_printed")
+            or md_result.get("private_values_printed")
+        ),
+        "raw_text_printed": bool(
+            json_result.get("raw_text_printed")
+            or md_result.get("raw_text_printed")
+        ),
     }

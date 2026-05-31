@@ -9,6 +9,10 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry, TemplateRegistryError
+from app.document_ai.candidate_coverage_analysis import (
+    analyze_candidate_coverage_from_measurement_rows,
+    write_candidate_coverage_artifacts,
+)
 from app.document_ai.layout_provider import get_available_layout_providers
 from app.document_ai.layout_provider_diagnostics import (
     compare_pdfplumber_table_profiles,
@@ -543,6 +547,7 @@ def main(argv=None):
     parser.add_argument("--write-google-sheet-export", action="store_true")
     parser.add_argument("--write-review-workbook", action="store_true")
     parser.add_argument("--write-review-csvs", action="store_true")
+    parser.add_argument("--write-candidate-coverage", action="store_true")
     parser.add_argument("--sync-review-google-sheet", action="store_true")
     parser.add_argument("--confirm-google-review-sync", action="store_true")
     parser.add_argument("--google-config", default="")
@@ -681,6 +686,8 @@ def main(argv=None):
         for line in format_private_measurement_report(report):
             print(line)
 
+        review_rows_by_sheet = None
+
         if not args.dry_run and any(
             [
                 args.write_json,
@@ -743,6 +750,7 @@ def main(argv=None):
                 write_csvs=args.write_review_csvs,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
+            review_rows_by_sheet = review.get("rows_by_sheet", {})
             labels = {
                 "files": _safe_output_file_labels(review.get("paths", {})),
                 "document_rows": review["summary"].get("document_rows", 0),
@@ -765,6 +773,34 @@ def main(argv=None):
                 "csvs_written": review.get("csvs_written", False),
             }
             print(f"review_workbook_export_written: {labels}")
+        if not args.dry_run and args.write_candidate_coverage:
+            coverage_analysis = analyze_candidate_coverage_from_measurement_rows(
+                report["rows"],
+                review_rows_by_sheet=review_rows_by_sheet,
+            )
+            coverage = write_candidate_coverage_artifacts(
+                coverage_analysis,
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            aggregate = coverage.get("aggregate", {})
+            labels = {
+                "files": _safe_output_file_labels(coverage.get("paths", {})),
+                "document_count": aggregate.get("document_count", 0),
+                "top_missing_candidate_fields": aggregate.get(
+                    "top_missing_candidate_fields",
+                    [],
+                )[:8],
+                "coverage_counts_by_stage": aggregate.get(
+                    "coverage_counts_by_stage",
+                    {},
+                ),
+                "gap_reason_counts": aggregate.get("gap_reason_counts", {}),
+                "recommended_next_fix": aggregate.get("recommended_next_fix", ""),
+                "private_values_printed": coverage.get("private_values_printed", False),
+                "raw_text_printed": coverage.get("raw_text_printed", False),
+            }
+            print(f"candidate_coverage_written: {labels}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {

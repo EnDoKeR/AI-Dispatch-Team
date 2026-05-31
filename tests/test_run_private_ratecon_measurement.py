@@ -769,6 +769,76 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("LoadConfirmation1", console_output)
         self.assertNotIn(output_dir, console_output)
 
+    def test_cli_writes_candidate_coverage_artifacts_without_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "document_type": "LOAD_CONFIRMATION",
+                    "classification_status": "classified",
+                    "extraction_relevant": True,
+                    "normal_load_movement": True,
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "layout_provider_status": "success",
+                    "field_statuses": [
+                        {
+                            "field_name": "pickup_date",
+                            "status": "missing",
+                            "candidate_count": 0,
+                            "selected_value": "FAKE_PRIVATE_DATE_VALUE",
+                        }
+                    ],
+                    "missing_fields": ["pickup_date"],
+                    "stop_span_coverage_metrics": {
+                        "line_feature_count_by_label_category": {
+                            "date": 1,
+                            "pickup": 1,
+                        },
+                        "anchor_count_by_type": {"pickup": 1},
+                        "span_count_by_type": {"pickup": 1},
+                        "span_field_candidate_count_by_field": {},
+                        "normalized_stop_field_count_by_field": {},
+                        "core_field_mapping_count_by_field": {},
+                    },
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--write-candidate-coverage",
+                        ]
+                    )
+            json_text = (Path(output_dir) / "candidate_coverage.json").read_text(
+                encoding="utf-8"
+            )
+            md_text = (Path(output_dir) / "candidate_coverage.md").read_text(
+                encoding="utf-8"
+            )
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("candidate_coverage_written", console_output)
+        self.assertIn("candidate_coverage.json", console_output)
+        self.assertIn("pickup_date", json_text)
+        self.assertIn("Candidate Coverage Analysis", md_text)
+        self.assertNotIn("FAKE_PRIVATE_DATE_VALUE", console_output + json_text + md_text)
+        self.assertNotIn(output_dir, console_output)
+
     def test_cli_writes_local_review_workbook_export_without_printing_values(self):
         fake_report = {
             "rows": [

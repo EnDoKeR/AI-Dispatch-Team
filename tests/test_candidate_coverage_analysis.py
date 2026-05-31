@@ -1,8 +1,12 @@
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from app.document_ai.candidate_coverage_analysis import (
     CANDIDATE_COVERAGE_ANALYSIS_VERSION,
+    CANDIDATE_COVERAGE_JSON,
+    CANDIDATE_COVERAGE_MD,
     COVERAGE_GAP_CANDIDATE_GENERATED_BUT_NOT_NORMALIZED,
     COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
     COVERAGE_GAP_NORMALIZED_BUT_NOT_CORE_MAPPED,
@@ -12,9 +16,11 @@ from app.document_ai.candidate_coverage_analysis import (
     COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
     COVERAGE_STATUS_MISSING,
     analyze_candidate_coverage_from_rows,
+    analyze_candidate_coverage_from_measurement_rows,
     build_candidate_coverage_aggregate,
     build_candidate_coverage_record,
     build_candidate_coverage_result,
+    write_candidate_coverage_artifacts,
 )
 
 
@@ -256,6 +262,75 @@ class CandidateCoverageAnalysisTests(unittest.TestCase):
 
         self.assertEqual(analysis["records"][0]["gap_reason"], COVERAGE_GAP_POLICY_EXCLUDED)
         self.assertEqual(analysis["records"][0]["status"], "filtered")
+
+    def test_analyzes_from_measurement_rows_without_private_values(self):
+        analysis = analyze_candidate_coverage_from_measurement_rows(
+            [
+                {
+                    "document_alias": "RATECON_001",
+                    "field_statuses": [
+                        {
+                            "field_name": "pickup_date",
+                            "status": "missing",
+                            "candidate_count": 0,
+                            "selected_value": "Fake Private Date",
+                        }
+                    ],
+                    "missing_fields": ["pickup_date"],
+                    "stop_span_coverage_metrics": {
+                        "line_feature_count_by_label_category": {
+                            "date": 1,
+                            "pickup": 1,
+                        },
+                        "anchor_count_by_type": {"pickup": 1},
+                        "span_count_by_type": {"pickup": 1},
+                        "span_field_candidate_count_by_field": {},
+                        "normalized_stop_field_count_by_field": {},
+                        "core_field_mapping_count_by_field": {},
+                    },
+                }
+            ]
+        )
+
+        payload = json.dumps(analysis)
+        self.assertIn("pickup_date", payload)
+        self.assertNotIn("Fake Private Date", payload)
+        self.assertEqual(
+            analysis["aggregate"]["recommended_next_fix"],
+            "stop_span_date_candidate_generation",
+        )
+
+    def test_writes_candidate_coverage_artifacts(self):
+        analysis = build_candidate_coverage_result(
+            [
+                build_candidate_coverage_record(
+                    measurement_alias="RATECON_001",
+                    field_name="load_number",
+                    stage=COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
+                    status=COVERAGE_STATUS_MISSING,
+                    gap_reason=COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+                )
+            ],
+            document_count=1,
+        )
+
+        with tempfile.TemporaryDirectory() as tmp:
+            result = write_candidate_coverage_artifacts(
+                analysis,
+                output_dir=tmp,
+                allow_custom_output_dir=True,
+            )
+            json_text = (Path(tmp) / CANDIDATE_COVERAGE_JSON).read_text(
+                encoding="utf-8"
+            )
+            md_text = (Path(tmp) / CANDIDATE_COVERAGE_MD).read_text(
+                encoding="utf-8"
+            )
+
+        self.assertIn("candidate_coverage_json", result["paths"])
+        self.assertIn("Candidate Coverage Analysis", md_text)
+        self.assertIn("load_number", json_text)
+        self.assertFalse(result["private_values_printed"])
 
 
 if __name__ == "__main__":
