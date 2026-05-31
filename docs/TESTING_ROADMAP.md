@@ -74,11 +74,17 @@ Regression criteria:
 The local Google Sheets-compatible export is covered by:
 
 - `tests/test_private_measurement_review_export.py`
+- `tests/test_ratecon_review_workbook_contracts.py`
+- `tests/test_ratecon_review_workbook_export.py`
+- `tests/test_extraction_readiness.py`
+- `tests/test_measurement_integrity.py`
+- `tests/test_review_feedback_import.py`
 - `tests/test_run_private_ratecon_measurement.py`
 
 These tests verify CSV generation, optional workbook generation when a writer is
-available, natural sorting, local-only output paths, and no console printing of
-local document stems.
+available, natural sorting, local-only output paths, readiness levels, integrity
+issue detection, feedback import summaries, explicit local-only private value
+guards, and no console printing of local document stems or predicted values.
 
 ## Current Test Categories Found
 

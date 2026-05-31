@@ -87,7 +87,23 @@ context.
 
 ## Google Sheets Review Flow
 
-The user should import the local CSVs or open the workbook locally:
+Run the local-only review export with the stop span extractor enabled:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --natural-sort-inputs
+```
+
+The console prints only aliases, counts, statuses, and output basenames. The
+ignored local outputs include:
+
+- `ratecon_review_workbook.xlsx`, when an existing workbook writer is available;
+- `ratecon_review_document_summary.csv`;
+- `ratecon_review_stop_review.csv`;
+- `ratecon_review_field_review.csv`;
+- `ratecon_review_rate_review.csv`.
+
+The user should import the local CSVs into Google Sheets or open the workbook
+locally:
 
 1. Start with `Document_Summary` to pick the normal-load digital documents.
 2. Review `Stop_Review` for stop type, sequence, location, date, time, and
@@ -102,9 +118,39 @@ The user should import the local CSVs or open the workbook locally:
 Safe status summaries can be shared back as aliases, counts, statuses, issue
 types, and field names. Private workbook values and notes must stay local.
 
+## Integrity Checks
+
+The review export runs count-only integrity checks before generating review
+rows. These checks detect issues such as:
+
+- span normalized stop count not matching pickup + delivery + unknown counts;
+- review-required stop count exceeding the stop denominator;
+- date/time status counts not matching the stop denominator;
+- negative count fields;
+- OCR-needed documents being counted as normal-load extraction failures.
+
+The latest safe run reported one integrity issue:
+`SPAN_TYPE_COUNT_MISMATCH`. This matches the known aggregate where 29
+span-normalized stops were reported, but pickup + delivery + unknown added to
+27. That is a reporting/integrity issue to fix before any downstream trust
+claim.
+
+## Feedback Import
+
+Completed review CSVs can be imported later through local-only feedback import
+contracts. The import summary reports counts only:
+
+- rows loaded;
+- correct / incorrect / unknown counts;
+- issue type counts;
+- fields and aliases with high error rates.
+
+Private expected values may be read locally for future correction workflows,
+but they are not printed and this block does not write corrections to a
+database or production intake record.
+
 ## Non-Goals
 
 This block does not add OCR, Vision AI, cloud APIs, Camelot, PyMuPDF, broker
 templates, DispatchCase creation, DecisionEngine calls, Telegram calls, Event
 Timeline writes, or production automation claims.
-

@@ -140,6 +140,11 @@ reviewable stop records. The remaining blocker is value correctness and span
 field extraction: all span stops still require review, and many dates/times
 remain missing.
 
+The follow-up review export detected one count integrity issue:
+`SPAN_TYPE_COUNT_MISMATCH`. The aggregate reported 29 span-normalized stops,
+but pickup + delivery + unknown totaled 27. The review workflow keeps that
+issue visible in `Document_Summary` and safe console counts.
+
 ## Review Export
 
 The local-only Google Sheets-compatible export includes old/new stop columns:
@@ -163,6 +168,17 @@ The local-only Google Sheets-compatible export includes old/new stop columns:
 
 These files are local-only ignored outputs. They are intended for local review
 or Google Sheets import. Do not commit or paste local-private review values.
+
+For value correctness review, use the newer local review workbook/CSV export:
+
+```text
+--write-review-workbook --write-review-csvs --include-private-review-values-local-only
+```
+
+This writes local-only `Document_Summary`, `Stop_Review`, `Field_Review`, and
+`Rate_Review` artifacts. Predicted values appear only in ignored local files
+when the explicit local-only private-value flag is present. Console output
+remains counts and basenames only.
 
 ## Non-Goals
 

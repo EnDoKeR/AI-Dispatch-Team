@@ -312,6 +312,25 @@ services, OCR, Vision, Camelot, or new dependencies. Local document stems may
 appear inside the ignored export so the user can map aliases to local document
 order. They must not be printed to console or copied into chat.
 
+Optional local value-correctness review workbook and CSVs:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --natural-sort-inputs
+```
+
+This writes ignored local review files:
+
+- `ratecon_review_workbook.xlsx`, when a workbook writer is already available;
+- `ratecon_review_document_summary.csv`;
+- `ratecon_review_stop_review.csv`;
+- `ratecon_review_field_review.csv`;
+- `ratecon_review_rate_review.csv`.
+
+The `--include-private-review-values-local-only` flag is explicit local review
+mode. It may write predicted private values to the ignored workbook/CSVs, but
+the console still prints only counts, statuses, issue counts, and basenames.
+Do not paste workbook rows into chat and do not commit generated review files.
+
 Collect redacted template patterns before drafting private templates:
 
 ```powershell
@@ -336,6 +355,9 @@ Generated files:
   requested
 - `ratecon_review_google_sheet.csv` and optional `ratecon_review_workbook.xlsx`
   when requested
+- `ratecon_review_document_summary.csv`, `ratecon_review_stop_review.csv`,
+  `ratecon_review_field_review.csv`, and `ratecon_review_rate_review.csv` when
+  local value-correctness review exports are requested
 
 These outputs are local-only and ignored by Git.
 
@@ -629,6 +651,22 @@ local ignored artifact. It does not use Google APIs, OAuth, or cloud services.
 The latest safe result: 6 layout attempts, 112 old normalized stops, 29 span
 normalized stops, 0 span passthrough, 8 resolved dates, 10 resolved times, and
 29 review-required span stops.
+
+The local value-correctness review rerun produced:
+
+- documents measured: 18
+- old normalized stops: 112
+- span normalized stops: 29
+- stop review rows: 174
+- field review rows: 153
+- rate review rows: 10
+- readiness level counts: `extraction_review_ready=14`, `not_ready=4`
+- integrity issue counts: `SPAN_TYPE_COUNT_MISMATCH=1`
+- OCR-needed unchanged: 4
+
+This confirms the next default step is local workbook review and feedback
+import, not more stop heuristics. The known integrity mismatch must remain
+visible until span stop type counts reconcile with the span stop denominator.
 
 ## Safe To Paste Back
 
