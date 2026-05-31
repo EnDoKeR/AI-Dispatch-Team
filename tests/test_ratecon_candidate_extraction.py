@@ -3,6 +3,7 @@ import unittest
 
 from app.document_ai.ratecon_candidate_extraction import extract_ratecon_candidates
 from app.document_ai.ratecon_candidates import (
+    FIELD_ACCESSORIAL_TERM,
     FIELD_BROKER_NAME,
     FIELD_COMMODITY,
     FIELD_DELIVERY_LOCATION,
@@ -41,7 +42,7 @@ class RateConCandidateExtractionTests(unittest.TestCase):
         money_candidates = [
             candidate
             for candidate in result["candidates"]
-            if candidate["value_type"] in ["money", "accessorial_term"]
+            if candidate["field_name"] in [FIELD_RATE, FIELD_ACCESSORIAL_TERM]
         ]
 
         self.assertGreaterEqual(len(money_candidates), 5)

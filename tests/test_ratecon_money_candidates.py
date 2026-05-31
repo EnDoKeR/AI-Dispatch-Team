@@ -4,6 +4,7 @@ from app.document_ai.ratecon_candidate_generators import (
     build_money_rate_candidate_result,
     generate_money_rate_candidates,
 )
+from app.document_ai.rate_fusion import fuse_rate_candidates
 from app.document_ai.ratecon_candidates import (
     CANDIDATE_CONFIDENCE_HIGH,
     CANDIDATE_CONFIDENCE_LOW,
@@ -31,6 +32,7 @@ class RateConMoneyCandidatesTests(unittest.TestCase):
         self.assertEqual(rate_candidates[0]["normalized_value"], "2850.00")
         self.assertEqual(rate_candidates[0]["confidence"], CANDIDATE_CONFIDENCE_HIGH)
         self.assertIn("strong_rate_label", rate_candidates[0]["confidence_reasons"])
+        self.assertEqual(rate_candidates[0]["value_type"], "total_carrier_pay")
 
     def test_accessorial_amounts_are_lower_confidence_or_accessorial_candidates(self):
         artifact = build_fixture_text_artifact("multi_amount_ratecon.txt")
@@ -47,8 +49,63 @@ class RateConMoneyCandidatesTests(unittest.TestCase):
             all(candidate["confidence"] == CANDIDATE_CONFIDENCE_LOW for candidate in accessorial_candidates)
         )
         self.assertTrue(
-            all("not_final_rate_candidate" in candidate["warnings"] for candidate in accessorial_candidates)
+            all(candidate["warnings"] for candidate in accessorial_candidates)
         )
+        self.assertTrue(
+            all(candidate["value_type"] != "money" for candidate in accessorial_candidates)
+        )
+
+    def test_rate_source_priority_fixture_preserves_typed_money_candidates(self):
+        artifact = build_text_extraction_artifact_for_candidates(
+            full_text="\n".join(
+                [
+                    "FAKE RATE CONFIRMATION",
+                    "Total Carrier Pay: USD 4100.00",
+                    "Detention: USD 150.00 after two free hours",
+                    "Quick Pay Discount: USD 40.00 optional",
+                ]
+            ),
+            source_name="fake_rate_source_priority.txt",
+        )
+
+        candidates = generate_money_rate_candidates(artifact)
+        rate_types = {
+            candidate["value_type"]
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_RATE
+        }
+        accessorial_types = {
+            candidate["value_type"]
+            for candidate in candidates
+            if candidate["field_name"] == FIELD_ACCESSORIAL_TERM
+        }
+
+        self.assertIn("total_carrier_pay", rate_types)
+        self.assertIn("detention_pay", accessorial_types)
+        self.assertIn("quick_pay_discount", accessorial_types)
+
+    def test_rate_fusion_uses_typed_total_and_excludes_accessorial_noise(self):
+        artifact = build_text_extraction_artifact_for_candidates(
+            full_text="\n".join(
+                [
+                    "FAKE RATE CONFIRMATION",
+                    "Carrier Pay: USD 4100.00",
+                    "Layover Fee: USD 250.00",
+                    "Quick Pay: USD 40.00",
+                ]
+            ),
+            source_name="fake_rate_fusion_priority.txt",
+        )
+        candidates = generate_money_rate_candidates(artifact)
+
+        result = fuse_rate_candidates(
+            text_candidates=candidates,
+            baseline_status="missing",
+        )
+
+        self.assertEqual(result["fused_status"], "resolved")
+        self.assertTrue(result["selected_candidate_id"])
+        self.assertTrue(result["excluded_candidate_ids"])
 
     def test_multiple_dollar_amounts_produce_multiple_candidates(self):
         artifact = build_fixture_text_artifact("multi_amount_ratecon.txt")

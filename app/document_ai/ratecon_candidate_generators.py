@@ -48,9 +48,24 @@ STRONG_RATE_LABELS = (
     "total rate",
     "agreed amount",
     "linehaul",
+    "line haul",
     "total carrier rate",
+    "total carrier pay",
+    "total charge",
     "freight charge",
     "rate",
+)
+STRONG_RATE_LABEL_TYPES = (
+    ("total carrier pay", "total_carrier_pay"),
+    ("total carrier rate", "total_carrier_pay"),
+    ("carrier pay", "total_carrier_pay"),
+    ("total rate", "total_carrier_pay"),
+    ("agreed amount", "agreed_amount"),
+    ("linehaul", "linehaul"),
+    ("line haul", "linehaul"),
+    ("total charge", "total_charge"),
+    ("freight charge", "total_charge"),
+    ("rate", "unknown_money"),
 )
 
 ACCESSORIAL_LABELS = (
@@ -64,6 +79,19 @@ ACCESSORIAL_LABELS = (
     "fee",
     "penalty",
     "deduction",
+)
+ACCESSORIAL_LABEL_TYPES = (
+    ("detention", "detention_pay"),
+    ("layover", "layover_pay"),
+    ("lumper", "lumper_pay"),
+    ("tonu", "TONU_pay"),
+    ("truck order not used", "TONU_pay"),
+    ("quick pay", "quick_pay_discount"),
+    ("fuel surcharge", "accessorial"),
+    ("accessorial", "accessorial"),
+    ("fee", "accessorial"),
+    ("penalty", "deduction"),
+    ("deduction", "deduction"),
 )
 
 MONEY_EXCLUSION_LABELS = (
@@ -389,20 +417,36 @@ def _label_from_line(line, match_start):
     return prefix[-80:]
 
 
+def _contains_label_type(lower_line, label_types):
+    for label, value_type in label_types:
+        if label in lower_line:
+            return value_type
+    return ""
+
+
 def _classify_money_line(line):
     lower_line = line.lower()
 
-    if any(label in lower_line for label in ACCESSORIAL_LABELS):
+    accessorial_type = _contains_label_type(lower_line, ACCESSORIAL_LABEL_TYPES)
+    if accessorial_type:
+        warnings = ["not_final_rate_candidate"]
+        if accessorial_type == "quick_pay_discount":
+            warnings = ["payment_terms_not_main_rate"]
+        elif accessorial_type == "TONU_pay":
+            warnings = ["tonu_payment_not_normal_linehaul"]
         return {
             "field_name": FIELD_ACCESSORIAL_TERM,
+            "value_type": accessorial_type,
             "confidence": CANDIDATE_CONFIDENCE_LOW,
             "confidence_reasons": ["accessorial_or_fee_label"],
-            "warnings": ["not_final_rate_candidate"],
+            "warnings": warnings,
         }
 
-    if any(label in lower_line for label in STRONG_RATE_LABELS):
+    rate_type = _contains_label_type(lower_line, STRONG_RATE_LABEL_TYPES)
+    if rate_type:
         return {
             "field_name": FIELD_RATE,
+            "value_type": rate_type,
             "confidence": CANDIDATE_CONFIDENCE_HIGH,
             "confidence_reasons": ["strong_rate_label"],
             "warnings": [],
@@ -410,6 +454,7 @@ def _classify_money_line(line):
 
     return {
         "field_name": FIELD_RATE,
+        "value_type": "unknown_money",
         "confidence": CANDIDATE_CONFIDENCE_MEDIUM,
         "confidence_reasons": ["money_amount_without_strong_label"],
         "warnings": ["needs_rate_context_review"],
@@ -470,7 +515,7 @@ def generate_money_rate_candidates(artifact):
                         context_after=context_after,
                         source=SOURCE_LABEL_PATTERN,
                         warnings=classification["warnings"],
-                        value_type="money",
+                        value_type=classification["value_type"],
                     )
                 )
 
