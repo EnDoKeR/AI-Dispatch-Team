@@ -11,6 +11,10 @@ from app.document_ai.candidate_coverage_analysis import (
     CANDIDATE_COVERAGE_ANALYSIS_JSON,
     CANDIDATE_COVERAGE_ANALYSIS_MD,
 )
+from app.document_ai.candidate_coverage_target_selector import (
+    CANDIDATE_COVERAGE_TARGET_SELECTION_JSON,
+    CANDIDATE_COVERAGE_TARGET_SELECTION_MD,
+)
 from app.document_ai.ratecon_review_workbook import (
     FIELD_REVIEW_COLUMNS,
     REVIEW_FIELD_REVIEW_CSV,
@@ -201,6 +205,31 @@ class AnalyzeCandidateCoverageCliTests(unittest.TestCase):
         output = stdout.getvalue()
         self.assertIn("load_identifier_candidate_generation", output)
         self.assertIn("load_number", output)
+
+    def test_cli_selects_next_target_and_writes_target_artifacts(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_fake_outputs(root)
+            stdout = io.StringIO()
+            with redirect_stdout(stdout):
+                result = cli.main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--write-md",
+                        "--write-json",
+                        "--select-next-target",
+                    ]
+                )
+
+            output = stdout.getvalue()
+            self.assertEqual(result, 0)
+            self.assertIn("Candidate coverage target selection", output)
+            self.assertIn("selected_target: stop_span_date_candidate_generation", output)
+            self.assertIn("private_values_printed: False", output)
+            self.assertNotIn("Fake Private Date", output)
+            self.assertTrue((root / CANDIDATE_COVERAGE_TARGET_SELECTION_MD).exists())
+            self.assertTrue((root / CANDIDATE_COVERAGE_TARGET_SELECTION_JSON).exists())
 
 
 if __name__ == "__main__":

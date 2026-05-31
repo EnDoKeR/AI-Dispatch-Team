@@ -52,6 +52,12 @@ class CandidateCoverageTargetSelectorTests(unittest.TestCase):
                     stage=COVERAGE_STAGE_REVIEW_ROW,
                     gap_reason=COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
                 ),
+                build_candidate_coverage_record(
+                    measurement_alias="RATECON_004",
+                    field_name="pickup_date",
+                    stage=COVERAGE_STAGE_REVIEW_ROW,
+                    gap_reason="unknown",
+                ),
             ]
         )
 

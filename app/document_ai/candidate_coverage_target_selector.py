@@ -241,9 +241,27 @@ def _supporting_fields_for_target(target, records):
 
 
 def _aliases_for_target(target, records):
+    if target == TARGET_STOP_SPAN_DATE_CANDIDATE_GENERATION:
+        return _aliases(
+            records,
+            lambda record: _field(record) in DATE_FIELDS
+            and _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED
+            and _stage(record) == COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
+        )
+    if target == TARGET_STOP_SPAN_LOCATION_CANDIDATE_GENERATION:
+        return _aliases(
+            records,
+            lambda record: _field(record) in LOCATION_FIELDS
+            and _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED
+            and _stage(record) == COVERAGE_STAGE_SPAN_FIELD_CANDIDATE,
+        )
     fields = set(_supporting_fields_for_target(target, records))
     if fields:
-        return _aliases(records, lambda record: _field(record) in fields)
+        return _aliases(
+            records,
+            lambda record: _field(record) in fields
+            and _reason(record) == COVERAGE_GAP_CANDIDATE_NOT_GENERATED,
+        )
     if target == TARGET_NORMALIZED_STOP_FIELD_MAPPING:
         return _aliases(
             records,
