@@ -1,0 +1,37 @@
+{
+  "fixture_id": "fake_span_missing_fields_not_invented",
+  "selected_target": "stop_span_field_mapping",
+  "initial_field_statuses": [
+    {"field_name": "pickup_location", "status": "missing"},
+    {"field_name": "pickup_date", "status": "missing"},
+    {"field_name": "delivery_time", "status": "missing"}
+  ],
+  "span_normalized_stop_set": {
+    "document_alias": "RATECON_FAKE",
+    "stops": [
+      {
+        "stop_id": "span_stop_001",
+        "sequence": 1,
+        "stop_type": "pickup",
+        "fields": [
+          {"field_name": "location", "status": "missing"},
+          {"field_name": "date", "status": "missing"},
+          {"field_name": "time", "status": "missing"}
+        ]
+      },
+      {
+        "stop_id": "span_stop_002",
+        "sequence": 2,
+        "stop_type": "delivery",
+        "fields": [
+          {"field_name": "time", "status": "missing"}
+        ]
+      }
+    ]
+  },
+  "expected_unresolved_fields": [
+    "pickup_location",
+    "pickup_date",
+    "delivery_time"
+  ]
+}

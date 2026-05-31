@@ -1,0 +1,28 @@
+{
+  "fixture_id": "fake_span_mapping_preserves_conflict",
+  "selected_target": "stop_span_field_mapping",
+  "initial_field_statuses": [
+    {"field_name": "pickup_location", "status": "conflict"},
+    {"field_name": "pickup_date", "status": "missing"}
+  ],
+  "span_normalized_stop_set": {
+    "document_alias": "RATECON_FAKE",
+    "stops": [
+      {
+        "stop_id": "span_stop_001",
+        "sequence": 1,
+        "stop_type": "pickup",
+        "fields": [
+          {"field_name": "location", "status": "resolved", "selected_candidate_id": "fake_pickup_location"},
+          {"field_name": "date", "status": "resolved", "selected_candidate_id": "fake_pickup_date"}
+        ]
+      }
+    ]
+  },
+  "expected_preserved_statuses": {
+    "pickup_location": "conflict"
+  },
+  "expected_resolved_fields": [
+    "pickup_date"
+  ]
+}
