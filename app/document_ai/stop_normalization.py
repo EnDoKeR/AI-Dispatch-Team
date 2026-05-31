@@ -122,6 +122,15 @@ def _field_names(group):
     }
 
 
+def _provenance(group):
+    provenance = (group or {}).get("provenance", {})
+    return provenance if isinstance(provenance, dict) else {}
+
+
+def _provenance_value(group, key):
+    return _text(_provenance(group).get(key))
+
+
 def _has_meaningful_stop_fields(group):
     return bool(_field_names(group) & _MEANINGFUL_STOP_FIELDS)
 
@@ -138,8 +147,11 @@ def compute_stop_group_signature(stop_group):
 
     group = stop_group or {}
     field_names = ",".join(sorted(_field_names(group)))
+    provenance = _provenance(group)
     return "|".join(
         [
+            _text(provenance.get("source_type")),
+            _text(provenance.get("grouping_key")),
             _text(group.get("stop_sequence")),
             _text(group.get("stop_type")),
             _text(group.get("section_role")).upper(),
@@ -219,7 +231,20 @@ def is_likely_duplicate_stop_group(first, second):
         and first.get("table_id") == second.get("table_id")
         and first.get("row_index") == second.get("row_index")
     ):
-        return True
+        return _field_names(first) == _field_names(second)
+
+    first_grouping_key = _provenance_value(first, "grouping_key")
+    second_grouping_key = _provenance_value(second, "grouping_key")
+    if first_grouping_key and first_grouping_key == second_grouping_key:
+        first_fields = _field_names(first)
+        second_fields = _field_names(second)
+        if first_fields == second_fields:
+            return True
+        if (
+            _warning_tokens(first) & {"repeated_header", "header", "footer", "page_footer"}
+            or _warning_tokens(second) & {"repeated_header", "header", "footer", "page_footer"}
+        ):
+            return True
 
     if compute_stop_group_signature(first) != compute_stop_group_signature(second):
         return False

@@ -21,6 +21,12 @@ FIXTURE_DIR = (
     / "stop_normalization"
 )
 CALIBRATION_DIR = FIXTURE_DIR / "calibration_patterns"
+PROVENANCE_DIR = (
+    Path(__file__).resolve().parent
+    / "fixtures"
+    / "document_ai"
+    / "stop_provenance"
+)
 
 
 def load_fixture(name):
@@ -29,6 +35,10 @@ def load_fixture(name):
 
 def load_calibration_fixture(name):
     return json.loads((CALIBRATION_DIR / f"{name}.json").read_text(encoding="utf-8"))
+
+
+def load_provenance_fixture(name):
+    return json.loads((PROVENANCE_DIR / f"{name}.json").read_text(encoding="utf-8"))
 
 
 class StopGroupDedupeNoiseTests(unittest.TestCase):
@@ -98,6 +108,22 @@ class StopGroupDedupeNoiseTests(unittest.TestCase):
 
         self.assertEqual(result["removed_count"], 2)
         self.assertEqual(result["kept_groups"], [])
+
+    def test_provenance_grouping_key_marks_structural_duplicates(self):
+        fixture = load_provenance_fixture("fake_duplicate_header_groups_with_same_row_signature")
+        first, second = fixture["stop_groups"]
+
+        self.assertTrue(is_likely_duplicate_stop_group(first, second))
+        result = dedupe_stop_groups(fixture["stop_groups"])
+
+        self.assertEqual(result["removed_count"], 1)
+        self.assertIn(DEDUP_WARNING_DUPLICATE, result["warning_codes"])
+
+    def test_provenance_split_fields_are_left_for_merge_stage(self):
+        fixture = load_provenance_fixture("fake_date_time_split_from_location_by_row")
+        first, second = fixture["stop_groups"]
+
+        self.assertFalse(is_likely_duplicate_stop_group(first, second))
 
 
 if __name__ == "__main__":
