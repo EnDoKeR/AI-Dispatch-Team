@@ -162,6 +162,15 @@ blockers 7 -> 9. This is cleaner diagnostics rather than private-corpus
 improvement. The next forensics step is missing identifier label and
 load-identity section coverage.
 
+The load identifier coverage audit then selected
+`generic_header_reference_review_candidate` as one constrained root cause.
+After implementing review-gated generic header reference candidates, the private
+rerun remained unchanged: primary identifier candidates 3, typed references 11,
+rejected non-primary references 11, and core load-number mappings 1. Core gap
+analysis still shows `load_number` among true intake blockers. This keeps the
+next useful step at label/section coverage inspection rather than resolver
+mapping or relaxed PO/BOL promotion.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

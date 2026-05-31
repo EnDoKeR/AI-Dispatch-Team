@@ -348,6 +348,12 @@ Required coverage for candidate generators and resolvers:
   typed references, rejected non-primary references, core load-number mapping,
   and weak generic reference review states remain visible without private
   values.
+- load identifier audit tests should prove source-line, label-classification,
+  primary-candidate, rejected-reference, and core-mapping stages are reported as
+  safe counts only.
+- generic header-reference tests should create review-gated primary-reference
+  candidates only in header/load context, while stop/customer/PO/BOL references
+  remain non-primary.
 
 ## Broker Template Test Rule
 

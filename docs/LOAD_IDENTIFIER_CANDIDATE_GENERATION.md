@@ -97,8 +97,11 @@ details heading, tender heading, or confirmation title:
 - `Dispatch #`;
 - `Ref #`;
 - `Reference #`;
+- `Reference No.`;
 - `Confirmation #`;
-- `Booking #`.
+- `Confirmation No.`;
+- `Booking #`;
+- `Tender Ref`.
 
 Weak labels such as plain `Reference #` without load context should be
 generated as review evidence, not silently resolved as `load_number`.
@@ -147,6 +150,12 @@ and shipment labels. It preserves PO, BOL, pickup, delivery, appointment,
 customer, carrier, and generic references as typed references instead of
 silently promoting them to `load_number`.
 
+It also recognizes inline generic header/load-context forms such as
+`Reference No.`, `Confirmation #`, and `Tender Ref` as low-confidence,
+review-required primary-reference candidates only when context supports that
+interpretation and no stronger identifier is present. Stop, customer, PO, BOL,
+pickup, delivery, and appointment references remain non-primary.
+
 The resolver maps typed primary identifiers into the core load-number field,
 routes multiple conflicting strong primary IDs to review, and keeps weak header
 references review-required unless no stronger identifier exists.
@@ -175,6 +184,14 @@ The implementation improved synthetic coverage and reporting, but it did not
 improve the private corpus. The next useful step is to audit why the relevant
 private documents lack identifier label features or load-identity section
 coverage, not to add broader generic identifier regexes.
+
+The follow-up load identifier audit selected the generic header reference
+review-candidate root cause and implemented that constrained fix. The safe
+private rerun did not move corpus counts: primary candidates stayed 3, typed
+references stayed 11, rejected non-primary references stayed 11, and core
+load-number mappings stayed 1. Candidate coverage still selects
+`load_identifier_candidate_generation`, so the next target remains label and
+section coverage rather than primary mapping or resolver changes.
 
 The console and committed docs must never include private identifier values,
 raw text, private filenames, local paths, screenshots, service account keys, or

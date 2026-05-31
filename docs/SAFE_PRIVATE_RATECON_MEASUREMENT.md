@@ -226,6 +226,10 @@ The local review analysis loop reads the ignored review CSVs and writes:
 - `candidate_coverage.json`
 - `candidate_coverage_analysis.md`
 - `candidate_coverage_analysis.json`
+- `load_identifier_coverage.md`
+- `load_identifier_coverage.json`
+- `load_identifier_coverage_audit.md`
+- `load_identifier_coverage_audit.json`
 
 Those reports contain aliases, counts, statuses, field names, and issue
 categories only. They are used to choose one targeted deterministic hardening
@@ -246,6 +250,18 @@ py scripts/analyze_candidate_coverage.py --write-md --write-json
 The coverage reports trace required intake fields through line features,
 anchors, spans, span field candidates, normalized fields, core field mapping,
 and review rows. They contain counts/statuses only.
+
+Load identifier coverage can be emitted with the same measurement command by
+adding `--write-load-identifier-audit`, then analyzed with:
+
+```powershell
+py scripts/analyze_load_identifier_coverage.py --write-md --write-json
+```
+
+This report traces load-identifier source lines, label classification, typed
+candidates, primary candidate classification, rejected non-primary references,
+core load-number mappings, and review-row status. It contains counts,
+categories, and aliases only.
 
 Current safe local review metrics after policy-aware blocker cleanup:
 
@@ -310,6 +326,13 @@ coverage counters, and review workbook columns. Safe local delta after rerun:
 The result is diagnostic improvement, not extraction improvement on the private
 corpus. The next load-identifier block should audit missing identifier labels
 and load-identity section coverage before adding broader regexes.
+
+The follow-up load identifier audit added local-only audit artifacts and a
+constrained generic header-reference review-candidate fix. Safe private counts
+did not change: primary identifier candidates stayed 3, typed references stayed
+11, rejected non-primary references stayed 11, core load-number mappings stayed
+1, and OCR-needed stayed 4. The next measured work should inspect label and
+section coverage, not relax PO/BOL/pickup/delivery reference safety.
 
 ## Command
 
@@ -524,6 +547,10 @@ Generated files:
 - `ratecon_review_document_summary.csv`, `ratecon_review_stop_review.csv`,
   `ratecon_review_field_review.csv`, and `ratecon_review_rate_review.csv` when
   local value-correctness review exports are requested
+- `candidate_coverage.json` and `candidate_coverage.md` when candidate
+  coverage is requested
+- `load_identifier_coverage.json` and `load_identifier_coverage.md` when load
+  identifier audit is requested
 
 These outputs are local-only and ignored by Git.
 

@@ -108,3 +108,13 @@ Safe private delta after rerun:
 The load identifier block improved diagnostics, but not the private corpus. The
 next load-identifier pass should audit section/label coverage for missing
 identifier features before adding broader regexes.
+
+The follow-up load identifier audit selected
+`generic_header_reference_review_candidate` from the unknown/non-primary
+reference bucket and added a constrained fix for generic header/load-context
+reference labels. Synthetic coverage improved, but the private rerun stayed
+flat: primary identifier candidates 3, typed references 11, rejected
+non-primary references 11, core mappings 1, and readiness unchanged. The target
+selector still returns `load_identifier_candidate_generation`; the next specific
+work should inspect whether identifier-like source lines and load-identity
+sections are present before extending label rules again.

@@ -145,6 +145,12 @@ diagnostics but no private-corpus improvement: the next target remains
 load-identifier label and section coverage, not broader generic identifier
 regexes.
 
+The load identifier audit now emits local-only `load_identifier_coverage*`
+artifacts. A constrained generic header reference review-candidate fix was
+added, but safe private counts stayed flat. Reviewers should therefore treat
+missing `load_number` rows as real review needs unless a later label/section
+coverage pass proves that primary identifier evidence is being missed.
+
 ## Direct Google Sheets Sync
 
 The optional Google Sheets sync publishes the same review packet into dedicated

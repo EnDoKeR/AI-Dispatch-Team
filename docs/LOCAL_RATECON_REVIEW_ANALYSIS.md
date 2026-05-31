@@ -190,6 +190,14 @@ references 11, rejected non-primary references 11, load-number candidate gap
 7 -> 9. This means the next useful work is a label/section coverage audit for
 load identity, not another broad identifier regex pass.
 
+The follow-up audit added safe load identifier artifacts and a CLI, then tested
+a constrained generic header-reference review candidate fix. The private corpus
+did not move: primary candidates stayed 3, typed references stayed 11, rejected
+non-primary references stayed 11, and core mappings stayed 1. Treat this as an
+honest negative measurement. The next local review step is to inspect safe
+label/section coverage counts for documents with no primary load identifier
+candidate.
+
 ## Non-Goals
 
 This workflow does not run Google sync, create DispatchCases, call

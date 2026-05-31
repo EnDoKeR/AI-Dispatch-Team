@@ -95,6 +95,53 @@ selects one root cause. Possible targets are:
 - header/load identity context coverage;
 - local human review when only non-primary references are present.
 
+## Local Artifacts And CLI
+
+Private measurement can emit safe load-identifier audit artifacts with:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --write-candidate-coverage --write-load-identifier-audit --natural-sort-inputs
+```
+
+This writes ignored local-only artifacts:
+
+- `load_identifier_coverage.json`;
+- `load_identifier_coverage.md`;
+- `load_identifier_coverage_audit.json`;
+- `load_identifier_coverage_audit.md`.
+
+Analyze the latest local artifacts with:
+
+```powershell
+py scripts/analyze_load_identifier_coverage.py --write-md --write-json
+```
+
+The analyzer prints only safe counts, reason buckets, label categories, and
+aliases when explicitly requested.
+
+## Latest Local Result
+
+The selected root cause for this pass was generic header/reference review
+candidates from the `unknown_reference` non-primary bucket. The implementation
+added fixtures and a constrained parser for header/load-context
+`Reference No.`, `Confirmation #`, and `Tender Ref` patterns while preserving
+stop/customer/PO/BOL references as non-primary.
+
+Safe private rerun after the fix:
+
+- primary identifier candidates stayed 3;
+- typed references stayed 11;
+- rejected non-primary references stayed 11;
+- core load-number mappings stayed 1;
+- top audit reasons stayed `identifier_label_not_detected`,
+  `only_non_primary_references_found`, and `unknown`;
+- candidate coverage still selects `load_identifier_candidate_generation`.
+
+This means the private corpus did not contain the newly covered generic header
+patterns in a measurable way. The next useful load-identifier work is not a
+broader regex pass; it is a label/section coverage audit for documents where
+identifier-like source lines are absent or not detected.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, create

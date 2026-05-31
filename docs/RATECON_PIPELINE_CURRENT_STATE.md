@@ -125,6 +125,14 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   candidate-not-generated from 22 to 14, and span date resolved/missing from
   8 / 21 to 10 / 19. The next selected target is
   `load_identifier_candidate_generation`.
+- Load identifier coverage audit now emits safe local artifacts
+  `load_identifier_coverage.json`, `load_identifier_coverage.md`,
+  `load_identifier_coverage_audit.json`, and
+  `load_identifier_coverage_audit.md`. The first audited root-cause fix added
+  constrained generic header-reference review candidates, but the private rerun
+  stayed flat: primary candidates 3, typed references 11, rejected non-primary
+  references 11, and core mappings 1. The next measured work remains
+  load-identifier label and section coverage.
 - Stop-span flat-field mapping now surfaces resolved pickup/delivery
   location/date/time evidence into top-level field review statuses when those
   statuses are missing or not applicable, without overwriting conflicts.
@@ -382,7 +390,9 @@ Private value-review CSV output is local-only and ignored.
   load-number candidate gap moved 7 -> 8 under the more specific taxonomy and
   load-number intake blockers moved 7 -> 9. The next load-identifier work
   should audit missing identifier label features and load-identity section
-  coverage.
+  coverage. The follow-up generic header-reference fix did not move private
+  counts, so the next block should inspect source-line/label presence rather
+  than relax non-primary reference rules.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
@@ -390,8 +400,8 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after load identifier candidate-generation diagnostics:
 
 ```text
-Audit load-identifier label features and load-identity section coverage for
-documents where no primary load identifier candidate is generated.
+Audit load-identifier source-line, label-feature, and load-identity section
+coverage for documents where no primary load identifier candidate is generated.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

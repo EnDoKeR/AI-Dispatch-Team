@@ -100,6 +100,7 @@ Core architecture docs:
 * [Stop Span Candidate Generation Audit](docs/STOP_SPAN_CANDIDATE_GENERATION_AUDIT.md)
 * [Candidate Coverage Target Selection](docs/CANDIDATE_COVERAGE_TARGET_SELECTION.md)
 * [Load Identifier Candidate Generation](docs/LOAD_IDENTIFIER_CANDIDATE_GENERATION.md)
+* [Load Identifier Coverage Audit](docs/LOAD_IDENTIFIER_COVERAGE_AUDIT.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -145,6 +146,9 @@ Do not do yet:
   load identifier pass added typed primary IDs and typed references, but the
   private corpus still selects load-identifier label/section coverage as the
   next measured target
+* load identifier audit outputs are local-only safe counts; a generic
+  header-reference review-candidate fix did not move private counts, so do not
+  relax PO/BOL/pickup/delivery reference safety
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

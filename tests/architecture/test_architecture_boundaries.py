@@ -520,6 +520,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("--write-candidate-coverage", source)
+        self.assertIn("--write-load-identifier-audit", source)
         self.assertIn("Refusing to run", source)
 
     def test_private_template_modules_do_not_import_business_memory_or_cloud_layers(self):
@@ -1078,6 +1079,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         candidate_target_source = source_text(
             DOCUMENT_AI_PACKAGE / "candidate_coverage_target_selector.py"
         )
+        load_identifier_audit_source = source_text(
+            DOCUMENT_AI_PACKAGE / "load_identifier_coverage_audit.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
@@ -1110,6 +1114,13 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertIn('"private_values_included": False', candidate_target_source)
         self.assertIn('"raw_text_included": False', candidate_target_source)
         self.assertNotIn("print(", candidate_target_source)
+        self.assertIn("load_identifier_coverage.json", load_identifier_audit_source)
+        self.assertIn(
+            "load_identifier_coverage_audit.json", load_identifier_audit_source
+        )
+        self.assertIn('"private_values_included": False', load_identifier_audit_source)
+        self.assertIn('"raw_text_included": False', load_identifier_audit_source)
+        self.assertNotIn("print(", load_identifier_audit_source)
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
