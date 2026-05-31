@@ -50,6 +50,7 @@ DOCUMENT_SUMMARY_COLUMNS = [
     "Span Normalized Stops",
     "Pickup Count",
     "Delivery Count",
+    "Generic Stop Count",
     "Unknown Count",
     "Date Resolved",
     "Date Missing",
@@ -398,6 +399,9 @@ def _document_summary_row(row, folder_order, local_name):
         "Span Normalized Stops": _int((row or {}).get("span_normalized_stop_count")),
         "Pickup Count": _int((row or {}).get("span_pickup_count", (row or {}).get("pickup_count"))),
         "Delivery Count": _int((row or {}).get("span_delivery_count", (row or {}).get("delivery_count"))),
+        "Generic Stop Count": _int(
+            (row or {}).get("span_generic_stop_count", (row or {}).get("generic_stop_count"))
+        ),
         "Unknown Count": _int((row or {}).get("span_unknown_count", (row or {}).get("unknown_stop_count"))),
         "Date Resolved": _int((row or {}).get("span_date_resolved_count")),
         "Date Missing": _int((row or {}).get("span_date_missing_count")),

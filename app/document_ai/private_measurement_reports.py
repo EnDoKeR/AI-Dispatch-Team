@@ -329,6 +329,7 @@ def build_private_ratecon_measurement_aggregate(rows):
         normalized_stop_count_total=sum(int(row.get("normalized_stop_count", 0) or 0) for row in safe_rows),
         pickup_count_total=sum(int(row.get("pickup_count", 0) or 0) for row in safe_rows),
         delivery_count_total=sum(int(row.get("delivery_count", 0) or 0) for row in safe_rows),
+        generic_stop_count_total=sum(int(row.get("generic_stop_count", 0) or 0) for row in safe_rows),
         unknown_stop_count_total=sum(int(row.get("unknown_stop_count", 0) or 0) for row in safe_rows),
         stop_review_required_count_total=sum(
             int(row.get("stop_review_required_count", 0) or 0) for row in safe_rows
@@ -426,6 +427,9 @@ def build_private_ratecon_measurement_aggregate(rows):
         ),
         span_delivery_count_total=sum(
             int(row.get("span_delivery_count", 0) or 0) for row in safe_rows
+        ),
+        span_generic_stop_count_total=sum(
+            int(row.get("span_generic_stop_count", 0) or 0) for row in safe_rows
         ),
         span_unknown_count_total=sum(
             int(row.get("span_unknown_count", 0) or 0) for row in safe_rows

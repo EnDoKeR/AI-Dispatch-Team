@@ -113,11 +113,13 @@ def check_measurement_row_integrity(row):
         "normalized_stop_count",
         "pickup_count",
         "delivery_count",
+        "generic_stop_count",
         "unknown_stop_count",
         "stop_review_required_count",
         "span_normalized_stop_count",
         "span_pickup_count",
         "span_delivery_count",
+        "span_generic_stop_count",
         "span_unknown_count",
         "span_review_required_count",
         "span_date_resolved_count",
@@ -137,6 +139,7 @@ def check_measurement_row_integrity(row):
     stop_type_sum = (
         _int((row or {}).get("pickup_count", 0))
         + _int((row or {}).get("delivery_count", 0))
+        + _int((row or {}).get("generic_stop_count", 0))
         + _int((row or {}).get("unknown_stop_count", 0))
     )
     if normalized_count and stop_type_sum != normalized_count:
@@ -147,6 +150,7 @@ def check_measurement_row_integrity(row):
                 counts={
                     "normalized_stop_count": normalized_count,
                     "stop_type_count_sum": stop_type_sum,
+                    "generic_stop_count": _int((row or {}).get("generic_stop_count", 0)),
                 },
                 bucket="stop_count_reporting",
             )
@@ -156,6 +160,7 @@ def check_measurement_row_integrity(row):
     span_type_sum = (
         _int((row or {}).get("span_pickup_count", 0))
         + _int((row or {}).get("span_delivery_count", 0))
+        + _int((row or {}).get("span_generic_stop_count", 0))
         + _int((row or {}).get("span_unknown_count", 0))
     )
     if span_count and span_type_sum != span_count:
@@ -166,6 +171,9 @@ def check_measurement_row_integrity(row):
                 counts={
                     "span_normalized_stop_count": span_count,
                     "span_type_count_sum": span_type_sum,
+                    "span_generic_stop_count": _int(
+                        (row or {}).get("span_generic_stop_count", 0)
+                    ),
                 },
                 bucket="span_stop_count_reporting",
             )
@@ -269,10 +277,12 @@ def check_measurement_aggregate_integrity(aggregate):
                 "normalized_stop_count_total",
                 "pickup_count_total",
                 "delivery_count_total",
+                "generic_stop_count_total",
                 "unknown_stop_count_total",
                 "span_normalized_stop_count_total",
                 "span_pickup_count_total",
                 "span_delivery_count_total",
+                "span_generic_stop_count_total",
                 "span_unknown_count_total",
                 "span_date_resolved_count_total",
                 "span_date_missing_count_total",
@@ -292,6 +302,7 @@ def check_measurement_aggregate_integrity(aggregate):
     stop_type_sum = (
         _int((aggregate or {}).get("pickup_count_total", 0))
         + _int((aggregate or {}).get("delivery_count_total", 0))
+        + _int((aggregate or {}).get("generic_stop_count_total", 0))
         + _int((aggregate or {}).get("unknown_stop_count_total", 0))
     )
     if normalized and normalized != stop_type_sum:
@@ -301,6 +312,9 @@ def check_measurement_aggregate_integrity(aggregate):
                 counts={
                     "normalized_stop_count_total": normalized,
                     "stop_type_count_sum": stop_type_sum,
+                    "generic_stop_count_total": _int(
+                        (aggregate or {}).get("generic_stop_count_total", 0)
+                    ),
                 },
                 bucket="stop_count_reporting",
             )
@@ -310,6 +324,7 @@ def check_measurement_aggregate_integrity(aggregate):
     span_type_sum = (
         _int((aggregate or {}).get("span_pickup_count_total", 0))
         + _int((aggregate or {}).get("span_delivery_count_total", 0))
+        + _int((aggregate or {}).get("span_generic_stop_count_total", 0))
         + _int((aggregate or {}).get("span_unknown_count_total", 0))
     )
     if span_normalized and span_normalized != span_type_sum:
@@ -319,6 +334,9 @@ def check_measurement_aggregate_integrity(aggregate):
                 counts={
                     "span_normalized_stop_count_total": span_normalized,
                     "span_type_count_sum": span_type_sum,
+                    "span_generic_stop_count_total": _int(
+                        (aggregate or {}).get("span_generic_stop_count_total", 0)
+                    ),
                 },
                 bucket="span_stop_count_reporting",
             )

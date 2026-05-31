@@ -360,6 +360,7 @@ def _default_stop_span_fields(
         "span_normalized_stop_count": 0,
         "span_pickup_count": 0,
         "span_delivery_count": 0,
+        "span_generic_stop_count": 0,
         "span_unknown_count": 0,
         "span_date_resolved_count": 0,
         "span_date_missing_count": 0,
@@ -453,6 +454,7 @@ def _stop_span_measurement_fields(
             "span_normalized_stop_count": len(span_stop_set.get("stops", []) or []),
             "span_pickup_count": int(span_stop_set.get("pickup_count", 0) or 0),
             "span_delivery_count": int(span_stop_set.get("delivery_count", 0) or 0),
+            "span_generic_stop_count": int(span_stop_set.get("stop_count", 0) or 0),
             "span_unknown_count": int(span_stop_set.get("unknown_count", 0) or 0),
             "span_passthrough_detected": bool(
                 span_result.get("passthrough_detected")
@@ -1280,6 +1282,9 @@ def measure_private_ratecon_pdf(
         delivery_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
             "delivery_count", 0
         ),
+        generic_stop_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
+            "stop_count", 0
+        ),
         unknown_stop_count=(fusion_fields.get("normalized_stop_set", {}) or {}).get(
             "unknown_count", 0
         ),
@@ -1369,6 +1374,7 @@ def measure_private_ratecon_pdf(
         ),
         span_pickup_count=stop_span_fields.get("span_pickup_count", 0),
         span_delivery_count=stop_span_fields.get("span_delivery_count", 0),
+        span_generic_stop_count=stop_span_fields.get("span_generic_stop_count", 0),
         span_unknown_count=stop_span_fields.get("span_unknown_count", 0),
         span_date_resolved_count=stop_span_fields.get(
             "span_date_resolved_count", 0

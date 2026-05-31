@@ -47,6 +47,38 @@ class MeasurementIntegrityTests(unittest.TestCase):
 
         self.assertIn(ISSUE_SPAN_TYPE_COUNT_MISMATCH, _issue_codes(issues))
 
+    def test_generic_stop_types_repair_known_span_count_shape(self):
+        issues = check_measurement_row_integrity(
+            {
+                "document_alias": "RATECON_002",
+                "span_normalized_stop_count": 29,
+                "span_pickup_count": 13,
+                "span_delivery_count": 14,
+                "span_generic_stop_count": 2,
+                "span_unknown_count": 0,
+                "span_date_resolved_count": 8,
+                "span_date_missing_count": 21,
+                "span_time_resolved_count": 10,
+                "span_time_missing_count": 19,
+            }
+        )
+
+        self.assertNotIn(ISSUE_SPAN_TYPE_COUNT_MISMATCH, _issue_codes(issues))
+
+    def test_generic_stop_types_count_for_old_path(self):
+        issues = check_measurement_row_integrity(
+            {
+                "document_alias": "RATECON_002",
+                "normalized_stop_count": 3,
+                "pickup_count": 1,
+                "delivery_count": 1,
+                "generic_stop_count": 1,
+                "unknown_stop_count": 0,
+            }
+        )
+
+        self.assertNotIn(ISSUE_STOP_TYPE_COUNT_MISMATCH, _issue_codes(issues))
+
     def test_detects_date_denominator_mismatch(self):
         issues = check_measurement_row_integrity(
             {
@@ -137,6 +169,19 @@ class MeasurementIntegrityTests(unittest.TestCase):
         self.assertIn(ISSUE_SPAN_TYPE_COUNT_MISMATCH, summary["issue_counts"])
         self.assertFalse(payload["raw_text_included"])
         self.assertTrue(payload["private_values_redacted"])
+
+    def test_aggregate_generic_span_type_counts_pass(self):
+        issues = check_measurement_aggregate_integrity(
+            {
+                "span_normalized_stop_count_total": 4,
+                "span_pickup_count_total": 2,
+                "span_delivery_count_total": 1,
+                "span_generic_stop_count_total": 1,
+                "span_unknown_count_total": 0,
+            }
+        )
+
+        self.assertNotIn(ISSUE_SPAN_TYPE_COUNT_MISMATCH, _issue_codes(issues))
 
 
 if __name__ == "__main__":

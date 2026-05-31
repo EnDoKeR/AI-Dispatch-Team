@@ -174,6 +174,11 @@ def build_normalized_stop_set(
         for stop in normalized_stops
         if stop.get("stop_type") == NORMALIZED_STOP_TYPE_DELIVERY
     )
+    stop_count = sum(
+        1
+        for stop in normalized_stops
+        if stop.get("stop_type") == NORMALIZED_STOP_TYPE_STOP
+    )
     unknown_count = sum(
         1
         for stop in normalized_stops
@@ -200,6 +205,7 @@ def build_normalized_stop_set(
         "stops": normalized_stops,
         "pickup_count": pickup_count,
         "delivery_count": delivery_count,
+        "stop_count": stop_count,
         "unknown_count": unknown_count,
         "unresolved_fields": sorted(set(unresolved)),
         "conflict_fields": sorted(set(conflicts)),
