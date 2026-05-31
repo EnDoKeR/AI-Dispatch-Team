@@ -17,6 +17,7 @@ from app.document_ai.ratecon_candidates import (
     normalize_list,
 )
 from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER,
     STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK,
     STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
     STOP_GROUP_SOURCE_TYPE_TABLE_ROW,
@@ -199,6 +200,14 @@ def _candidate_field_names(field_candidates):
     ]
 
 
+def _candidate_field_name_set_from_group(group):
+    return {
+        _text(candidate.get("field_name"))
+        for candidate in (group or {}).get("field_candidates", []) or []
+        if isinstance(candidate, dict) and _text(candidate.get("field_name"))
+    }
+
+
 def _trigger_label_for_stop_type(stop_type):
     normalized = _normalize_stop_type(stop_type)
     if normalized == STOP_TYPE_PICKUP:
@@ -208,6 +217,147 @@ def _trigger_label_for_stop_type(stop_type):
     if normalized == STOP_TYPE_STOP:
         return TRIGGER_LABEL_STOP
     return TRIGGER_LABEL_UNKNOWN
+
+
+def _line_cluster_key(group):
+    page_number = _text((group or {}).get("page_number"))
+    section_role = _text((group or {}).get("section_role")).upper()
+    stop_type = _normalize_stop_type((group or {}).get("stop_type"))
+    if not page_number:
+        return None
+    if section_role:
+        return (page_number, section_role, stop_type)
+    if stop_type in {STOP_TYPE_PICKUP, STOP_TYPE_DELIVERY}:
+        return (page_number, "UNSCOPED_STOP_LINES", stop_type)
+    return None
+
+
+def _line_provenance_value(group, key):
+    provenance = (group or {}).get("provenance", {})
+    if not isinstance(provenance, dict):
+        return ""
+    return _text(provenance.get(key))
+
+
+def _merge_stop_types_for_line_cluster(groups):
+    stop_types = {
+        _normalize_stop_type(group.get("stop_type"))
+        for group in groups or []
+        if isinstance(group, dict)
+    }
+    if len(stop_types) == 1:
+        return next(iter(stop_types))
+    if STOP_TYPE_PICKUP in stop_types and STOP_TYPE_DELIVERY not in stop_types:
+        return STOP_TYPE_PICKUP
+    if STOP_TYPE_DELIVERY in stop_types and STOP_TYPE_PICKUP not in stop_types:
+        return STOP_TYPE_DELIVERY
+    if STOP_TYPE_STOP in stop_types:
+        return STOP_TYPE_STOP
+    return STOP_TYPE_UNKNOWN
+
+
+def _build_line_cluster_group(groups, cluster_key):
+    safe_groups = [group for group in groups or [] if isinstance(group, dict)]
+    if len(safe_groups) <= 1:
+        return safe_groups[0] if safe_groups else None
+
+    first = dict(safe_groups[0])
+    page_number, section_role, key_stop_type = cluster_key
+    stop_type = _merge_stop_types_for_line_cluster(safe_groups) or key_stop_type
+    field_candidates = []
+    reasons = []
+    warning_codes = []
+    source_group_ids = []
+    line_ids = []
+    page_roles = []
+    for group in safe_groups:
+        field_candidates.extend(
+            candidate
+            for candidate in group.get("field_candidates", []) or []
+            if isinstance(candidate, dict)
+        )
+        reasons.extend(normalize_list(group.get("reasons")))
+        warning_codes.extend(normalize_list(group.get("warning_codes")))
+        source_group_ids.append(_text(group.get("stop_group_id")))
+        line_id = _line_provenance_value(group, "line_id")
+        if line_id:
+            line_ids.append(line_id)
+        page_role = _line_provenance_value(group, "page_role")
+        if page_role:
+            page_roles.append(page_role)
+
+    cluster_id = "line_cluster_{}_{}_{}_{}".format(
+        page_number,
+        section_role.lower() or "unscoped",
+        stop_type,
+        _text(first.get("stop_sequence")) or "1",
+    )
+    group_warnings = sorted(set(warning_codes + ["line_cluster_stop_groups_merged"]))
+    first.update(
+        {
+            "stop_group_id": cluster_id,
+            "stop_type": stop_type,
+            "section_role": "" if section_role == "UNSCOPED_STOP_LINES" else section_role,
+            "field_candidates": field_candidates,
+            "reasons": sorted(set(reasons + ["line_cluster_preserves_stop_context"])),
+            "warning_codes": group_warnings,
+            "source_group_ids": [item for item in source_group_ids if item],
+            "provenance": build_stop_group_provenance(
+                source_type=STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER,
+                source_generator="build_stop_groups_from_layout_sections",
+                page_number=page_number,
+                line_id=",".join(line_ids),
+                section_role="" if section_role == "UNSCOPED_STOP_LINES" else section_role,
+                page_role=",".join(sorted(set(page_roles))),
+                trigger_label_category=_trigger_label_for_stop_type(stop_type),
+                candidate_field_names=_candidate_field_names(field_candidates),
+                grouping_key="|".join(cluster_key),
+                warning_codes=group_warnings,
+            ),
+        }
+    )
+    return first
+
+
+def _cluster_line_stop_groups(line_groups):
+    clusters = []
+    active = {}
+    active_order = []
+
+    def flush_key(key):
+        groups = active.pop(key, [])
+        if key in active_order:
+            active_order.remove(key)
+        if not groups:
+            return
+        merged = _build_line_cluster_group(groups, key)
+        if merged:
+            clusters.append(merged)
+
+    for group in line_groups or []:
+        key = _line_cluster_key(group)
+        if not key:
+            clusters.append(group)
+            continue
+
+        fields = _candidate_field_name_set_from_group(group)
+        current = active.get(key, [])
+        current_has_location = any(
+            STOP_FIELD_LOCATION in _candidate_field_name_set_from_group(item)
+            for item in current
+        )
+        if current and STOP_FIELD_LOCATION in fields and current_has_location:
+            flush_key(key)
+
+        if key not in active:
+            active[key] = []
+            active_order.append(key)
+        active[key].append(group)
+
+    for key in list(active_order):
+        flush_key(key)
+
+    return clusters
 
 
 def _rows_by_index(table):
@@ -728,6 +878,7 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                 )
             )
 
+        line_stop_groups = []
         for line in page.get("lines", []) or []:
             if not isinstance(line, dict):
                 continue
@@ -767,7 +918,7 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                 continue
             group_warnings = list(section_classification["warning_codes"])
             warnings.extend(group_warnings)
-            stop_groups.append(
+            line_stop_groups.append(
                 build_stop_group_candidate(
                     stop_group_id=stop_group_id,
                     stop_sequence=stop_sequence,
@@ -795,6 +946,7 @@ def build_stop_groups_from_layout_sections(layout_artifact, classification_resul
                     ),
                 )
             )
+        stop_groups.extend(_cluster_line_stop_groups(line_stop_groups))
 
     return build_stop_association_result(
         stop_groups=stop_groups,

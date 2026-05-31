@@ -14,6 +14,7 @@ from app.document_ai.stop_association import (
     classify_stop_section,
 )
 from app.document_ai.stop_group_provenance import (
+    STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER,
     STOP_GROUP_SOURCE_TYPE_SECTION_BLOCK,
     STOP_GROUP_SOURCE_TYPE_SINGLE_LINE,
 )
@@ -227,6 +228,44 @@ class StopSectionAssociationTests(unittest.TestCase):
         self.assertEqual(provenance["line_id"], "line_1")
         self.assertEqual(provenance["trigger_label_category"], "pickup")
         self.assertIn(STOP_FIELD_DATE, provenance["candidate_field_names"])
+
+    def test_provider_style_related_lines_cluster_into_one_stop_group(self):
+        artifact = {
+            "pages": [
+                {
+                    "page_number": 1,
+                    "lines": [
+                        {
+                            "line_id": "line_1",
+                            "text_redacted": "PU FAKE ORIGIN",
+                            "page_number": 1,
+                        },
+                        {
+                            "line_id": "line_2",
+                            "text_redacted": "PU Date <DATE>",
+                            "page_number": 1,
+                        },
+                        {
+                            "line_id": "line_3",
+                            "text_redacted": "PU Appt <TIME>",
+                            "page_number": 1,
+                        },
+                    ],
+                    "blocks": [],
+                }
+            ]
+        }
+
+        result = build_stop_groups_from_layout_sections(artifact)
+
+        self.assertEqual(len(result["stop_groups"]), 1)
+        group = result["stop_groups"][0]
+        self.assertEqual(group["provenance"]["source_type"], STOP_GROUP_SOURCE_TYPE_LINE_CLUSTER)
+        field_names = {candidate["field_name"] for candidate in group["field_candidates"]}
+        self.assertEqual(
+            field_names,
+            {STOP_FIELD_LOCATION, STOP_FIELD_DATE, STOP_FIELD_TIME},
+        )
 
 
 if __name__ == "__main__":
