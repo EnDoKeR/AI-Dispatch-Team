@@ -9,9 +9,16 @@ from app.document_ai.ratecon_review_workbook import (
     REVIEW_FIELD_REVIEW_CSV,
     REVIEW_RATE_REVIEW_CSV,
     REVIEW_STOP_REVIEW_CSV,
+    REVIEW_V2_CORE_FIELDS_CSV,
+    REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+    REVIEW_V2_LOAD_IDS_CSV,
+    REVIEW_V2_RATES_CSV,
+    REVIEW_V2_STOPS_CSV,
+    REVIEW_V2_WORKBOOK_XLSX,
     REVIEW_WORKBOOK_XLSX,
     write_ratecon_review_artifacts,
     write_ratecon_review_csvs,
+    write_ratecon_review_v2_artifacts,
     write_ratecon_review_workbook,
 )
 
@@ -210,6 +217,67 @@ class RateConReviewWorkbookExportTests(unittest.TestCase):
             self.assertEqual(output["summary"]["document_rows"], 1)
             self.assertEqual(output["summary"]["stop_review_rows"], 1)
             self.assertEqual(output["summary"]["rate_review_rows"], 1)
+            self.assertFalse(output["private_values_printed"])
+
+    def test_writes_v2_packet_with_priority_rows_and_no_private_values_by_default(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = write_ratecon_review_v2_artifacts(
+                [_fake_row()],
+                output_dir=_output_dir(tmp),
+                allow_custom_output_dir=True,
+            )
+
+            paths = output["paths"]
+            self.assertEqual(
+                paths["document_summary_csv"].name,
+                REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+            )
+            self.assertEqual(paths["core_fields_csv"].name, REVIEW_V2_CORE_FIELDS_CSV)
+            self.assertEqual(paths["stops_csv"].name, REVIEW_V2_STOPS_CSV)
+            self.assertEqual(paths["rates_csv"].name, REVIEW_V2_RATES_CSV)
+            self.assertEqual(paths["load_ids_csv"].name, REVIEW_V2_LOAD_IDS_CSV)
+            if output["xlsx_written"]:
+                self.assertEqual(
+                    paths["review_v2_workbook_xlsx"].name,
+                    REVIEW_V2_WORKBOOK_XLSX,
+                )
+
+            with paths["core_fields_csv"].open(encoding="utf-8", newline="") as handle:
+                core_rows = list(csv.DictReader(handle))
+            with paths["stops_csv"].open(encoding="utf-8", newline="") as handle:
+                stop_rows = list(csv.DictReader(handle))
+
+            self.assertEqual(len(core_rows), 7)
+            self.assertEqual(core_rows[0]["Predicted Value LOCAL ONLY"], "")
+            self.assertIn("User Issue Type", core_rows[0])
+            self.assertEqual(len(stop_rows), 1)
+            self.assertLess(
+                output["summary"]["core_field_rows"]
+                + output["summary"]["stop_rows"]
+                + output["summary"]["rate_rows"]
+                + output["summary"]["load_id_rows"],
+                20,
+            )
+            self.assertFalse(output["private_values_printed"])
+
+    def test_v2_packet_includes_private_values_only_when_explicit(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = write_ratecon_review_v2_artifacts(
+                [_fake_row()],
+                output_dir=_output_dir(tmp),
+                include_private_values=True,
+                allow_custom_output_dir=True,
+            )
+
+            with output["paths"]["core_fields_csv"].open(
+                encoding="utf-8",
+                newline="",
+            ) as handle:
+                core_rows = list(csv.DictReader(handle))
+            rate_row = next(row for row in core_rows if row["Field Name"] == "rate")
+
+            self.assertEqual(rate_row["Predicted Value LOCAL ONLY"], "$1234")
+            self.assertTrue(output["include_private_values_local_only"])
             self.assertFalse(output["private_values_printed"])
 
 

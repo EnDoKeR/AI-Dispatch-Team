@@ -36,11 +36,26 @@ REVIEW_STOP_REVIEW_CSV = "ratecon_review_stop_review.csv"
 REVIEW_FIELD_REVIEW_CSV = "ratecon_review_field_review.csv"
 REVIEW_RATE_REVIEW_CSV = "ratecon_review_rate_review.csv"
 
+REVIEW_V2_WORKBOOK_XLSX = "ratecon_review_v2_workbook.xlsx"
+REVIEW_V2_DOCUMENT_SUMMARY_CSV = "ratecon_review_v2_document_summary.csv"
+REVIEW_V2_CORE_FIELDS_CSV = "ratecon_review_v2_core_fields.csv"
+REVIEW_V2_STOPS_CSV = "ratecon_review_v2_stops.csv"
+REVIEW_V2_RATES_CSV = "ratecon_review_v2_rates.csv"
+REVIEW_V2_LOAD_IDS_CSV = "ratecon_review_v2_load_ids.csv"
+REVIEW_V2_INSTRUCTIONS_CSV = "ratecon_review_v2_instructions.csv"
+
 SHEET_DOCUMENT_SUMMARY = "Document_Summary"
 SHEET_STOP_REVIEW = "Stop_Review"
 SHEET_FIELD_REVIEW = "Field_Review"
 SHEET_RATE_REVIEW = "Rate_Review"
 SHEET_INSTRUCTIONS = "Instructions"
+
+SHEET_V2_INSTRUCTIONS = "Review_Instructions"
+SHEET_V2_DOCUMENT_SUMMARY = "Document_Summary"
+SHEET_V2_CORE_FIELDS = "Core_Field_Review"
+SHEET_V2_STOPS = "Stop_Review"
+SHEET_V2_RATES = "Rate_Review"
+SHEET_V2_LOAD_IDS = "Load_ID_Review"
 
 DOCUMENT_SUMMARY_COLUMNS = [
     "Folder Order",
@@ -154,12 +169,86 @@ RATE_REVIEW_COLUMNS = [
 
 INSTRUCTIONS_COLUMNS = ["Section", "Instruction"]
 
+V2_INSTRUCTIONS_COLUMNS = ["Section", "Instruction"]
+
+V2_DOCUMENT_SUMMARY_COLUMNS = [
+    "Folder Order",
+    "Local Document Name / File Stem",
+    "Measurement Alias",
+    "Document Type",
+    "OCR Needed",
+    "Extraction Relevant",
+    "Readiness Level",
+    "Top Blockers",
+    "Review Priority",
+    "User Document Type Correct?",
+    "User Notes Local Only",
+]
+
+V2_CORE_FIELD_COLUMNS = [
+    "Measurement Alias",
+    "Field Name",
+    "Predicted Value LOCAL ONLY",
+    "Predicted Status",
+    "Needs Review",
+    "Candidate Count",
+    "Gap Reason",
+    "Evidence Type",
+    "User Correct? yes/no/unknown",
+    "User Expected Value LOCAL ONLY",
+    "User Issue Type",
+    "User Notes Local Only",
+]
+
+V2_STOP_COLUMNS = [
+    "Measurement Alias",
+    "Stop ID",
+    "Stop Type",
+    "Sequence",
+    "Field Name",
+    "Predicted Value LOCAL ONLY",
+    "Status",
+    "User Correct? yes/no/unknown",
+    "User Expected Value LOCAL ONLY",
+    "User Issue Type",
+]
+
+V2_RATE_COLUMNS = [
+    "Measurement Alias",
+    "Rate Candidate Type",
+    "Predicted Value LOCAL ONLY",
+    "Status",
+    "Conflict Reason",
+    "Main Rate? yes/no/unknown",
+    "User Correct? yes/no/unknown",
+    "User Issue Type",
+]
+
+V2_LOAD_ID_COLUMNS = [
+    "Measurement Alias",
+    "Identifier Type",
+    "Predicted Value LOCAL ONLY",
+    "Primary Candidate?",
+    "Rejected Non-primary?",
+    "User Correct? yes/no/unknown",
+    "User Issue Type",
+]
+
 REVIEW_WORKBOOK_COLUMNS_BY_SHEET = {
     SHEET_DOCUMENT_SUMMARY: DOCUMENT_SUMMARY_COLUMNS,
     SHEET_STOP_REVIEW: STOP_REVIEW_COLUMNS,
     SHEET_FIELD_REVIEW: FIELD_REVIEW_COLUMNS,
     SHEET_RATE_REVIEW: RATE_REVIEW_COLUMNS,
     SHEET_INSTRUCTIONS: INSTRUCTIONS_COLUMNS,
+}
+
+REVIEW_V2_COLUMNS_BY_SHEET = {
+    SHEET_V2_INSTRUCTIONS: V2_INSTRUCTIONS_COLUMNS,
+    SHEET_V2_DOCUMENT_SUMMARY: V2_DOCUMENT_SUMMARY_COLUMNS,
+    SHEET_V2_CORE_FIELDS: V2_CORE_FIELD_COLUMNS,
+    SHEET_V2_STOPS: V2_STOP_COLUMNS,
+    SHEET_V2_RATES: V2_RATE_COLUMNS,
+    SHEET_V2_LOAD_IDS: V2_LOAD_ID_COLUMNS,
 }
 
 LOCAL_PRIVATE_REVIEW_WARNING = (
@@ -174,6 +263,28 @@ RATE_REVIEW_FIELD_NAMES = {
     "accessorial",
     "detention",
     "tonu_payment",
+}
+
+V2_CORE_FIELD_NAMES = {
+    "broker_name",
+    "load_number",
+    "rate",
+    "pickup_location",
+    "pickup_date",
+    "delivery_location",
+    "delivery_date",
+}
+
+V2_STOP_FIELD_NAMES = {
+    "location",
+    "date",
+    "time",
+    "pickup_location",
+    "pickup_date",
+    "pickup_time",
+    "delivery_location",
+    "delivery_date",
+    "delivery_time",
 }
 
 
@@ -724,6 +835,348 @@ def build_ratecon_review_rows(
     }
 
 
+def _v2_instruction_rows(include_private_values=False):
+    rows = [
+        {
+            "Section": "Review order",
+            "Instruction": "Review Document_Summary, Core_Field_Review, Stop_Review, Rate_Review, then Load_ID_Review.",
+        },
+        {
+            "Section": "Review columns",
+            "Instruction": "Fill User Correct?, User Issue Type, and User Expected Value LOCAL ONLY when needed.",
+        },
+        {
+            "Section": "Safe sharing",
+            "Instruction": "Share only aliases, counts, statuses, issue types, field names, and readiness counts.",
+        },
+        {
+            "Section": "Do not share",
+            "Instruction": "Do not share private values, expected values, raw text, local paths, filenames, service account keys, or money amounts.",
+        },
+    ]
+    rows.append(
+        {
+            "Section": "Predicted values",
+            "Instruction": (
+                "Predicted values are included for local-private review only."
+                if include_private_values
+                else "Predicted value columns are blank in status-only mode."
+            ),
+        }
+    )
+    return rows
+
+
+def _v2_document_summary_row(row, folder_order, local_name):
+    readiness = assess_extraction_readiness(row)
+    top_blockers = normalize_list(readiness.get("intake_core_blockers"))
+    if not top_blockers:
+        top_blockers = normalize_list(readiness.get("extraction_review_blockers"))
+    if not top_blockers:
+        top_blockers = normalize_list(readiness.get("dispatch_decision_blockers"))
+    issues = check_measurement_row_integrity(row)
+    return {
+        "Folder Order": folder_order,
+        "Local Document Name / File Stem": local_name,
+        "Measurement Alias": _text((row or {}).get("document_alias")),
+        "Document Type": _text((row or {}).get("document_type")),
+        "OCR Needed": _bool_text((row or {}).get("extraction_status") == "EMPTY_TEXT"),
+        "Extraction Relevant": _bool_text((row or {}).get("extraction_relevant")),
+        "Readiness Level": readiness.get("readiness_level", "not_ready"),
+        "Top Blockers": _join(top_blockers[:5]),
+        "Review Priority": _review_priority(row, issues, readiness),
+        "User Document Type Correct?": "",
+        "User Notes Local Only": "",
+    }
+
+
+def _v2_candidate_count(row, field_name):
+    metrics = (row or {}).get("candidate_coverage_metrics", {}) or {}
+    field_counts = metrics.get("span_field_candidate_counts_by_field", {})
+    if isinstance(field_counts, dict) and field_name in field_counts:
+        return _int(field_counts.get(field_name))
+    if field_name == "load_number":
+        return _int(
+            ((row or {}).get("load_identifier_coverage_metrics", {}) or {}).get(
+                "primary_identifier_candidate_count"
+            )
+        )
+    if field_name == "rate":
+        for record in (row or {}).get("rate_forensics_records", []) or []:
+            if isinstance(record, dict):
+                return _int(record.get("main_rate_candidate_count"))
+    return ""
+
+
+def _v2_gap_reason(row, field_row):
+    field_name = _token((field_row or {}).get("Field Name"))
+    if field_name == "load_number":
+        reason = _text((field_row or {}).get("Load Identifier Gap Reason"))
+        if reason:
+            return reason
+    if field_name == "rate":
+        reason = _text((field_row or {}).get("Rate Conflict Reason"))
+        if reason:
+            return reason
+    return _text((field_row or {}).get("Policy Gap Reason"))
+
+
+def _v2_core_field_rows(
+    row,
+    folder_order,
+    local_name,
+    include_private_values=False,
+    field_rows=None,
+):
+    field_rows = field_rows or _field_review_rows(
+        row,
+        folder_order,
+        local_name,
+        include_private_values=include_private_values,
+    )
+    rows = []
+    seen = set()
+    for field_row in field_rows:
+        field_name = _token(field_row.get("Field Name"))
+        if field_name not in V2_CORE_FIELD_NAMES:
+            continue
+        seen.add(field_name)
+        rows.append(
+            {
+                "Measurement Alias": field_row.get("Measurement Alias", ""),
+                "Field Name": field_name,
+                "Predicted Value LOCAL ONLY": field_row.get(
+                    "Predicted Value LOCAL ONLY",
+                    "",
+                ),
+                "Predicted Status": field_row.get("Status", ""),
+                "Needs Review": field_row.get("Needs Review", ""),
+                "Candidate Count": _v2_candidate_count(row, field_name),
+                "Gap Reason": _v2_gap_reason(row, field_row),
+                "Evidence Type": field_row.get("Evidence Type", ""),
+                "User Correct? yes/no/unknown": "",
+                "User Expected Value LOCAL ONLY": "",
+                "User Issue Type": "",
+                "User Notes Local Only": "",
+            }
+        )
+    alias = _text((row or {}).get("document_alias"))
+    for field_name in sorted(V2_CORE_FIELD_NAMES - seen):
+        rows.append(
+            {
+                "Measurement Alias": alias,
+                "Field Name": field_name,
+                "Predicted Value LOCAL ONLY": "",
+                "Predicted Status": "missing",
+                "Needs Review": "yes",
+                "Candidate Count": _v2_candidate_count(row, field_name),
+                "Gap Reason": classify_field_policy_gap(
+                    field_name,
+                    "missing",
+                    FIELD_POLICY_ROLE_INTAKE_CORE,
+                    build_document_context(row),
+                ),
+                "Evidence Type": "",
+                "User Correct? yes/no/unknown": "",
+                "User Expected Value LOCAL ONLY": "",
+                "User Issue Type": "",
+                "User Notes Local Only": "",
+            }
+        )
+    return rows
+
+
+def _v2_stop_rows(row, folder_order, local_name, include_private_values=False):
+    rows = []
+    for stop_row in _stop_review_rows(
+        row,
+        folder_order,
+        local_name,
+        include_private_values=include_private_values,
+    ):
+        stop_type = _token(stop_row.get("Stop Type"))
+        field_name = _token(stop_row.get("Field Name"))
+        if stop_type not in {"pickup", "delivery"}:
+            continue
+        if field_name not in V2_STOP_FIELD_NAMES and _token(stop_row.get("Needs Review")) != "yes":
+            continue
+        rows.append(
+            {
+                "Measurement Alias": stop_row.get("Measurement Alias", ""),
+                "Stop ID": stop_row.get("Stop ID", ""),
+                "Stop Type": stop_row.get("Stop Type", ""),
+                "Sequence": stop_row.get("Stop Sequence", ""),
+                "Field Name": stop_row.get("Field Name", ""),
+                "Predicted Value LOCAL ONLY": stop_row.get(
+                    "Predicted Value LOCAL ONLY",
+                    "",
+                ),
+                "Status": stop_row.get("Status", ""),
+                "User Correct? yes/no/unknown": "",
+                "User Expected Value LOCAL ONLY": "",
+                "User Issue Type": "",
+            }
+        )
+    return rows
+
+
+def _v2_rate_rows(row, field_rows):
+    rate_rows = _rate_review_rows(row, field_rows)
+    return [
+        {
+            "Measurement Alias": rate_row.get("Measurement Alias", ""),
+            "Rate Candidate Type": rate_row.get("Rate Field Type", ""),
+            "Predicted Value LOCAL ONLY": rate_row.get("Predicted Value LOCAL ONLY", ""),
+            "Status": rate_row.get("Status", ""),
+            "Conflict Reason": rate_row.get("Rate Conflict Reason", ""),
+            "Main Rate? yes/no/unknown": rate_row.get("Main Rate? yes/no/unknown", ""),
+            "User Correct? yes/no/unknown": "",
+            "User Issue Type": "",
+        }
+        for rate_row in rate_rows
+    ]
+
+
+def _v2_load_identifier_rows(row, core_field_rows, include_private_values=False):
+    alias = _text((row or {}).get("document_alias"))
+    metrics = (row or {}).get("load_identifier_coverage_metrics", {}) or {}
+    load_row = next(
+        (field for field in core_field_rows if _token(field.get("Field Name")) == "load_number"),
+        {},
+    )
+    rows = []
+    primary_types = metrics.get("primary_identifier_type_counts", {}) or {}
+    for identifier_type, count in sorted(primary_types.items()):
+        for _index in range(_int(count) or 1):
+            rows.append(
+                {
+                    "Measurement Alias": alias,
+                    "Identifier Type": _token(identifier_type),
+                    "Predicted Value LOCAL ONLY": load_row.get(
+                        "Predicted Value LOCAL ONLY",
+                        "",
+                    )
+                    if include_private_values
+                    else "",
+                    "Primary Candidate?": "yes",
+                    "Rejected Non-primary?": "no",
+                    "User Correct? yes/no/unknown": "",
+                    "User Issue Type": "",
+                }
+            )
+    rejected_count = _int(metrics.get("rejected_reference_as_load_id_count"))
+    if rejected_count:
+        rows.append(
+            {
+                "Measurement Alias": alias,
+                "Identifier Type": "non_primary_reference",
+                "Predicted Value LOCAL ONLY": "",
+                "Primary Candidate?": "no",
+                "Rejected Non-primary?": "yes",
+                "User Correct? yes/no/unknown": "",
+                "User Issue Type": "",
+            }
+        )
+    if not rows and _token(load_row.get("Predicted Status")) in {
+        "missing",
+        "needs_review",
+        "conflict",
+        "low_confidence",
+    }:
+        rows.append(
+            {
+                "Measurement Alias": alias,
+                "Identifier Type": "load_number",
+                "Predicted Value LOCAL ONLY": "",
+                "Primary Candidate?": "no",
+                "Rejected Non-primary?": "no",
+                "User Correct? yes/no/unknown": "",
+                "User Issue Type": "",
+            }
+        )
+    return rows
+
+
+def build_ratecon_review_v2_rows(
+    measurement_rows,
+    local_document_names_by_alias=None,
+    include_private_values=False,
+):
+    local_names = local_document_names_by_alias or {}
+    document_rows = []
+    core_rows = []
+    stop_rows = []
+    rate_rows = []
+    load_id_rows = []
+
+    for folder_order, row in enumerate(measurement_rows or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        alias = _text(row.get("document_alias"))
+        local_name = _text(local_names.get(alias))
+        document_rows.append(_v2_document_summary_row(row, folder_order, local_name))
+        row_field_rows = _field_review_rows(
+            row,
+            folder_order,
+            local_name,
+            include_private_values=include_private_values,
+        )
+        row_core_rows = _v2_core_field_rows(
+            row,
+            folder_order,
+            local_name,
+            include_private_values=include_private_values,
+            field_rows=row_field_rows,
+        )
+        core_rows.extend(row_core_rows)
+        stop_rows.extend(
+            _v2_stop_rows(
+                row,
+                folder_order,
+                local_name,
+                include_private_values=include_private_values,
+            )
+        )
+        rate_rows.extend(_v2_rate_rows(row, row_field_rows))
+        load_id_rows.extend(
+            _v2_load_identifier_rows(
+                row,
+                row_core_rows,
+                include_private_values=include_private_values,
+            )
+        )
+
+    return {
+        SHEET_V2_INSTRUCTIONS: _v2_instruction_rows(
+            include_private_values=include_private_values
+        ),
+        SHEET_V2_DOCUMENT_SUMMARY: document_rows,
+        SHEET_V2_CORE_FIELDS: core_rows,
+        SHEET_V2_STOPS: stop_rows,
+        SHEET_V2_RATES: rate_rows,
+        SHEET_V2_LOAD_IDS: load_id_rows,
+    }
+
+
+def summarize_ratecon_review_v2_rows(rows_by_sheet):
+    return {
+        "document_rows": len(
+            (rows_by_sheet or {}).get(SHEET_V2_DOCUMENT_SUMMARY, []) or []
+        ),
+        "core_field_rows": len(
+            (rows_by_sheet or {}).get(SHEET_V2_CORE_FIELDS, []) or []
+        ),
+        "stop_rows": len((rows_by_sheet or {}).get(SHEET_V2_STOPS, []) or []),
+        "rate_rows": len((rows_by_sheet or {}).get(SHEET_V2_RATES, []) or []),
+        "load_id_rows": len((rows_by_sheet or {}).get(SHEET_V2_LOAD_IDS, []) or []),
+        "instruction_rows": len(
+            (rows_by_sheet or {}).get(SHEET_V2_INSTRUCTIONS, []) or []
+        ),
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
 def summarize_ratecon_review_workbook_rows(rows_by_sheet):
     document_rows = (rows_by_sheet or {}).get(SHEET_DOCUMENT_SUMMARY, []) or []
     readiness_counts = {}
@@ -836,7 +1289,7 @@ def write_ratecon_review_csvs(
     }
 
 
-def _write_xlsx_if_available(path, rows_by_sheet):
+def _write_xlsx_with_columns_if_available(path, rows_by_sheet, columns_by_sheet):
     try:
         from openpyxl import Workbook
         from openpyxl.styles import Font, PatternFill
@@ -850,7 +1303,7 @@ def _write_xlsx_if_available(path, rows_by_sheet):
     header_fill = PatternFill("solid", fgColor="D9EAF7")
     warning_fill = PatternFill("solid", fgColor="FDE68A")
 
-    for sheet_name, columns in REVIEW_WORKBOOK_COLUMNS_BY_SHEET.items():
+    for sheet_name, columns in columns_by_sheet.items():
         sheet = workbook.create_sheet(title=sheet_name)
         sheet.append(columns)
         for row in rows_by_sheet.get(sheet_name, []) or []:
@@ -871,6 +1324,22 @@ def _write_xlsx_if_available(path, rows_by_sheet):
 
     workbook.save(path)
     return True
+
+
+def _write_xlsx_if_available(path, rows_by_sheet):
+    return _write_xlsx_with_columns_if_available(
+        path,
+        rows_by_sheet,
+        REVIEW_WORKBOOK_COLUMNS_BY_SHEET,
+    )
+
+
+def _write_v2_xlsx_if_available(path, rows_by_sheet):
+    return _write_xlsx_with_columns_if_available(
+        path,
+        rows_by_sheet,
+        REVIEW_V2_COLUMNS_BY_SHEET,
+    )
 
 
 def write_ratecon_review_workbook(
@@ -895,6 +1364,81 @@ def write_ratecon_review_workbook(
         "xlsx": xlsx_path if xlsx_written else None,
         "rows_by_sheet": rows_by_sheet,
         "summary": summarize_ratecon_review_workbook_rows(rows_by_sheet),
+        "include_private_values_local_only": bool(include_private_values),
+        "local_only": True,
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
+def write_ratecon_review_v2_artifacts(
+    measurement_rows,
+    output_dir=None,
+    local_document_names_by_alias=None,
+    include_private_values=False,
+    write_workbook=True,
+    write_csvs=True,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    rows_by_sheet = build_ratecon_review_v2_rows(
+        measurement_rows,
+        local_document_names_by_alias=local_document_names_by_alias,
+        include_private_values=include_private_values,
+    )
+    paths = {}
+    csv_specs = {
+        "instructions_csv": (
+            REVIEW_V2_INSTRUCTIONS_CSV,
+            SHEET_V2_INSTRUCTIONS,
+            V2_INSTRUCTIONS_COLUMNS,
+        ),
+        "document_summary_csv": (
+            REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+            SHEET_V2_DOCUMENT_SUMMARY,
+            V2_DOCUMENT_SUMMARY_COLUMNS,
+        ),
+        "core_fields_csv": (
+            REVIEW_V2_CORE_FIELDS_CSV,
+            SHEET_V2_CORE_FIELDS,
+            V2_CORE_FIELD_COLUMNS,
+        ),
+        "stops_csv": (
+            REVIEW_V2_STOPS_CSV,
+            SHEET_V2_STOPS,
+            V2_STOP_COLUMNS,
+        ),
+        "rates_csv": (
+            REVIEW_V2_RATES_CSV,
+            SHEET_V2_RATES,
+            V2_RATE_COLUMNS,
+        ),
+        "load_ids_csv": (
+            REVIEW_V2_LOAD_IDS_CSV,
+            SHEET_V2_LOAD_IDS,
+            V2_LOAD_ID_COLUMNS,
+        ),
+    }
+    if write_csvs:
+        for key, (filename, sheet_name, columns) in csv_specs.items():
+            path = output_root / filename
+            _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
+            paths[key] = path
+    xlsx_written = False
+    if write_workbook:
+        xlsx_path = output_root / REVIEW_V2_WORKBOOK_XLSX
+        xlsx_written = _write_v2_xlsx_if_available(xlsx_path, rows_by_sheet)
+        if xlsx_written:
+            paths["review_v2_workbook_xlsx"] = xlsx_path
+    return {
+        "paths": paths,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_ratecon_review_v2_rows(rows_by_sheet),
+        "xlsx_written": xlsx_written,
+        "csvs_written": bool(write_csvs),
         "include_private_values_local_only": bool(include_private_values),
         "local_only": True,
         "raw_text_included": False,
