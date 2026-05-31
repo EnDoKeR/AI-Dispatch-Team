@@ -185,6 +185,45 @@ class LoadIdentifierSourceLineAuditTests(unittest.TestCase):
         self.assertEqual(metrics["core_mapping_count"], 1)
         self.assertFalse(metrics["line_text_included"])
 
+    def test_aggregate_keeps_safe_source_section_line_counts(self):
+        artifact = {
+            "pages": [
+                {
+                    "text": (
+                        "Rate Confirmation\n"
+                        "Load Number: FAKE-LOAD-001"
+                    )
+                },
+                {
+                    "text": "Pickup Stop\nReference #: FAKE-STOP-001"
+                }
+            ]
+        }
+        metrics = build_load_identifier_source_line_metrics(
+            full_artifact=artifact,
+            scoped_artifact=artifact,
+            candidates=[],
+            resolution_result={},
+        )
+
+        result = analyze_load_id_source_lines_from_rows(
+            [
+                {
+                    "document_alias": "RATECON_001",
+                    "triage_route": "DIGITAL_TEXT",
+                    "extraction_status": "TEXT_EXTRACTED",
+                    "char_count": 100,
+                    "load_identifier_source_line_metrics": metrics,
+                }
+            ]
+        )
+
+        aggregate = result["aggregate"]
+        self.assertEqual(aggregate["identifier_like_line_count"], 2)
+        self.assertEqual(aggregate["load_identity_identifier_like_line_count"], 1)
+        self.assertEqual(aggregate["stop_section_identifier_like_line_count"], 1)
+        self.assertEqual(aggregate["scoped_identifier_like_line_count"], 2)
+
     def test_analyzer_marks_ocr_rows_as_not_code_fixable(self):
         result = analyze_load_id_source_lines_from_rows(
             [

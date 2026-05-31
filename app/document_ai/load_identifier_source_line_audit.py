@@ -297,6 +297,12 @@ def build_load_id_source_line_record(
     label_category=LOAD_ID_LABEL_CATEGORY_UNKNOWN,
     source_section_category=LOAD_ID_SOURCE_SECTION_UNKNOWN,
     identifier_like_line_count=0,
+    scoped_identifier_like_line_count=0,
+    source_line_scope_filtered_count=0,
+    header_identifier_like_line_count=0,
+    load_identity_identifier_like_line_count=0,
+    stop_section_identifier_like_line_count=0,
+    billing_terms_identifier_like_line_count=0,
     detected_label_count=0,
     classified_label_count=0,
     typed_candidate_count=0,
@@ -316,6 +322,22 @@ def build_load_id_source_line_record(
             source_section_category
         ),
         "identifier_like_line_count": _int(identifier_like_line_count),
+        "scoped_identifier_like_line_count": _int(
+            scoped_identifier_like_line_count
+        ),
+        "source_line_scope_filtered_count": _int(source_line_scope_filtered_count),
+        "header_identifier_like_line_count": _int(
+            header_identifier_like_line_count
+        ),
+        "load_identity_identifier_like_line_count": _int(
+            load_identity_identifier_like_line_count
+        ),
+        "stop_section_identifier_like_line_count": _int(
+            stop_section_identifier_like_line_count
+        ),
+        "billing_terms_identifier_like_line_count": _int(
+            billing_terms_identifier_like_line_count
+        ),
         "detected_label_count": _int(detected_label_count),
         "classified_label_count": _int(classified_label_count),
         "typed_candidate_count": _int(typed_candidate_count),
@@ -394,6 +416,30 @@ def build_load_id_source_line_aggregate(records, document_count=0):
         "recommended_next_action": recommended_next_action,
         "identifier_like_line_count": sum(
             record["identifier_like_line_count"] for record in normalized_records
+        ),
+        "scoped_identifier_like_line_count": sum(
+            record["scoped_identifier_like_line_count"]
+            for record in normalized_records
+        ),
+        "source_line_scope_filtered_count": sum(
+            record["source_line_scope_filtered_count"]
+            for record in normalized_records
+        ),
+        "header_identifier_like_line_count": sum(
+            record["header_identifier_like_line_count"]
+            for record in normalized_records
+        ),
+        "load_identity_identifier_like_line_count": sum(
+            record["load_identity_identifier_like_line_count"]
+            for record in normalized_records
+        ),
+        "stop_section_identifier_like_line_count": sum(
+            record["stop_section_identifier_like_line_count"]
+            for record in normalized_records
+        ),
+        "billing_terms_identifier_like_line_count": sum(
+            record["billing_terms_identifier_like_line_count"]
+            for record in normalized_records
         ),
         "detected_label_count": sum(
             record["detected_label_count"] for record in normalized_records
@@ -724,6 +770,27 @@ def build_load_id_source_line_record_from_metrics(
         label_category=top_category,
         source_section_category=top_section,
         identifier_like_line_count=identifier_lines,
+        scoped_identifier_like_line_count=scoped_identifier_lines,
+        source_line_scope_filtered_count=metrics.get(
+            "source_line_scope_filtered_count",
+            0,
+        ),
+        header_identifier_like_line_count=metrics.get(
+            "header_identifier_like_line_count",
+            0,
+        ),
+        load_identity_identifier_like_line_count=metrics.get(
+            "load_identity_identifier_like_line_count",
+            0,
+        ),
+        stop_section_identifier_like_line_count=metrics.get(
+            "stop_section_identifier_like_line_count",
+            0,
+        ),
+        billing_terms_identifier_like_line_count=metrics.get(
+            "billing_terms_identifier_like_line_count",
+            0,
+        ),
         detected_label_count=label_detected,
         classified_label_count=label_classified,
         typed_candidate_count=typed_candidates,
@@ -808,6 +875,12 @@ def load_identifier_source_line_markdown_lines(analysis):
         "",
         "## Counts",
         f"- identifier-like source lines: {aggregate.get('identifier_like_line_count', 0)}",
+        f"- scoped identifier-like source lines: {aggregate.get('scoped_identifier_like_line_count', 0)}",
+        f"- source-line scope filtered: {aggregate.get('source_line_scope_filtered_count', 0)}",
+        f"- header identifier-like source lines: {aggregate.get('header_identifier_like_line_count', 0)}",
+        f"- load identity identifier-like source lines: {aggregate.get('load_identity_identifier_like_line_count', 0)}",
+        f"- stop-section identifier-like source lines: {aggregate.get('stop_section_identifier_like_line_count', 0)}",
+        f"- billing/terms identifier-like source lines: {aggregate.get('billing_terms_identifier_like_line_count', 0)}",
         f"- labels detected: {aggregate.get('detected_label_count', 0)}",
         f"- labels classified: {aggregate.get('classified_label_count', 0)}",
         f"- typed candidates: {aggregate.get('typed_candidate_count', 0)}",

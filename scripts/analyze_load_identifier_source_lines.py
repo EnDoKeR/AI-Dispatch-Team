@@ -1,7 +1,12 @@
 """Analyze local load identifier source-line coverage without private values."""
 
 import argparse
+import sys
 from pathlib import Path
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
 
 from app.document_ai.load_identifier_source_line_audit import (
     LOAD_ID_SOURCE_LINE_ANALYSIS_JSON,
@@ -36,11 +41,27 @@ def build_parser():
 
 def _print_summary(analysis, include_aliases=True):
     aggregate = analysis.get("aggregate", {})
+    header_load_identity_count = aggregate.get(
+        "header_identifier_like_line_count",
+        0,
+    ) + aggregate.get("load_identity_identifier_like_line_count", 0)
+    stop_billing_terms_count = aggregate.get(
+        "stop_section_identifier_like_line_count",
+        0,
+    ) + aggregate.get("billing_terms_identifier_like_line_count", 0)
     print("Load identifier source-line forensics summary")
     print(f"documents_analyzed: {aggregate.get('document_count', 0)}")
     print(
         "identifier_like_source_line_count: "
         f"{aggregate.get('identifier_like_line_count', 0)}"
+    )
+    print(
+        "header_load_identity_source_line_count: "
+        f"{header_load_identity_count}"
+    )
+    print(
+        "stop_billing_terms_source_line_count: "
+        f"{stop_billing_terms_count}"
     )
     print(f"label_detected_count: {aggregate.get('detected_label_count', 0)}")
     print(f"label_classified_count: {aggregate.get('classified_label_count', 0)}")
