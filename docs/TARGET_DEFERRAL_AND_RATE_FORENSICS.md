@@ -110,6 +110,35 @@ but did not improve readiness. The next rate block should focus on conflict
 review routing only if measured evidence still supports it. Do not stack more
 source-priority patches without a new shared root cause.
 
+## Rate Conflict Audit
+
+The follow-up conflict audit is stricter than the broad rate candidate
+forensics report. It separates equivalent candidates, different strong totals,
+linehaul/total conflicts, revised/original conflicts, TONU payment context,
+and selected-rate mapping gaps.
+
+Safe latest result:
+
+- rate conflict records: 10;
+- equivalent same-amount groups: 0;
+- different strong total groups: 6;
+- conflict-present records: 7;
+- selected/core-mapped records: 2 / 2;
+- conflict reasons: `accessorial_noise_remaining=4`,
+  `multiple_different_strong_totals=2`, `tonu_non_normal_load=1`,
+  `unknown=3`;
+- fix allowed: false;
+- recommended next action: local human review for rate fields.
+
+The broad forensics report still flags `multiple_strong_totals`, but the deeper
+audit shows that this bucket splits below the three-alias code-fix threshold.
+No resolver/arbitration fix should be applied from this evidence set.
+
+Local review exports now include safe rate conflict columns such as conflict
+reason, main candidate count, equivalent group count, different strong total
+count, selected-rate status, core-mapped status, and component category counts.
+Money values remain local-only and must not be printed or committed.
+
 ## Local Commands
 
 Create/update rate forensics artifacts during a private run by adding:
@@ -122,6 +151,18 @@ Analyze existing local artifacts with:
 
 ```powershell
 python scripts/analyze_rate_candidate_forensics.py --write-md --write-json --include-local-document-names-local-only
+```
+
+Create/update rate conflict audit artifacts during a private run by adding:
+
+```powershell
+--write-rate-conflict-audit
+```
+
+Analyze existing conflict audit artifacts with:
+
+```powershell
+python scripts/analyze_rate_conflicts.py --write-md --write-json --include-local-document-names-local-only
 ```
 
 Console and Markdown output contain aliases, counts, categories, and conflict

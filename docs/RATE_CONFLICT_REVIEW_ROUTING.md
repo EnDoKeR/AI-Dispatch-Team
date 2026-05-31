@@ -69,6 +69,20 @@ Useful safe fields for local review output:
 
 Private values and money amounts are included only in explicit local-only workbook modes and must not be printed or committed.
 
+## Current Local Decision
+
+The current deeper conflict audit did not allow a rate resolver fix:
+
+- `accessorial_noise_remaining`: 4;
+- `multiple_different_strong_totals`: 2;
+- `tonu_non_normal_load`: 1;
+- `unknown`: 3.
+
+Because no allowed arbitration root cause reached the three-alias threshold,
+the correct next action is local human review for rate fields or a separate
+future block with new evidence. This prevents blindly picking one money amount
+or suppressing true conflicts.
+
 ## Non-goals
 
 - No OCR or Vision work.

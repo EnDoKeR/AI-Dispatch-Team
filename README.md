@@ -103,6 +103,7 @@ Core architecture docs:
 * [Load Identifier Coverage Audit](docs/LOAD_IDENTIFIER_COVERAGE_AUDIT.md)
 * [Load Identifier Source-Line Forensics](docs/LOAD_IDENTIFIER_SOURCE_LINE_FORENSICS.md)
 * [Target Deferral and Rate Forensics](docs/TARGET_DEFERRAL_AND_RATE_FORENSICS.md)
+* [Rate Conflict Review Routing](docs/RATE_CONFLICT_REVIEW_ROUTING.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -157,6 +158,10 @@ Do not do yet:
 * target disposition skips deferred targets by default; the current next
   measured blocker is rate forensics, where source-priority typing improved
   diagnostics but did not change readiness
+* rate conflict audit is local-only and currently does not allow another rate
+  resolver fix: deeper buckets split into accessorial residuals, two different
+  strong-total aliases, TONU context, and unknown reasons; use local human
+  review for rate fields unless new safe evidence changes the distribution
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

@@ -178,7 +178,33 @@ eight pickup/delivery date records were at
 `span_field_candidate/candidate_not_generated`. The focused table-row date fix
 reduced that count to zero, improved span date resolved/missing from 8 / 21 to
 10 / 19, and left readiness unchanged. The remaining next target from coverage
-is `load_identifier_candidate_generation`.
+was `load_identifier_candidate_generation`.
+
+## Rate Conflict Review
+
+Rate conflict review now has two local reports:
+
+- `rate_candidate_forensics.md` / `.json` for broad candidate categories and
+  source-priority issues.
+- `rate_conflict_audit.md` / `.json` for deeper conflict routing, equivalent
+  groups, different strong totals, selected-rate status, and core-mapping
+  status.
+
+The review workbook `Rate_Review` sheet includes safe diagnostic columns:
+
+- rate conflict reason;
+- main-rate candidate count;
+- equivalent rate group count;
+- different strong total count;
+- rate review required reason;
+- selected/core-mapped status;
+- rate component category counts.
+
+The current conflict audit does not permit another rate code fix. It found
+`accessorial_noise_remaining=4`, `multiple_different_strong_totals=2`,
+`tonu_non_normal_load=1`, and `unknown=3`, which does not meet the threshold
+for a safe shared arbitration change. Use local human review for rate fields
+unless new evidence changes that distribution.
 
 The load identifier pass implemented typed primary identifiers and typed
 references, then regenerated local review and coverage outputs. The review

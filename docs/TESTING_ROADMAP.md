@@ -369,6 +369,16 @@ Required coverage for candidate generators and resolvers:
 - generic header-reference tests should create review-gated primary-reference
   candidates only in header/load context, while stop/customer/PO/BOL references
   remain non-primary.
+- rate forensics tests should separate main totals, linehaul, accessorials,
+  quickpay, deductions, TONU payments, terms/billing noise, and unknown money
+  without exposing money values.
+- rate conflict audit tests should prove equivalent same-amount groups,
+  different strong totals, linehaul/total conflicts, revised/original conflicts,
+  selected-rate core-mapping gaps, and no-fix decision gates are safe counts
+  only.
+- rate review export tests should prove conflict reason, main candidate count,
+  equivalent group count, different strong total count, selected status, and
+  core-mapped status are visible without printing or committing money values.
 
 ## Broker Template Test Rule
 

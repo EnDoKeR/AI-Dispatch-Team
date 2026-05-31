@@ -136,3 +136,11 @@ main-rate candidate visibility, and reduced the accessorial/main-rate root
 cause, but readiness stayed unchanged. The next selectable rate target is
 `multiple_strong_totals` / review routing, not another load-id or generic
 datetime patch.
+
+The deeper rate conflict audit then split that broad rate target. It found no
+safe arbitration fix: equivalent same-amount groups were zero,
+`multiple_different_strong_totals` affected only two aliases, and remaining
+conflict reasons were split across accessorial residuals, TONU context, and
+unknown cases. The target selector may still point at rate broadly, but the
+current rate-specific decision gate says local human review is the next action
+unless new safe evidence creates a shared code-fixable root cause.

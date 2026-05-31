@@ -189,6 +189,14 @@ candidates, but rate conflict count and intake blockers stayed unchanged. The
 next rate root cause is `multiple_strong_totals`; treat that as a review-routing
 problem unless further evidence proves a safer deterministic resolution.
 
+The deeper rate conflict audit now splits broad `multiple_strong_totals` into
+specific routing buckets. Latest safe result: `accessorial_noise_remaining=4`,
+`multiple_different_strong_totals=2`, `tonu_non_normal_load=1`, and
+`unknown=3`. Because no allowed arbitration root cause reached the three-alias
+threshold, no additional rate resolver fix is justified in this evidence set.
+The local workbook exposes the conflict reason and rate group counts so a human
+can review rate fields without copying money values into reports or docs.
+
 ## Non-Goals
 
 This workflow does not run Google sync, add OCR/Vision/cloud document AI, add

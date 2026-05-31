@@ -37,6 +37,9 @@ Candidate quality:
 
 - candidate counts by field;
 - candidate coverage for critical fields.
+- rate conflict audit counts when `--write-rate-conflict-audit` is enabled:
+  equivalent rate groups, different strong totals, selected-rate status,
+  core-mapped status, and conflict reasons.
 
 Layout provider quality when explicitly enabled:
 
@@ -184,6 +187,7 @@ Safe shareable outputs:
 - warning codes;
 - blocker categories;
 - recommended next engineering path.
+- rate conflict reasons and group counts, without money values.
 
 ## Unsafe Outputs
 
@@ -194,6 +198,7 @@ Unsafe by default:
 - MC numbers;
 - load numbers;
 - rate amounts;
+- money values used internally for equivalence checks;
 - pickup or delivery addresses;
 - dates and times;
 - reference numbers;

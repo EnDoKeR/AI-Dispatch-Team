@@ -322,6 +322,7 @@ print raw private text:
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --natural-sort-inputs`
+- `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --write-review-workbook --write-review-csvs --include-private-review-values-local-only --write-candidate-coverage --write-rate-forensics --write-rate-conflict-audit --natural-sort-inputs`
 - `py scripts/run_private_ratecon_template_pattern_collection.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --write-pattern-json --write-family-md --write-template-drafts`
 - `py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --private-template-dir ".local_private\broker_templates" --allow-private-template-overlay --write-json --write-csv --write-md`
 
@@ -414,15 +415,24 @@ Private value-review CSV output is local-only and ignored.
   coverage. The follow-up generic header-reference fix did not move private
   counts, so the next block should inspect source-line/label presence rather
   than relax non-primary reference rules.
+- Target disposition now defers load identifier hardening until local human
+  review or new source-line evidence. Rate forensics then improved typed money
+  categories, but rate conflicts remained. The deeper rate conflict audit split
+  the broad `multiple_strong_totals` signal into
+  `accessorial_noise_remaining=4`, `multiple_different_strong_totals=2`,
+  `tonu_non_normal_load=1`, and `unknown=3`; no safe arbitration fix is allowed
+  from the current evidence. The review workbook now exposes rate conflict
+  reason and rate-group counts for local human review without printing money
+  values.
 - Validation still gates readiness when fields are missing, low confidence, or conflicting.
 
 ## Next Recommended Block
 
-Next safe block after load identifier candidate-generation diagnostics:
+Next safe block after rate conflict audit:
 
 ```text
-Audit load-identifier source-line, label-feature, and load-identity section
-coverage for documents where no primary load identifier candidate is generated.
+Use local human review for rate fields, then continue with the next measured
+candidate coverage target only when new safe evidence supports a code fix.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen
