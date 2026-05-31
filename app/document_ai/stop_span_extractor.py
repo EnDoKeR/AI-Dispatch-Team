@@ -24,6 +24,9 @@ from app.document_ai.normalized_stops import (
     NORMALIZED_STOP_TYPES,
 )
 from app.document_ai.ratecon_candidates import (
+    CANDIDATE_CONFIDENCE_HIGH,
+    CANDIDATE_CONFIDENCE_LOW,
+    CANDIDATE_CONFIDENCE_MEDIUM,
     CANDIDATE_CONFIDENCE_UNKNOWN,
     normalize_confidence,
     normalize_list,
@@ -301,6 +304,106 @@ def build_layout_line_features(layout_artifact, classification_result=None, incl
             item.get("line_id", ""),
         ),
     )
+
+
+def classify_anchor_type(line_feature):
+    categories = set(normalize_list((line_feature or {}).get("label_categories")))
+    if LINE_LABEL_NOISE in categories:
+        return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
+    section_role = _token((line_feature or {}).get("section_role", ""))
+    text = _text((line_feature or {}).get("safe_text_redacted", ""))
+    lower_text = text.lower()
+
+    if "pickup" in categories:
+        if re.search(r"\bpu\b", lower_text):
+            return STOP_SPAN_ANCHOR_TYPE_PU
+        if "load at" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_LOAD_AT
+        if "shipper" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_SHIPPER
+        if "origin" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_ORIGIN
+        return STOP_SPAN_ANCHOR_TYPE_PICKUP
+    if "delivery" in categories:
+        if re.search(r"\bso\b", lower_text):
+            return STOP_SPAN_ANCHOR_TYPE_SO
+        if "deliver to" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_DELIVER_TO
+        if "consignee" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_CONSIGNEE
+        if "destination" in lower_text:
+            return STOP_SPAN_ANCHOR_TYPE_DESTINATION
+        return STOP_SPAN_ANCHOR_TYPE_DELIVERY
+    if LINE_LABEL_STOP in categories:
+        return STOP_SPAN_ANCHOR_TYPE_STOP
+    if "pickup" in section_role:
+        return STOP_SPAN_ANCHOR_TYPE_PICKUP
+    if "delivery" in section_role:
+        return STOP_SPAN_ANCHOR_TYPE_DELIVERY
+    return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
+
+
+def score_stop_anchor(line_feature):
+    categories = set(normalize_list((line_feature or {}).get("label_categories")))
+    if LINE_LABEL_NOISE in categories:
+        return 0.0
+    if LINE_LABEL_PICKUP in categories or LINE_LABEL_DELIVERY in categories:
+        return CANDIDATE_CONFIDENCE_HIGH
+    if LINE_LABEL_STOP in categories:
+        return CANDIDATE_CONFIDENCE_MEDIUM
+    return CANDIDATE_CONFIDENCE_LOW if categories else 0.0
+
+
+def _anchor_stop_type(anchor_type):
+    if anchor_type in {
+        STOP_SPAN_ANCHOR_TYPE_PICKUP,
+        STOP_SPAN_ANCHOR_TYPE_SHIPPER,
+        STOP_SPAN_ANCHOR_TYPE_ORIGIN,
+        STOP_SPAN_ANCHOR_TYPE_LOAD_AT,
+        STOP_SPAN_ANCHOR_TYPE_PU,
+    }:
+        return NORMALIZED_STOP_TYPE_PICKUP
+    if anchor_type in {
+        STOP_SPAN_ANCHOR_TYPE_DELIVERY,
+        STOP_SPAN_ANCHOR_TYPE_CONSIGNEE,
+        STOP_SPAN_ANCHOR_TYPE_DESTINATION,
+        STOP_SPAN_ANCHOR_TYPE_DELIVER_TO,
+        STOP_SPAN_ANCHOR_TYPE_SO,
+    }:
+        return NORMALIZED_STOP_TYPE_DELIVERY
+    if anchor_type == STOP_SPAN_ANCHOR_TYPE_STOP:
+        return NORMALIZED_STOP_TYPE_STOP
+    return NORMALIZED_STOP_TYPE_UNKNOWN
+
+
+def detect_stop_span_anchors(line_features, classification_result=None):
+    del classification_result
+    anchors = []
+    for index, feature in enumerate(line_features or [], start=1):
+        if not isinstance(feature, dict) or feature.get("is_noise_candidate"):
+            continue
+        anchor_type = classify_anchor_type(feature)
+        if anchor_type == STOP_SPAN_ANCHOR_TYPE_UNKNOWN:
+            continue
+        confidence = score_stop_anchor(feature)
+        if confidence == CANDIDATE_CONFIDENCE_UNKNOWN:
+            continue
+        anchor = build_stop_span_anchor(
+            anchor_id=f"anchor_{index:03d}",
+            anchor_type=anchor_type,
+            page_number=feature.get("page_number", 0),
+            line_id=feature.get("line_id", ""),
+            bbox=feature.get("bbox"),
+            label_category=anchor_type,
+            confidence=confidence,
+            reasons=["line_label_anchor"],
+            warning_codes=["ambiguous_generic_stop_anchor"]
+            if anchor_type == STOP_SPAN_ANCHOR_TYPE_STOP
+            else [],
+        )
+        anchor["stop_type"] = _anchor_stop_type(anchor_type)
+        anchors.append(anchor)
+    return anchors
 
 
 def build_stop_span_anchor(
