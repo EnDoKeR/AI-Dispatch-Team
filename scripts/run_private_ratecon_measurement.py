@@ -13,6 +13,10 @@ from app.document_ai.candidate_coverage_analysis import (
     analyze_candidate_coverage_from_measurement_rows,
     write_candidate_coverage_artifacts,
 )
+from app.document_ai.load_identifier_coverage_audit import (
+    analyze_load_identifier_coverage_from_rows,
+    write_load_identifier_coverage_artifacts,
+)
 from app.document_ai.layout_provider import get_available_layout_providers
 from app.document_ai.layout_provider_diagnostics import (
     compare_pdfplumber_table_profiles,
@@ -548,6 +552,7 @@ def main(argv=None):
     parser.add_argument("--write-review-workbook", action="store_true")
     parser.add_argument("--write-review-csvs", action="store_true")
     parser.add_argument("--write-candidate-coverage", action="store_true")
+    parser.add_argument("--write-load-identifier-audit", action="store_true")
     parser.add_argument("--sync-review-google-sheet", action="store_true")
     parser.add_argument("--confirm-google-review-sync", action="store_true")
     parser.add_argument("--google-config", default="")
@@ -801,6 +806,42 @@ def main(argv=None):
                 "raw_text_printed": coverage.get("raw_text_printed", False),
             }
             print(f"candidate_coverage_written: {labels}")
+        if not args.dry_run and args.write_load_identifier_audit:
+            load_identifier_analysis = analyze_load_identifier_coverage_from_rows(
+                report["rows"],
+            )
+            load_identifier_audit = write_load_identifier_coverage_artifacts(
+                load_identifier_analysis,
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            aggregate = load_identifier_audit.get("aggregate", {})
+            labels = {
+                "files": _safe_output_file_labels(
+                    load_identifier_audit.get("paths", {})
+                ),
+                "document_count": aggregate.get("document_count", 0),
+                "primary_candidate_count": aggregate.get(
+                    "primary_candidate_count",
+                    0,
+                ),
+                "typed_reference_count": aggregate.get("typed_reference_count", 0),
+                "rejected_non_primary_count": aggregate.get(
+                    "rejected_non_primary_count",
+                    0,
+                ),
+                "core_mapping_count": aggregate.get("core_mapping_count", 0),
+                "records_by_reason": aggregate.get("records_by_reason", {}),
+                "private_values_printed": load_identifier_audit.get(
+                    "private_values_printed",
+                    False,
+                ),
+                "raw_text_printed": load_identifier_audit.get(
+                    "raw_text_printed",
+                    False,
+                ),
+            }
+            print(f"load_identifier_audit_written: {labels}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {
