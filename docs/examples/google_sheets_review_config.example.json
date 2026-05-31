@@ -1,0 +1,7 @@
+{
+  "spreadsheet_id": "FAKE_SPREADSHEET_ID_REPLACE_LOCALLY",
+  "credentials_json_path": ".local_private/fake-google-service-account-key.json",
+  "worksheet_prefix": "RC_",
+  "service_account_email": "ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com",
+  "default_sync_mode": "status_only"
+}
