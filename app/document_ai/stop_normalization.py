@@ -316,6 +316,17 @@ def _merge_stop_type(types):
     return STOP_TYPE_UNKNOWN
 
 
+def _retarget_field_candidates(field_candidates, stop_group_id):
+    retargeted = []
+    for candidate in field_candidates or []:
+        if not isinstance(candidate, dict):
+            continue
+        safe_candidate = dict(candidate)
+        safe_candidate["stop_group_id"] = stop_group_id
+        retargeted.append(safe_candidate)
+    return retargeted
+
+
 def merge_stop_groups_by_table_row(stop_groups):
     """Merge split cell-level groups into one table-row stop group."""
 
@@ -351,9 +362,10 @@ def merge_stop_groups_by_table_row(stop_groups):
             source_group_ids.append(group.get("stop_group_id", ""))
         first["stop_group_id"] = f"{key[1]}_row_{key[2]}"
         first["stop_type"] = _merge_stop_type(stop_types)
-        first["field_candidates"] = [
-            candidate for candidate in field_candidates if isinstance(candidate, dict)
-        ]
+        first["field_candidates"] = _retarget_field_candidates(
+            field_candidates,
+            first["stop_group_id"],
+        )
         first["reasons"] = sorted(set(reasons + ["table_row_groups_merged"]))
         first["warning_codes"] = sorted(
             set(group_warnings + [WARNING_TABLE_ROW_GROUPS_MERGED])
@@ -423,9 +435,10 @@ def merge_stop_groups_by_section_context(stop_groups):
             source_group_ids.append(group.get("stop_group_id", ""))
         first["stop_group_id"] = f"section_{key[0]}_{key[1]}_{key[2]}_{key[3]}"
         first["stop_type"] = _merge_stop_type(stop_types)
-        first["field_candidates"] = [
-            candidate for candidate in field_candidates if isinstance(candidate, dict)
-        ]
+        first["field_candidates"] = _retarget_field_candidates(
+            field_candidates,
+            first["stop_group_id"],
+        )
         first["reasons"] = sorted(set(reasons + ["section_context_groups_merged"]))
         first["warning_codes"] = sorted(
             set(group_warnings + [WARNING_SECTION_CONTEXT_GROUPS_MERGED])

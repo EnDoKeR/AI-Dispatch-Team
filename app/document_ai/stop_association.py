@@ -292,13 +292,18 @@ def _build_line_cluster_group(groups, cluster_key):
         stop_type,
         _text(first.get("stop_sequence")) or "1",
     )
+    cluster_field_candidates = []
+    for candidate in field_candidates:
+        safe_candidate = dict(candidate)
+        safe_candidate["stop_group_id"] = cluster_id
+        cluster_field_candidates.append(safe_candidate)
     group_warnings = sorted(set(warning_codes + ["line_cluster_stop_groups_merged"]))
     first.update(
         {
             "stop_group_id": cluster_id,
             "stop_type": stop_type,
             "section_role": "" if section_role == "UNSCOPED_STOP_LINES" else section_role,
-            "field_candidates": field_candidates,
+            "field_candidates": cluster_field_candidates,
             "reasons": sorted(set(reasons + ["line_cluster_preserves_stop_context"])),
             "warning_codes": group_warnings,
             "source_group_ids": [item for item in source_group_ids if item],
@@ -310,7 +315,7 @@ def _build_line_cluster_group(groups, cluster_key):
                 section_role="" if section_role == "UNSCOPED_STOP_LINES" else section_role,
                 page_role=",".join(sorted(set(page_roles))),
                 trigger_label_category=_trigger_label_for_stop_type(stop_type),
-                candidate_field_names=_candidate_field_names(field_candidates),
+                candidate_field_names=_candidate_field_names(cluster_field_candidates),
                 grouping_key="|".join(cluster_key),
                 warning_codes=group_warnings,
             ),
