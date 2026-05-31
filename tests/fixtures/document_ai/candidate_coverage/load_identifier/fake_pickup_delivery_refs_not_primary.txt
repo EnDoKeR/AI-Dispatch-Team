@@ -1,0 +1,5 @@
+FAKE RATE CONFIRMATION
+Pickup #: FAKE-PU-008
+Delivery #: FAKE-DEL-008
+Pickup Stop: FAKE ORIGIN
+Delivery Stop: FAKE DESTINATION

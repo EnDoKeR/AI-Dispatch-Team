@@ -1,0 +1,77 @@
+{
+  "target": "load_identifier_candidate_generation",
+  "fixtures": [
+    {
+      "file": "fake_header_load_number.txt",
+      "expected_identifier_type": "broker_load_number",
+      "expected_primary_candidate": true,
+      "pattern": "header load number"
+    },
+    {
+      "file": "fake_order_number_confirmation.txt",
+      "expected_identifier_type": "order_number",
+      "expected_primary_candidate": true,
+      "pattern": "order confirmation header"
+    },
+    {
+      "file": "fake_tender_id_carrier_tender.txt",
+      "expected_identifier_type": "tender_id",
+      "expected_primary_candidate": true,
+      "pattern": "carrier tender identifier"
+    },
+    {
+      "file": "fake_pro_number_route_details.txt",
+      "expected_identifier_type": "pro_number",
+      "expected_primary_candidate": true,
+      "pattern": "route details pro number"
+    },
+    {
+      "file": "fake_freight_bill_number.txt",
+      "expected_identifier_type": "freight_bill_number",
+      "expected_primary_candidate": true,
+      "pattern": "freight bill number"
+    },
+    {
+      "file": "fake_shipment_number.txt",
+      "expected_identifier_type": "shipment_number",
+      "expected_primary_candidate": true,
+      "pattern": "shipment number"
+    },
+    {
+      "file": "fake_po_and_bol_not_primary.txt",
+      "expected_identifier_type": "po_number",
+      "expected_primary_candidate": false,
+      "pattern": "PO and BOL references only"
+    },
+    {
+      "file": "fake_pickup_delivery_refs_not_primary.txt",
+      "expected_identifier_type": "pickup_number",
+      "expected_primary_candidate": false,
+      "pattern": "pickup and delivery references only"
+    },
+    {
+      "file": "fake_customer_ref_ambiguous.txt",
+      "expected_identifier_type": "customer_reference",
+      "expected_primary_candidate": false,
+      "pattern": "ambiguous customer reference"
+    },
+    {
+      "file": "fake_multiple_identifiers_priority.txt",
+      "expected_identifier_type": "broker_load_number",
+      "expected_primary_candidate": true,
+      "pattern": "primary load number with PO and BOL references"
+    },
+    {
+      "file": "fake_header_ref_near_load_context.txt",
+      "expected_identifier_type": "primary_reference",
+      "expected_primary_candidate": true,
+      "pattern": "header reference near load confirmation context"
+    },
+    {
+      "file": "fake_stop_reference_should_not_be_load_id.txt",
+      "expected_identifier_type": "unknown_reference",
+      "expected_primary_candidate": false,
+      "pattern": "stop-section reference"
+    }
+  ]
+}

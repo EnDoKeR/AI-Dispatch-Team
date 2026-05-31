@@ -1,0 +1,6 @@
+FAKE RATE CONFIRMATION
+Pickup Stop
+Ref #: FAKE-STOP-012
+Location: FAKE ORIGIN
+Delivery Stop
+Location: FAKE DESTINATION

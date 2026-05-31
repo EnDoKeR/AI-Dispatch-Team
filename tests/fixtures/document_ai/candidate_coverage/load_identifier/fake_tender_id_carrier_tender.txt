@@ -1,0 +1,5 @@
+FAKE CARRIER LOAD TENDER
+Tender ID: FAKE-TENDER-003
+Tender Status: Offered
+Pickup Location: FAKE ORIGIN
+Delivery Location: FAKE DESTINATION
