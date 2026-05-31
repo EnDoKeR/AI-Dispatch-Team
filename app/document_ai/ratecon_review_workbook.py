@@ -1446,6 +1446,74 @@ def write_ratecon_review_v2_artifacts(
     }
 
 
+def write_ratecon_review_v2_rows_artifacts(
+    rows_by_sheet,
+    output_dir=None,
+    write_workbook=True,
+    write_csvs=True,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    rows_by_sheet = rows_by_sheet or {}
+    paths = {}
+    csv_specs = {
+        "instructions_csv": (
+            REVIEW_V2_INSTRUCTIONS_CSV,
+            SHEET_V2_INSTRUCTIONS,
+            V2_INSTRUCTIONS_COLUMNS,
+        ),
+        "document_summary_csv": (
+            REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+            SHEET_V2_DOCUMENT_SUMMARY,
+            V2_DOCUMENT_SUMMARY_COLUMNS,
+        ),
+        "core_fields_csv": (
+            REVIEW_V2_CORE_FIELDS_CSV,
+            SHEET_V2_CORE_FIELDS,
+            V2_CORE_FIELD_COLUMNS,
+        ),
+        "stops_csv": (
+            REVIEW_V2_STOPS_CSV,
+            SHEET_V2_STOPS,
+            V2_STOP_COLUMNS,
+        ),
+        "rates_csv": (
+            REVIEW_V2_RATES_CSV,
+            SHEET_V2_RATES,
+            V2_RATE_COLUMNS,
+        ),
+        "load_ids_csv": (
+            REVIEW_V2_LOAD_IDS_CSV,
+            SHEET_V2_LOAD_IDS,
+            V2_LOAD_ID_COLUMNS,
+        ),
+    }
+    if write_csvs:
+        for key, (filename, sheet_name, columns) in csv_specs.items():
+            path = output_root / filename
+            _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
+            paths[key] = path
+    xlsx_written = False
+    if write_workbook:
+        xlsx_path = output_root / REVIEW_V2_WORKBOOK_XLSX
+        xlsx_written = _write_v2_xlsx_if_available(xlsx_path, rows_by_sheet)
+        if xlsx_written:
+            paths["review_v2_workbook_xlsx"] = xlsx_path
+    return {
+        "paths": paths,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_ratecon_review_v2_rows(rows_by_sheet),
+        "xlsx_written": xlsx_written,
+        "csvs_written": bool(write_csvs),
+        "local_only": True,
+        "raw_text_included": False,
+        "private_values_printed": False,
+    }
+
+
 def write_ratecon_review_artifacts(
     measurement_rows,
     output_dir=None,
