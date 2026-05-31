@@ -4,6 +4,8 @@ The span extractor consumes layout lines/tables before the older raw stop group
 path fragments provider evidence into many stop candidates.
 """
 
+import re
+
 from app.document_ai.layout_artifacts import normalize_bbox
 from app.document_ai.normalized_stops import (
     NORMALIZED_STOP_FIELD_ADDRESS,
@@ -94,6 +96,60 @@ STOP_SPAN_FIELDS = {
 
 STOP_SPAN_EXTRACTOR_VERSION = "stop_span_extractor_v1"
 
+LINE_LABEL_PICKUP = "pickup"
+LINE_LABEL_DELIVERY = "delivery"
+LINE_LABEL_STOP = "stop"
+LINE_LABEL_DATE = "date"
+LINE_LABEL_TIME = "time"
+LINE_LABEL_LOCATION = "location"
+LINE_LABEL_REFERENCE = "reference"
+LINE_LABEL_RATE = "rate"
+LINE_LABEL_NOISE = "noise"
+LINE_LABEL_UNKNOWN = "unknown"
+
+NOISE_SECTION_ROLE_TOKENS = {
+    "billing",
+    "certificate",
+    "footer",
+    "header",
+    "legal",
+    "quick_pay",
+    "signature",
+    "terms",
+}
+
+NOISE_TEXT_RE = re.compile(
+    r"\b(signature|sign and return|terms|billing|quick\s*pay|page \d+ of \d+|"
+    r"agreement|carrier requirements|please sign)\b",
+    re.IGNORECASE,
+)
+DATE_RE = re.compile(
+    r"\b(?:\d{1,2}[/-]\d{1,2}(?:[/-]\d{2,4})?|"
+    r"(?:jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*"
+    r"\s+\d{1,2},?\s+\d{2,4})\b",
+    re.IGNORECASE,
+)
+TIME_RE = re.compile(r"\b(?:\d{1,2}:\d{2}(?:\s*[-–]\s*\d{1,2}:\d{2})?|fcfs)\b", re.IGNORECASE)
+REFERENCE_RE = re.compile(r"\b(ref|reference|appt|appointment|po|pickup #|delivery #)\b", re.IGNORECASE)
+LOCATION_RE = re.compile(
+    r"\b(location|facility|warehouse|shipper|consignee|origin|destination|"
+    r"load at|deliver to|pickup site|delivery site)\b",
+    re.IGNORECASE,
+)
+MONEY_RE = re.compile(r"(?:\$|usd|rate|pay|total|amount)", re.IGNORECASE)
+
+PICKUP_LABEL_RE = re.compile(
+    r"\b(?:pu(?:\s*#?\s*\d+)?|pickup|pick[- ]?up|load at|shipper|origin|"
+    r"shipper pickup|pick ups)\b",
+    re.IGNORECASE,
+)
+DELIVERY_LABEL_RE = re.compile(
+    r"\b(?:so(?:\s*#?\s*\d+)?|delivery|deliver to|drop(?:\s*\d+)?|"
+    r"consignee|receiver|destination|consignee delivery|deliveries)\b",
+    re.IGNORECASE,
+)
+STOP_LABEL_RE = re.compile(r"\b(?:stop\s*#?\s*\d+|route details|shipment stop)\b", re.IGNORECASE)
+
 
 def _text(value):
     return str(value or "").strip()
@@ -130,6 +186,121 @@ def _normalize_stop_type(value):
 def _normalize_field_name(value):
     token = _token(value)
     return token if token in STOP_SPAN_FIELDS else STOP_SPAN_FIELD_NOTES
+
+
+def normalize_line_text_for_features(text):
+    return re.sub(r"\s+", " ", _text(text)).strip()
+
+
+def _line_text(line):
+    return normalize_line_text_for_features((line or {}).get("text_redacted", ""))
+
+
+def _line_section_role(line):
+    return _token((line or {}).get("section_role", ""))
+
+
+def detect_line_is_noise(line):
+    text = _line_text(line)
+    section_role = _line_section_role(line)
+    if any(token in section_role for token in NOISE_SECTION_ROLE_TOKENS):
+        return True
+    return bool(NOISE_TEXT_RE.search(text))
+
+
+def detect_line_has_date(line):
+    return bool(DATE_RE.search(_line_text(line)))
+
+
+def detect_line_has_time(line):
+    return bool(TIME_RE.search(_line_text(line)))
+
+
+def detect_line_has_location_like(line):
+    text = _line_text(line)
+    if not text:
+        return False
+    if LOCATION_RE.search(text):
+        return True
+    return bool(
+        len(text.split()) >= 2
+        and not detect_line_has_date(line)
+        and not detect_line_has_time(line)
+        and not MONEY_RE.search(text)
+        and not detect_line_is_noise(line)
+    )
+
+
+def detect_line_has_reference_like(line):
+    return bool(REFERENCE_RE.search(_line_text(line)))
+
+
+def classify_line_label_category(line):
+    text = _line_text(line)
+    categories = []
+    if detect_line_is_noise(line):
+        categories.append(LINE_LABEL_NOISE)
+    if PICKUP_LABEL_RE.search(text):
+        categories.append(LINE_LABEL_PICKUP)
+    if DELIVERY_LABEL_RE.search(text):
+        categories.append(LINE_LABEL_DELIVERY)
+    if STOP_LABEL_RE.search(text):
+        categories.append(LINE_LABEL_STOP)
+    if detect_line_has_date(line):
+        categories.append(LINE_LABEL_DATE)
+    if detect_line_has_time(line):
+        categories.append(LINE_LABEL_TIME)
+    if detect_line_has_location_like(line):
+        categories.append(LINE_LABEL_LOCATION)
+    if detect_line_has_reference_like(line):
+        categories.append(LINE_LABEL_REFERENCE)
+    if MONEY_RE.search(text):
+        categories.append(LINE_LABEL_RATE)
+    return categories or [LINE_LABEL_UNKNOWN]
+
+
+def build_layout_line_features(layout_artifact, classification_result=None, include_safe_text=False):
+    features = []
+    del classification_result
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        page_number = int(page.get("page_number") or 0)
+        page_roles = normalize_list(page.get("page_roles"))
+        for line in page.get("lines", []) or []:
+            if not isinstance(line, dict):
+                continue
+            text = _line_text(line)
+            if not text:
+                continue
+            label_categories = classify_line_label_category(line)
+            feature = {
+                "page_number": page_number,
+                "line_id": _text(line.get("line_id")),
+                "reading_order_index": int(line.get("reading_order_index") or 0),
+                "bbox": normalize_bbox(line.get("bbox"), page_number=page_number)
+                if line.get("bbox")
+                else None,
+                "section_role": _text(line.get("section_role")),
+                "page_role": page_roles[0] if page_roles else "",
+                "label_categories": label_categories,
+                "has_date": LINE_LABEL_DATE in label_categories,
+                "has_time": LINE_LABEL_TIME in label_categories,
+                "has_location_like": LINE_LABEL_LOCATION in label_categories,
+                "has_reference_like": LINE_LABEL_REFERENCE in label_categories,
+                "has_money": LINE_LABEL_RATE in label_categories,
+                "is_noise_candidate": LINE_LABEL_NOISE in label_categories,
+                "warning_codes": normalize_list(line.get("warning_codes")),
+            }
+            if include_safe_text:
+                feature["safe_text_redacted"] = text
+            features.append(feature)
+    return sorted(
+        features,
+        key=lambda item: (
+            int(item.get("page_number") or 0),
+            int(item.get("reading_order_index") or 0),
+            item.get("line_id", ""),
+        ),
+    )
 
 
 def build_stop_span_anchor(
@@ -254,4 +425,3 @@ def build_stop_span_extraction_result(
         "raw_text_included": False,
         "private_values_redacted": True,
     }
-
