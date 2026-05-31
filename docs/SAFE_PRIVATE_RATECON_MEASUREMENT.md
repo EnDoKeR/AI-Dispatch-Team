@@ -334,6 +334,22 @@ Do not paste workbook rows into chat and do not commit generated review files.
 Optional Google Sheets review sync:
 
 ```powershell
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+```
+
+Share the spreadsheet with:
+
+```text
+ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com
+```
+
+Run a safe local preflight first:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
+```
+
+```powershell
 py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --status-only
 ```
 
@@ -343,17 +359,23 @@ Optional explicit private-values test sync:
 py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync --include-private-review-values-google-test-only
 ```
 
+Private-values Google sync also requires `allow_private_review_value_sync: true`
+in `.local_private/google_sheets_review_config.json`. This extra config gate is
+intentional so the explicit flag cannot upload values by accident.
+
 Optional measurement-and-sync command:
 
 ```powershell
 py scripts/run_private_ratecon_measurement.py --input-dir "C:\Users\YOUR_NAME\Documents\RateCons" --confirm-private-local-run --limit 3 --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-review-csvs --sync-review-google-sheet --confirm-google-review-sync --natural-sort-inputs
 ```
 
-Google sync uses only dedicated review tabs with prefix `RC_` by default and
-requires local ignored config or environment variables. It prints tab names,
-row counts, sync mode, and safety booleans only. It must not print private
-values, service account key material, spreadsheet IDs, local paths, or private
-filenames.
+Google sync updates only the dedicated tabs `RC_Document_Summary`,
+`RC_Stop_Review`, `RC_Field_Review`, `RC_Rate_Review`, `RC_Instructions`, and
+`RC_Feedback_Summary`. It refuses unexpected tab names and does not overwrite
+operational tabs. It requires local ignored config or environment variables. It
+prints tab names, row counts, sync mode, and safety booleans only. It must not
+print private values, service account key material, spreadsheet IDs, local
+paths, or private filenames.
 
 Download completed Google feedback:
 

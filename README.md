@@ -128,6 +128,8 @@ Do not do yet:
 * no external paid OCR/Vision by default
 * no Telegram business logic
 * no low-confidence DispatchCase automation
+* no Google Sheets operational-tab writes from RateCon review sync; use the
+  dedicated `RC_*` review tabs only
 
 ---
 

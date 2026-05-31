@@ -139,6 +139,18 @@ ai-dispatch-sheet@ai-dispatch-team.iam.gserviceaccount.com
 Use ignored local config or environment variables for the spreadsheet ID and
 service account JSON path. Do not commit the JSON key.
 
+Initialize local config:
+
+```powershell
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+```
+
+Run preflight before sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
+```
+
 Status-only sync:
 
 ```powershell
@@ -152,7 +164,8 @@ py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync -
 ```
 
 The private-values mode uploads review values to dedicated review tabs only and
-prints no values. It is still a review packet, not final truth.
+prints no values. It also requires `allow_private_review_value_sync: true` in
+the ignored local config. It is still a review packet, not final truth.
 
 Completed review feedback can be downloaded later:
 

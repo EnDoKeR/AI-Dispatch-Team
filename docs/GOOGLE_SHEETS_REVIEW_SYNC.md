@@ -71,9 +71,27 @@ The local config contains:
 - `worksheet_prefix`, default `RC_`
 - `service_account_email`, optional
 - `default_sync_mode`, default `status_only`
+- `allow_private_review_value_sync`, default `false`
 
 The repo may include a fake example config only. Real spreadsheet IDs and JSON
 keys must remain local.
+
+Initialize ignored local config with:
+
+```powershell
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json"
+```
+
+The initializer prints only safety booleans. It does not print the credential
+path, spreadsheet ID, or JSON key content. If a config already exists, pass
+`--overwrite` intentionally.
+
+To permit the controlled private-values test sync, set the local-only config
+field `allow_private_review_value_sync` to `true` by passing:
+
+```powershell
+python scripts/init_google_sheets_review_config.py --spreadsheet-id "YOUR_SPREADSHEET_ID" --credentials-json "C:\path\to\service-account.json" --allow-private-review-value-sync --overwrite
+```
 
 ## Sync Modes
 
@@ -114,6 +132,16 @@ py scripts/sync_ratecon_review_to_google_sheet.py --confirm-google-review-sync -
 
 The private-values mode is for controlled local review only. It still prints
 only tab names, row counts, and sync mode.
+
+Preflight local review CSVs before a sync:
+
+```powershell
+py scripts/sync_ratecon_review_to_google_sheet.py --preflight-only
+```
+
+Preflight checks expected headers, row counts, and raw-text columns by basename
+only. If generated review CSVs are stale, rerun the local review export before
+syncing.
 
 Feedback download:
 
