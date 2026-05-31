@@ -340,6 +340,12 @@ def classify_anchor_type(line_feature):
 
     explicit_pickup = bool(EXPLICIT_PICKUP_ANCHOR_RE.search(text))
     explicit_delivery = bool(EXPLICIT_DELIVERY_ANCHOR_RE.search(text))
+    if (
+        (LINE_LABEL_DATE in categories or LINE_LABEL_TIME in categories)
+        and LINE_LABEL_STOP not in categories
+        and "location" not in lower_text
+    ):
+        return STOP_SPAN_ANCHOR_TYPE_UNKNOWN
 
     if LINE_LABEL_PICKUP in categories and (explicit_pickup or not text):
         if re.search(r"\bpu\b", lower_text):
@@ -556,6 +562,190 @@ def build_stop_spans_from_anchors(line_features, anchors, classification_result=
         )
         spans.append(span)
     return spans
+
+
+def _layout_lines_by_id(layout_artifact):
+    lines = {}
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        for line in page.get("lines", []) or []:
+            if isinstance(line, dict) and line.get("line_id"):
+                lines[line.get("line_id")] = line
+    return lines
+
+
+def _feature_map(line_features):
+    return {
+        feature.get("line_id"): feature
+        for feature in line_features or []
+        if isinstance(feature, dict) and feature.get("line_id")
+    }
+
+
+def _line_evidence_ref(line, evidence_type="layout_line"):
+    return {
+        "page_number": int((line or {}).get("page_number") or 0),
+        "line_id": _text((line or {}).get("line_id")),
+        "evidence_type": evidence_type,
+    }
+
+
+def _candidate(
+    span,
+    field_name,
+    line,
+    index,
+    confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+    reasons=None,
+    warning_codes=None,
+):
+    return build_stop_span_field_candidate(
+        span_id=(span or {}).get("span_id", ""),
+        field_name=field_name,
+        candidate_id=f"{(span or {}).get('span_id', 'span')}_{field_name}_{index:03d}",
+        confidence=confidence,
+        evidence_ref=_line_evidence_ref(line),
+        source=STOP_SPAN_SOURCE_LAYOUT_LINE,
+        reasons=reasons or ["inside_stop_span"],
+        warning_codes=warning_codes,
+    )
+
+
+def extract_date_candidates_from_span(span, line_features, layout_artifact):
+    lines = _layout_lines_by_id(layout_artifact)
+    features = _feature_map(line_features)
+    candidates = []
+    for index, line_id in enumerate((span or {}).get("line_ids", []) or [], start=1):
+        line = lines.get(line_id, {})
+        feature = features.get(line_id, {})
+        if feature.get("is_noise_candidate") or feature.get("is_boundary_candidate"):
+            continue
+        text = _line_text(line)
+        if DATE_RE.search(text):
+            candidates.append(
+                _candidate(
+                    span,
+                    STOP_SPAN_FIELD_DATE,
+                    line,
+                    index,
+                    CANDIDATE_CONFIDENCE_HIGH,
+                    ["date_inside_stop_span"],
+                )
+            )
+    return candidates
+
+
+def extract_time_candidates_from_span(span, line_features, layout_artifact):
+    lines = _layout_lines_by_id(layout_artifact)
+    features = _feature_map(line_features)
+    candidates = []
+    for index, line_id in enumerate((span or {}).get("line_ids", []) or [], start=1):
+        line = lines.get(line_id, {})
+        feature = features.get(line_id, {})
+        if feature.get("is_noise_candidate") or feature.get("is_boundary_candidate"):
+            continue
+        text = _line_text(line)
+        if TIME_RE.search(text):
+            field_name = (
+                STOP_SPAN_FIELD_APPOINTMENT_WINDOW
+                if re.search(r"fcfs|target window|earliest|latest|[-–]", text, re.IGNORECASE)
+                else STOP_SPAN_FIELD_TIME
+            )
+            candidates.append(
+                _candidate(
+                    span,
+                    field_name,
+                    line,
+                    index,
+                    CANDIDATE_CONFIDENCE_HIGH,
+                    ["time_inside_stop_span"],
+                )
+            )
+    return candidates
+
+
+def extract_reference_candidates_from_span(span, line_features, layout_artifact):
+    lines = _layout_lines_by_id(layout_artifact)
+    features = _feature_map(line_features)
+    candidates = []
+    for index, line_id in enumerate((span or {}).get("line_ids", []) or [], start=1):
+        line = lines.get(line_id, {})
+        feature = features.get(line_id, {})
+        if feature.get("is_noise_candidate") or feature.get("is_boundary_candidate"):
+            continue
+        if detect_line_has_reference_like(line):
+            candidates.append(
+                _candidate(
+                    span,
+                    STOP_SPAN_FIELD_REFERENCE,
+                    line,
+                    index,
+                    CANDIDATE_CONFIDENCE_MEDIUM,
+                    ["reference_inside_stop_span"],
+                )
+            )
+    return candidates
+
+
+def extract_location_candidates_from_span(span, line_features, layout_artifact):
+    lines = _layout_lines_by_id(layout_artifact)
+    features = _feature_map(line_features)
+    candidates = []
+    for index, line_id in enumerate((span or {}).get("line_ids", []) or [], start=1):
+        line = lines.get(line_id, {})
+        feature = features.get(line_id, {})
+        if feature.get("is_noise_candidate") or feature.get("is_boundary_candidate"):
+            continue
+        if line_id == ((span or {}).get("anchor") or {}).get("line_id") and len(span.get("line_ids", [])) > 1:
+            continue
+        text = _line_text(line)
+        if not text or DATE_RE.search(text) or TIME_RE.search(text) or MONEY_RE.search(text):
+            continue
+        if detect_line_has_location_like(line):
+            candidates.append(
+                _candidate(
+                    span,
+                    STOP_SPAN_FIELD_LOCATION,
+                    line,
+                    index,
+                    CANDIDATE_CONFIDENCE_HIGH,
+                    ["location_inside_stop_span"],
+                )
+            )
+    return candidates
+
+
+def extract_notes_candidates_from_span(span, line_features, layout_artifact):
+    lines = _layout_lines_by_id(layout_artifact)
+    features = _feature_map(line_features)
+    candidates = []
+    for index, line_id in enumerate((span or {}).get("line_ids", []) or [], start=1):
+        line = lines.get(line_id, {})
+        feature = features.get(line_id, {})
+        if feature.get("is_noise_candidate") or feature.get("is_boundary_candidate"):
+            continue
+        text = _line_text(line)
+        if re.search(r"\b(note|notes|hours|receiving|shipping)\b", text, re.IGNORECASE):
+            candidates.append(
+                _candidate(
+                    span,
+                    STOP_SPAN_FIELD_NOTES,
+                    line,
+                    index,
+                    CANDIDATE_CONFIDENCE_LOW,
+                    ["notes_inside_stop_span"],
+                )
+            )
+    return candidates
+
+
+def extract_stop_span_field_candidates(span, line_features, layout_artifact):
+    candidates = []
+    candidates.extend(extract_location_candidates_from_span(span, line_features, layout_artifact))
+    candidates.extend(extract_date_candidates_from_span(span, line_features, layout_artifact))
+    candidates.extend(extract_time_candidates_from_span(span, line_features, layout_artifact))
+    candidates.extend(extract_reference_candidates_from_span(span, line_features, layout_artifact))
+    candidates.extend(extract_notes_candidates_from_span(span, line_features, layout_artifact))
+    return candidates
 
 
 def build_stop_span_anchor(
