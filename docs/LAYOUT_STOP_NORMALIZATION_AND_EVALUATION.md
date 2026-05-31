@@ -240,9 +240,37 @@ After normalized stop measurement:
   harden row/section fragment merging before reviewing private values.
 - If every stage count remains equal after a grouping refactor, run a deeper
   provider-line clustering rewrite before changing providers.
+- If provider-line span extraction reduces old stop groups to plausible span
+  counts, move to local value correctness review and span field extraction
+  hardening.
+- If span counts are plausible but date/time remains weak, harden span field
+  extraction before adding another provider.
 - If provider tables/cells exist but stop groups are poor, revisit provider
   table calibration or design a table-specific provider checkpoint.
 - If layout candidates are strong but correctness is unknown, build a local
   private value-review evaluation workflow.
 - OCR remains queued only for OCR-needed documents.
 - Vision remains deferred.
+
+## Provider-Line Stop Span Result
+
+Normalized stops can now be built from provider-line stop spans. This path does
+not replace review. It creates a smaller stop set directly from anchors and
+span boundaries before raw stop groups explode.
+
+The latest safe comparison reported:
+
+- old raw stop groups: 112;
+- old normalized stops: 112;
+- stop span anchors: 29;
+- stop spans: 29;
+- span normalized stops: 29;
+- span pickup / delivery / unknown: 13 / 14 / 0;
+- span date resolved / missing: 8 / 21;
+- span time resolved / missing: 10 / 19;
+- span review required: 29;
+- span passthrough count: 0.
+
+The next decision is not OCR, Vision, or Camelot by default. The next work is
+local value correctness review using the export plus span boundary/field
+extraction hardening for missing dates and times.

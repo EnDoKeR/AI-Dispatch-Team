@@ -46,6 +46,29 @@ tests pass. That means the next tests should target provider-style line
 clustering from actual `pdfplumber` line/bbox metadata using fake provider
 artifacts.
 
+## Stop Span Extractor Tests
+
+The provider-line stop span extractor is covered by focused suites for:
+
+- stop span contracts;
+- synthetic provider-line fixtures;
+- line feature extraction;
+- anchor detection;
+- span boundary detection;
+- field extraction inside spans;
+- normalized stop conversion from spans;
+- safe measurement CLI flags and output fields;
+- Google Sheets/CSV review export columns.
+
+Regression criteria:
+
+- synthetic provider-line fixtures must produce fewer spans than raw lines when
+  mergeable stop sections exist;
+- old stop-group counts and new span counts must be reported side by side;
+- span passthrough must be explicitly reported if detected;
+- tests must not use private PDFs, screenshots, raw private text, or real broker
+  values.
+
 ## Local Review Export Tests
 
 The local Google Sheets-compatible export is covered by:

@@ -118,6 +118,31 @@ The wiring block added:
 - per-row and aggregate fields for `post_single_line_cluster`;
 - local-only Google Sheets-compatible review export files.
 
+## Provider-Line Span Follow-Up
+
+The provider-line stop span block keeps this old pipeline for comparison, but
+it no longer tries to fix the private passthrough by adding more post-hoc merge
+heuristics. Safe reruns still show:
+
+- raw stop groups: 112;
+- normalized stops: 112;
+- first changed stage: none;
+- passthrough detected on 6 aliases.
+
+The direct span path operates earlier:
+
+```text
+layout lines/tables
+-> stop anchors
+-> bounded stop spans
+-> span field candidates
+-> normalized stops from spans
+```
+
+Measurement reports now include both old stop-group counts and new span counts.
+If the span extractor also becomes passthrough, report `NOT FIXED` and move to
+span boundary or provider-line inspection rather than production claims.
+
 The synthetic fixtures now prove the wiring path can reduce mergeable
 single-line groups. The private safe rerun, however, still reported unchanged
 private stage counts:

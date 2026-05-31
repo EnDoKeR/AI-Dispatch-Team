@@ -112,9 +112,60 @@ fails on table-heavy layouts, the next block is table-specific extraction or a
 Camelot design checkpoint. OCR remains queued only for OCR-needed documents.
 Vision remains deferred.
 
+## Implemented Safe Measurement Result
+
+The stop span extractor is available behind:
+
+```text
+--enable-stop-span-extractor
+--compare-stop-span-to-stop-group-pipeline
+```
+
+The latest safe private rerun compared both paths:
+
+- old raw stop groups: 112;
+- old normalized stops: 112;
+- stop span anchors: 29;
+- stop spans: 29;
+- span normalized stops: 29;
+- span pickup / delivery / unknown: 13 / 14 / 0;
+- span date resolved / missing: 8 / 21;
+- span time resolved / missing: 10 / 19;
+- span review required: 29;
+- span passthrough count: 0.
+
+This is not production-ready extraction. It does prove that the new
+provider-line path avoids the old passthrough behavior and creates fewer
+reviewable stop records. The remaining blocker is value correctness and span
+field extraction: all span stops still require review, and many dates/times
+remain missing.
+
+## Review Export
+
+The local-only Google Sheets-compatible export includes old/new stop columns:
+
+- `Old Raw Stop Groups`;
+- `Old Normalized Stops`;
+- `Stop Span Anchors`;
+- `Stop Spans`;
+- `Span Normalized Stops`;
+- `Span Pickup Count`;
+- `Span Delivery Count`;
+- `Span Unknown Count`;
+- `Span Date Resolved`;
+- `Span Date Missing`;
+- `Span Time Resolved`;
+- `Span Time Missing`;
+- `Span Review Required Count`;
+- `Stop Span Passthrough Detected`;
+- `Old vs Span Delta`;
+- `Recommended Review Priority`.
+
+These files are local-only ignored outputs. They are intended for local review
+or Google Sheets import. Do not commit or paste local-private review values.
+
 ## Non-Goals
 
 This block does not add OCR, Vision AI, Camelot, PyMuPDF, broker templates,
 cloud APIs, DispatchCase creation, DecisionEngine calls, Telegram calls, Event
 Timeline events, or production automation claims.
-

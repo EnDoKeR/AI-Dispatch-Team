@@ -598,6 +598,38 @@ Mostly high-confidence candidates:
 Vision AI is not the default next step. It should be considered only after
 deterministic and local routes have been measured.
 
+## Stop Span Measurement Flags
+
+Use the stop span extractor only with explicit layout flags:
+
+```powershell
+py scripts/run_private_ratecon_measurement.py --input-dir "<local-folder>" --confirm-private-local-run --layout-provider pdfplumber --enable-layout-candidates --enable-layout-fusion --enable-no-regression-fusion --layout-diagnostics --compare-layout-to-text-baseline --enable-stop-span-extractor --compare-stop-span-to-stop-group-pipeline --write-json --write-csv --write-md --write-stop-review-packet --write-stop-provenance-report --write-google-sheet-export --natural-sort-inputs
+```
+
+Safe output adds:
+
+- `old_raw_stop_groups`;
+- `old_normalized_stops`;
+- `span_anchor_count`;
+- `stop_span_count`;
+- `span_normalized_stop_count`;
+- `span_pickup_count`;
+- `span_delivery_count`;
+- `span_unknown_count`;
+- `span_date_resolved_count`;
+- `span_date_missing_count`;
+- `span_time_resolved_count`;
+- `span_time_missing_count`;
+- `span_review_required_count`;
+- `span_passthrough_detected`.
+
+The Google Sheets export includes the same old/new comparison columns. It is a
+local ignored artifact. It does not use Google APIs, OAuth, or cloud services.
+
+The latest safe result: 6 layout attempts, 112 old normalized stops, 29 span
+normalized stops, 0 span passthrough, 8 resolved dates, 10 resolved times, and
+29 review-required span stops.
+
 ## Safe To Paste Back
 
 Safe to paste back:

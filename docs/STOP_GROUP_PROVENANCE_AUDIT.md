@@ -208,6 +208,23 @@ This confirms the private-provider issue is not just missing stage wiring. The
 real provider line groups still need better cluster keys derived from adjacent
 line order, bbox/proximity, and stop field context.
 
+## Provider-Line Span Extractor Relationship
+
+The provenance audit remains useful for diagnosing the old stop-group path, but
+it showed that real pdfplumber artifacts still pass through unchanged after
+merge, noise, and dedupe stages. The provider-line span extractor is the
+follow-up path for real artifacts:
+
+- provenance explains where old groups came from;
+- span extraction avoids creating one raw stop group per line first;
+- old and new counts are reported side by side in safe measurement;
+- local review should use the span metrics to decide whether the next work is
+  value correctness, span boundary tuning, or table-specific extraction.
+
+The latest safe comparison reduced normalized stops from 112 in the old path to
+29 in the span path, with no span passthrough detected. Dates/times remain weak,
+so correctness review is still required.
+
 ## Process Gate
 
 Implementation fixes must wait until a safe provenance audit has been run and a
