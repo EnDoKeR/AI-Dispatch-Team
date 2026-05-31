@@ -125,6 +125,19 @@ def _boolish(value):
     return _token(value) in {"1", "true", "yes", "y"}
 
 
+def _bool_field(row, *keys, default=False):
+    for key in keys:
+        if key not in row:
+            continue
+        value = row.get(key)
+        if isinstance(value, bool):
+            return value
+        if value is None:
+            continue
+        return _boolish(value)
+    return default
+
+
 def _normalize_requirement(value):
     token = _token(value)
     return token if token in FIELD_REQUIREMENT_LEVELS else FIELD_REQUIREMENT_OPTIONAL
@@ -147,24 +160,28 @@ def build_document_context(row=None, field_statuses=None):
     document_type = _text(row.get("document_type") or row.get("Document Type")).upper()
     extraction_status = _text(row.get("extraction_status") or row.get("Extraction Status")).upper()
     classification_status = _token(row.get("classification_status") or row.get("Classification Status"))
+    extraction_relevant = _bool_field(row, "extraction_relevant", "Extraction Relevant")
+    ratecon_eligible = _bool_field(row, "ratecon_eligible", "RateCon Eligible", default=True)
     context = {
-        "normal_load_movement": bool(row.get("normal_load_movement"))
-        or _boolish(row.get("Normal Load Movement")),
+        "normal_load_movement": _bool_field(
+            row,
+            "normal_load_movement",
+            "Normal Load Movement",
+        ),
         "tonu": document_type == "TRUCK_ORDER_NOT_USED" or _boolish(row.get("TONU")),
         "ocr_needed": extraction_status == "EMPTY_TEXT" or _boolish(row.get("OCR Needed")),
-        "supplemental_only": bool(row.get("supplemental_only"))
-        or _boolish(row.get("Supplemental Only"))
+        "supplemental_only": _bool_field(
+            row,
+            "supplemental_only",
+            "Supplemental Only",
+        )
         or classification_status == "supplemental_only",
         "non_ratecon": classification_status in {
             "non_ratecon",
             "unknown_review_required",
         }
-        or (
-            not bool(row.get("ratecon_eligible", True))
-            and not _boolish(row.get("Extraction Relevant"))
-        ),
-        "extraction_relevant": bool(row.get("extraction_relevant"))
-        or _boolish(row.get("Extraction Relevant")),
+        or (not ratecon_eligible and not extraction_relevant),
+        "extraction_relevant": extraction_relevant,
         "document_type": document_type,
         "field_statuses": {
             _token(key): normalize_field_status(value)

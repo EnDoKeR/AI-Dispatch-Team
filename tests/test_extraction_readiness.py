@@ -182,6 +182,7 @@ class ExtractionReadinessTests(unittest.TestCase):
     def test_dispatch_decision_ready_is_stricter(self):
         row = {
             "document_alias": "RATECON_004",
+            "normal_load_movement": True,
             "field_statuses": [
                 _field("broker_name", "resolved"),
                 _field("broker_mc", "resolved"),
@@ -225,6 +226,34 @@ class ExtractionReadinessTests(unittest.TestCase):
         self.assertIn("pickup_location", assessment["non_applicable_fields"])
         self.assertIn("tonu_stop_fields_not_required_for_core_readiness", assessment["reasons"])
         self.assertNotIn("pickup_location", assessment["intake_core_blockers"])
+        self.assertFalse(assessment["dispatch_decision_ready"])
+        self.assertIn(
+            "dispatch_decision_not_applicable_for_document_context",
+            assessment["reasons"],
+        )
+
+    def test_supplemental_doc_can_be_review_ready_but_not_core_ready(self):
+        row = {
+            "document_alias": "RATECON_SUPP",
+            "classification_status": "supplemental_only",
+            "extraction_relevant": False,
+            "field_statuses": [_field("rate", "resolved")],
+        }
+
+        assessment = assess_extraction_readiness(row)
+
+        self.assertEqual(
+            assessment["readiness_level"],
+            READINESS_LEVEL_EXTRACTION_REVIEW_READY,
+        )
+        self.assertTrue(assessment["extraction_review_ready"])
+        self.assertFalse(assessment["intake_core_ready"])
+        self.assertFalse(assessment["dispatch_decision_ready"])
+        self.assertEqual(assessment["intake_core_blockers"], [])
+        self.assertIn(
+            "intake_core_not_applicable_for_document_context",
+            assessment["reasons"],
+        )
 
     def test_ocr_doc_not_ready_without_digital_missing_core_blockers(self):
         row = {

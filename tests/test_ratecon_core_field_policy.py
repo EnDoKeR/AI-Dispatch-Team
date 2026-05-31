@@ -129,6 +129,19 @@ class RateConCoreFieldPolicyTests(unittest.TestCase):
             FIELD_REQUIREMENT_NON_APPLICABLE,
         )
 
+    def test_string_false_context_values_are_not_truthy(self):
+        context = build_document_context(
+            {
+                "normal_load_movement": "False",
+                "supplemental_only": "False",
+                "extraction_relevant": "False",
+            }
+        )
+
+        self.assertFalse(context["normal_load_movement"])
+        self.assertFalse(context["supplemental_only"])
+        self.assertFalse(context["extraction_relevant"])
+
     def test_dispatch_decision_is_stricter_for_operational_fields(self):
         context = build_document_context({"normal_load_movement": True})
 

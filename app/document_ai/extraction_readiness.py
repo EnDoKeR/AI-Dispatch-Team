@@ -175,6 +175,22 @@ def _dispatch_blocking_fields(statuses, context):
     return blocking
 
 
+def _intake_core_applicable(context):
+    if context.get("ocr_needed"):
+        return False
+    if context.get("supplemental_only") or context.get("non_ratecon"):
+        return False
+    return True
+
+
+def _dispatch_decision_applicable(context):
+    if not _intake_core_applicable(context):
+        return False
+    if context.get("tonu"):
+        return False
+    return bool(context.get("normal_load_movement"))
+
+
 def _policy_non_applicable_fields(statuses, context):
     fields = set()
     for field_name in set(KNOWN_POLICY_FIELDS) | set(statuses):
@@ -251,9 +267,18 @@ def assess_extraction_readiness(row):
         reasons.append("tonu_stop_fields_not_required_for_core_readiness")
     intake_blockers = _missing_core_groups(statuses, context)
 
-    intake_ready = review_ready and not intake_blockers
+    intake_applicable = _intake_core_applicable(context)
+    dispatch_applicable = _dispatch_decision_applicable(context)
+    if not intake_applicable:
+        reasons.append("intake_core_not_applicable_for_document_context")
+        warnings.append("intake_core_not_applicable_for_document_context")
+    if not dispatch_applicable:
+        reasons.append("dispatch_decision_not_applicable_for_document_context")
+        warnings.append("dispatch_decision_not_applicable_for_document_context")
+
+    intake_ready = review_ready and intake_applicable and not intake_blockers
     dispatch_blockers = _dispatch_blocking_fields(statuses, context)
-    dispatch_ready = intake_ready and not dispatch_blockers
+    dispatch_ready = intake_ready and dispatch_applicable and not dispatch_blockers
 
     if dispatch_ready:
         level = READINESS_LEVEL_DISPATCH_DECISION_READY
