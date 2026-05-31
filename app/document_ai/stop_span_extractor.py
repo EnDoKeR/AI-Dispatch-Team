@@ -647,6 +647,16 @@ def _line_evidence_ref(line, evidence_type="layout_line"):
     }
 
 
+def _table_cell_evidence_ref(cell, row):
+    return {
+        "page_number": int((row or {}).get("page_number") or 0),
+        "table_id": _text((row or {}).get("table_id")),
+        "row_index": int((cell or {}).get("row_index") or 0),
+        "col_index": int((cell or {}).get("col_index") or 0),
+        "evidence_type": "table_cell",
+    }
+
+
 def _candidate(
     span,
     field_name,
@@ -666,6 +676,117 @@ def _candidate(
         reasons=reasons or ["inside_stop_span"],
         warning_codes=warning_codes,
     )
+
+
+def _table_date_candidate(span, row, cell, index):
+    return build_stop_span_field_candidate(
+        span_id=(span or {}).get("span_id", ""),
+        field_name=STOP_SPAN_FIELD_DATE,
+        candidate_id=(
+            f"{(span or {}).get('span_id', 'span')}_"
+            f"{STOP_SPAN_FIELD_DATE}_table_{index:03d}"
+        ),
+        confidence=CANDIDATE_CONFIDENCE_MEDIUM,
+        evidence_ref=_table_cell_evidence_ref(cell, row),
+        source=STOP_SPAN_SOURCE_LAYOUT_TABLE_ROW,
+        reasons=["date_inside_stop_table_row"],
+        warning_codes=["table_row_date_requires_review"],
+    )
+
+
+def _layout_table_rows(layout_artifact):
+    rows = []
+    for page in (layout_artifact or {}).get("pages", []) or []:
+        page_number = int((page or {}).get("page_number") or 0)
+        for table in (page or {}).get("tables", []) or []:
+            if not isinstance(table, dict):
+                continue
+            header_rows = {
+                int(item)
+                for item in (table.get("header_rows") or [])
+                if str(item).strip().isdigit()
+            }
+            grouped = {}
+            for cell in table.get("cells", []) or []:
+                if not isinstance(cell, dict):
+                    continue
+                row_index = int(cell.get("row_index") or 0)
+                grouped.setdefault(row_index, []).append(cell)
+            for row_index, cells in grouped.items():
+                rows.append(
+                    {
+                        "page_number": page_number,
+                        "table_id": _text(table.get("table_id")),
+                        "row_index": row_index,
+                        "is_header_row": row_index in header_rows,
+                        "cells": sorted(
+                            cells,
+                            key=lambda item: int(item.get("col_index") or 0),
+                        ),
+                    }
+                )
+    return sorted(
+        rows,
+        key=lambda item: (
+            int(item.get("page_number") or 0),
+            item.get("table_id", ""),
+            int(item.get("row_index") or 0),
+        ),
+    )
+
+
+def _cell_text(cell):
+    return normalize_line_text_for_features((cell or {}).get("text_redacted", ""))
+
+
+def _table_row_text(row):
+    return " ".join(_cell_text(cell) for cell in (row or {}).get("cells", []) if _cell_text(cell))
+
+
+def _table_row_is_stop_date_noise(row_text):
+    text = _text(row_text)
+    if not text:
+        return True
+    return bool(
+        re.search(
+            r"\b(payment|billing|terms|rate confirmation date|invoice|quick\s*pay|"
+            r"signature|agreement|carrier requirements)\b",
+            text,
+            re.IGNORECASE,
+        )
+    )
+
+
+def _table_row_matches_span_stop_type(row_text, span):
+    stop_type = _normalize_stop_type((span or {}).get("stop_type"))
+    text = _text(row_text)
+    if stop_type == NORMALIZED_STOP_TYPE_PICKUP:
+        return bool(PICKUP_LABEL_RE.search(text))
+    if stop_type == NORMALIZED_STOP_TYPE_DELIVERY:
+        return bool(DELIVERY_LABEL_RE.search(text))
+    if stop_type == NORMALIZED_STOP_TYPE_STOP:
+        return bool(STOP_LABEL_RE.search(text))
+    return False
+
+
+def extract_table_date_candidates_for_span(span, layout_artifact, start_index=1):
+    candidates = []
+    for row in _layout_table_rows(layout_artifact):
+        if row.get("is_header_row"):
+            continue
+        row_text = _table_row_text(row)
+        if _table_row_is_stop_date_noise(row_text):
+            continue
+        if not _table_row_matches_span_stop_type(row_text, span):
+            continue
+        date_cells = [
+            cell
+            for cell in (row.get("cells") or [])
+            if DATE_RE.search(_cell_text(cell))
+        ]
+        for offset, cell in enumerate(date_cells, start=len(candidates) + start_index):
+            candidates.append(_table_date_candidate(span, row, cell, offset))
+    return candidates
 
 
 def extract_date_candidates_from_span(span, line_features, layout_artifact):
@@ -689,6 +810,15 @@ def extract_date_candidates_from_span(span, line_features, layout_artifact):
                     ["date_inside_stop_span"],
                 )
             )
+    if candidates:
+        return candidates
+    candidates.extend(
+        extract_table_date_candidates_for_span(
+            span,
+            layout_artifact,
+            start_index=len(candidates) + 1,
+        )
+    )
     return candidates
 
 
