@@ -12,6 +12,9 @@ from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
 )
 from app.integrations import google_sheets_review as sheets
+from app.integrations.google_sheets_review_preflight import (
+    preflight_google_review_outputs,
+)
 
 
 def _build_parser():
@@ -34,6 +37,7 @@ def _build_parser():
     )
     parser.add_argument("--status-only", action="store_true")
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument("--preflight-only", action="store_true")
     return parser
 
 
@@ -69,6 +73,18 @@ def _sync_mode(args):
 
 
 def _safe_summary_lines(result, dry_run=False):
+    if result.get("preflight_only"):
+        return [
+            "Google Sheets RateCon review sync preflight",
+            f"review_outputs_found: {result.get('review_outputs_found', False)}",
+            f"rows_per_source_file: {result.get('rows_per_source_file', {})}",
+            f"headers_valid: {result.get('headers_valid', False)}",
+            f"sync_ready: {result.get('sync_ready', False)}",
+            f"missing_csv_basenames: {result.get('missing_csv_basenames', [])}",
+            f"warning_codes: {result.get('warning_codes', [])}",
+            f"private_values_printed: {result.get('private_values_printed', False)}",
+            f"input_path_printed: {result.get('input_path_printed', False)}",
+        ]
     lines = [
         "Google Sheets RateCon review sync summary",
         f"dry_run: {bool(dry_run)}",
@@ -84,6 +100,11 @@ def _safe_summary_lines(result, dry_run=False):
 
 
 def run_sync(args):
+    if args.preflight_only:
+        result = preflight_google_review_outputs(args.input_dir)
+        result["preflight_only"] = True
+        return result
+
     if not args.confirm_google_review_sync:
         raise sheets.GoogleSheetsReviewConfigError(
             "--confirm-google-review-sync is required"
