@@ -121,6 +121,13 @@ FIELD_REVIEW_COLUMNS = [
     "Non Applicable Field",
     "Field Requirement Level",
     "Policy Gap Reason",
+    "Load Identifier Status",
+    "Load Identifier Candidate Count",
+    "Primary Load Identifier Candidate Type",
+    "Typed Reference Count",
+    "Rejected Non-primary Reference Count",
+    "Load Identifier Gap Reason",
+    "Load Identifier Needs Review",
     "User Correct? yes/no/unknown",
     "User Expected Value LOCAL ONLY",
     "User Issue Type",
@@ -183,6 +190,16 @@ def _bool_text(value):
 
 def _join(values):
     return ";".join(normalize_list(values))
+
+
+def _format_count_map(value):
+    if not isinstance(value, dict):
+        return ""
+    return ";".join(
+        f"{_token(key)}={_int(count)}"
+        for key, count in sorted(value.items())
+        if _token(key) and _int(count)
+    )
 
 
 def _selected_value(item, include_private_values=False):
@@ -311,6 +328,58 @@ def _field_policy_columns(row, field_name, status):
     }
 
 
+def _load_identifier_gap_reason(metrics):
+    if not isinstance(metrics, dict):
+        return ""
+    identifier_label_count = _int(metrics.get("identifier_label_feature_count"))
+    primary_count = _int(metrics.get("primary_identifier_candidate_count"))
+    typed_reference_count = _int(metrics.get("typed_reference_candidate_count"))
+    core_mapping_count = _int(metrics.get("core_load_number_mapping_count"))
+    if primary_count == 0:
+        if typed_reference_count:
+            return "only_non_primary_reference_found"
+        if identifier_label_count == 0:
+            return "identifier_label_missing"
+        return "identifier_candidate_not_generated"
+    if core_mapping_count == 0:
+        if _int(metrics.get("conflicting_primary_identifiers")):
+            return "conflicting_primary_identifiers"
+        if _int(metrics.get("weak_generic_reference_review_required")):
+            return "weak_generic_reference_review_required"
+        return "candidate_generated_but_not_core_mapped"
+    return ""
+
+
+def _load_identifier_review_columns(row, field_name, status):
+    if _token(field_name) != "load_number":
+        return {
+            "Load Identifier Status": "",
+            "Load Identifier Candidate Count": "",
+            "Primary Load Identifier Candidate Type": "",
+            "Typed Reference Count": "",
+            "Rejected Non-primary Reference Count": "",
+            "Load Identifier Gap Reason": "",
+            "Load Identifier Needs Review": "",
+        }
+    metrics = (row or {}).get("load_identifier_coverage_metrics", {}) or {}
+    primary_count = _int(metrics.get("primary_identifier_candidate_count"))
+    return {
+        "Load Identifier Status": _text(status),
+        "Load Identifier Candidate Count": primary_count,
+        "Primary Load Identifier Candidate Type": _format_count_map(
+            metrics.get("primary_identifier_type_counts")
+        ),
+        "Typed Reference Count": _int(metrics.get("typed_reference_candidate_count")),
+        "Rejected Non-primary Reference Count": _int(
+            metrics.get("rejected_reference_as_load_id_count")
+        ),
+        "Load Identifier Gap Reason": _load_identifier_gap_reason(metrics),
+        "Load Identifier Needs Review": _bool_text(
+            _token(status) in {"missing", "needs_review", "conflict", "low_confidence"}
+        ),
+    }
+
+
 def _top_blocker(row):
     blockers = normalize_list((row or {}).get("blocker_categories", []))
     return blockers[0] if blockers else ""
@@ -387,6 +456,7 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
                     in {"missing", "low_confidence", "conflict", "needs_review"}
                 ),
                 **policy_columns,
+                **_load_identifier_review_columns(row, field_name, status),
                 "User Correct? yes/no/unknown": "",
                 "User Expected Value LOCAL ONLY": "",
                 "User Issue Type": "",
@@ -409,6 +479,7 @@ def _field_review_rows(row, folder_order, local_name, include_private_values=Fal
                     "Evidence Type": "",
                     "Needs Review": "yes",
                     **_field_policy_columns(row, token, "missing"),
+                    **_load_identifier_review_columns(row, token, "missing"),
                     "User Correct? yes/no/unknown": "",
                     "User Expected Value LOCAL ONLY": "",
                     "User Issue Type": "",

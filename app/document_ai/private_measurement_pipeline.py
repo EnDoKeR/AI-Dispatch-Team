@@ -248,6 +248,18 @@ def _load_identifier_coverage_metrics(candidates, resolution_result):
         for candidate in primary_identifier_candidates
         if "generic_identifier_requires_review" in candidate.get("warnings", [])
     ]
+    def type_counts(items):
+        counts = {}
+        for candidate in items:
+            identifier_type = str(
+                candidate.get("identifier_type")
+                or candidate.get("value_type")
+                or ""
+            ).strip()
+            if identifier_type:
+                counts[identifier_type] = counts.get(identifier_type, 0) + 1
+        return dict(sorted(counts.items()))
+
     resolution_statuses = _resolution_status_map(resolution_result)
     load_number_status = resolution_statuses.get(FIELD_LOAD_NUMBER, "")
     core_mapping_count = 1 if load_number_status and load_number_status != "missing" else 0
@@ -259,6 +271,9 @@ def _load_identifier_coverage_metrics(candidates, resolution_result):
         "rejected_reference_as_load_id_count": len(rejected_reference_candidates),
         "conflicting_primary_identifiers": 1 if load_number_status == "conflict" else 0,
         "weak_generic_reference_review_required": len(weak_generic_references),
+        "primary_identifier_type_counts": type_counts(primary_identifier_candidates),
+        "typed_reference_type_counts": type_counts(typed_reference_candidates),
+        "rejected_reference_type_counts": type_counts(rejected_reference_candidates),
         "private_values_included": False,
         "raw_text_included": False,
     }

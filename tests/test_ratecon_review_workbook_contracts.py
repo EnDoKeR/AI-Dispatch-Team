@@ -74,6 +74,15 @@ def _fake_row():
         "span_time_missing_count": 2,
         "span_review_required_count": 1,
         "span_normalized_stop_set": _fake_stop_set(),
+        "load_identifier_coverage_metrics": {
+            "primary_identifier_candidate_count": 1,
+            "primary_identifier_type_counts": {"broker_load_number": 1},
+            "typed_reference_candidate_count": 2,
+            "rejected_reference_as_load_id_count": 2,
+            "core_load_number_mapping_count": 1,
+            "private_values_included": False,
+            "raw_text_included": False,
+        },
         "field_statuses": [
             {
                 "field_name": "broker_name",
@@ -125,6 +134,13 @@ class RateConReviewWorkbookContractTests(unittest.TestCase):
             "Non Applicable Field",
             "Field Requirement Level",
             "Policy Gap Reason",
+            "Load Identifier Status",
+            "Load Identifier Candidate Count",
+            "Primary Load Identifier Candidate Type",
+            "Typed Reference Count",
+            "Rejected Non-primary Reference Count",
+            "Load Identifier Gap Reason",
+            "Load Identifier Needs Review",
         ]:
             self.assertIn(column, FIELD_REVIEW_COLUMNS)
         for column in [
@@ -150,6 +166,24 @@ class RateConReviewWorkbookContractTests(unittest.TestCase):
         self.assertEqual(stop_row["Needs Review"], "yes")
         self.assertIn("Intake Core Blocker", field_row)
         self.assertIn("Policy Gap Reason", field_row)
+
+    def test_load_identifier_columns_are_populated_for_load_number(self):
+        rows_by_sheet = build_ratecon_review_rows([_fake_row()])
+        load_row = next(
+            row
+            for row in rows_by_sheet[SHEET_FIELD_REVIEW]
+            if row["Field Name"] == "load_number"
+        )
+
+        self.assertEqual(load_row["Load Identifier Status"], "resolved")
+        self.assertEqual(load_row["Load Identifier Candidate Count"], 1)
+        self.assertEqual(
+            load_row["Primary Load Identifier Candidate Type"],
+            "broker_load_number=1",
+        )
+        self.assertEqual(load_row["Typed Reference Count"], 2)
+        self.assertEqual(load_row["Rejected Non-primary Reference Count"], 2)
+        self.assertEqual(load_row["Load Identifier Needs Review"], "no")
 
     def test_build_rows_includes_fake_private_values_only_when_explicit(self):
         rows_by_sheet = build_ratecon_review_rows(

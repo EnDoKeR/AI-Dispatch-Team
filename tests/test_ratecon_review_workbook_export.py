@@ -60,6 +60,15 @@ def _fake_row():
                 }
             ],
         },
+        "load_identifier_coverage_metrics": {
+            "primary_identifier_candidate_count": 1,
+            "primary_identifier_type_counts": {"broker_load_number": 1},
+            "typed_reference_candidate_count": 1,
+            "rejected_reference_as_load_id_count": 1,
+            "core_load_number_mapping_count": 1,
+            "private_values_included": False,
+            "raw_text_included": False,
+        },
         "field_statuses": [
             {
                 "field_name": "rate",
@@ -109,6 +118,12 @@ class RateConReviewWorkbookExportTests(unittest.TestCase):
                 field_rows = list(csv.DictReader(handle))
             self.assertIn("Intake Core Blocker", field_rows[0])
             self.assertIn("Policy Gap Reason", field_rows[0])
+            load_row = next(row for row in field_rows if row["Field Name"] == "load_number")
+            self.assertEqual(load_row["Load Identifier Candidate Count"], "1")
+            self.assertEqual(
+                load_row["Primary Load Identifier Candidate Type"],
+                "broker_load_number=1",
+            )
 
     def test_private_values_written_only_when_explicit(self):
         with tempfile.TemporaryDirectory() as tmp:
