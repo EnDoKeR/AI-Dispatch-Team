@@ -68,6 +68,9 @@ def _safe_summary(label, result):
     core_summary = dry_run_result.get("ratecon_core_summary", {})
     link_candidate = dry_run_result.get("link_candidate") or {}
     extraction_metadata = result.get("extraction_metadata", {})
+    shadow_record = result.get("ratecon_shadow_audit_record") or {}
+    shadow = shadow_record.get("shadow", {}) or {}
+    failure = shadow_record.get("failure_attribution", {}) or {}
 
     return {
         "label": label,
@@ -89,6 +92,11 @@ def _safe_summary(label, result):
         "link_candidate_action": link_candidate.get("recommended_action", ""),
         "result_category": result.get("status", ""),
         "warnings": list(result.get("warnings", [])),
+        "ratecon_shadow_enabled": bool(result.get("ratecon_shadow_enabled", False)),
+        "shadow_success": bool(shadow.get("success", False)),
+        "shadow_needs_review": bool(shadow.get("needs_review", False)),
+        "shadow_failure_primary_layer": failure.get("primary_suspected_layer", ""),
+        "shadow_failure_codes": list(failure.get("codes", [])),
         "private_text_saved": False,
         "cases_created": False,
         "events_written": False,
@@ -99,6 +107,9 @@ def build_private_pdf_dry_run_report(
     directory=DEFAULT_PRIVATE_RATECON_DIR,
     limit=DEFAULT_LIMIT,
     runner=run_ratecon_pdf_dry_run,
+    ratecon_shadow_document_pipeline=False,
+    include_document_ai_debug=False,
+    strict_ratecon_shadow_document_pipeline=False,
 ):
     pdf_files = list_private_pdf_files(directory)
     safe_limit = _safe_limit(limit)
@@ -106,7 +117,18 @@ def build_private_pdf_dry_run_report(
 
     for index, path in enumerate(pdf_files[:safe_limit], start=1):
         label = f"RATECON_{index:03d}"
-        dry_run = runner(path, anonymized_label=label)
+        runner_kwargs = {"anonymized_label": label}
+        if ratecon_shadow_document_pipeline:
+            runner_kwargs.update(
+                {
+                    "ratecon_shadow_document_pipeline": True,
+                    "include_document_ai_debug": include_document_ai_debug,
+                    "strict_ratecon_shadow_document_pipeline": (
+                        strict_ratecon_shadow_document_pipeline
+                    ),
+                }
+            )
+        dry_run = runner(path, **runner_kwargs)
         results.append(_safe_summary(label, dry_run))
 
     return {
@@ -160,6 +182,11 @@ def format_private_pdf_dry_run_report(report):
                 f"  link_candidate_action: {item['link_candidate_action'] or 'none'}",
                 f"  result_category: {item['result_category'] or 'none'}",
                 f"  warnings: {format_list(item['warnings'])}",
+                f"  ratecon_shadow_enabled: {item.get('ratecon_shadow_enabled', False)}",
+                f"  shadow_success: {item.get('shadow_success', False)}",
+                f"  shadow_needs_review: {item.get('shadow_needs_review', False)}",
+                f"  shadow_failure_primary_layer: {item.get('shadow_failure_primary_layer') or 'none'}",
+                f"  shadow_failure_codes: {format_list(item.get('shadow_failure_codes', []))}",
             ]
         )
 
@@ -193,6 +220,9 @@ def build_parser():
         action="store_true",
         help="Print safe JSON summary without raw extracted text.",
     )
+    parser.add_argument("--ratecon-shadow-document-pipeline", action="store_true")
+    parser.add_argument("--include-document-ai-debug", action="store_true")
+    parser.add_argument("--strict-ratecon-shadow-document-pipeline", action="store_true")
     return parser
 
 
@@ -201,6 +231,9 @@ def main(argv=None):
     report = build_private_pdf_dry_run_report(
         directory=args.directory,
         limit=args.limit,
+        ratecon_shadow_document_pipeline=args.ratecon_shadow_document_pipeline,
+        include_document_ai_debug=args.include_document_ai_debug,
+        strict_ratecon_shadow_document_pipeline=args.strict_ratecon_shadow_document_pipeline,
     )
 
     if args.json:

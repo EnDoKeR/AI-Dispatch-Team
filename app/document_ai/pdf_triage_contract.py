@@ -32,6 +32,25 @@ RECOMMENDED_ROUTES = (
 
 PDF_TRIAGE_VERSION = "pdf_triage_v1"
 
+PDF_TYPE_BORN_DIGITAL = "born_digital"
+PDF_TYPE_SCANNED = "scanned"
+PDF_TYPE_HYBRID = "hybrid"
+PDF_TYPE_UNKNOWN = "unknown"
+
+ROUTING_NATIVE_TEXT = "native_text"
+ROUTING_NATIVE_LAYOUT = "native_layout"
+ROUTING_OCR = "ocr"
+ROUTING_HYBRID_COMPARE = "hybrid_compare"
+ROUTING_NEEDS_REVIEW = "needs_review"
+
+QUALITY_EMPTY_OR_LOW_TEXT = "EMPTY_OR_LOW_TEXT"
+QUALITY_IMAGE_HEAVY_PAGE = "IMAGE_HEAVY_PAGE"
+QUALITY_POSSIBLE_SCANNED_PDF = "POSSIBLE_SCANNED_PDF"
+QUALITY_MULTI_PAGE_DOCUMENT = "MULTI_PAGE_DOCUMENT"
+QUALITY_NATIVE_TEXT_SUSPICIOUS = "NATIVE_TEXT_SUSPICIOUS"
+QUALITY_OCR_REQUIRED = "OCR_REQUIRED"
+QUALITY_UNKNOWN_PDF_TYPE = "UNKNOWN_PDF_TYPE"
+
 
 def _safe_int(value):
     try:
@@ -120,6 +139,52 @@ def _average_chars_per_page(char_count, page_count):
     return round(_safe_int(char_count) / _safe_int(page_count), 2)
 
 
+def _pdf_type_for_kind(pdf_kind):
+    if pdf_kind == PDF_KIND_DIGITAL_TEXT:
+        return PDF_TYPE_BORN_DIGITAL
+    if pdf_kind == PDF_KIND_IMAGE_BASED:
+        return PDF_TYPE_SCANNED
+    if pdf_kind == PDF_KIND_MIXED:
+        return PDF_TYPE_HYBRID
+    return PDF_TYPE_UNKNOWN
+
+
+def _routing_decision_for_route(route, pdf_type):
+    if route == OCR_NEEDED:
+        return ROUTING_OCR
+    if route == DIGITAL_TEXT:
+        if pdf_type == PDF_TYPE_HYBRID:
+            return ROUTING_HYBRID_COMPARE
+        return ROUTING_NATIVE_LAYOUT
+    return ROUTING_NEEDS_REVIEW
+
+
+def _quality_flags(
+    page_count,
+    char_count,
+    chars_per_page,
+    page_profiles,
+    pdf_type,
+    recommended_route,
+):
+    flags = []
+    if page_count > 1:
+        flags.append(QUALITY_MULTI_PAGE_DOCUMENT)
+    if char_count <= 0 or (page_count > 0 and chars_per_page < 40):
+        flags.append(QUALITY_EMPTY_OR_LOW_TEXT)
+    if any(profile.get("image_like") for profile in page_profiles or []):
+        flags.append(QUALITY_IMAGE_HEAVY_PAGE)
+    if pdf_type == PDF_TYPE_SCANNED:
+        flags.append(QUALITY_POSSIBLE_SCANNED_PDF)
+    if pdf_type == PDF_TYPE_HYBRID or QUALITY_EMPTY_OR_LOW_TEXT in flags:
+        flags.append(QUALITY_NATIVE_TEXT_SUSPICIOUS)
+    if recommended_route == OCR_NEEDED:
+        flags.append(QUALITY_OCR_REQUIRED)
+    if pdf_type == PDF_TYPE_UNKNOWN:
+        flags.append(QUALITY_UNKNOWN_PDF_TYPE)
+    return sorted(set(flags))
+
+
 def infer_pdf_kind(
     has_text_layer=False,
     likely_image_based=False,
@@ -148,6 +213,7 @@ def infer_pdf_kind(
 def build_pdf_triage_result(
     document_id="",
     file_name="",
+    file_hash="",
     page_count=0,
     char_count=0,
     chars_per_page=None,
@@ -189,24 +255,56 @@ def build_pdf_triage_result(
         encrypted=encrypted,
         broken=broken,
     )
+    pdf_type = _pdf_type_for_kind(resolved_kind)
+    native_text_density = [
+        profile["char_count"]
+        for profile in safe_page_profiles
+    ]
+    image_coverage = [
+        1.0 if profile["image_like"] else 0.0
+        for profile in safe_page_profiles
+    ]
+    safe_chars_per_page = (
+        float(chars_per_page)
+        if chars_per_page not in [None, ""]
+        else _average_chars_per_page(safe_char_count, safe_page_count)
+    )
+    safe_route = normalize_route(recommended_route)
 
     return {
         "document_id": str(document_id or "").strip(),
         "file_name": str(file_name or "").strip(),
+        "file_hash": str(file_hash or "").strip(),
         "pdf_kind": resolved_kind,
+        "pdf_type": pdf_type,
         "page_count": safe_page_count,
         "char_count": safe_char_count,
-        "chars_per_page": (
-            float(chars_per_page)
-            if chars_per_page not in [None, ""]
-            else _average_chars_per_page(safe_char_count, safe_page_count)
-        ),
+        "chars_per_page": safe_chars_per_page,
         "has_text_layer": bool(has_text_layer),
+        "native_text_available": bool(has_text_layer),
+        "native_text_token_count": sum(
+            profile["word_count"] for profile in safe_page_profiles
+        ),
+        "native_text_density_by_page": native_text_density,
+        "image_coverage_by_page": image_coverage,
         "likely_image_based": bool(likely_image_based),
         "mixed_pdf": bool(mixed_pdf),
         "encrypted": bool(encrypted),
         "broken": bool(broken),
-        "recommended_route": normalize_route(recommended_route),
+        "recommended_route": safe_route,
+        "ocr_required": safe_route == OCR_NEEDED,
+        "layout_extraction_required": (
+            safe_route == DIGITAL_TEXT and not bool(broken) and bool(has_text_layer)
+        ),
+        "quality_flags": _quality_flags(
+            safe_page_count,
+            safe_char_count,
+            safe_chars_per_page,
+            safe_page_profiles,
+            pdf_type,
+            safe_route,
+        ),
+        "routing_decision": _routing_decision_for_route(safe_route, pdf_type),
         "page_profiles": safe_page_profiles,
         "warnings": normalize_list(warnings),
         "triage_version": PDF_TRIAGE_VERSION,

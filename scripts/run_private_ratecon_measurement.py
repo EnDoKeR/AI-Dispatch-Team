@@ -21,12 +21,17 @@ from app.document_ai.load_identifier_source_line_audit import (
     analyze_load_id_source_lines_from_rows,
     write_load_identifier_source_line_artifacts,
 )
-from app.document_ai.layout_provider import get_available_layout_providers
+from app.document_ai.layout_provider import (
+    LayoutProviderDependencyError,
+    get_available_layout_providers,
+    require_provider_dependency,
+)
 from app.document_ai.layout_provider_diagnostics import (
     compare_pdfplumber_table_profiles,
     write_layout_provider_diagnostics_report,
 )
-from app.document_ai.pdfplumber_layout_provider import PDFPLUMBER_TABLE_SETTING_PROFILES
+from app.document_ai.pdfplumber_layout_settings import PDFPLUMBER_TABLE_SETTING_PROFILES
+from app.document_ai.layout_provider_contract import SHADOW_LAYOUT_PROVIDER_CHOICES
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -50,6 +55,10 @@ from app.document_ai.rate_candidate_forensics import (
 from app.document_ai.rate_conflict_audit import (
     analyze_rate_conflict_audit_from_measurement_rows,
     write_rate_conflict_audit_artifacts,
+)
+from app.document_ai.ratecon_shadow_audit import (
+    shadow_records_from_rows,
+    write_ratecon_shadow_audit_artifacts,
 )
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
 from app.document_ai.stop_review_packet import write_stop_review_packet
@@ -146,6 +155,12 @@ def build_private_ratecon_measurement_report(
     natural_sort_inputs=False,
     enable_stop_span_extractor=False,
     compare_stop_span_to_stop_group_pipeline=False,
+    ratecon_shadow_document_pipeline=False,
+    include_document_ai_debug=False,
+    strict_ratecon_shadow_document_pipeline=False,
+    ratecon_shadow_use_legacy_final_candidates=True,
+    ratecon_shadow_layout_provider="native_text",
+    ratecon_shadow_table_profile="default",
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
     if limit and int(limit) > 0:
@@ -173,6 +188,14 @@ def build_private_ratecon_measurement_report(
             pdfplumber_table_profile=pdfplumber_table_profile,
             enable_stop_span_extractor=enable_stop_span_extractor,
             compare_stop_span_to_stop_group_pipeline=compare_stop_span_to_stop_group_pipeline,
+            ratecon_shadow_document_pipeline=ratecon_shadow_document_pipeline,
+            include_document_ai_debug=include_document_ai_debug,
+            strict_ratecon_shadow_document_pipeline=strict_ratecon_shadow_document_pipeline,
+            ratecon_shadow_use_legacy_final_candidates=(
+                ratecon_shadow_use_legacy_final_candidates
+            ),
+            ratecon_shadow_layout_provider=ratecon_shadow_layout_provider,
+            ratecon_shadow_table_profile=ratecon_shadow_table_profile,
         )
         for path in pdfs
     ]
@@ -568,6 +591,42 @@ def main(argv=None):
     parser.add_argument("--write-load-identifier-source-line-audit", action="store_true")
     parser.add_argument("--write-rate-forensics", action="store_true")
     parser.add_argument("--write-rate-conflict-audit", action="store_true")
+    parser.add_argument("--ratecon-shadow-document-pipeline", action="store_true")
+    parser.add_argument("--include-document-ai-debug", action="store_true")
+    parser.add_argument("--write-ratecon-shadow-audit", action="store_true")
+    parser.add_argument("--strict-ratecon-shadow-document-pipeline", action="store_true")
+    parser.add_argument(
+        "--ratecon-shadow-layout-provider",
+        default="native_text",
+        choices=SHADOW_LAYOUT_PROVIDER_CHOICES,
+        help=(
+            "Shadow-only document layout provider. Default native_text preserves "
+            "existing behavior; auto/pdfplumber are diagnostic sidecars only."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-table-profile",
+        default="default",
+        choices=PDFPLUMBER_TABLE_SETTING_PROFILES,
+        help="Shadow-only pdfplumber table profile when coordinate layout is requested.",
+    )
+    parser.add_argument(
+        "--ratecon-shadow-use-legacy-final-candidates",
+        action="store_true",
+        help=(
+            "Explicitly enable diagnostic legacy-final FieldCandidate fallback "
+            "in shadow mode. This is already enabled by default for private "
+            "measurement diagnostics."
+        ),
+    )
+    parser.add_argument(
+        "--no-ratecon-shadow-legacy-final-candidates",
+        action="store_true",
+        help=(
+            "Disable diagnostic legacy-final FieldCandidate fallback in shadow mode. "
+            "Independent candidates are always counted separately."
+        ),
+    )
     parser.add_argument("--sync-review-google-sheet", action="store_true")
     parser.add_argument("--confirm-google-review-sync", action="store_true")
     parser.add_argument("--google-config", default="")
@@ -629,6 +688,27 @@ def main(argv=None):
         )
         return 2
 
+    if args.write_ratecon_shadow_audit and not args.ratecon_shadow_document_pipeline:
+        _print_expected_config_error(
+            "--write-ratecon-shadow-audit requires --ratecon-shadow-document-pipeline"
+        )
+        return 2
+
+    if args.include_document_ai_debug and not args.ratecon_shadow_document_pipeline:
+        _print_expected_config_error(
+            "--include-document-ai-debug requires --ratecon-shadow-document-pipeline"
+        )
+        return 2
+
+    if (
+        args.strict_ratecon_shadow_document_pipeline
+        and not args.ratecon_shadow_document_pipeline
+    ):
+        _print_expected_config_error(
+            "--strict-ratecon-shadow-document-pipeline requires --ratecon-shadow-document-pipeline"
+        )
+        return 2
+
     if args.include_private_stop_values_local_only and not args.write_stop_review_packet:
         _print_expected_config_error(
             "--include-private-stop-values-local-only requires --write-stop-review-packet"
@@ -672,6 +752,15 @@ def main(argv=None):
         )
         return 2
 
+    if args.layout_provider == "pdfplumber":
+        try:
+            require_provider_dependency(args.layout_provider)
+        except LayoutProviderDependencyError:
+            _print_expected_config_error(
+                "pdfplumber is not installed. Install optional dependency with: pip install pdfplumber"
+            )
+            return 2
+
     try:
         policy = build_safe_measurement_output_policy(
             include_filenames=args.include_filenames_local_only,
@@ -701,6 +790,17 @@ def main(argv=None):
             compare_stop_span_to_stop_group_pipeline=(
                 args.compare_stop_span_to_stop_group_pipeline
             ),
+            ratecon_shadow_document_pipeline=args.ratecon_shadow_document_pipeline,
+            include_document_ai_debug=args.include_document_ai_debug,
+            strict_ratecon_shadow_document_pipeline=(
+                args.strict_ratecon_shadow_document_pipeline
+            ),
+            ratecon_shadow_use_legacy_final_candidates=(
+                args.ratecon_shadow_use_legacy_final_candidates
+                or not args.no_ratecon_shadow_legacy_final_candidates
+            ),
+            ratecon_shadow_layout_provider=args.ratecon_shadow_layout_provider,
+            ratecon_shadow_table_profile=args.ratecon_shadow_table_profile,
         )
 
         for line in format_private_measurement_report(report):
@@ -986,6 +1086,36 @@ def main(argv=None):
                 ),
             }
             print(f"rate_conflict_audit_written: {labels}")
+        if not args.dry_run and args.write_ratecon_shadow_audit:
+            shadow_records = shadow_records_from_rows(report["rows"])
+            shadow_audit = write_ratecon_shadow_audit_artifacts(
+                shadow_records,
+                output_dir=args.output_dir,
+                allow_custom_output_dir=args.allow_custom_output_dir,
+            )
+            aggregate = shadow_audit.get("aggregate", {})
+            labels = {
+                "files": shadow_audit.get("files", {}),
+                "documents_processed": aggregate.get("documents_processed", 0),
+                "shadow_success": aggregate.get("shadow_success", 0),
+                "shadow_failed": aggregate.get("shadow_failed", 0),
+                "needs_review_count": (
+                    aggregate.get("review_gate", {}) or {}
+                ).get("needs_review_count", 0),
+                "primary_layer_counts": (
+                    aggregate.get("failure_attribution", {}) or {}
+                ).get("primary_layer_counts", {}),
+                "private_values_printed": shadow_audit.get(
+                    "private_values_printed",
+                    False,
+                ),
+                "raw_text_printed": shadow_audit.get("raw_text_printed", False),
+                "money_values_printed": shadow_audit.get(
+                    "money_values_printed",
+                    False,
+                ),
+            }
+            print(f"ratecon_shadow_audit_written: {labels}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {

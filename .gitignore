@@ -40,6 +40,12 @@ private_outputs/
 private_outputs/**
 tmp_private_outputs/
 tmp_private_outputs/**
+*.gold.json
+ratecon_shadow_document_pipeline_audit.jsonl
+ratecon_shadow_document_pipeline_summary.json
+ratecon_gold_evaluation_*.json
+ratecon_gold_evaluation_*.md
+ratecon_gold_*.csv
 
 # Private operational runtime data
 data/current_loads.json

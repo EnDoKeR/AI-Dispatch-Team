@@ -1,6 +1,7 @@
 """Safe local PDF triage without OCR, Vision, or raw text output."""
 
 from contextlib import redirect_stderr
+from hashlib import sha256
 from importlib import import_module
 from io import StringIO
 from pathlib import Path
@@ -18,6 +19,18 @@ from app.document_ai.pdf_triage_contract import (
 LOW_TEXT_CHARS_PER_PAGE = 40
 TRIAGE_PROVIDER = "pypdf"
 TRIAGE_VERSION = "pypdf_triage_v1"
+FILE_HASH_CHUNK_SIZE = 1024 * 1024
+
+
+def _file_hash(path):
+    digest = sha256()
+    try:
+        with Path(path).open("rb") as handle:
+            for chunk in iter(lambda: handle.read(FILE_HASH_CHUNK_SIZE), b""):
+                digest.update(chunk)
+    except OSError:
+        return ""
+    return digest.hexdigest()
 
 
 def _load_pypdf_reader():
@@ -80,6 +93,8 @@ def triage_pdf(path, document_id=None):
     """Return safe PDF triage metadata for a local PDF path."""
     file_path = Path(path or "")
     warnings = []
+    file_hash = _file_hash(file_path) if file_path.exists() and file_path.is_file() else ""
+    resolved_document_id = document_id or file_hash[:16]
 
     if not file_path.exists():
         return build_pdf_triage_result(
@@ -92,8 +107,9 @@ def triage_pdf(path, document_id=None):
 
     if file_path.is_dir():
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             broken=True,
             recommended_route=UNSUPPORTED,
             warnings=["path_is_directory"],
@@ -101,8 +117,9 @@ def triage_pdf(path, document_id=None):
 
     if file_path.suffix.lower() != ".pdf":
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             broken=True,
             recommended_route=UNSUPPORTED,
             warnings=["unsupported_file_type"],
@@ -112,8 +129,9 @@ def triage_pdf(path, document_id=None):
         pdf_reader = _load_pypdf_reader()
     except Exception as exc:
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             recommended_route=MANUAL_REVIEW,
             warnings=[f"pypdf_unavailable:{exc.__class__.__name__}"],
         )
@@ -123,8 +141,9 @@ def triage_pdf(path, document_id=None):
             reader = pdf_reader(str(file_path))
     except Exception as exc:
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             broken=True,
             recommended_route=UNSUPPORTED,
             warnings=[f"pdf_read_failed:{exc.__class__.__name__}"],
@@ -134,8 +153,9 @@ def triage_pdf(path, document_id=None):
 
     if encrypted:
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             encrypted=True,
             recommended_route=MANUAL_REVIEW,
             warnings=["encrypted_pdf"],
@@ -145,8 +165,9 @@ def triage_pdf(path, document_id=None):
         pages = _safe_pages(reader)
     except Exception as exc:
         return build_pdf_triage_result(
-            document_id=document_id or "",
+            document_id=resolved_document_id,
             file_name=file_path.name,
+            file_hash=file_hash,
             broken=True,
             recommended_route=UNSUPPORTED,
             warnings=[f"page_read_failed:{exc.__class__.__name__}"],
@@ -198,8 +219,9 @@ def triage_pdf(path, document_id=None):
         warnings.append("low_text_density")
 
     return build_pdf_triage_result(
-        document_id=document_id or "",
+        document_id=resolved_document_id,
         file_name=file_path.name,
+        file_hash=file_hash,
         page_count=page_count,
         char_count=char_count,
         chars_per_page=chars_per_page,
@@ -210,3 +232,12 @@ def triage_pdf(path, document_id=None):
         page_profiles=page_profiles,
         warnings=warnings,
     )
+
+
+def triage_document(path, document_id=None):
+    """Triage a local document path.
+
+    PDF is the only implemented file type. Other inputs return a deterministic
+    unsupported triage result through the same safe contract.
+    """
+    return triage_pdf(path, document_id=document_id)

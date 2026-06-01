@@ -70,6 +70,13 @@ from app.document_ai.rate_candidate_forensics import (
 from app.document_ai.rate_conflict_audit import (
     build_rate_conflict_audit_record_from_candidates,
 )
+from app.document_ai.ratecon_document_pipeline import extract_ratecon_document
+from app.document_ai.ratecon_shadow_audit import (
+    build_legacy_summary_from_resolution,
+    build_ratecon_shadow_audit_record,
+    build_ratecon_shadow_error_record,
+    shadow_row_summary_fields,
+)
 from app.document_ai.ratecon_candidates import (
     FIELD_ACCESSORIAL_TERM,
     FIELD_COMMODITY,
@@ -1230,6 +1237,78 @@ def _base_triage_row(document_alias, triage_result, extraction_status, warnings=
     )
 
 
+def _with_shadow_document_pipeline(
+    row,
+    pdf_path,
+    document_alias,
+    output_policy,
+    enabled=False,
+    include_debug=False,
+    strict=False,
+    legacy_summary=None,
+    legacy_context=None,
+    use_legacy_final_candidates=True,
+    shadow_layout_provider="native_text",
+    shadow_table_profile="default",
+):
+    """Attach shadow diagnostics after legacy row construction.
+
+    Private measurement still loads PDFs, extracts native pypdf text, runs the
+    legacy candidate/template/resolver path, validates, and builds measurement
+    rows in ``measure_private_ratecon_pdf``. This helper is inserted only after
+    that legacy row exists, so shadow triage/artifact/candidate/resolver output
+    is a sidecar and never mutates authoritative legacy fields.
+    """
+    if not enabled:
+        return row
+
+    policy = output_policy or {}
+    include_file_name = bool(policy.get("include_filenames"))
+    include_file_hash = bool(policy.get("include_file_hash_prefix"))
+    legacy = legacy_summary or build_legacy_summary_from_resolution(
+        row=row,
+        include_values=include_debug,
+    )
+    shadow_legacy_context = dict(legacy_context or {})
+    shadow_legacy_context["legacy_summary"] = legacy
+    try:
+        shadow_result = extract_ratecon_document(
+            pdf_path,
+            document_id=document_alias,
+            include_debug=True,
+            legacy_context=shadow_legacy_context,
+            include_legacy_final_candidates=use_legacy_final_candidates,
+            strict_candidate_generators=strict,
+            shadow_layout_provider=shadow_layout_provider,
+            shadow_table_profile=shadow_table_profile,
+            strict_layout_provider=strict,
+        )
+        record = build_ratecon_shadow_audit_record(
+            document_alias=document_alias,
+            pdf_path=pdf_path,
+            shadow_result=shadow_result,
+            legacy_summary=legacy,
+            include_values=include_debug,
+            include_file_name=include_file_name,
+            include_file_hash=include_file_hash,
+        )
+    except Exception as exc:
+        if strict:
+            raise
+        record = build_ratecon_shadow_error_record(
+            document_alias=document_alias,
+            pdf_path=pdf_path,
+            error=exc,
+            legacy_summary=legacy,
+            include_file_name=include_file_name,
+            include_file_hash=include_file_hash,
+        )
+
+    row["ratecon_shadow_audit_records"] = [record]
+    row.update(shadow_row_summary_fields(record))
+    return row
+
+
 def _layout_measurement_fields(
     pdf_path,
     document_alias,
@@ -1374,6 +1453,12 @@ def measure_private_ratecon_pdf(
     pdfplumber_table_profile="default",
     enable_stop_span_extractor=False,
     compare_stop_span_to_stop_group_pipeline=False,
+    ratecon_shadow_document_pipeline=False,
+    include_document_ai_debug=False,
+    strict_ratecon_shadow_document_pipeline=False,
+    ratecon_shadow_use_legacy_final_candidates=True,
+    ratecon_shadow_layout_provider="native_text",
+    ratecon_shadow_table_profile="default",
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -1392,7 +1477,18 @@ def measure_private_ratecon_pdf(
             row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
         if enable_layout_fusion:
             row["fusion_enabled"] = True
-        return row
+        return _with_shadow_document_pipeline(
+            row,
+            pdf_path,
+            document_alias,
+            policy,
+            enabled=ratecon_shadow_document_pipeline,
+            include_debug=include_document_ai_debug,
+            strict=strict_ratecon_shadow_document_pipeline,
+            use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
+            shadow_layout_provider=ratecon_shadow_layout_provider,
+            shadow_table_profile=ratecon_shadow_table_profile,
+        )
 
     extraction = _extract_text_in_memory(pdf_path)
     combined_warnings = sorted(
@@ -1411,7 +1507,18 @@ def measure_private_ratecon_pdf(
             row["layout_provider_status"] = LAYOUT_STATUS_SKIPPED_NON_DIGITAL
         if enable_layout_fusion:
             row["fusion_enabled"] = True
-        return row
+        return _with_shadow_document_pipeline(
+            row,
+            pdf_path,
+            document_alias,
+            policy,
+            enabled=ratecon_shadow_document_pipeline,
+            include_debug=include_document_ai_debug,
+            strict=strict_ratecon_shadow_document_pipeline,
+            use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
+            shadow_layout_provider=ratecon_shadow_layout_provider,
+            shadow_table_profile=ratecon_shadow_table_profile,
+        )
 
     text = extraction.get("text", "")
     artifact = build_text_extraction_artifact_for_candidates(
@@ -1439,7 +1546,7 @@ def measure_private_ratecon_pdf(
                 + scope_warnings
             )
         )
-        return build_private_ratecon_measurement_row(
+        row = build_private_ratecon_measurement_row(
             document_alias=document_alias,
             page_count=triage_result.get("page_count", extraction.get("page_count", 0)),
             char_count=extraction.get("char_count", triage_result.get("char_count", 0)),
@@ -1476,6 +1583,18 @@ def measure_private_ratecon_pdf(
             intake_status="CLASSIFICATION_SKIPPED_RATECON_EXTRACTION",
             review_required=review_required,
             **classification_fields,
+        )
+        return _with_shadow_document_pipeline(
+            row,
+            pdf_path,
+            document_alias,
+            policy,
+            enabled=ratecon_shadow_document_pipeline,
+            include_debug=include_document_ai_debug,
+            strict=strict_ratecon_shadow_document_pipeline,
+            use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
+            shadow_layout_provider=ratecon_shadow_layout_provider,
+            shadow_table_profile=ratecon_shadow_table_profile,
         )
 
     selected_pages = _selected_candidate_pages(classification_result, artifact)
@@ -1629,7 +1748,7 @@ def measure_private_ratecon_pdf(
         )
     )
 
-    return build_private_ratecon_measurement_row(
+    row = build_private_ratecon_measurement_row(
         document_alias=document_alias,
         page_count=triage_result.get("page_count", extraction.get("page_count", 0)),
         char_count=extraction.get("char_count", triage_result.get("char_count", 0)),
@@ -1867,4 +1986,36 @@ def measure_private_ratecon_pdf(
         ),
         intake_status=validation.get("status", intake.get("status", "")),
         review_required=validation.get("review_required", intake.get("review_required", True)),
+    )
+    legacy_summary = build_legacy_summary_from_resolution(
+        resolution_result=resolution_result,
+        normalized_stop_set=fusion_fields.get("normalized_stop_set", {}),
+        row=row,
+        include_values=include_document_ai_debug,
+    )
+    return _with_shadow_document_pipeline(
+        row,
+        pdf_path,
+        document_alias,
+        policy,
+        enabled=ratecon_shadow_document_pipeline,
+        include_debug=include_document_ai_debug,
+        strict=strict_ratecon_shadow_document_pipeline,
+        legacy_summary=legacy_summary,
+        legacy_context={
+            "candidate_result": candidate_result,
+            "resolver_candidate_result": resolver_candidate_result,
+            "resolution_candidate_result": resolution_candidate_result,
+            "layout_candidate_result": (
+                layout_fields.get("layout_candidate_result") or {}
+            ),
+            "resolution_result": resolution_result,
+            "normalized_stop_set": fusion_fields.get("normalized_stop_set", {}),
+            "span_normalized_stop_set": stop_span_fields.get(
+                "span_normalized_stop_set", {}
+            ),
+        },
+        use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
+        shadow_layout_provider=ratecon_shadow_layout_provider,
+        shadow_table_profile=ratecon_shadow_table_profile,
     )
