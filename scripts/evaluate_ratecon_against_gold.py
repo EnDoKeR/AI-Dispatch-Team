@@ -12,9 +12,11 @@ if str(ROOT) not in sys.path:
 
 from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     EVALUATION_FIELDS,
-    SYSTEM_LEGACY,
-    SYSTEM_SHADOW,
-    SYSTEM_SHADOW_CANDIDATE_BEST,
+    EVALUATION_SYSTEMS,
+    STATUS_GOLD_UNCERTAIN,
+    STATUS_NORMALIZED_MATCH,
+    STATUS_EXACT,
+    STATUS_UNLABELED,
     evaluate_ratecon_against_gold,
     load_gold_labels,
     read_jsonl,
@@ -43,6 +45,15 @@ def build_parser():
     parser.add_argument("--gold-dir", default=str(DEFAULT_GOLD_DIR))
     parser.add_argument("--gold-jsonl", default="")
     parser.add_argument("--audit", default=str(DEFAULT_AUDIT))
+    parser.add_argument(
+        "--legacy-output-dir",
+        default="",
+        help=(
+            "Optional private measurement output directory. Safe summary files "
+            "do not contain private legacy values; use audits generated with "
+            "--include-private-eval-values for comparable local evaluation."
+        ),
+    )
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--baseline-summary", default="")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -58,6 +69,50 @@ def _write_csv(path, fieldnames, rows):
         for row in rows:
             writer.writerow({key: row.get(key, "") for key in fieldnames})
     return path
+
+
+def _record_keys(record):
+    keys = []
+    document_id = str((record or {}).get("document_id") or "").strip()
+    file_hash = str((record or {}).get("file_hash") or "").strip()
+    file_name = str((record or {}).get("file_name") or "").strip()
+    if document_id:
+        keys.append(("document_id", document_id))
+    if file_hash:
+        keys.append(("file_hash", file_hash))
+        keys.append(("file_hash_prefix", file_hash[:16]))
+    if file_name:
+        keys.append(("file_name", file_name))
+        keys.append(("file_stem", Path(file_name).stem))
+    return keys
+
+
+def _merge_private_eval_sidecar(audit_records, legacy_output_dir, audit_path):
+    if not legacy_output_dir:
+        return audit_records, False
+    sidecar = Path(legacy_output_dir) / RATECON_SHADOW_AUDIT_JSONL
+    if not sidecar.exists() or sidecar.resolve() == Path(audit_path).resolve():
+        return audit_records, False
+    sidecar_records = read_jsonl(sidecar)
+    indexed = {}
+    for record in sidecar_records:
+        for key in _record_keys(record):
+            indexed.setdefault(key, record)
+    merged = []
+    changed = False
+    for record in audit_records:
+        updated = dict(record)
+        match = next((indexed.get(key) for key in _record_keys(record) if indexed.get(key)), None)
+        if (
+            match
+            and not updated.get("private_eval_values")
+            and match.get("private_eval_values")
+        ):
+            updated["private_eval_values"] = match.get("private_eval_values")
+            updated["private_eval_values_included"] = True
+            changed = True
+        merged.append(updated)
+    return merged, changed
 
 
 def _field_metric_rows(evaluation):
@@ -94,7 +149,7 @@ def _error_case_rows(evaluation):
     rows = []
     for row in evaluation.get("comparison_rows", []) or []:
         status = row.get("status")
-        if status in {"exact", "normalized_match", "unlabeled", "gold_uncertain"}:
+        if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH, STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
             continue
         rows.append(
             {
@@ -105,6 +160,9 @@ def _error_case_rows(evaluation):
                 "status": status,
                 "issues": ",".join(row.get("issues", []) or []),
                 "confidence": row.get("confidence", ""),
+                "source_status": row.get("source_status", ""),
+                "source": row.get("source", ""),
+                "error_reason": row.get("error_reason", ""),
             }
         )
     return rows
@@ -131,22 +189,24 @@ def _markdown_report(evaluation):
         )
         return "\n".join(lines) + "\n"
     lines.extend(["## Field Metrics", ""])
-    for system_name in [SYSTEM_LEGACY, SYSTEM_SHADOW, SYSTEM_SHADOW_CANDIDATE_BEST]:
+    for system_name in EVALUATION_SYSTEMS:
         fields = (evaluation.get("field_metrics", {}) or {}).get(system_name, {})
         if not fields:
             continue
         lines.extend([f"### {system_name}", ""])
-        lines.append("| field | labeled | precision | recall | missing_rate | wrong_rate | partial_rate |")
-        lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: |")
+        lines.append("| field | labeled | precision | recall | missing_rate | unavailable_rate | serialized_gap_rate | wrong_rate | partial_rate |")
+        lines.append("| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: | ---: |")
         for field_name in EVALUATION_FIELDS:
             metric = fields.get(field_name, {}) or {}
             lines.append(
-                "| {field} | {labeled} | {precision} | {recall} | {missing} | {wrong} | {partial} |".format(
+                "| {field} | {labeled} | {precision} | {recall} | {missing} | {unavailable} | {serialized} | {wrong} | {partial} |".format(
                     field=field_name,
                     labeled=metric.get("labeled_count", 0),
                     precision=metric.get("precision", 0.0),
                     recall=metric.get("recall", 0.0),
                     missing=metric.get("missing_rate", 0.0),
+                    unavailable=metric.get("source_not_available_rate", 0.0),
+                    serialized=metric.get("field_not_serialized_rate", 0.0),
                     wrong=metric.get("wrong_value_rate", 0.0),
                     partial=metric.get("partial_match_rate", 0.0),
                 )
@@ -159,6 +219,21 @@ def _markdown_report(evaluation):
     lines.append(
         "recommended_action_counts: "
         + json.dumps(adjudication.get("recommended_action_counts", {}), sort_keys=True)
+    )
+    lines.extend(["", "## Error Case Breakdown", ""])
+    lines.append(
+        "load_number: "
+        + json.dumps(
+            (evaluation.get("error_case_breakdown", {}) or {}).get("load_number", {}),
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "total_carrier_rate: "
+        + json.dumps(
+            (evaluation.get("error_case_breakdown", {}) or {}).get("total_carrier_rate", {}),
+            sort_keys=True,
+        )
     )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
@@ -177,6 +252,7 @@ def evaluate_and_write(
     gold_path,
     audit_path,
     output_dir,
+    legacy_output_dir="",
     allow_custom_output_dir=False,
 ):
     output_dir = _normalize_local_output_dir(
@@ -186,7 +262,20 @@ def evaluate_and_write(
     output_dir.mkdir(parents=True, exist_ok=True)
     gold_labels = load_gold_labels(gold_path)
     audit_records = read_jsonl(audit_path)
+    audit_records, sidecar_loaded = _merge_private_eval_sidecar(
+        audit_records,
+        legacy_output_dir=legacy_output_dir,
+        audit_path=audit_path,
+    )
     evaluation = evaluate_ratecon_against_gold(gold_labels, audit_records)
+    evaluation["legacy_source"] = {
+        "legacy_output_dir": str(legacy_output_dir or ""),
+        "explicit_legacy_source_loaded": bool(sidecar_loaded),
+        "note": (
+            "Comparable legacy values are read from private_eval_values. "
+            "Safe measurement summaries are redacted and are not used as truth."
+        ),
+    }
     summary_path = output_dir / "ratecon_gold_evaluation_summary.json"
     report_path = output_dir / "ratecon_gold_evaluation_report.md"
     field_csv = output_dir / "ratecon_gold_field_metrics.csv"
@@ -206,6 +295,11 @@ def evaluate_and_write(
             "normalized_match_count",
             "partial_match_count",
             "missing_count",
+            "extractor_missing_count",
+            "source_not_available_count",
+            "field_not_serialized_count",
+            "redacted_not_comparable_count",
+            "unsupported_value_type_count",
             "wrong_value_count",
             "conflict_count",
             "precision",
@@ -236,7 +330,18 @@ def evaluate_and_write(
     )
     _write_csv(
         error_csv,
-        ["document_id", "file_hash", "system", "field", "status", "issues", "confidence"],
+        [
+            "document_id",
+            "file_hash",
+            "system",
+            "field",
+            "status",
+            "issues",
+            "confidence",
+            "source_status",
+            "source",
+            "error_reason",
+        ],
         _error_case_rows(evaluation),
     )
     return {
@@ -264,6 +369,7 @@ def main(argv=None):
         gold_path=gold_path,
         audit_path=args.audit,
         output_dir=args.output_dir,
+        legacy_output_dir=args.legacy_output_dir,
         allow_custom_output_dir=args.allow_custom_output_dir,
     )
     print(

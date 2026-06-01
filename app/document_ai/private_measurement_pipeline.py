@@ -1250,6 +1250,7 @@ def _with_shadow_document_pipeline(
     use_legacy_final_candidates=True,
     shadow_layout_provider="native_text",
     shadow_table_profile="default",
+    include_private_eval_values=False,
 ):
     """Attach shadow diagnostics after legacy row construction.
 
@@ -1267,7 +1268,7 @@ def _with_shadow_document_pipeline(
     include_file_hash = bool(policy.get("include_file_hash_prefix"))
     legacy = legacy_summary or build_legacy_summary_from_resolution(
         row=row,
-        include_values=include_debug,
+        include_values=include_debug or include_private_eval_values,
     )
     shadow_legacy_context = dict(legacy_context or {})
     shadow_legacy_context["legacy_summary"] = legacy
@@ -1288,9 +1289,11 @@ def _with_shadow_document_pipeline(
             pdf_path=pdf_path,
             shadow_result=shadow_result,
             legacy_summary=legacy,
-            include_values=include_debug,
+            include_values=include_debug or include_private_eval_values,
             include_file_name=include_file_name,
             include_file_hash=include_file_hash,
+            include_private_eval_values=include_private_eval_values,
+            private_eval_context=shadow_legacy_context,
         )
     except Exception as exc:
         if strict:
@@ -1459,6 +1462,7 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_use_legacy_final_candidates=True,
     ratecon_shadow_layout_provider="native_text",
     ratecon_shadow_table_profile="default",
+    include_private_eval_values=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -1488,6 +1492,7 @@ def measure_private_ratecon_pdf(
             use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
             shadow_layout_provider=ratecon_shadow_layout_provider,
             shadow_table_profile=ratecon_shadow_table_profile,
+            include_private_eval_values=include_private_eval_values,
         )
 
     extraction = _extract_text_in_memory(pdf_path)
@@ -1518,6 +1523,7 @@ def measure_private_ratecon_pdf(
             use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
             shadow_layout_provider=ratecon_shadow_layout_provider,
             shadow_table_profile=ratecon_shadow_table_profile,
+            include_private_eval_values=include_private_eval_values,
         )
 
     text = extraction.get("text", "")
@@ -1991,7 +1997,7 @@ def measure_private_ratecon_pdf(
         resolution_result=resolution_result,
         normalized_stop_set=fusion_fields.get("normalized_stop_set", {}),
         row=row,
-        include_values=include_document_ai_debug,
+        include_values=include_document_ai_debug or include_private_eval_values,
     )
     return _with_shadow_document_pipeline(
         row,
@@ -2018,4 +2024,5 @@ def measure_private_ratecon_pdf(
         use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
         shadow_layout_provider=ratecon_shadow_layout_provider,
         shadow_table_profile=ratecon_shadow_table_profile,
+        include_private_eval_values=include_private_eval_values,
     )

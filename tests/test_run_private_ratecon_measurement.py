@@ -145,6 +145,27 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("requires --layout-provider pdfplumber", stderr.getvalue())
 
+    def test_cli_private_eval_values_require_shadow_audit(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--include-private-eval-values",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn(
+            "--include-private-eval-values requires --ratecon-shadow-document-pipeline and --write-ratecon-shadow-audit",
+            stderr.getvalue(),
+        )
+
     def test_cli_refuses_unknown_layout_provider(self):
         temp, root = self._fake_pdf_dir(count=1)
         self.addCleanup(temp.cleanup)

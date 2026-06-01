@@ -99,16 +99,55 @@ REFERENCE_TYPES = {
 SYSTEM_LEGACY = "legacy"
 SYSTEM_SHADOW = "shadow"
 SYSTEM_SHADOW_CANDIDATE_BEST = "shadow_candidate_best"
+SYSTEM_SHADOW_BEST_INDEPENDENT = "shadow_best_independent_candidate"
+SYSTEM_SHADOW_BEST_LAYOUT = "shadow_best_layout_candidate"
+SYSTEM_LEGACY_FALLBACK_CANDIDATE = "legacy_fallback_candidate"
 
-STATUS_EXACT = "exact"
-STATUS_NORMALIZED_MATCH = "normalized_match"
+EVALUATION_SYSTEMS = (
+    SYSTEM_LEGACY,
+    SYSTEM_SHADOW,
+    SYSTEM_SHADOW_CANDIDATE_BEST,
+    SYSTEM_SHADOW_BEST_INDEPENDENT,
+    SYSTEM_SHADOW_BEST_LAYOUT,
+    SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+)
+
+STATUS_EXACT = "correct_exact"
+STATUS_NORMALIZED_MATCH = "correct_normalized"
 STATUS_PARTIAL_MATCH = "partial_match"
-STATUS_MISSING = "missing"
-STATUS_WRONG_VALUE = "wrong_value"
+STATUS_MISSING = "extractor_missing"
+STATUS_WRONG_VALUE = "wrong"
 STATUS_CONFLICT = "conflict"
 STATUS_UNLABELED = "unlabeled"
 STATUS_GOLD_UNCERTAIN = "gold_uncertain"
-STATUS_PREDICTION_UNAVAILABLE = "prediction_unavailable"
+STATUS_SOURCE_NOT_AVAILABLE = "source_not_available"
+STATUS_REDACTED_NOT_COMPARABLE = "redacted_not_comparable"
+STATUS_UNSUPPORTED_VALUE_TYPE = "unsupported_value_type"
+STATUS_LEGACY_SOURCE_NOT_AVAILABLE = "legacy_source_not_available"
+STATUS_LEGACY_FIELD_NOT_SERIALIZED = "legacy_field_not_serialized"
+STATUS_LEGACY_EXTRACTOR_MISSING = "legacy_extractor_missing"
+STATUS_SHADOW_COMPONENT_NOT_SERIALIZED = "shadow_component_not_serialized"
+STATUS_SHADOW_REDACTED_NOT_COMPARABLE = "shadow_redacted_not_comparable"
+STATUS_SHADOW_EXTRACTOR_MISSING = "shadow_extractor_missing"
+STATUS_PREDICTION_UNAVAILABLE = STATUS_SOURCE_NOT_AVAILABLE
+
+SOURCE_AVAILABILITY_STATUSES = {
+    STATUS_SOURCE_NOT_AVAILABLE,
+    STATUS_REDACTED_NOT_COMPARABLE,
+    STATUS_UNSUPPORTED_VALUE_TYPE,
+    STATUS_LEGACY_SOURCE_NOT_AVAILABLE,
+    STATUS_LEGACY_FIELD_NOT_SERIALIZED,
+    STATUS_LEGACY_EXTRACTOR_MISSING,
+    STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
+    STATUS_SHADOW_REDACTED_NOT_COMPARABLE,
+    STATUS_SHADOW_EXTRACTOR_MISSING,
+}
+
+EXTRACTOR_MISSING_STATUSES = {
+    STATUS_MISSING,
+    STATUS_LEGACY_EXTRACTOR_MISSING,
+    STATUS_SHADOW_EXTRACTOR_MISSING,
+}
 
 ADJ_LEGACY_CORRECT_SHADOW_WRONG = "legacy_correct_shadow_wrong"
 ADJ_SHADOW_CORRECT_LEGACY_WRONG = "shadow_correct_legacy_wrong"
@@ -588,11 +627,30 @@ def _prediction_value(prediction):
     return prediction
 
 
+def _prediction_source_status(prediction):
+    if isinstance(prediction, dict):
+        status = _text(prediction.get("source_status"))
+        if status:
+            return status
+    return ""
+
+
 def _confidence(prediction):
     if isinstance(prediction, dict):
         value = _safe_float(prediction.get("confidence"))
         return value
     return None
+
+
+def _availability_result(field_name, prediction, status):
+    return {
+        "field": field_name,
+        "status": status,
+        "issues": [status],
+        "confidence": _confidence(prediction),
+        "predicted": False,
+        "gold_labeled": True,
+    }
 
 
 def _compare_text(prediction, gold_value, normalizer=None) -> dict:
@@ -758,6 +816,15 @@ def compare_stops(prediction, gold_stops) -> dict:
     return {"status": STATUS_WRONG_VALUE, "issues": sorted(issues) or ["wrong_stop"]}
 
 
+def _gold_field_has_label(field_name, gold_field) -> bool:
+    if field_name in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+        return any(
+            isinstance(stop, dict) and _stop_has_any_label(stop)
+            for stop in gold_field or []
+        )
+    return bool(_text(_gold_scalar_value(gold_field)))
+
+
 def compare_field(field_name, prediction, gold_field) -> dict:
     if _gold_uncertain(gold_field):
         return {
@@ -766,6 +833,18 @@ def compare_field(field_name, prediction, gold_field) -> dict:
             "issues": ["gold_uncertain"],
             "confidence": _confidence(prediction),
         }
+    source_status = _prediction_source_status(prediction)
+    if source_status in SOURCE_AVAILABILITY_STATUSES:
+        if not _gold_field_has_label(field_name, gold_field):
+            return {
+                "field": field_name,
+                "status": STATUS_UNLABELED,
+                "issues": ["unlabeled"],
+                "confidence": _confidence(prediction),
+                "predicted": False,
+                "gold_labeled": False,
+            }
+        return _availability_result(field_name, prediction, source_status)
     if field_name == FIELD_LOAD_NUMBER:
         result = compare_load_number(prediction, gold_field)
     elif field_name == FIELD_TOTAL_CARRIER_RATE:
@@ -844,28 +923,84 @@ def _find_record(label, indexed):
     )
 
 
-def _legacy_prediction(record, field_name):
+def _private_eval_values(record):
+    if not isinstance(record, dict):
+        return {}
+    values = record.get("private_eval_values", {})
+    return values if isinstance(values, dict) else {}
+
+
+def _private_group_prediction(record, group_name, field_name):
+    payload = _private_eval_values(record)
+    group = payload.get(group_name, {}) if isinstance(payload, dict) else {}
+    if isinstance(group, dict) and field_name in group and isinstance(group.get(field_name), dict):
+        return group[field_name]
+    if isinstance(group, dict) and field_name in group:
+        return {"value": group.get(field_name)}
+    return None
+
+
+def _prediction_with_status(status, confidence=None):
+    return {"value": "", "confidence": confidence, "source_status": status}
+
+
+def _legacy_field_status_from_audit(record, field_name):
     legacy = record.get("legacy", {}) if isinstance(record, dict) else {}
+    if not legacy:
+        return STATUS_LEGACY_SOURCE_NOT_AVAILABLE
+    fields_present = set(legacy.get("fields_present", []) or [])
     if field_name in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
         count_field = "pickup_count" if field_name == FIELD_PICKUP_STOPS else "delivery_count"
         count = _safe_int(legacy.get(count_field))
-        return {"value": [{"stop_index": index + 1} for index in range(count)] if count else ""}
+        if count > 0:
+            return STATUS_LEGACY_FIELD_NOT_SERIALIZED
+        return STATUS_LEGACY_EXTRACTOR_MISSING
+    if _text(legacy.get(field_name)):
+        return ""
+    if field_name in fields_present:
+        return STATUS_LEGACY_FIELD_NOT_SERIALIZED
+    if field_name in legacy:
+        return STATUS_LEGACY_EXTRACTOR_MISSING
+    return STATUS_LEGACY_FIELD_NOT_SERIALIZED
+
+
+def _legacy_prediction(record, field_name):
+    private_prediction = _private_group_prediction(record, "legacy_selected", field_name)
+    if private_prediction is not None:
+        return private_prediction
+    legacy = record.get("legacy", {}) if isinstance(record, dict) else {}
+    if field_name in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+        status = _legacy_field_status_from_audit(record, field_name)
+        if status:
+            return _prediction_with_status(status)
+        return {"value": legacy.get(field_name, ""), "confidence": None}
+    status = _legacy_field_status_from_audit(record, field_name)
+    if status:
+        return _prediction_with_status(status)
     return {"value": legacy.get(field_name, ""), "confidence": None}
 
 
 def _shadow_prediction(record, field_name):
+    private_prediction = _private_group_prediction(record, "shadow_selected", field_name)
+    if private_prediction is not None:
+        return private_prediction
     shadow = record.get("shadow", {}) if isinstance(record, dict) else {}
     fields = shadow.get("resolved_fields", {}) if isinstance(shadow, dict) else {}
     value = fields.get(field_name, {}) if isinstance(fields, dict) else {}
+    if field_name in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS} and isinstance(value, dict):
+        if value.get("structured_stop_summary") and not _coerce_prediction_stops(value):
+            return {
+                **value,
+                "source_status": STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
+            }
     return value if isinstance(value, dict) else {"value": value}
 
 
-def _candidate_best_prediction(record, field_name):
-    shadow = record.get("shadow", {}) if isinstance(record, dict) else {}
-    traces = shadow.get("resolver_decision_traces", {}) if isinstance(shadow, dict) else {}
-    trace = traces.get(field_name, {}) if isinstance(traces, dict) else {}
-    selected = trace.get("selected_candidate", {}) if isinstance(trace, dict) else {}
-    return selected if isinstance(selected, dict) else {"value": ""}
+def _candidate_group_prediction(record, field_name, group_name):
+    private_prediction = _private_group_prediction(record, group_name, field_name)
+    if private_prediction is not None:
+        return private_prediction
+    return _prediction_with_status(STATUS_SOURCE_NOT_AVAILABLE)
 
 
 def _component_prediction(record, field_name, system_name):
@@ -875,7 +1010,14 @@ def _component_prediction(record, field_name, system_name):
     elif system_name == SYSTEM_SHADOW:
         base = _shadow_prediction(record, stop_field)
     else:
-        base = _candidate_best_prediction(record, stop_field)
+        base = _candidate_group_prediction(record, stop_field, system_name)
+    source_status = _prediction_source_status(base)
+    if source_status in SOURCE_AVAILABILITY_STATUSES:
+        return {
+            "value": "",
+            "confidence": _confidence(base),
+            "source_status": source_status,
+        }
     if field_name.endswith("_location"):
         value = _prediction_stop_component(base, "location")
     elif field_name.endswith("_date"):
@@ -884,6 +1026,13 @@ def _component_prediction(record, field_name, system_name):
         value = _prediction_stop_component(base, "time")
     else:
         value = ""
+    if not _text(value) and _coerce_prediction_stops(base):
+        status = (
+            STATUS_LEGACY_FIELD_NOT_SERIALIZED
+            if system_name == SYSTEM_LEGACY
+            else STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        )
+        return {"value": "", "confidence": _confidence(base), "source_status": status}
     return {"value": value, "confidence": _confidence(base)}
 
 
@@ -894,7 +1043,7 @@ def _prediction_for_system(record, field_name, system_name):
         return _legacy_prediction(record, field_name)
     if system_name == SYSTEM_SHADOW:
         return _shadow_prediction(record, field_name)
-    return _candidate_best_prediction(record, field_name)
+    return _candidate_group_prediction(record, field_name, system_name)
 
 
 def _status_correct(status) -> bool:
@@ -903,6 +1052,14 @@ def _status_correct(status) -> bool:
 
 def _status_partial(status) -> bool:
     return status == STATUS_PARTIAL_MATCH
+
+
+def _status_missing(status) -> bool:
+    return status in EXTRACTOR_MISSING_STATUSES
+
+
+def _status_unavailable(status) -> bool:
+    return status in SOURCE_AVAILABILITY_STATUSES and not _status_missing(status)
 
 
 def _empty_metric():
@@ -914,6 +1071,11 @@ def _empty_metric():
         "normalized_match_count": 0,
         "partial_match_count": 0,
         "missing_count": 0,
+        "extractor_missing_count": 0,
+        "source_not_available_count": 0,
+        "field_not_serialized_count": 0,
+        "redacted_not_comparable_count": 0,
+        "unsupported_value_type_count": 0,
         "wrong_value_count": 0,
         "conflict_count": 0,
         "low_confidence_but_correct_count": 0,
@@ -938,12 +1100,21 @@ def _update_metric(metric, comparison):
         metric["normalized_match_count"] += 1
     elif status == STATUS_PARTIAL_MATCH:
         metric["partial_match_count"] += 1
-    elif status == STATUS_MISSING:
+    elif status in EXTRACTOR_MISSING_STATUSES:
         metric["missing_count"] += 1
+        metric["extractor_missing_count"] += 1
     elif status == STATUS_CONFLICT:
         metric["conflict_count"] += 1
     elif status == STATUS_WRONG_VALUE:
         metric["wrong_value_count"] += 1
+    elif status in {STATUS_SOURCE_NOT_AVAILABLE, STATUS_LEGACY_SOURCE_NOT_AVAILABLE}:
+        metric["source_not_available_count"] += 1
+    elif status in {STATUS_LEGACY_FIELD_NOT_SERIALIZED, STATUS_SHADOW_COMPONENT_NOT_SERIALIZED}:
+        metric["field_not_serialized_count"] += 1
+    elif status in {STATUS_REDACTED_NOT_COMPARABLE, STATUS_SHADOW_REDACTED_NOT_COMPARABLE}:
+        metric["redacted_not_comparable_count"] += 1
+    elif status == STATUS_UNSUPPORTED_VALUE_TYPE:
+        metric["unsupported_value_type_count"] += 1
     if confidence is not None:
         if confidence < 0.70 and _status_correct(status):
             metric["low_confidence_but_correct_count"] += 1
@@ -962,6 +1133,9 @@ def _finalize_metric(metric):
     metric["normalized_match_rate"] = round(correct / labeled, 4) if labeled else 0.0
     metric["partial_match_rate"] = round(metric.get("partial_match_count", 0) / labeled, 4) if labeled else 0.0
     metric["missing_rate"] = round(metric.get("missing_count", 0) / labeled, 4) if labeled else 0.0
+    metric["source_not_available_rate"] = round(metric.get("source_not_available_count", 0) / labeled, 4) if labeled else 0.0
+    metric["field_not_serialized_rate"] = round(metric.get("field_not_serialized_count", 0) / labeled, 4) if labeled else 0.0
+    metric["redacted_not_comparable_rate"] = round(metric.get("redacted_not_comparable_count", 0) / labeled, 4) if labeled else 0.0
     metric["wrong_value_rate"] = round(metric.get("wrong_value_count", 0) / labeled, 4) if labeled else 0.0
     return metric
 
@@ -978,13 +1152,14 @@ def _confidence_band(confidence):
 def _build_confidence_calibration(comparison_rows):
     by_field = {}
     for field_name in CRITICAL_FIELDS:
-        rows = [
+        labeled_rows = [
             row
             for row in comparison_rows
             if row["field"] == field_name
             and row["system"] == SYSTEM_SHADOW
             and row["status"] not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
         ]
+        rows = [row for row in labeled_rows if row.get("predicted")]
         band_counts = defaultdict(lambda: {"total": 0, "correct": 0, "wrong": 0, "partial": 0})
         for row in rows:
             band = _confidence_band(row.get("confidence"))
@@ -1004,8 +1179,8 @@ def _build_confidence_calibration(comparison_rows):
             ]
             correct = sum(1 for row in selected if _status_correct(row["status"]))
             precision = round(correct / len(selected), 4) if selected else 0.0
-            recall = round(correct / len(rows), 4) if rows else 0.0
-            review_rate = round(1.0 - (len(selected) / len(rows)), 4) if rows else 1.0
+            recall = round(correct / len(labeled_rows), 4) if labeled_rows else 0.0
+            review_rate = round(1.0 - (len(selected) / len(labeled_rows)), 4) if labeled_rows else 1.0
             f1 = round((2 * precision * recall / (precision + recall)), 4) if precision + recall else 0.0
             threshold_rows.append(
                 {
@@ -1017,11 +1192,12 @@ def _build_confidence_calibration(comparison_rows):
                 }
             )
         by_field[field_name] = {
-            "labeled_count": len(rows),
+            "labeled_count": len(labeled_rows),
+            "predicted_count": len(rows),
             "bands": {key: dict(value) for key, value in sorted(band_counts.items())},
             "recommended_threshold_candidates": threshold_rows,
             "do_not_apply_automatically": True,
-            "small_sample_warning": len(rows) < 30,
+            "small_sample_warning": len(labeled_rows) < 30,
         }
     return by_field
 
@@ -1035,7 +1211,12 @@ def _winner(legacy_status, shadow_status):
         return WINNER_LEGACY
     if shadow_correct:
         return WINNER_SHADOW
-    if legacy_status == STATUS_UNLABELED or shadow_status == STATUS_UNLABELED:
+    if (
+        legacy_status == STATUS_UNLABELED
+        or shadow_status == STATUS_UNLABELED
+        or _status_unavailable(legacy_status)
+        or _status_unavailable(shadow_status)
+    ):
         return WINNER_UNKNOWN
     return WINNER_NEITHER
 
@@ -1049,15 +1230,15 @@ def _adjudication_category(legacy_status, shadow_status):
     shadow_correct = _status_correct(shadow_status)
     if legacy_correct and shadow_correct:
         return ADJ_BOTH_CORRECT
-    if legacy_correct and shadow_status == STATUS_MISSING:
+    if legacy_correct and _status_missing(shadow_status):
         return ADJ_LEGACY_CORRECT_SHADOW_MISSING
-    if shadow_correct and legacy_status == STATUS_MISSING:
+    if shadow_correct and _status_missing(legacy_status):
         return ADJ_LEGACY_MISSING_SHADOW_CORRECT
     if legacy_correct:
         return ADJ_LEGACY_CORRECT_SHADOW_WRONG
     if shadow_correct:
         return ADJ_SHADOW_CORRECT_LEGACY_WRONG
-    if legacy_status == STATUS_MISSING and shadow_status == STATUS_MISSING:
+    if _status_missing(legacy_status) and _status_missing(shadow_status):
         return ADJ_BOTH_MISSING
     return ADJ_BOTH_WRONG
 
@@ -1069,13 +1250,77 @@ def _recommended_action(winner, legacy_status, shadow_status):
         return ACTION_KEEP_LEGACY
     if winner == WINNER_BOTH:
         return ACTION_KEEP_LEGACY
-    if legacy_status == STATUS_MISSING and shadow_status == STATUS_MISSING:
+    if _status_unavailable(legacy_status) or _status_unavailable(shadow_status):
+        return ACTION_MORE_GOLD
+    if _status_missing(legacy_status) and _status_missing(shadow_status):
         return ACTION_IMPROVE_CANDIDATES
     if shadow_status == STATUS_PARTIAL_MATCH:
         return ACTION_RESOLVER_TUNING
     if winner == WINNER_UNKNOWN:
         return ACTION_MORE_GOLD
     return ACTION_REVIEW_REQUIRED
+
+
+def _prediction_metadata(prediction):
+    if not isinstance(prediction, dict):
+        return {}
+    metadata = prediction.get("metadata_summary")
+    if isinstance(metadata, dict):
+        return metadata
+    selected = prediction.get("selected_candidate")
+    if isinstance(selected, dict):
+        metadata = selected.get("metadata") or selected.get("metadata_summary")
+        if isinstance(metadata, dict):
+            return metadata
+    metadata = prediction.get("metadata")
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _prediction_source_name(prediction):
+    if isinstance(prediction, dict):
+        return _text(prediction.get("source"))
+    return ""
+
+
+def _candidate_group_correct(comparisons, group_name):
+    comparison = comparisons.get(group_name, {}) or {}
+    return _status_correct(comparison.get("status"))
+
+
+def _classify_error_reason(field_name, system_name, prediction, comparisons):
+    if system_name != SYSTEM_SHADOW:
+        return ""
+    metadata = _prediction_metadata(prediction)
+    if field_name == FIELD_LOAD_NUMBER:
+        if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
+            return "gold_primary_id_in_candidates_not_selected"
+        hint = _text(metadata.get("id_type_hint")).lower()
+        if hint == "po":
+            return "selected_po_instead_of_load"
+        if hint == "bol":
+            return "selected_bol_instead_of_load"
+        if hint in {"reference", "customer_ref", "pickup_ref", "delivery_ref"}:
+            return "selected_reference_instead_of_load"
+        method = _text(metadata.get("pairing_method"))
+        if method.startswith("table_"):
+            return "table_pairing_wrong"
+        if "layout" in _prediction_source_name(prediction).lower() or method:
+            return "layout_pairing_wrong"
+        return "unknown"
+    if field_name == FIELD_TOTAL_CARRIER_RATE:
+        if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
+            return "gold_total_in_candidates_not_selected"
+        context = _text(metadata.get("money_context")).lower()
+        if context == "linehaul":
+            return "selected_linehaul_instead_of_total"
+        if context in {"accessorial", "fuel"}:
+            return "selected_accessorial_instead_of_total"
+        if context in {"deduction", "fee"}:
+            return "selected_deduction_or_fee"
+        if context and context != "total_rate" and context != "carrier_pay":
+            return "selected_wrong_money_context"
+        return "unknown"
+    return ""
 
 
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
@@ -1115,16 +1360,17 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             gold_field = gold_field_for_evaluation(gold, field_name)
             predictions = {
                 system_name: _prediction_for_system(record, field_name, system_name)
-                for system_name in [
-                    SYSTEM_LEGACY,
-                    SYSTEM_SHADOW,
-                    SYSTEM_SHADOW_CANDIDATE_BEST,
-                ]
+                for system_name in EVALUATION_SYSTEMS
             }
             field_statuses = {}
+            comparisons = {
+                system_name: compare_field(field_name, prediction, gold_field)
+                for system_name, prediction in predictions.items()
+            }
             for system_name, prediction in predictions.items():
-                comparison = compare_field(field_name, prediction, gold_field)
+                comparison = comparisons[system_name]
                 _update_metric(metrics[system_name][field_name], comparison)
+                source_status = _prediction_source_status(prediction)
                 row = {
                     "document_id": _text(label.get("document_id")),
                     "file_hash": _text(label.get("file_hash")),
@@ -1134,6 +1380,16 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "issues": list(comparison.get("issues", [])),
                     "confidence": comparison.get("confidence"),
                     "predicted": comparison.get("predicted", False),
+                    "source_status": source_status,
+                    "source": _prediction_source_name(prediction),
+                    "error_reason": _classify_error_reason(
+                        field_name,
+                        system_name,
+                        prediction,
+                        comparisons,
+                    )
+                    if comparison["status"] == STATUS_WRONG_VALUE
+                    else "",
                 }
                 comparison_rows.append(row)
                 field_statuses[system_name] = comparison["status"]
@@ -1181,6 +1437,18 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
     adjudication_counts = Counter(row["winner"] for row in adjudication)
     category_counts = Counter(row["adjudication_category"] for row in adjudication)
     action_counts = Counter(row["recommended_action"] for row in adjudication)
+    error_case_breakdown = {
+        field_name: dict(
+            Counter(
+                row.get("error_reason") or "unknown"
+                for row in comparison_rows
+                if row.get("system") == SYSTEM_SHADOW
+                and row.get("field") == field_name
+                and row.get("status") == STATUS_WRONG_VALUE
+            ).most_common()
+        )
+        for field_name in [FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE]
+    }
     return {
         "schema_version": "ratecon_gold_evaluation_v1",
         "labels_loaded": len(gold_labels or []),
@@ -1197,6 +1465,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             "recommended_action_counts": dict(action_counts.most_common()),
             "rows": adjudication,
         },
+        "error_case_breakdown": error_case_breakdown,
         "document_metrics": document_rows,
         "comparison_rows": comparison_rows,
         "private_values_printed": False,

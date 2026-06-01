@@ -246,6 +246,84 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertIn("failure_attribution", record)
         self.assertNotIn("FAKE-LOAD-1", payload)
         self.assertFalse(record["private_values_included"])
+        self.assertFalse(record["private_eval_values_included"])
+        self.assertNotIn("private_eval_values", record)
+
+    def test_build_shadow_audit_record_includes_private_eval_values_only_when_requested(self):
+        shadow_result = {
+            "final_output": {"load_number": "FAKE-LOAD-1"},
+            "needs_review": True,
+            "review_reasons": [],
+            "debug": {
+                "triage": {"pdf_type": "born_digital", "page_count": 1},
+                "artifact_summary": {
+                    "source": "native",
+                    "page_count": 1,
+                    "line_count": 1,
+                    "table_count": 0,
+                    "full_text_length": 80,
+                    "full_text_present": True,
+                },
+                "candidates": [
+                    {
+                        "field": "load_number",
+                        "value": "FAKE-LOAD-1",
+                        "source": "native_layout",
+                        "parser_name": "layout_load_identity_pairing_generator",
+                        "confidence": 0.86,
+                        "metadata": {
+                            "id_type_hint": "load",
+                            "pairing_method": "same_row_right",
+                        },
+                    }
+                ],
+                "resolved_fields": {
+                    "load_number": {
+                        "value": "FAKE-LOAD-1",
+                        "confidence": 0.86,
+                        "selected_candidate": {
+                            "value": "FAKE-LOAD-1",
+                            "source": "native_layout",
+                            "parser_name": "layout_load_identity_pairing_generator",
+                            "confidence": 0.86,
+                            "metadata": {"id_type_hint": "load"},
+                        },
+                    }
+                },
+            },
+        }
+        legacy = build_legacy_summary_from_resolution(
+            resolution_result={
+                "resolutions": [
+                    {
+                        "field_name": "load_number",
+                        "selected_candidate_value": "FAKE-LOAD-1",
+                    }
+                ]
+            },
+            include_values=True,
+        )
+
+        record = build_ratecon_shadow_audit_record(
+            "RATECON_001",
+            "fake.pdf",
+            shadow_result,
+            legacy_summary=legacy,
+            include_values=True,
+            include_private_eval_values=True,
+        )
+
+        self.assertTrue(record["private_eval_values_included"])
+        self.assertIn("private_eval_values", record)
+        self.assertEqual(
+            record["private_eval_values"]["legacy_selected"]["load_number"]["value"],
+            "FAKE-LOAD-1",
+        )
+        self.assertEqual(
+            record["private_eval_values"]["shadow_candidate_best"]["load_number"]["value"],
+            "FAKE-LOAD-1",
+        )
+        self.assertFalse(record["private_eval_values"]["raw_text_included"])
 
     def test_candidate_summary_counts_fields_and_sources(self):
         summary = build_candidate_summary(

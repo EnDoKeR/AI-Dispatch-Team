@@ -161,6 +161,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_use_legacy_final_candidates=True,
     ratecon_shadow_layout_provider="native_text",
     ratecon_shadow_table_profile="default",
+    include_private_eval_values=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
     if limit and int(limit) > 0:
@@ -196,6 +197,7 @@ def build_private_ratecon_measurement_report(
             ),
             ratecon_shadow_layout_provider=ratecon_shadow_layout_provider,
             ratecon_shadow_table_profile=ratecon_shadow_table_profile,
+            include_private_eval_values=include_private_eval_values,
         )
         for path in pdfs
     ]
@@ -639,6 +641,15 @@ def main(argv=None):
     parser.add_argument("--include-private-stop-values-local-only", action="store_true")
     parser.add_argument("--include-private-review-values-local-only", action="store_true")
     parser.add_argument("--include-private-review-values-google-test-only", action="store_true")
+    parser.add_argument(
+        "--include-private-eval-values",
+        action="store_true",
+        help=(
+            "Local-only gold-evaluation mode: include comparable private legacy, "
+            "shadow, and candidate values in the shadow audit. Outputs must stay "
+            "under .local_outputs and must not be committed."
+        ),
+    )
     parser.add_argument("--include-filenames-local-only", action="store_true")
     parser.add_argument("--include-file-hash-prefix-local-only", action="store_true")
     parser.add_argument("--allow-custom-output-dir", action="store_true")
@@ -697,6 +708,14 @@ def main(argv=None):
     if args.include_document_ai_debug and not args.ratecon_shadow_document_pipeline:
         _print_expected_config_error(
             "--include-document-ai-debug requires --ratecon-shadow-document-pipeline"
+        )
+        return 2
+
+    if args.include_private_eval_values and not (
+        args.ratecon_shadow_document_pipeline and args.write_ratecon_shadow_audit
+    ):
+        _print_expected_config_error(
+            "--include-private-eval-values requires --ratecon-shadow-document-pipeline and --write-ratecon-shadow-audit"
         )
         return 2
 
@@ -801,6 +820,7 @@ def main(argv=None):
             ),
             ratecon_shadow_layout_provider=args.ratecon_shadow_layout_provider,
             ratecon_shadow_table_profile=args.ratecon_shadow_table_profile,
+            include_private_eval_values=args.include_private_eval_values,
         )
 
         for line in format_private_measurement_report(report):

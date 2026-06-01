@@ -26,6 +26,11 @@ from app.document_ai.ratecon_candidates import (
     FIELD_PICKUP_DATE,
     FIELD_RATE,
 )
+from app.document_ai.structured_stop_values import (
+    FIELD_DELIVERY_STOPS,
+    FIELD_PICKUP_STOPS,
+    normalize_stop_candidate_value,
+)
 
 
 RATECON_SHADOW_AUDIT_VERSION = "ratecon_shadow_document_pipeline_audit_v1"
@@ -1390,6 +1395,345 @@ def _sanitize_resolved_fields(resolved_fields, include_values=False):
     }
 
 
+PRIVATE_EVAL_SCALAR_FIELDS = (
+    FIELD_LOAD_NUMBER,
+    "total_carrier_rate",
+    FIELD_BROKER_NAME,
+    FIELD_CARRIER_NAME,
+)
+
+PRIVATE_EVAL_STOP_FIELDS = (FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS)
+
+
+def _json_safe(value):
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    if isinstance(value, Decimal):
+        return str(value)
+    if isinstance(value, dict):
+        return {str(key): _json_safe(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_json_safe(item) for item in value]
+    return _text(value)
+
+
+def _metadata_eval_summary(metadata):
+    metadata = metadata if isinstance(metadata, dict) else {}
+    safe_keys = [
+        "id_type_hint",
+        "label_strength",
+        "canonical_mapping_strength",
+        "money_context",
+        "is_total_rate_candidate",
+        "diagnostic_fallback",
+        "not_independent_candidate",
+        "independent_candidate",
+        "layout_provider",
+        "pairing_method",
+        "layout_table_pairing_method",
+        "table_cell_candidate",
+        "table_index",
+        "row_index",
+        "stop_role",
+        "structured_stop_candidate",
+        "partial_stop_candidate",
+        "ambiguous_stop_candidate",
+        "has_location",
+        "has_date",
+        "has_time",
+        "has_facility",
+        "has_address",
+        "structure_status",
+        "stop_structure_status",
+    ]
+    return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
+
+
+def _has_real_stop_component(stop):
+    if not isinstance(stop, dict):
+        return False
+    for key in ["facility", "address", "city", "state", "zip", "date", "time", "appointment_window"]:
+        value = _text(stop.get(key))
+        if value and value != "__present__":
+            return True
+    return False
+
+
+def _private_stop_prediction(value, field_name, confidence=0.0, source="", parser_name="", metadata=None):
+    metadata = metadata if isinstance(metadata, dict) else {}
+    normalized = normalize_stop_candidate_value(value, field_name, metadata)
+    stops = [
+        {
+            "role": _text(stop.get("role")),
+            "stop_index": stop.get("stop_index") or 1,
+            "facility": _text(stop.get("facility")),
+            "address": _text(stop.get("address")),
+            "city": _text(stop.get("city")),
+            "state": _text(stop.get("state")),
+            "zip": _text(stop.get("zip")),
+            "date": _text(stop.get("date")),
+            "time": _text(stop.get("time")),
+            "appointment_window": _text(stop.get("appointment_window")),
+            "confidence": round(float(confidence or 0.0), 3),
+            "source": _text(source),
+            "structure_status": _text(normalized.get("structure_status")),
+        }
+        for stop in normalized.get("stops", []) or []
+        if isinstance(stop, dict)
+    ]
+    payload = {
+        "value": stops if any(_has_real_stop_component(stop) for stop in stops) else "",
+        "confidence": round(float(confidence or 0.0), 3),
+        "source": _text(source),
+        "parser_name": _text(parser_name),
+        "structure_status": _text(normalized.get("structure_status")),
+        "component_values_serialized": bool(any(_has_real_stop_component(stop) for stop in stops)),
+        "metadata_summary": _metadata_eval_summary(metadata),
+    }
+    if stops and not payload["component_values_serialized"]:
+        payload["source_status"] = "shadow_component_not_serialized"
+    return payload
+
+
+def _candidate_eval_prediction(candidate, field_name):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    confidence = round(float(candidate.get("confidence") or 0.0), 3)
+    source = _text(candidate.get("source"))
+    parser_name = _text(candidate.get("parser_name"))
+    value = candidate.get("value")
+    if field_name in PRIVATE_EVAL_STOP_FIELDS:
+        return _private_stop_prediction(
+            value,
+            field_name,
+            confidence=confidence,
+            source=source,
+            parser_name=parser_name,
+            metadata=metadata,
+        )
+    return {
+        "value": _json_safe(value),
+        "normalized_value": _json_safe(candidate.get("normalized_value")),
+        "confidence": confidence,
+        "source": source,
+        "parser_name": parser_name,
+        "label": _text(candidate.get("label")),
+        "value_shape": value_shape(value),
+        "metadata_summary": _metadata_eval_summary(metadata),
+    }
+
+
+def _resolved_eval_prediction(resolution, field_name):
+    resolution = resolution if isinstance(resolution, dict) else {}
+    selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
+    metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    confidence = round(float(resolution.get("confidence") or selected.get("confidence") or 0.0), 3)
+    source = _text(selected.get("source") or resolution.get("source"))
+    parser_name = _text(selected.get("parser_name"))
+    if field_name in PRIVATE_EVAL_STOP_FIELDS:
+        value = selected.get("value") if selected else resolution.get("value")
+        return _private_stop_prediction(
+            value,
+            field_name,
+            confidence=confidence,
+            source=source,
+            parser_name=parser_name,
+            metadata=metadata,
+        )
+    value = resolution.get("value")
+    if value in ["", None] and selected:
+        value = selected.get("value")
+    return {
+        "value": _json_safe(value),
+        "normalized_value": _json_safe(selected.get("normalized_value")),
+        "confidence": confidence,
+        "source": source,
+        "parser_name": parser_name,
+        "label": _text(selected.get("label")),
+        "value_shape": value_shape(value),
+        "metadata_summary": _metadata_eval_summary(metadata),
+    }
+
+
+def _candidate_field(candidate):
+    field_name = _text((candidate or {}).get("field"))
+    if field_name == FIELD_RATE:
+        return "total_carrier_rate"
+    return field_name
+
+
+def _candidate_is_layout(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    source = _text((candidate or {}).get("source")).lower()
+    parser_name = _text((candidate or {}).get("parser_name")).lower()
+    return (
+        "layout" in source
+        or "layout" in parser_name
+        or bool(metadata.get("layout_provider"))
+        or bool(metadata.get("table_cell_candidate"))
+        or _text(metadata.get("pairing_method")).startswith("table_")
+    )
+
+
+def _candidate_is_fallback(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(metadata.get("diagnostic_fallback") or metadata.get("not_independent_candidate"))
+
+
+def _candidate_rank(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    score = float((candidate or {}).get("confidence") or 0.0)
+    if _candidate_is_layout(candidate):
+        score += 0.03
+    if _text(metadata.get("canonical_mapping_strength")) == "strong":
+        score += 0.02
+    if metadata.get("structured_stop_candidate") and metadata.get("has_location") and (
+        metadata.get("has_date") or metadata.get("has_time")
+    ):
+        score += 0.04
+    if _candidate_is_fallback(candidate):
+        score -= 0.08
+    return score
+
+
+def _best_candidate(candidates, field_name, predicate=None):
+    field_candidates = [
+        candidate
+        for candidate in candidates or []
+        if isinstance(candidate, dict)
+        and _candidate_field(candidate) == field_name
+        and (predicate(candidate) if predicate else True)
+    ]
+    if not field_candidates:
+        return None
+    return sorted(field_candidates, key=_candidate_rank, reverse=True)[0]
+
+
+def _stops_from_private_stop_set(stop_set, role):
+    stop_set = stop_set if isinstance(stop_set, dict) else {}
+    stops = []
+    for index, stop in enumerate(stop_set.get("stops", []) or [], start=1):
+        if not isinstance(stop, dict) or _text(stop.get("stop_type")) != role:
+            continue
+        fields = {
+            _text(item.get("field_name")): item
+            for item in stop.get("fields", []) or []
+            if isinstance(item, dict)
+        }
+        # Normalized legacy stops usually contain field status/provenance, not
+        # private component values. Preserve real values only if a local debug
+        # source already put them there.
+        def field_value(*names):
+            for name in names:
+                item = fields.get(name)
+                if isinstance(item, dict):
+                    value = item.get("value") or item.get("selected_value") or item.get("raw_value")
+                    if _text(value):
+                        return _text(value)
+            return ""
+
+        stops.append(
+            {
+                "role": role,
+                "stop_index": stop.get("sequence") or index,
+                "facility": field_value("facility_name"),
+                "address": field_value("address"),
+                "city": field_value("city", "city_state", "location"),
+                "state": field_value("state"),
+                "zip": field_value("zip"),
+                "date": field_value("date"),
+                "time": field_value("time"),
+                "appointment_window": field_value("appointment_window"),
+                "confidence": round(float(stop.get("confidence") or 0.0), 3),
+                "source": "legacy_normalized_stop_set",
+                "structure_status": "legacy_normalized_stop",
+            }
+        )
+    return stops
+
+
+def _legacy_eval_predictions(legacy_summary=None, private_eval_context=None):
+    legacy_summary = legacy_summary if isinstance(legacy_summary, dict) else {}
+    private_eval_context = private_eval_context if isinstance(private_eval_context, dict) else {}
+    comparison = legacy_summary.get("_comparison_values", {}) or {}
+    payload = {}
+    for field_name in PRIVATE_EVAL_SCALAR_FIELDS:
+        value = comparison.get(field_name, legacy_summary.get(field_name, ""))
+        if _text(value):
+            payload[field_name] = {
+                "value": _json_safe(value),
+                "confidence": None,
+                "source": "legacy_measurement_resolution",
+            }
+        else:
+            payload[field_name] = {
+                "value": "",
+                "confidence": None,
+                "source_status": "legacy_extractor_missing",
+            }
+    stop_set = private_eval_context.get("normalized_stop_set", {}) or {}
+    for field_name, role, count_key in [
+        (FIELD_PICKUP_STOPS, "pickup", "pickup_count"),
+        (FIELD_DELIVERY_STOPS, "delivery", "delivery_count"),
+    ]:
+        stops = _stops_from_private_stop_set(stop_set, role)
+        if any(_has_real_stop_component(stop) for stop in stops):
+            payload[field_name] = {
+                "value": stops,
+                "confidence": None,
+                "source": "legacy_normalized_stop_set",
+                "component_values_serialized": True,
+            }
+        elif _safe_int(legacy_summary.get(count_key) or comparison.get(count_key)) > 0:
+            payload[field_name] = {
+                "value": "",
+                "confidence": None,
+                "source_status": "legacy_field_not_serialized",
+            }
+        else:
+            payload[field_name] = {
+                "value": "",
+                "confidence": None,
+                "source_status": "legacy_extractor_missing",
+            }
+    return payload
+
+
+def build_private_eval_values(raw_resolved=None, candidates=None, legacy_summary=None, private_eval_context=None):
+    raw_resolved = raw_resolved if isinstance(raw_resolved, dict) else {}
+    candidates = [candidate for candidate in candidates or [] if isinstance(candidate, dict)]
+    payload = {
+        "schema_version": "ratecon_private_eval_values_v1",
+        "legacy_selected": _legacy_eval_predictions(
+            legacy_summary=legacy_summary,
+            private_eval_context=private_eval_context,
+        ),
+        "shadow_selected": {},
+        "shadow_candidate_best": {},
+        "shadow_best_independent_candidate": {},
+        "shadow_best_layout_candidate": {},
+        "legacy_fallback_candidate": {},
+        "raw_text_included": False,
+        "evidence_text_included": False,
+    }
+    for field_name in PRIVATE_EVAL_SCALAR_FIELDS + PRIVATE_EVAL_STOP_FIELDS:
+        if field_name in raw_resolved:
+            payload["shadow_selected"][field_name] = _resolved_eval_prediction(
+                raw_resolved.get(field_name, {}),
+                field_name,
+            )
+        for group_name, predicate in [
+            ("shadow_candidate_best", None),
+            ("shadow_best_independent_candidate", lambda candidate: not _candidate_is_fallback(candidate)),
+            ("shadow_best_layout_candidate", _candidate_is_layout),
+            ("legacy_fallback_candidate", _candidate_is_fallback),
+        ]:
+            candidate = _best_candidate(candidates, field_name, predicate=predicate)
+            if candidate:
+                payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+    return payload
+
+
 def _field_resolution(resolved_fields, field_name):
     return (resolved_fields or {}).get(field_name, {}) or {}
 
@@ -1992,6 +2336,8 @@ def build_ratecon_shadow_audit_record(
     include_values=False,
     include_file_name=False,
     include_file_hash=False,
+    include_private_eval_values=False,
+    private_eval_context=None,
 ):
     debug = (shadow_result or {}).get("debug", {}) or {}
     final_output = (shadow_result or {}).get("final_output", {}) or {}
@@ -2058,7 +2404,7 @@ def build_ratecon_shadow_audit_record(
         comparison=comparison,
     )
     file_path = Path(pdf_path or "")
-    return {
+    record = {
         "document_id": _text(document_alias),
         "file_name": file_path.name if include_file_name else "",
         "file_hash": triage.get("file_hash", ""),
@@ -2078,9 +2424,18 @@ def build_ratecon_shadow_audit_record(
         "failure_attribution": attribution,
         "analysis_version": RATECON_SHADOW_AUDIT_VERSION,
         "private_values_included": bool(include_values),
+        "private_eval_values_included": bool(include_private_eval_values),
         "raw_text_included": False,
         "raw_text_printed": False,
     }
+    if include_private_eval_values:
+        record["private_eval_values"] = build_private_eval_values(
+            raw_resolved=raw_resolved,
+            candidates=candidates,
+            legacy_summary=legacy_summary,
+            private_eval_context=private_eval_context,
+        )
+    return record
 
 
 def build_ratecon_shadow_error_record(
@@ -2187,6 +2542,7 @@ def build_ratecon_shadow_error_record(
         },
         "analysis_version": RATECON_SHADOW_AUDIT_VERSION,
         "private_values_included": False,
+        "private_eval_values_included": False,
         "raw_text_included": False,
         "raw_text_printed": False,
     }
