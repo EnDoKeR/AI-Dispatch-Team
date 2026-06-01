@@ -1114,16 +1114,26 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         rate_equivalence_source = source_text(
             DOCUMENT_AI_PACKAGE / "rate_candidate_equivalence.py"
         )
+        dispatcher_review_source = source_text(
+            DOCUMENT_AI_PACKAGE / "dispatcher_review_table.py"
+        )
         review_packet_v2_cli_source = source_text(
             SCRIPTS / "generate_ratecon_review_packet_v2.py"
         )
         feedback_import_cli_source = source_text(
             SCRIPTS / "import_ratecon_review_feedback.py"
         )
+        dispatcher_review_v3_cli_source = source_text(
+            SCRIPTS / "generate_dispatcher_review_table_v3.py"
+        )
+        dispatcher_feedback_import_cli_source = source_text(
+            SCRIPTS / "import_dispatcher_review_feedback.py"
+        )
         policy_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_core_field_policy.py")
         gitignore = source_text(ROOT / ".gitignore")
 
         self.assertIn(".local_outputs/", gitignore)
+        self.assertIn(".local_private/", gitignore)
         self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", workbook_source)
         self.assertIn("ratecon_review_workbook.xlsx", workbook_source)
         self.assertIn("ratecon_review_stop_review.csv", workbook_source)
@@ -1201,6 +1211,28 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("print(", rate_conflict_source)
         self.assertIn('"money_values_included": False', rate_equivalence_source)
         assert_no_print_call(self, DOCUMENT_AI_PACKAGE / "rate_candidate_equivalence.py")
+        self.assertIn("ratecon_review_v3_dispatcher_workbook.xlsx", dispatcher_review_source)
+        self.assertIn("ratecon_review_v3_dispatcher_review.csv", dispatcher_review_source)
+        self.assertIn("ratecon_review_v3_extraction_audit.csv", dispatcher_review_source)
+        self.assertIn('"private_values_printed": False', dispatcher_review_source)
+        self.assertIn('"raw_text_printed": False', dispatcher_review_source)
+        self.assertIn('"money_values_printed": False', dispatcher_review_source)
+        self.assertNotIn("print(", dispatcher_review_source)
+        self.assertIn("write_dispatcher_review_v3_artifacts", dispatcher_review_v3_cli_source)
+        self.assertIn("private_values_printed: False", dispatcher_review_v3_cli_source)
+        self.assertIn("money_values_printed: False", dispatcher_review_v3_cli_source)
+        self.assertIn("raw_text_printed: False", dispatcher_review_v3_cli_source)
+        self.assertIn("local_paths_printed: False", dispatcher_review_v3_cli_source)
+        self.assertIn(
+            "dispatcher_review_feedback_summary.json",
+            dispatcher_feedback_import_cli_source,
+        )
+        self.assertIn("corrected_values_printed: False", dispatcher_feedback_import_cli_source)
+        self.assertIn("private_notes_printed: False", dispatcher_feedback_import_cli_source)
+        self.assertIn("private_values_printed: False", dispatcher_feedback_import_cli_source)
+        self.assertIn("money_values_printed: False", dispatcher_feedback_import_cli_source)
+        self.assertIn("raw_text_printed: False", dispatcher_feedback_import_cli_source)
+        self.assertIn("local_paths_printed: False", dispatcher_feedback_import_cli_source)
         self.assertIn("POLICY_VERSION", policy_source)
         self.assertIn("FIELD_POLICY_ROLE_INTAKE_CORE", policy_source)
         self.assertNotIn("print(", policy_source)
@@ -1221,8 +1253,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             rate_forensics_source,
             rate_conflict_source,
             rate_equivalence_source,
+            dispatcher_review_source,
             review_packet_v2_cli_source,
             feedback_import_cli_source,
+            dispatcher_review_v3_cli_source,
+            dispatcher_feedback_import_cli_source,
             policy_source,
         ]:
             for forbidden in [
