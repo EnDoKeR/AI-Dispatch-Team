@@ -6,6 +6,13 @@ they keep only booleans, counts, aliases, field names, and issue types.
 """
 
 from collections import Counter
+import csv
+from pathlib import Path
+
+from app.document_ai.private_measurement_outputs import (
+    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+    _normalize_output_dir,
+)
 
 from app.document_ai.review_issue_taxonomy import (
     REVIEW_ISSUE_TYPE_BROKER_MISSING,
@@ -28,6 +35,19 @@ from app.document_ai.review_feedback_target_selector import (
 
 
 DISPATCHER_REVIEW_TABLE_VERSION = "dispatcher_review_table_v3"
+
+DISPATCHER_REVIEW_V3_WORKBOOK_XLSX = "ratecon_review_v3_dispatcher_workbook.xlsx"
+DISPATCHER_REVIEW_V3_REVIEW_CSV = "ratecon_review_v3_dispatcher_review.csv"
+DISPATCHER_REVIEW_V3_AUDIT_CSV = "ratecon_review_v3_extraction_audit.csv"
+DISPATCHER_REVIEW_V3_INSTRUCTIONS_CSV = "ratecon_review_v3_instructions.csv"
+DISPATCHER_REVIEW_V3_FEEDBACK_SUMMARY_CSV = (
+    "ratecon_review_v3_feedback_summary.csv"
+)
+
+SHEET_DISPATCHER_REVIEW = "Dispatcher_Review"
+SHEET_EXTRACTION_AUDIT = "Extraction_Audit"
+SHEET_REVIEW_INSTRUCTIONS = "Review_Instructions"
+SHEET_FEEDBACK_SUMMARY = "Feedback_Summary"
 
 DISPATCHER_FIELD_BROKER = "broker"
 DISPATCHER_FIELD_PICKUP = "pickup"
@@ -56,6 +76,66 @@ DISPATCHER_EDITABLE_FIELDS = [
     DISPATCHER_FIELD_FINAL_RATE,
     DISPATCHER_FIELD_SPECIAL_REQUIREMENTS,
 ]
+
+DISPATCHER_REVIEW_COLUMNS = [
+    "Folder Order",
+    "Local Document Name / File Stem",
+    "Measurement Alias",
+    "Document Type",
+    "OCR Needed",
+    "Extraction Relevant",
+    "Readiness Level",
+    "Review Priority",
+    "Source",
+    "Broker",
+    "Pickup",
+    "Pickup Date",
+    "Delivery",
+    "Delivery Date",
+    "Load No",
+    "Carrier",
+    "Trailer Type",
+    "Commodity",
+    "Total Weight",
+    "Final Rate",
+    "Special Requirements",
+    "Top Blockers",
+    "Predicted Status Summary",
+    "User Review Status",
+    "User Notes Local Only",
+    "User Corrected Broker",
+    "User Corrected Pickup",
+    "User Corrected Pickup Date",
+    "User Corrected Delivery",
+    "User Corrected Delivery Date",
+    "User Corrected Load No",
+    "User Corrected Final Rate",
+]
+
+DISPATCHER_AUDIT_COLUMNS = [
+    "Measurement Alias",
+    "Field Name",
+    "Predicted Value LOCAL ONLY",
+    "Predicted Status",
+    "Candidate Count",
+    "Conflict Reason",
+    "Gap Reason",
+    "Source Sheet",
+    "Source Field",
+    "Blocker Type",
+    "Warning Codes",
+]
+
+DISPATCHER_INSTRUCTIONS_COLUMNS = ["Section", "Instruction"]
+
+DISPATCHER_FEEDBACK_SUMMARY_COLUMNS = ["Metric", "Value"]
+
+DISPATCHER_REVIEW_COLUMNS_BY_SHEET = {
+    SHEET_DISPATCHER_REVIEW: DISPATCHER_REVIEW_COLUMNS,
+    SHEET_EXTRACTION_AUDIT: DISPATCHER_AUDIT_COLUMNS,
+    SHEET_REVIEW_INSTRUCTIONS: DISPATCHER_INSTRUCTIONS_COLUMNS,
+    SHEET_FEEDBACK_SUMMARY: DISPATCHER_FEEDBACK_SUMMARY_COLUMNS,
+}
 
 FIELD_TO_REVIEW_COLUMN = {
     DISPATCHER_FIELD_BROKER: "Broker",
@@ -598,4 +678,196 @@ def aggregate_dispatcher_feedback(feedback_rows):
         "private_values_included": False,
         "raw_text_included": False,
         "money_values_included": False,
+    }
+
+
+def dispatcher_instruction_rows(include_private_values=False):
+    return [
+        {
+            "Section": "Review",
+            "Instruction": "Edit Dispatcher_Review values directly or use User Corrected columns for corrections.",
+        },
+        {
+            "Section": "Audit",
+            "Instruction": "Extraction_Audit preserves original predictions and statuses for feedback import. Do not edit it.",
+        },
+        {
+            "Section": "Private values",
+            "Instruction": (
+                "Predicted values are included for local review only."
+                if include_private_values
+                else "Predicted values are blank in status-only mode."
+            ),
+        },
+        {
+            "Section": "Do not share",
+            "Instruction": "Do not share predicted values, corrected values, raw text, private filenames, local paths, money amounts, or service account keys.",
+        },
+        {
+            "Section": "No automation",
+            "Instruction": "This table does not create DispatchCases, decisions, Telegram messages, or event timeline entries.",
+        },
+    ]
+
+
+def dispatcher_feedback_summary_rows(feedback_aggregate=None):
+    aggregate = feedback_aggregate or {}
+    rows = [
+        {"Metric": "rows_loaded", "Value": aggregate.get("rows_loaded", 0)},
+        {
+            "Metric": "changed_field_count",
+            "Value": aggregate.get("changed_field_count", 0),
+        },
+        {
+            "Metric": "recommended_next_repair_target",
+            "Value": aggregate.get("recommended_next_repair_target", ""),
+        },
+    ]
+    for issue_type, count in (aggregate.get("issue_type_counts", {}) or {}).items():
+        rows.append({"Metric": f"issue_type:{issue_type}", "Value": count})
+    return rows
+
+
+def build_dispatcher_review_v3_rows_by_sheet(
+    dispatcher_rows,
+    audit_rows,
+    include_private_values=False,
+    feedback_aggregate=None,
+):
+    return {
+        SHEET_DISPATCHER_REVIEW: dispatcher_rows or [],
+        SHEET_EXTRACTION_AUDIT: audit_rows or [],
+        SHEET_REVIEW_INSTRUCTIONS: dispatcher_instruction_rows(
+            include_private_values=include_private_values
+        ),
+        SHEET_FEEDBACK_SUMMARY: dispatcher_feedback_summary_rows(feedback_aggregate),
+    }
+
+
+def summarize_dispatcher_review_v3_rows(rows_by_sheet):
+    return {
+        "document_rows": len(
+            (rows_by_sheet or {}).get(SHEET_DISPATCHER_REVIEW, []) or []
+        ),
+        "audit_rows": len((rows_by_sheet or {}).get(SHEET_EXTRACTION_AUDIT, []) or []),
+        "instruction_rows": len(
+            (rows_by_sheet or {}).get(SHEET_REVIEW_INSTRUCTIONS, []) or []
+        ),
+        "feedback_summary_rows": len(
+            (rows_by_sheet or {}).get(SHEET_FEEDBACK_SUMMARY, []) or []
+        ),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "money_values_printed": False,
+    }
+
+
+def _write_csv(path, rows, columns):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=columns)
+        writer.writeheader()
+        for row in rows or []:
+            writer.writerow({column: row.get(column, "") for column in columns})
+
+
+def _write_xlsx_if_available(path, rows_by_sheet):
+    try:
+        from openpyxl import Workbook
+        from openpyxl.styles import Font, PatternFill
+        from openpyxl.utils import get_column_letter
+    except Exception:
+        return False
+
+    workbook = Workbook()
+    default_sheet = workbook.active
+    workbook.remove(default_sheet)
+    header_fill = PatternFill("solid", fgColor="D9EAF7")
+
+    for sheet_name, columns in DISPATCHER_REVIEW_COLUMNS_BY_SHEET.items():
+        sheet = workbook.create_sheet(title=sheet_name)
+        sheet.append(columns)
+        for row in (rows_by_sheet or {}).get(sheet_name, []) or []:
+            sheet.append([row.get(column, "") for column in columns])
+        for cell in sheet[1]:
+            cell.font = Font(bold=True)
+            cell.fill = header_fill
+        sheet.freeze_panes = "A2"
+        sheet.auto_filter.ref = sheet.dimensions
+        for index, column in enumerate(columns, start=1):
+            sheet.column_dimensions[get_column_letter(index)].width = min(
+                max(len(column) + 2, 12),
+                44,
+            )
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    workbook.save(path)
+    return True
+
+
+def write_dispatcher_review_v3_artifacts(
+    dispatcher_rows,
+    audit_rows,
+    output_dir=None,
+    include_private_values=False,
+    feedback_aggregate=None,
+    write_workbook=True,
+    write_csvs=True,
+    allow_custom_output_dir=False,
+):
+    output_root = _normalize_output_dir(
+        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+        allow_custom_output_dir=allow_custom_output_dir,
+    )
+    rows_by_sheet = build_dispatcher_review_v3_rows_by_sheet(
+        dispatcher_rows,
+        audit_rows,
+        include_private_values=include_private_values,
+        feedback_aggregate=feedback_aggregate,
+    )
+    paths = {}
+    if write_csvs:
+        csv_specs = {
+            "dispatcher_review_csv": (
+                DISPATCHER_REVIEW_V3_REVIEW_CSV,
+                SHEET_DISPATCHER_REVIEW,
+                DISPATCHER_REVIEW_COLUMNS,
+            ),
+            "extraction_audit_csv": (
+                DISPATCHER_REVIEW_V3_AUDIT_CSV,
+                SHEET_EXTRACTION_AUDIT,
+                DISPATCHER_AUDIT_COLUMNS,
+            ),
+            "instructions_csv": (
+                DISPATCHER_REVIEW_V3_INSTRUCTIONS_CSV,
+                SHEET_REVIEW_INSTRUCTIONS,
+                DISPATCHER_INSTRUCTIONS_COLUMNS,
+            ),
+            "feedback_summary_csv": (
+                DISPATCHER_REVIEW_V3_FEEDBACK_SUMMARY_CSV,
+                SHEET_FEEDBACK_SUMMARY,
+                DISPATCHER_FEEDBACK_SUMMARY_COLUMNS,
+            ),
+        }
+        for key, (filename, sheet_name, columns) in csv_specs.items():
+            path = output_root / filename
+            _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
+            paths[key] = path
+    xlsx_written = False
+    if write_workbook:
+        xlsx_path = output_root / DISPATCHER_REVIEW_V3_WORKBOOK_XLSX
+        xlsx_written = _write_xlsx_if_available(xlsx_path, rows_by_sheet)
+        if xlsx_written:
+            paths["dispatcher_review_workbook_xlsx"] = xlsx_path
+    return {
+        "paths": paths,
+        "rows_by_sheet": rows_by_sheet,
+        "summary": summarize_dispatcher_review_v3_rows(rows_by_sheet),
+        "xlsx_written": xlsx_written,
+        "csvs_written": bool(write_csvs),
+        "include_private_values_local_only": bool(include_private_values),
+        "local_only": True,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "money_values_printed": False,
     }

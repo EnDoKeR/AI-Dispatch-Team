@@ -1,13 +1,21 @@
+import csv
 import json
+import tempfile
 import unittest
+from pathlib import Path
 
 from app.document_ai.dispatcher_review_table import (
+    DISPATCHER_REVIEW_COLUMNS,
+    DISPATCHER_REVIEW_V3_AUDIT_CSV,
+    DISPATCHER_REVIEW_V3_REVIEW_CSV,
+    DISPATCHER_REVIEW_V3_WORKBOOK_XLSX,
     aggregate_dispatcher_feedback,
     build_dispatcher_review_table_from_rows,
     build_dispatcher_audit_row,
     build_dispatcher_feedback_row,
     build_dispatcher_review_row,
     infer_dispatcher_issue_type,
+    write_dispatcher_review_v3_artifacts,
 )
 
 
@@ -168,6 +176,74 @@ class DispatcherReviewTableTests(unittest.TestCase):
 
         self.assertEqual(result["dispatcher_rows"][0]["Broker"], "")
         self.assertEqual(result["audit_rows"][0]["Predicted Value LOCAL ONLY"], "")
+
+    def test_exports_v3_csvs_and_workbook_if_available(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            dispatcher_rows = [
+                build_dispatcher_review_row(
+                    measurement_alias="RATECON_003",
+                    broker="Fake Broker",
+                    pickup="Fake Pickup",
+                )
+            ]
+            audit_rows = [
+                build_dispatcher_audit_row(
+                    measurement_alias="RATECON_003",
+                    field_name="broker",
+                    predicted_value_local_only="Fake Broker",
+                    predicted_status="resolved",
+                )
+            ]
+            output = write_dispatcher_review_v3_artifacts(
+                dispatcher_rows,
+                audit_rows,
+                output_dir=Path(tmp),
+                include_private_values=True,
+                allow_custom_output_dir=True,
+            )
+
+            self.assertEqual(
+                output["paths"]["dispatcher_review_csv"].name,
+                DISPATCHER_REVIEW_V3_REVIEW_CSV,
+            )
+            self.assertEqual(
+                output["paths"]["extraction_audit_csv"].name,
+                DISPATCHER_REVIEW_V3_AUDIT_CSV,
+            )
+            if output["xlsx_written"]:
+                self.assertEqual(
+                    output["paths"]["dispatcher_review_workbook_xlsx"].name,
+                    DISPATCHER_REVIEW_V3_WORKBOOK_XLSX,
+                )
+
+            with output["paths"]["dispatcher_review_csv"].open(
+                encoding="utf-8",
+                newline="",
+            ) as handle:
+                rows = list(csv.DictReader(handle))
+
+            self.assertEqual(list(rows[0].keys()), DISPATCHER_REVIEW_COLUMNS)
+            self.assertEqual(rows[0]["Broker"], "Fake Broker")
+            self.assertFalse(output["private_values_printed"])
+
+    def test_exporter_can_write_status_only_rows(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            output = write_dispatcher_review_v3_artifacts(
+                [build_dispatcher_review_row(measurement_alias="RATECON_004")],
+                [build_dispatcher_audit_row(measurement_alias="RATECON_004")],
+                output_dir=Path(tmp),
+                include_private_values=False,
+                allow_custom_output_dir=True,
+            )
+
+            with output["paths"]["dispatcher_review_csv"].open(
+                encoding="utf-8",
+                newline="",
+            ) as handle:
+                rows = list(csv.DictReader(handle))
+
+            self.assertEqual(rows[0]["Broker"], "")
+            self.assertFalse(output["private_values_printed"])
 
 
 if __name__ == "__main__":
