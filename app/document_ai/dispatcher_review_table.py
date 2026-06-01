@@ -77,6 +77,29 @@ FIELD_TO_CORRECTION_COLUMN = {
     for field_name, column_name in FIELD_TO_REVIEW_COLUMN.items()
 }
 
+CORE_FIELD_TO_DISPATCHER_FIELD = {
+    "broker_name": DISPATCHER_FIELD_BROKER,
+    "pickup_location": DISPATCHER_FIELD_PICKUP,
+    "pickup_date": DISPATCHER_FIELD_PICKUP_DATE,
+    "delivery_location": DISPATCHER_FIELD_DELIVERY,
+    "delivery_date": DISPATCHER_FIELD_DELIVERY_DATE,
+    "load_number": DISPATCHER_FIELD_LOAD_NUMBER,
+    "rate": DISPATCHER_FIELD_FINAL_RATE,
+}
+
+DETAIL_FIELD_TO_DISPATCHER_FIELD = {
+    "carrier": DISPATCHER_FIELD_CARRIER,
+    "carrier_name": DISPATCHER_FIELD_CARRIER,
+    "equipment": DISPATCHER_FIELD_TRAILER_TYPE,
+    "trailer_type": DISPATCHER_FIELD_TRAILER_TYPE,
+    "commodity": DISPATCHER_FIELD_COMMODITY,
+    "weight": DISPATCHER_FIELD_TOTAL_WEIGHT,
+    "total_weight": DISPATCHER_FIELD_TOTAL_WEIGHT,
+    "special_requirements": DISPATCHER_FIELD_SPECIAL_REQUIREMENTS,
+    "requirements": DISPATCHER_FIELD_SPECIAL_REQUIREMENTS,
+    "notes": DISPATCHER_FIELD_SPECIAL_REQUIREMENTS,
+}
+
 FIELD_TO_DEFAULT_ISSUE = {
     DISPATCHER_FIELD_BROKER: REVIEW_ISSUE_TYPE_WRONG_BROKER,
     DISPATCHER_FIELD_PICKUP: REVIEW_ISSUE_TYPE_WRONG_PICKUP,
@@ -106,8 +129,59 @@ def _bool_text(value):
     return "yes" if bool(value) else "no"
 
 
+def _yes(value):
+    return _token(value) in {"yes", "true", "1"}
+
+
 def _normalize_compare(value):
     return " ".join(_text(value).split()).casefold()
+
+
+def _private_value(row, include_private_values=False):
+    if not include_private_values:
+        return ""
+    return _text((row or {}).get("Predicted Value LOCAL ONLY"))
+
+
+def _status_needs_blank(status):
+    return _token(status) in {"missing", "conflict", "low_confidence"}
+
+
+def _candidate_count(row):
+    for key in (
+        "Candidate Count",
+        "Load Identifier Candidate Count",
+        "Main Rate Candidate Count",
+    ):
+        value = _text((row or {}).get(key))
+        if value:
+            return value
+    return ""
+
+
+def _gap_reason(row):
+    for key in ("Gap Reason", "Policy Gap Reason", "Load Identifier Gap Reason"):
+        value = _text((row or {}).get(key))
+        if value:
+            return value
+    return ""
+
+
+def _top_blockers(row):
+    for key in ("Top Blockers", "Top Blocker"):
+        value = _text((row or {}).get(key))
+        if value:
+            return value
+    return ""
+
+
+def _prediction_status_summary(predictions):
+    parts = []
+    for field_name in DISPATCHER_EDITABLE_FIELDS:
+        status = _text((predictions.get(field_name) or {}).get("status"))
+        if status:
+            parts.append(f"{field_name}={status}")
+    return ";".join(parts)
 
 
 def build_dispatcher_review_row(
@@ -198,6 +272,235 @@ def build_dispatcher_audit_row(
         "Source Field": _text(source_field),
         "Blocker Type": _text(blocker_type),
         "Warning Codes": ";".join(_token(code) for code in warning_codes or [] if _token(code)),
+    }
+
+
+def _prediction_from_row(
+    row,
+    field_name,
+    include_private_values=False,
+    source_sheet="",
+    source_field="",
+):
+    status = _text((row or {}).get("Predicted Status") or (row or {}).get("Status"))
+    return {
+        "field_name": field_name,
+        "value": _private_value(row, include_private_values=include_private_values),
+        "status": status,
+        "candidate_count": _candidate_count(row),
+        "conflict_reason": _text(
+            (row or {}).get("Conflict Reason") or (row or {}).get("Rate Conflict Reason")
+        ),
+        "gap_reason": _gap_reason(row),
+        "source_sheet": source_sheet,
+        "source_field": source_field or _text((row or {}).get("Field Name")),
+        "blocker_type": "review_needed"
+        if _token(status) in {"missing", "conflict", "needs_review", "low_confidence"}
+        else "",
+    }
+
+
+def _set_prediction(predictions, dispatcher_field, prediction):
+    current = predictions.get(dispatcher_field)
+    if not current:
+        predictions[dispatcher_field] = prediction
+        return
+    current_status = _token(current.get("status"))
+    new_status = _token(prediction.get("status"))
+    if current_status in {"missing", ""} and new_status not in {"missing", ""}:
+        predictions[dispatcher_field] = prediction
+
+
+def _field_rows_by_alias(rows):
+    by_alias = {}
+    for row in rows or []:
+        alias = _text((row or {}).get("Measurement Alias"))
+        if alias:
+            by_alias.setdefault(alias, []).append(row)
+    return by_alias
+
+
+def _document_sort_key(row):
+    try:
+        order = int(_text((row or {}).get("Folder Order")) or 0)
+    except ValueError:
+        order = 0
+    return (order, _text((row or {}).get("Measurement Alias")))
+
+
+def build_dispatcher_review_table_from_rows(
+    document_rows,
+    core_field_rows=None,
+    stop_rows=None,
+    rate_rows=None,
+    load_id_rows=None,
+    detailed_field_rows=None,
+    include_private_values=False,
+):
+    core_by_alias = _field_rows_by_alias(core_field_rows)
+    stop_by_alias = _field_rows_by_alias(stop_rows)
+    rate_by_alias = _field_rows_by_alias(rate_rows)
+    load_id_by_alias = _field_rows_by_alias(load_id_rows)
+    detail_by_alias = _field_rows_by_alias(detailed_field_rows)
+    dispatcher_rows = []
+    audit_rows = []
+
+    for doc in sorted(document_rows or [], key=_document_sort_key):
+        alias = _text(doc.get("Measurement Alias"))
+        predictions = {}
+
+        for row in core_by_alias.get(alias, []):
+            field_name = _token(row.get("Field Name"))
+            dispatcher_field = CORE_FIELD_TO_DISPATCHER_FIELD.get(field_name)
+            if not dispatcher_field:
+                continue
+            _set_prediction(
+                predictions,
+                dispatcher_field,
+                _prediction_from_row(
+                    row,
+                    dispatcher_field,
+                    include_private_values=include_private_values,
+                    source_sheet="Core_Field_Review",
+                    source_field=field_name,
+                ),
+            )
+
+        for row in detail_by_alias.get(alias, []):
+            field_name = _token(row.get("Field Name"))
+            dispatcher_field = DETAIL_FIELD_TO_DISPATCHER_FIELD.get(field_name)
+            if not dispatcher_field:
+                continue
+            _set_prediction(
+                predictions,
+                dispatcher_field,
+                _prediction_from_row(
+                    row,
+                    dispatcher_field,
+                    include_private_values=include_private_values,
+                    source_sheet="Field_Review",
+                    source_field=field_name,
+                ),
+            )
+
+        for row in stop_by_alias.get(alias, []):
+            stop_type = _token(row.get("Stop Type"))
+            field_name = _token(row.get("Field Name"))
+            dispatcher_field = ""
+            if stop_type == "pickup" and field_name in {"location", "pickup_location"}:
+                dispatcher_field = DISPATCHER_FIELD_PICKUP
+            elif stop_type == "pickup" and field_name in {"date", "pickup_date"}:
+                dispatcher_field = DISPATCHER_FIELD_PICKUP_DATE
+            elif stop_type == "delivery" and field_name in {"location", "delivery_location"}:
+                dispatcher_field = DISPATCHER_FIELD_DELIVERY
+            elif stop_type == "delivery" and field_name in {"date", "delivery_date"}:
+                dispatcher_field = DISPATCHER_FIELD_DELIVERY_DATE
+            if dispatcher_field:
+                _set_prediction(
+                    predictions,
+                    dispatcher_field,
+                    _prediction_from_row(
+                        row,
+                        dispatcher_field,
+                        include_private_values=include_private_values,
+                        source_sheet="Stop_Review",
+                        source_field=field_name,
+                    ),
+                )
+
+        for row in rate_by_alias.get(alias, []):
+            _set_prediction(
+                predictions,
+                DISPATCHER_FIELD_FINAL_RATE,
+                _prediction_from_row(
+                    row,
+                    DISPATCHER_FIELD_FINAL_RATE,
+                    include_private_values=include_private_values,
+                    source_sheet="Rate_Review",
+                    source_field=_text(row.get("Rate Candidate Type")) or "rate",
+                ),
+            )
+
+        for row in load_id_by_alias.get(alias, []):
+            if _yes(row.get("Primary Candidate?")) or _token(row.get("Identifier Type")) == "load_number":
+                _set_prediction(
+                    predictions,
+                    DISPATCHER_FIELD_LOAD_NUMBER,
+                    _prediction_from_row(
+                        row,
+                        DISPATCHER_FIELD_LOAD_NUMBER,
+                        include_private_values=include_private_values,
+                        source_sheet="Load_ID_Review",
+                        source_field=_text(row.get("Identifier Type")) or "load_number",
+                    ),
+                )
+
+        def value_for(field_name):
+            prediction = predictions.get(field_name) or {}
+            if _status_needs_blank(prediction.get("status")):
+                return ""
+            return prediction.get("value", "")
+
+        dispatcher_rows.append(
+            build_dispatcher_review_row(
+                folder_order=_text(doc.get("Folder Order")),
+                local_document_name_or_file_stem=_text(
+                    doc.get("Local Document Name / File Stem")
+                ),
+                measurement_alias=alias,
+                document_type=_text(doc.get("Document Type")),
+                ocr_needed=_yes(doc.get("OCR Needed")),
+                extraction_relevant=_yes(doc.get("Extraction Relevant")),
+                readiness_level=_text(doc.get("Readiness Level")),
+                review_priority=_text(doc.get("Review Priority")),
+                source="local_review_outputs",
+                broker=value_for(DISPATCHER_FIELD_BROKER),
+                pickup=value_for(DISPATCHER_FIELD_PICKUP),
+                pickup_date=value_for(DISPATCHER_FIELD_PICKUP_DATE),
+                delivery=value_for(DISPATCHER_FIELD_DELIVERY),
+                delivery_date=value_for(DISPATCHER_FIELD_DELIVERY_DATE),
+                load_number=value_for(DISPATCHER_FIELD_LOAD_NUMBER),
+                carrier=value_for(DISPATCHER_FIELD_CARRIER),
+                trailer_type=value_for(DISPATCHER_FIELD_TRAILER_TYPE),
+                commodity=value_for(DISPATCHER_FIELD_COMMODITY),
+                total_weight=value_for(DISPATCHER_FIELD_TOTAL_WEIGHT),
+                final_rate=value_for(DISPATCHER_FIELD_FINAL_RATE),
+                special_requirements=value_for(DISPATCHER_FIELD_SPECIAL_REQUIREMENTS),
+                top_blockers=_top_blockers(doc),
+                predicted_status_summary=_prediction_status_summary(predictions),
+                user_review_status="",
+                user_notes_local_only="",
+            )
+        )
+
+        for field_name in DISPATCHER_EDITABLE_FIELDS:
+            prediction = predictions.get(field_name) or {"field_name": field_name}
+            audit_rows.append(
+                build_dispatcher_audit_row(
+                    measurement_alias=alias,
+                    field_name=field_name,
+                    predicted_value_local_only=prediction.get("value", ""),
+                    predicted_status=prediction.get("status", ""),
+                    candidate_count=prediction.get("candidate_count", ""),
+                    conflict_reason=prediction.get("conflict_reason", ""),
+                    gap_reason=prediction.get("gap_reason", ""),
+                    source_sheet=prediction.get("source_sheet", ""),
+                    source_field=prediction.get("source_field", ""),
+                    blocker_type=prediction.get("blocker_type", ""),
+                )
+            )
+
+    return {
+        "dispatcher_rows": dispatcher_rows,
+        "audit_rows": audit_rows,
+        "summary": {
+            "document_rows": len(dispatcher_rows),
+            "audit_rows": len(audit_rows),
+            "include_private_values_local_only": bool(include_private_values),
+            "private_values_printed": False,
+            "raw_text_printed": False,
+            "money_values_printed": False,
+        },
     }
 
 

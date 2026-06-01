@@ -3,6 +3,7 @@ import unittest
 
 from app.document_ai.dispatcher_review_table import (
     aggregate_dispatcher_feedback,
+    build_dispatcher_review_table_from_rows,
     build_dispatcher_audit_row,
     build_dispatcher_feedback_row,
     build_dispatcher_review_row,
@@ -85,6 +86,88 @@ class DispatcherReviewTableTests(unittest.TestCase):
         self.assertNotIn("Fake Old Rate", encoded)
         self.assertNotIn("Fake New Rate", encoded)
         self.assertFalse(aggregate["private_values_included"])
+
+    def test_builds_one_row_per_document_from_review_rows(self):
+        result = build_dispatcher_review_table_from_rows(
+            [
+                {
+                    "Folder Order": "1",
+                    "Measurement Alias": "RATECON_001",
+                    "Document Type": "LOAD_CONFIRMATION",
+                    "OCR Needed": "no",
+                    "Extraction Relevant": "yes",
+                    "Readiness Level": "not_ready",
+                    "Review Priority": "high",
+                    "Top Blockers": "rate;load_number",
+                }
+            ],
+            core_field_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Field Name": "broker_name",
+                    "Predicted Value LOCAL ONLY": "Fake Broker",
+                    "Predicted Status": "resolved",
+                },
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Field Name": "load_number",
+                    "Predicted Value LOCAL ONLY": "Fake Load",
+                    "Predicted Status": "missing",
+                    "Gap Reason": "no_candidate",
+                },
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Field Name": "rate",
+                    "Predicted Value LOCAL ONLY": "Fake Rate",
+                    "Predicted Status": "conflict",
+                    "Gap Reason": "conflict",
+                },
+            ],
+            stop_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Stop Type": "pickup",
+                    "Field Name": "location",
+                    "Predicted Value LOCAL ONLY": "Fake Pickup",
+                    "Status": "resolved",
+                }
+            ],
+            detailed_field_rows=[
+                {
+                    "Measurement Alias": "RATECON_001",
+                    "Field Name": "commodity",
+                    "Predicted Value LOCAL ONLY": "Fake Commodity",
+                    "Status": "resolved",
+                }
+            ],
+            include_private_values=True,
+        )
+
+        row = result["dispatcher_rows"][0]
+        self.assertEqual(row["Broker"], "Fake Broker")
+        self.assertEqual(row["Pickup"], "Fake Pickup")
+        self.assertEqual(row["Commodity"], "Fake Commodity")
+        self.assertEqual(row["Load No"], "")
+        self.assertEqual(row["Final Rate"], "")
+        self.assertEqual(result["summary"]["document_rows"], 1)
+        self.assertEqual(result["summary"]["audit_rows"], 12)
+
+    def test_status_only_mode_excludes_values(self):
+        result = build_dispatcher_review_table_from_rows(
+            [{"Measurement Alias": "RATECON_002", "Extraction Relevant": "yes"}],
+            core_field_rows=[
+                {
+                    "Measurement Alias": "RATECON_002",
+                    "Field Name": "broker_name",
+                    "Predicted Value LOCAL ONLY": "Fake Broker",
+                    "Predicted Status": "resolved",
+                }
+            ],
+            include_private_values=False,
+        )
+
+        self.assertEqual(result["dispatcher_rows"][0]["Broker"], "")
+        self.assertEqual(result["audit_rows"][0]["Predicted Value LOCAL ONLY"], "")
 
 
 if __name__ == "__main__":
