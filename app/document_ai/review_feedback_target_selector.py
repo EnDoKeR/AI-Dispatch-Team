@@ -15,6 +15,8 @@ from app.document_ai.review_issue_taxonomy import (
     REVIEW_ISSUE_TYPE_WRONG_DATE,
     REVIEW_ISSUE_TYPE_WRONG_LOAD_ID,
     REVIEW_ISSUE_TYPE_WRONG_RATE,
+    REVIEW_ISSUE_TYPE_WRONG_DELIVERY,
+    REVIEW_ISSUE_TYPE_WRONG_PICKUP,
     REVIEW_ISSUE_TYPE_WRONG_STOP_TYPE,
     REVIEW_ISSUE_TYPE_WRONG_TIME,
 )
@@ -68,6 +70,11 @@ def _score_targets(issue_type_counts):
             issue_type_counts,
             REVIEW_ISSUE_TYPE_WRONG_TIME,
         ),
+        REVIEW_TARGET_STOP_LOCATION_EXTRACTION: _count(
+            issue_type_counts,
+            REVIEW_ISSUE_TYPE_WRONG_PICKUP,
+            REVIEW_ISSUE_TYPE_WRONG_DELIVERY,
+        ),
         REVIEW_TARGET_STOP_SPAN_BOUNDARY: _count(
             issue_type_counts,
             REVIEW_ISSUE_TYPE_WRONG_STOP_TYPE,
@@ -107,6 +114,10 @@ def _supporting_issue_types(selected_target, issue_type_counts):
         },
         REVIEW_TARGET_STOP_DATE_EXTRACTION: {REVIEW_ISSUE_TYPE_WRONG_DATE},
         REVIEW_TARGET_STOP_TIME_EXTRACTION: {REVIEW_ISSUE_TYPE_WRONG_TIME},
+        REVIEW_TARGET_STOP_LOCATION_EXTRACTION: {
+            REVIEW_ISSUE_TYPE_WRONG_PICKUP,
+            REVIEW_ISSUE_TYPE_WRONG_DELIVERY,
+        },
         REVIEW_TARGET_STOP_SPAN_BOUNDARY: {
             REVIEW_ISSUE_TYPE_WRONG_STOP_TYPE,
             REVIEW_ISSUE_TYPE_EXTRA_STOP,
@@ -197,3 +208,26 @@ def select_repair_target_from_feedback(
         "private_values_included": False,
         "raw_text_included": False,
     }
+
+
+def select_repair_target_from_dispatcher_feedback(
+    dispatcher_feedback_aggregate,
+    target_disposition_registry=None,
+):
+    aggregate = dispatcher_feedback_aggregate or {}
+    feedback_like = {
+        "reviewed_count": aggregate.get("rows_loaded", 0),
+        "incorrect_count": aggregate.get("changed_field_count", 0),
+        "issue_type_counts": aggregate.get("issue_type_counts", {}) or {},
+    }
+    decision = select_repair_target_from_feedback(
+        feedback_like,
+        target_disposition_registry=target_disposition_registry,
+    )
+    decision["dispatcher_feedback_rows_loaded"] = int(
+        aggregate.get("rows_loaded", 0) or 0
+    )
+    decision["dispatcher_changed_field_count"] = int(
+        aggregate.get("changed_field_count", 0) or 0
+    )
+    return decision

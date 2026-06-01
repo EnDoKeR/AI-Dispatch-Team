@@ -30,7 +30,7 @@ from app.document_ai.review_issue_taxonomy import (
     normalize_review_issue_type,
 )
 from app.document_ai.review_feedback_target_selector import (
-    select_repair_target_from_feedback,
+    select_repair_target_from_dispatcher_feedback,
 )
 
 
@@ -661,11 +661,11 @@ def aggregate_dispatcher_feedback(feedback_rows):
         }
     )
     feedback_like_aggregate = {
-        "reviewed_count": len(safe_rows),
-        "incorrect_count": len(changed_rows),
+        "rows_loaded": len(safe_rows),
+        "changed_field_count": len(changed_rows),
         "issue_type_counts": dict(issue_counts),
     }
-    decision = select_repair_target_from_feedback(feedback_like_aggregate)
+    decision = select_repair_target_from_dispatcher_feedback(feedback_like_aggregate)
     return {
         "rows_loaded": len(safe_rows),
         "documents_reviewed": len(

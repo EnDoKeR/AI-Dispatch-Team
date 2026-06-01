@@ -5,7 +5,9 @@ from app.document_ai.review_feedback_target_selector import (
     REVIEW_TARGET_LOAD_IDENTIFIER_EXTRACTION,
     REVIEW_TARGET_OCR_DESIGN,
     REVIEW_TARGET_RATE_RESOLUTION,
+    REVIEW_TARGET_STOP_LOCATION_EXTRACTION,
     REVIEW_TARGET_STOP_DATE_EXTRACTION,
+    select_repair_target_from_dispatcher_feedback,
     select_repair_target_from_feedback,
 )
 from app.document_ai.target_disposition import (
@@ -81,6 +83,31 @@ class ReviewFeedbackTargetSelectorTests(unittest.TestCase):
         )
 
         self.assertEqual(decision["selected_target"], REVIEW_TARGET_OCR_DESIGN)
+
+    def test_dispatcher_feedback_wrong_pickup_selects_stop_location(self):
+        decision = select_repair_target_from_dispatcher_feedback(
+            {
+                "rows_loaded": 2,
+                "changed_field_count": 2,
+                "issue_type_counts": {"wrong_pickup": 2},
+            }
+        )
+
+        self.assertEqual(
+            decision["selected_target"],
+            REVIEW_TARGET_STOP_LOCATION_EXTRACTION,
+        )
+        self.assertEqual(decision["dispatcher_changed_field_count"], 2)
+
+    def test_dispatcher_feedback_no_changes_continues_review(self):
+        decision = select_repair_target_from_dispatcher_feedback(
+            {"rows_loaded": 0, "changed_field_count": 0, "issue_type_counts": {}}
+        )
+
+        self.assertEqual(
+            decision["selected_target"],
+            REVIEW_TARGET_HUMAN_REVIEW_CONTINUE,
+        )
 
 
 if __name__ == "__main__":
