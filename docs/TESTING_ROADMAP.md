@@ -77,6 +77,9 @@ The local Google Sheets-compatible export is covered by:
 - `tests/test_ratecon_review_workbook_contracts.py`
 - `tests/test_ratecon_review_workbook_export.py`
 - `tests/test_generate_ratecon_review_packet_v2.py`
+- `tests/test_generate_dispatcher_review_table_v3.py`
+- `tests/test_dispatcher_review_table.py`
+- `tests/test_import_dispatcher_review_feedback.py`
 - `tests/test_import_ratecon_review_feedback_cli.py`
 - `tests/test_review_issue_taxonomy.py`
 - `tests/test_review_feedback_target_selector.py`
@@ -92,6 +95,9 @@ guards, and no console printing of local document stems or predicted values.
 The v2 packet and feedback tests additionally verify focused review rows,
 expected-value presence booleans, safe issue-type aggregation, and repair target
 selection from completed feedback.
+The V3 dispatcher-table tests verify one-row-per-document export, extraction
+audit preservation, direct edit import, corrected-column import, and count-only
+feedback summaries.
 
 ## Local Review Analysis And Hardening Tests
 
@@ -160,6 +166,8 @@ Required behavior:
 - human review gate tests prove no completed feedback produces
   `human_review_continue`, while reviewed issue types can reopen deferred
   targets only when feedback supports the repair target.
+- dispatcher review table tests prove user-facing review UX can improve without
+  adding extraction heuristics.
 
 If a private rerun does not improve the selected blocker aggregate, document
 that result and pick the next blocker from the local analysis rather than

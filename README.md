@@ -105,6 +105,7 @@ Core architecture docs:
 * [Target Deferral and Rate Forensics](docs/TARGET_DEFERRAL_AND_RATE_FORENSICS.md)
 * [Rate Conflict Review Routing](docs/RATE_CONFLICT_REVIEW_ROUTING.md)
 * [Human Review Gate and Feedback Loop](docs/HUMAN_REVIEW_GATE_AND_FEEDBACK_LOOP.md)
+* [Dispatcher Review Table V3](docs/DISPATCHER_REVIEW_TABLE_V3.md)
 * [Google Sheets Review Sync](docs/GOOGLE_SHEETS_REVIEW_SYNC.md)
 * [Next Layout Provider Implementation Plan](docs/NEXT_BLOCK_LAYOUT_PROVIDER_IMPLEMENTATION_PLAN.md)
 * [RateCon Broker Templates](docs/RATECON_BROKER_TEMPLATES.md)
@@ -168,6 +169,10 @@ Do not do yet:
   `scripts/generate_ratecon_review_packet_v2.py`, import completed feedback
   with `scripts/import_ratecon_review_feedback.py`, then harden the top
   reviewed issue type
+* for non-technical review, generate the one-row dispatcher table with
+  `scripts/generate_dispatcher_review_table_v3.py`; review
+  `ratecon_review_v3_dispatcher_workbook.xlsx`, then import edited feedback
+  with `scripts/import_dispatcher_review_feedback.py`
 * no Dispatch Decision Ready claim from local review data unless the document is
   normal load movement and dispatch-critical fields are high-confidence or
   manually confirmed

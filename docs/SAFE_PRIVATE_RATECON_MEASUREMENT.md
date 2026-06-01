@@ -535,6 +535,23 @@ The feedback import writes `review_feedback_summary.json` and
 without printing expected values, private notes, raw text, paths, filenames, or
 money amounts.
 
+For non-technical dispatcher review, generate V3:
+
+```powershell
+py scripts/generate_dispatcher_review_table_v3.py --include-private-values-local-only --natural-sort-inputs
+```
+
+This writes a one-row-per-document workbook/CSV set named
+`ratecon_review_v3_*`. Corrected dispatcher feedback is imported with:
+
+```powershell
+py scripts/import_dispatcher_review_feedback.py
+```
+
+The V3 importer compares edited dispatch columns or `User Corrected ...`
+columns to the extraction audit and reports changed field counts and issue type
+counts only.
+
 Optional Google Sheets review sync:
 
 ```powershell

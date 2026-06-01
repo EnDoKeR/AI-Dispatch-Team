@@ -61,6 +61,19 @@ If completed feedback CSVs are missing or contain no review decisions, the
 import returns `no_completed_feedback_found` and the next action remains local
 human review.
 
+For a dispatcher-friendly one-row table, generate V3:
+
+```powershell
+py scripts/generate_dispatcher_review_table_v3.py --include-private-values-local-only --natural-sort-inputs
+```
+
+V3 writes `ratecon_review_v3_dispatcher_workbook.xlsx` and matching CSVs. It is
+the preferred non-technical review surface. Import edited V3 feedback with:
+
+```powershell
+py scripts/import_dispatcher_review_feedback.py
+```
+
 ## Recommended Review Order
 
 1. `Document_Summary`: confirm document type, OCR status, extraction relevance,

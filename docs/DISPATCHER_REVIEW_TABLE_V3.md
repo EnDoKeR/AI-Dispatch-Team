@@ -58,6 +58,54 @@ counts, issue type counts, and the recommended next repair target. It must not
 include predicted values, corrected values, raw text, private filenames, local
 paths, money values, or service account keys.
 
+## Generate V3
+
+Run locally from the repository root:
+
+```powershell
+py scripts/generate_dispatcher_review_table_v3.py --include-private-values-local-only --natural-sort-inputs
+```
+
+Generated ignored outputs:
+
+- `ratecon_review_v3_dispatcher_workbook.xlsx`
+- `ratecon_review_v3_dispatcher_review.csv`
+- `ratecon_review_v3_extraction_audit.csv`
+- `ratecon_review_v3_instructions.csv`
+- `ratecon_review_v3_feedback_summary.csv`
+
+Open the workbook and review the `Dispatcher_Review` sheet first. The detailed
+v2 packet remains available for debugging, but V3 is the intended user-facing
+review table.
+
+## Edit Modes
+
+The reviewer can use either mode:
+
+- **Direct edit mode**: edit the visible dispatch columns directly.
+- **Corrected column mode**: leave predictions unchanged and fill
+  `User Corrected ...` columns.
+
+The feedback importer supports both. Corrected columns take priority when both
+are present.
+
+## Import Feedback
+
+After review, save an edited CSV as:
+
+```text
+ratecon_review_v3_dispatcher_review_completed.csv
+```
+
+Then run:
+
+```powershell
+py scripts/import_dispatcher_review_feedback.py
+```
+
+If no completed/edited feedback is found, the importer reports
+`no_completed_dispatcher_feedback_found` and recommends continuing local review.
+
 ## Safety
 
 Google Sheets sync remains paused until credentials exist. Private predicted

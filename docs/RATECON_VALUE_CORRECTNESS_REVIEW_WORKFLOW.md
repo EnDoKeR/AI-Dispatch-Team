@@ -131,6 +131,27 @@ py scripts/import_ratecon_review_feedback.py
 If the import reports `no_completed_feedback_found`, do not add another
 extraction hardening change. Complete the v2 review packet first.
 
+For a simpler dispatcher-style review, use V3 instead:
+
+```powershell
+py scripts/generate_dispatcher_review_table_v3.py --include-private-values-local-only --natural-sort-inputs
+```
+
+Open `ratecon_review_v3_dispatcher_workbook.xlsx` and review the
+`Dispatcher_Review` sheet. It has one document per row with broker, pickup,
+delivery, load number, carrier/equipment/commodity/weight, final rate, special
+requirements, blockers, correction columns, and local notes.
+
+After editing, save/export `ratecon_review_v3_dispatcher_review_completed.csv`
+and import it with:
+
+```powershell
+py scripts/import_dispatcher_review_feedback.py
+```
+
+The importer compares edited values to `Extraction_Audit`, infers issue types,
+and prints counts only.
+
 The user should import the local CSVs into Google Sheets or open the workbook
 locally:
 

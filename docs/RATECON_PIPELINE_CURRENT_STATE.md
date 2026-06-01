@@ -96,9 +96,15 @@ write events, call Telegram, call DecisionEngine, or decide accept/reject/review
   rate, load-ID, and instruction files as ignored `ratecon_review_v2_*`
   artifacts. It is the preferred packet for quick human review before the next
   extraction hardening block.
+- Dispatcher review table v3 writes one-row-per-document
+  `ratecon_review_v3_*` artifacts, including a `Dispatcher_Review` sheet for
+  normal user edits and an `Extraction_Audit` sheet for later comparison.
 - Completed local v2 feedback can be imported with
   `scripts/import_ratecon_review_feedback.py`; the safe summary ranks issue
   types and selects the next repair target from reviewed evidence only.
+- Edited dispatcher table feedback can be imported with
+  `scripts/import_dispatcher_review_feedback.py`; safe summaries include changed
+  field counts, issue type counts, and the next repair target only.
 - Local review analysis reports summarize ignored review CSVs into safe issue
   category counts, top fields needing review, readiness counts, and next-fix
   buckets.
@@ -441,8 +447,9 @@ Private value-review CSV output is local-only and ignored.
 Next safe block after rate conflict audit:
 
 ```text
-Generate and review the local v2 packet, import completed feedback, then harden
-the top reviewed issue type only if the feedback supports a code fix.
+Generate and review the local V3 dispatcher table, import completed feedback,
+then harden the top reviewed issue type only if the feedback supports a code
+fix.
 ```
 
 OCR and Vision remain deferred. Camelot/table-provider evaluation should happen

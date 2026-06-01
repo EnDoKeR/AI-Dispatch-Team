@@ -43,6 +43,18 @@ The import reports only counts, issue types, fields, aliases, and the
 recommended next repair target. Expected values and private notes are read
 locally only and are never printed.
 
+V3 adds an even simpler dispatcher-style table:
+
+```powershell
+py scripts/generate_dispatcher_review_table_v3.py --include-private-values-local-only --natural-sort-inputs
+```
+
+This writes `ratecon_review_v3_dispatcher_workbook.xlsx` plus CSVs. The
+`Dispatcher_Review` sheet is one row per document and is intended for normal
+user review. `Extraction_Audit` preserves original predictions for later
+comparison. Edited V3 feedback is imported with
+`scripts/import_dispatcher_review_feedback.py`.
+
 ## What Can Be Analyzed
 
 Without human review, local analysis can safely measure:
