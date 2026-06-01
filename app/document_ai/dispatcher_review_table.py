@@ -116,6 +116,7 @@ DISPATCHER_AUDIT_COLUMNS = [
     "Measurement Alias",
     "Field Name",
     "Predicted Value LOCAL ONLY",
+    "Dispatcher Value At Export LOCAL ONLY",
     "Predicted Status",
     "Candidate Count",
     "Conflict Reason",
@@ -331,6 +332,7 @@ def build_dispatcher_audit_row(
     measurement_alias="",
     field_name="",
     predicted_value_local_only="",
+    dispatcher_value_at_export_local_only="",
     predicted_status="",
     candidate_count="",
     conflict_reason="",
@@ -344,6 +346,9 @@ def build_dispatcher_audit_row(
         "Measurement Alias": _text(measurement_alias),
         "Field Name": _token(field_name),
         "Predicted Value LOCAL ONLY": _text(predicted_value_local_only),
+        "Dispatcher Value At Export LOCAL ONLY": _text(
+            dispatcher_value_at_export_local_only
+        ),
         "Predicted Status": _text(predicted_status),
         "Candidate Count": _text(candidate_count),
         "Conflict Reason": _text(conflict_reason),
@@ -560,6 +565,7 @@ def build_dispatcher_review_table_from_rows(
                     measurement_alias=alias,
                     field_name=field_name,
                     predicted_value_local_only=prediction.get("value", ""),
+                    dispatcher_value_at_export_local_only=value_for(field_name),
                     predicted_status=prediction.get("status", ""),
                     candidate_count=prediction.get("candidate_count", ""),
                     conflict_reason=prediction.get("conflict_reason", ""),
