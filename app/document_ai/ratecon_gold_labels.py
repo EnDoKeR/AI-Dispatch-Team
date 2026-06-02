@@ -1545,6 +1545,61 @@ def _rate_inventory_metadata(item):
     return metadata if isinstance(metadata, dict) else {}
 
 
+def _rate_context_group(money_context):
+    context = _text(money_context)
+    if context == "total_carrier_pay":
+        return "total_carrier_pay"
+    if context == "carrier_freight_pay":
+        return "carrier_freight_pay"
+    if context in {"linehaul", "linehaul_total", "line_item_rate"}:
+        return "linehaul"
+    if context in {"total_rate", "total_cost", "agreed_rate_total"}:
+        return "grand_total"
+    if context == "estimated_rate_to_truck":
+        return "estimated_rate_to_truck"
+    return "other"
+
+
+def _empty_rate_context_value_summary():
+    return {
+        "present": False,
+        "nonblank": False,
+        "matches_gold": False,
+        "matches_shadow": False,
+        "value_count": 0,
+        "nonblank_value_count": 0,
+    }
+
+
+def _rate_context_value_summary(record, gold_value="", selected_value=""):
+    groups = {
+        "total_carrier_pay": _empty_rate_context_value_summary(),
+        "carrier_freight_pay": _empty_rate_context_value_summary(),
+        "linehaul": _empty_rate_context_value_summary(),
+        "grand_total": _empty_rate_context_value_summary(),
+        "estimated_rate_to_truck": _empty_rate_context_value_summary(),
+    }
+    for item in _rate_inventory(record):
+        if not isinstance(item, dict):
+            continue
+        group = _rate_context_group(_rate_inventory_context(item))
+        if group not in groups:
+            continue
+        value = item.get("value")
+        normalized = normalize_money(value)
+        bucket = groups[group]
+        bucket["present"] = True
+        bucket["value_count"] += 1
+        if normalized:
+            bucket["nonblank"] = True
+            bucket["nonblank_value_count"] += 1
+        if _money_value_matches(value, gold_value):
+            bucket["matches_gold"] = True
+        if _money_value_matches(value, selected_value):
+            bucket["matches_shadow"] = True
+    return groups
+
+
 def _rate_candidate_summary(record):
     inventory = [item for item in _rate_inventory(record) if isinstance(item, dict)]
     context_counts = Counter()
@@ -1926,6 +1981,21 @@ def _rate_matching_contexts(record, gold_value):
     }
 
 
+def _rate_context_summary_for_wrong_case(record, gold_value, selected_value):
+    summary = _rate_context_value_summary(record, gold_value, selected_value)
+    return {
+        "total_carrier_pay_value_present": summary["total_carrier_pay"]["nonblank"],
+        "total_carrier_pay_value_blank": (
+            summary["total_carrier_pay"]["present"]
+            and not summary["total_carrier_pay"]["nonblank"]
+        ),
+        "carrier_freight_pay_value_present": summary["carrier_freight_pay"]["nonblank"],
+        "total_carrier_pay_matches_gold": summary["total_carrier_pay"]["matches_gold"],
+        "carrier_freight_pay_matches_gold": summary["carrier_freight_pay"]["matches_gold"],
+        "candidate_values_summary": summary,
+    }
+
+
 def _classify_residual_wrong_rate(row, record, gold_field, index):
     document_id = _text(row.get("document_id"))
     gold_value = _gold_scalar_value(gold_field)
@@ -1933,6 +2003,7 @@ def _classify_residual_wrong_rate(row, record, gold_field, index):
     selected_value = _prediction_value(selected)
     selected_context = _text(row.get("money_context")) or "unknown"
     matching_contexts = _rate_matching_contexts(record, gold_value)
+    context_summary = _rate_context_value_summary(record, gold_value, selected_value)
     summary = _rate_candidate_summary(record)
     triage = record.get("triage", {}) if isinstance(record, dict) else {}
     visibility = _gold_rate_visible_in_artifact(record, gold_value)
@@ -1942,7 +2013,11 @@ def _classify_residual_wrong_rate(row, record, gold_field, index):
         return "selected_amount_correct_but_gold_uncertain"
     if selected_context == "carrier_freight_pay" and "total_carrier_pay" in matching_contexts:
         return "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay"
-    if selected_context == "total_carrier_pay" and "carrier_freight_pay" in matching_contexts:
+    if (
+        selected_context == "total_carrier_pay"
+        and "carrier_freight_pay" in matching_contexts
+        and context_summary["total_carrier_pay"]["nonblank"]
+    ):
         return "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay"
     if selected_context in {"linehaul", "linehaul_total", "line_item_rate"} and matching_contexts:
         return "selected_linehaul_but_gold_uses_grand_total"
@@ -1985,6 +2060,8 @@ def _classify_residual_wrong_rate(row, record, gold_field, index):
 def _rate_wrong_case_payload(row, record, gold_field, index):
     document_id = _text(row.get("document_id"))
     gold_value = _gold_scalar_value(gold_field)
+    selected = _shadow_prediction(record, FIELD_TOTAL_CARRIER_RATE)
+    selected_value = _prediction_value(selected)
     same_table = _candidate_group_correct_with_metadata(
         index,
         document_id,
@@ -2047,6 +2124,11 @@ def _rate_wrong_case_payload(row, record, gold_field, index):
             and not _rate_inventory_matching_gold(record, gold_value),
         },
         "all_plausible_rate_candidate_summary": _rate_candidate_summary(record),
+        "rate_context_value_summary": _rate_context_summary_for_wrong_case(
+            record,
+            gold_value,
+            selected_value,
+        ),
         "diagnosis": _classify_residual_wrong_rate(row, record, gold_field, index),
     }
 
@@ -2103,12 +2185,22 @@ def _gold_consistency_reason(case):
     diagnosis = _text(case.get("diagnosis"))
     selected = case.get("selected_rate", {}) or {}
     plausible = case.get("all_plausible_rate_candidate_summary", {}) or {}
+    value_summary = (case.get("rate_context_value_summary", {}) or {}).get(
+        "candidate_values_summary",
+        {},
+    ) or {}
+    total_pay = value_summary.get("total_carrier_pay", {}) or {}
+    carrier_freight = value_summary.get("carrier_freight_pay", {}) or {}
     if diagnosis == "selected_same_amount_but_normalization_failed":
         return "selected_and_gold_are_same_after_normalization"
     if diagnosis == "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay":
-        return "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+        if total_pay.get("nonblank") and not total_pay.get("matches_gold"):
+            return "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+        return "unknown"
     if diagnosis == "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay":
-        return "gold_uses_total_carrier_pay_but_total_blank_and_carrier_freight_pay_present"
+        if not total_pay.get("nonblank") and carrier_freight.get("nonblank"):
+            return "gold_uses_total_carrier_pay_but_total_blank_and_carrier_freight_pay_present"
+        return "unknown"
     if diagnosis == "selected_grand_total_but_gold_uses_linehaul":
         return "gold_uses_linehaul_but_document_has_explicit_total"
     if diagnosis == "multiple_valid_totals_ambiguous" or plausible.get("safe_total_candidates", 0) > 1:

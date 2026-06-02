@@ -782,6 +782,146 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(audit["suspect_reasons"]["ambiguous_multiple_totals"], 1)
         self.assertFalse(audit["gold_files_modified"])
 
+    def test_gold_rate_consistency_audit_does_not_flag_blank_total_pay_label(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2200.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2300.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2200.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertNotIn(
+            "gold_uses_carrier_freight_pay_but_total_carrier_pay_present",
+            audit["suspect_reasons"],
+        )
+        case = result["residual_wrong_rate_forensics"]["cases"][0]
+        self.assertFalse(
+            case["rate_context_value_summary"]["total_carrier_pay_value_present"]
+        )
+        self.assertTrue(case["rate_context_value_summary"]["total_carrier_pay_value_blank"])
+
+    def test_gold_rate_consistency_audit_flags_nonblank_total_pay_difference(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2500.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2400.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2400.00",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertEqual(audit["gold_label_suspect_count"], 1)
+        self.assertEqual(
+            audit["suspect_reasons"][
+                "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+            ],
+            1,
+        )
+
+    def test_gold_rate_consistency_audit_ignores_equal_total_and_freight_pay(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2500.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2600.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertNotIn(
+            "gold_uses_carrier_freight_pay_but_total_carrier_pay_present",
+            audit["suspect_reasons"],
+        )
+
     def test_missing_rate_forensics_detects_candidate_abstained(self):
         label = self._gold_label()
         record = self._audit_record()
