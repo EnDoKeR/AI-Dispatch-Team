@@ -82,6 +82,10 @@ def extract_ratecon_document(
     shadow_layout_provider="native_text",
     shadow_table_profile="default",
     strict_layout_provider=False,
+    shadow_ocr_provider="none",
+    shadow_ocr_pages="ocr_required",
+    shadow_ocr_dpi=200,
+    strict_ocr=False,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
     shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
     shadow_load_ranking_profile=None,
@@ -96,6 +100,10 @@ def extract_ratecon_document(
         layout_provider_name=shadow_layout_provider,
         table_settings_profile=shadow_table_profile,
         strict_layout_provider=strict_layout_provider,
+        ocr_provider_name=shadow_ocr_provider,
+        ocr_pages=shadow_ocr_pages,
+        ocr_dpi=shadow_ocr_dpi,
+        strict_ocr=strict_ocr,
     )
     effective_load_candidate_profile = shadow_load_candidate_profile
     if shadow_load_ranking_profile and shadow_load_ranking_profile != RANKING_PROFILE_BASELINE:
@@ -137,6 +145,10 @@ def extract_ratecon_document(
         result["debug"] = {
             "triage": triage,
             "artifact_summary": artifact_summary(artifact),
+            "ocr_provider_summary": artifact_summary(artifact).get(
+                "ocr_provider_summary",
+                {},
+            ),
             "candidates": candidates,
             "candidate_generation": {
                 "generator_summaries": generation_result.get("generator_summaries", []),

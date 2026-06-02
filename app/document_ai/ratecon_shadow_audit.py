@@ -403,6 +403,8 @@ def _sanitize_triage(triage, include_file_name=False, include_file_hash=False):
 def _artifact_summary(debug):
     summary = (debug or {}).get("artifact_summary", {}) or {}
     layout_summary = summary.get("layout_provider_summary", {}) or {}
+    ocr_summary = summary.get("ocr_provider_summary", {}) or {}
+    ocr_classification = summary.get("ocr_document_classification", {}) or {}
     return {
         "source": _text(summary.get("source")),
         "page_count": _safe_int(summary.get("page_count")),
@@ -426,6 +428,31 @@ def _artifact_summary(debug):
             "table_settings_profile": _text(layout_summary.get("table_settings_profile")),
             "warnings": _safe_list(layout_summary.get("warnings")),
             "errors": _safe_list(layout_summary.get("errors")),
+        },
+        "ocr_provider_summary": {
+            "provider_requested": _text(ocr_summary.get("provider_requested")),
+            "provider_used": _text(ocr_summary.get("provider_used")),
+            "available": _safe_bool(ocr_summary.get("available")),
+            "status": _text(ocr_summary.get("status")),
+            "pages_attempted": _safe_int(ocr_summary.get("pages_attempted")),
+            "pages_ocr_success": _safe_int(ocr_summary.get("pages_ocr_success")),
+            "ocr_text_page_count": _safe_int(ocr_summary.get("ocr_text_page_count")),
+            "ocr_word_count": _safe_int(ocr_summary.get("ocr_word_count")),
+            "ocr_line_count": _safe_int(ocr_summary.get("ocr_line_count")),
+            "page_status_counts": dict(ocr_summary.get("page_status_counts") or {}),
+            "warnings": _safe_list(ocr_summary.get("warnings")),
+            "errors": _safe_list(ocr_summary.get("errors")),
+            "raw_text_included": False,
+        },
+        "ocr_document_classification": {
+            "document_type": _text(ocr_classification.get("document_type")),
+            "skip_reason": _text(ocr_classification.get("skip_reason")),
+            "rate_confirmation_signal": _safe_bool(
+                ocr_classification.get("rate_confirmation_signal")
+            ),
+            "bol_pod_signal": _safe_bool(ocr_classification.get("bol_pod_signal")),
+            "ocr_text_available": _safe_bool(ocr_classification.get("ocr_text_available")),
+            "raw_text_included": False,
         },
     }
 
@@ -466,6 +493,8 @@ def build_candidate_summary(candidates, generator_summaries=None):
     quality_by_field = defaultdict(Counter)
     quality_reasons = defaultdict(Counter)
     duplicate_identities = Counter()
+    ocr_candidates_by_field = Counter()
+    ocr_candidates_by_generator = Counter()
     seen_identities = set()
     independent_fields = set()
     fallback_fields = set()
@@ -554,6 +583,9 @@ def build_candidate_summary(candidates, generator_summaries=None):
                 independent_fields.add(field_name)
         by_source[source] += 1
         by_generator[generator] += 1
+        if source == "ocr" or metadata.get("ocr_candidate"):
+            ocr_candidates_by_field[field_name or "unknown"] += 1
+            ocr_candidates_by_generator[generator] += 1
         if diagnostic_fallback:
             fallback_count += 1
         else:
@@ -973,6 +1005,12 @@ def build_candidate_summary(candidates, generator_summaries=None):
                 field: dict(sorted(counter.items()))
                 for field, counter in sorted(quality_reasons.items())
             },
+        },
+        "ocr_candidate_summary": {
+            "ocr_candidates_total": sum(ocr_candidates_by_field.values()),
+            "ocr_candidates_by_field": dict(sorted(ocr_candidates_by_field.items())),
+            "ocr_candidates_by_generator": dict(sorted(ocr_candidates_by_generator.items())),
+            "raw_text_included": False,
         },
     }
 
@@ -1494,6 +1532,8 @@ def _metadata_eval_summary(metadata):
         "gold_recall_debug",
         "load_candidate_profile",
         "load_candidate_profile_adjustments",
+        "ocr_candidate",
+        "ocr_provider",
     ]
     return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
 
@@ -2987,6 +3027,15 @@ def summarize_ratecon_shadow_audit_records(records):
     section_context_totals = Counter()
     layout_provider_counts = Counter()
     layout_provider_totals = Counter()
+    ocr_provider_counts = Counter()
+    ocr_provider_totals = Counter()
+    ocr_warning_counts = Counter()
+    ocr_error_counts = Counter()
+    ocr_candidate_totals = Counter()
+    ocr_candidates_by_field = Counter()
+    ocr_candidates_by_generator = Counter()
+    ocr_classification_counts = Counter()
+    ocr_classification_skip_reasons = Counter()
     table_totals = Counter()
     table_header_roles = Counter()
     table_row_roles = Counter()
@@ -3195,6 +3244,60 @@ def summarize_ratecon_shadow_audit_records(records):
                 "table_cell_count",
             ]:
                 layout_provider_totals[key] += _safe_int(layout_summary.get(key))
+        ocr_summary = artifact.get("ocr_provider_summary", {}) or {}
+        if ocr_summary:
+            requested = _text(ocr_summary.get("provider_requested")) or "none"
+            used = _text(ocr_summary.get("provider_used")) or "none"
+            status = _text(ocr_summary.get("status")) or "skipped"
+            ocr_provider_counts[f"requested:{requested}"] += 1
+            ocr_provider_counts[f"used:{used}"] += 1
+            ocr_provider_counts[f"status:{status}"] += 1
+            if ocr_summary.get("available"):
+                ocr_provider_counts["available:true"] += 1
+            else:
+                ocr_provider_counts["available:false"] += 1
+            if requested != "none" and status != "skipped":
+                ocr_provider_totals["docs_attempted"] += 1
+            if status == "success":
+                ocr_provider_totals["docs_ocr_success"] += 1
+            elif status == "partial":
+                ocr_provider_totals["docs_ocr_partial"] += 1
+            elif status == "failed":
+                ocr_provider_totals["docs_ocr_failed"] += 1
+            elif status == "unavailable":
+                ocr_provider_totals["docs_ocr_unavailable"] += 1
+            if _safe_int(ocr_summary.get("ocr_text_page_count")) > 0:
+                ocr_provider_totals["ocr_text_doc_count"] += 1
+            for key in [
+                "pages_attempted",
+                "pages_ocr_success",
+                "ocr_text_page_count",
+                "ocr_word_count",
+                "ocr_line_count",
+            ]:
+                ocr_provider_totals[key] += _safe_int(ocr_summary.get(key))
+            for warning in _safe_list(ocr_summary.get("warnings")):
+                ocr_warning_counts[warning] += 1
+            for error in _safe_list(ocr_summary.get("errors")):
+                ocr_error_counts[error] += 1
+        ocr_classification = artifact.get("ocr_document_classification", {}) or {}
+        if ocr_classification:
+            ocr_classification_counts[
+                _text(ocr_classification.get("document_type")) or "unknown"
+            ] += 1
+            skip_reason = _text(ocr_classification.get("skip_reason"))
+            if skip_reason:
+                ocr_classification_skip_reasons[skip_reason] += 1
+        ocr_candidate_summary = candidate_summary.get("ocr_candidate_summary", {}) or {}
+        ocr_candidate_totals["ocr_candidates_total"] += _safe_int(
+            ocr_candidate_summary.get("ocr_candidates_total")
+        )
+        ocr_candidates_by_field.update(
+            ocr_candidate_summary.get("ocr_candidates_by_field", {}) or {}
+        )
+        ocr_candidates_by_generator.update(
+            ocr_candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        )
         table_summary = candidate_summary.get("table_extraction_summary", {}) or {}
         for key, value in (table_summary or {}).items():
             if isinstance(value, dict):
@@ -3383,6 +3486,34 @@ def summarize_ratecon_shadow_audit_records(records):
             "ocr_required_count": ocr_required_count,
             "low_text_count": low_text_count,
             "native_text_suspicious_count": suspicious_count,
+        },
+        "ocr_provider_summary": {
+            "provider_status_counts": dict(ocr_provider_counts.most_common()),
+            "docs_attempted": ocr_provider_totals.get("docs_attempted", 0),
+            "docs_ocr_success": ocr_provider_totals.get("docs_ocr_success", 0),
+            "docs_ocr_partial": ocr_provider_totals.get("docs_ocr_partial", 0),
+            "docs_ocr_failed": ocr_provider_totals.get("docs_ocr_failed", 0),
+            "docs_ocr_unavailable": ocr_provider_totals.get("docs_ocr_unavailable", 0),
+            "pages_attempted": ocr_provider_totals.get("pages_attempted", 0),
+            "pages_ocr_success": ocr_provider_totals.get("pages_ocr_success", 0),
+            "ocr_text_doc_count": ocr_provider_totals.get("ocr_text_doc_count", 0),
+            "ocr_text_page_count": ocr_provider_totals.get("ocr_text_page_count", 0),
+            "ocr_word_count": ocr_provider_totals.get("ocr_word_count", 0),
+            "ocr_line_count": ocr_provider_totals.get("ocr_line_count", 0),
+            "warnings": dict(ocr_warning_counts.most_common()),
+            "errors": dict(ocr_error_counts.most_common()),
+            "raw_text_printed": False,
+        },
+        "ocr_candidate_summary": {
+            "ocr_candidates_total": ocr_candidate_totals.get("ocr_candidates_total", 0),
+            "ocr_candidates_by_field": dict(ocr_candidates_by_field.most_common()),
+            "ocr_candidates_by_generator": dict(ocr_candidates_by_generator.most_common()),
+            "raw_text_printed": False,
+        },
+        "ocr_document_classification_summary": {
+            "document_type_counts": dict(ocr_classification_counts.most_common()),
+            "skip_reason_counts": dict(ocr_classification_skip_reasons.most_common()),
+            "raw_text_printed": False,
         },
         "candidate_coverage": candidate_coverage,
         "candidate_generation": {

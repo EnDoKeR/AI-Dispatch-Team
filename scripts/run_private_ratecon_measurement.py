@@ -32,6 +32,10 @@ from app.document_ai.layout_provider_diagnostics import (
 )
 from app.document_ai.pdfplumber_layout_settings import PDFPLUMBER_TABLE_SETTING_PROFILES
 from app.document_ai.layout_provider_contract import SHADOW_LAYOUT_PROVIDER_CHOICES
+from app.document_ai.ocr_provider_contract import (
+    OCR_PAGE_MODE_CHOICES,
+    OCR_PROVIDER_CHOICES,
+)
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -171,6 +175,10 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_load_candidate_profile="baseline",
     ratecon_shadow_load_ranking_profile=None,
     ratecon_shadow_rate_ranking_profile=None,
+    ratecon_shadow_ocr_provider="none",
+    ratecon_shadow_ocr_pages="ocr_required",
+    ratecon_shadow_ocr_dpi=200,
+    strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
@@ -211,6 +219,10 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
             ratecon_shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
             ratecon_shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
+            ratecon_shadow_ocr_provider=ratecon_shadow_ocr_provider,
+            ratecon_shadow_ocr_pages=ratecon_shadow_ocr_pages,
+            ratecon_shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
+            strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
         for path in pdfs
@@ -674,6 +686,33 @@ def main(argv=None):
         ),
     )
     parser.add_argument(
+        "--ratecon-shadow-ocr-provider",
+        default="none",
+        choices=OCR_PROVIDER_CHOICES,
+        help=(
+            "Shadow-only optional local OCR provider. Default none preserves "
+            "current behavior; auto/tesseract never use cloud services."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-pages",
+        default="ocr_required",
+        choices=OCR_PAGE_MODE_CHOICES,
+        help="Shadow-only OCR page selection mode.",
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-dpi",
+        default=200,
+        type=int,
+        choices=[150, 200, 300],
+        help="Shadow-only OCR render DPI when local OCR is explicitly enabled.",
+    )
+    parser.add_argument(
+        "--strict-ratecon-shadow-ocr",
+        action="store_true",
+        help="Fail cleanly when explicit shadow OCR cannot run.",
+    )
+    parser.add_argument(
         "--ratecon-shadow-use-legacy-final-candidates",
         action="store_true",
         help=(
@@ -885,6 +924,10 @@ def main(argv=None):
             ratecon_shadow_load_candidate_profile=args.ratecon_shadow_load_candidate_profile,
             ratecon_shadow_load_ranking_profile=args.ratecon_shadow_load_ranking_profile,
             ratecon_shadow_rate_ranking_profile=args.ratecon_shadow_rate_ranking_profile,
+            ratecon_shadow_ocr_provider=args.ratecon_shadow_ocr_provider,
+            ratecon_shadow_ocr_pages=args.ratecon_shadow_ocr_pages,
+            ratecon_shadow_ocr_dpi=args.ratecon_shadow_ocr_dpi,
+            strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
         )
 

@@ -326,6 +326,10 @@ def _markdown_report(evaluation):
     backlog = dict(evaluation.get("ocr_vision_backlog_summary", {}) or {})
     backlog.pop("documents", None)
     lines.append("ocr_vision_backlog_summary: " + json.dumps(backlog, sort_keys=True))
+    lines.append(
+        "ocr_gold_eval_summary: "
+        + json.dumps(evaluation.get("ocr_gold_eval_summary", {}) or {}, sort_keys=True)
+    )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:

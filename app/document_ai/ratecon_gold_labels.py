@@ -2928,6 +2928,148 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
     }
 
 
+def _candidate_source_is_ocr(item):
+    if not isinstance(item, dict):
+        return False
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    return _text(item.get("source")) == "ocr" or bool(metadata.get("ocr_candidate"))
+
+
+def _gold_load_matches_candidate(item, gold):
+    values = _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {}) if isinstance(gold, dict) else {})
+    if not values or not isinstance(item, dict):
+        return False
+    return _load_value_matches(item.get("value"), values)
+
+
+def _gold_rate_matches_candidate(item, gold):
+    value = _gold_scalar_value(gold.get(FIELD_TOTAL_CARRIER_RATE, {}) if isinstance(gold, dict) else {})
+    if not value or not isinstance(item, dict):
+        return False
+    return _money_value_matches(item.get("value"), value)
+
+
+def _build_ocr_gold_eval_summary(gold_labels, audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    provider_status_counts = Counter()
+    document_type_counts = Counter()
+    skip_reason_counts = Counter()
+    candidate_total = 0
+    candidates_by_field = Counter()
+    candidates_by_generator = Counter()
+    for record in records:
+        artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+        ocr_summary = artifact.get("ocr_provider_summary", {}) or {}
+        if ocr_summary:
+            provider_status_counts[
+                f"requested:{_text(ocr_summary.get('provider_requested')) or 'none'}"
+            ] += 1
+            provider_status_counts[
+                f"used:{_text(ocr_summary.get('provider_used')) or 'none'}"
+            ] += 1
+            provider_status_counts[
+                f"status:{_text(ocr_summary.get('status')) or 'skipped'}"
+            ] += 1
+        classification = artifact.get("ocr_document_classification", {}) or {}
+        if classification:
+            document_type_counts[
+                _text(classification.get("document_type")) or "unknown"
+            ] += 1
+            skip_reason = _text(classification.get("skip_reason"))
+            if skip_reason:
+                skip_reason_counts[skip_reason] += 1
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        candidate_total += _safe_int(candidate_summary.get("ocr_candidates_total"))
+        candidates_by_field.update(candidate_summary.get("ocr_candidates_by_field", {}) or {})
+        candidates_by_generator.update(
+            candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        )
+
+    load_matches = 0
+    rate_matches = 0
+    stop_evidence_docs = set()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        record = _find_record(label, audit_index)
+        if not isinstance(record, dict) or not record:
+            continue
+        gold = label.get("gold", {}) or {}
+        if any(
+            _candidate_source_is_ocr(item) and _gold_load_matches_candidate(item, gold)
+            for item in _load_inventory(record)
+        ):
+            load_matches += 1
+        if any(
+            _candidate_source_is_ocr(item) and _gold_rate_matches_candidate(item, gold)
+            for item in _rate_inventory(record)
+        ):
+            rate_matches += 1
+        for stop_field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+            prediction = _shadow_prediction(record, stop_field)
+            if isinstance(prediction, dict) and _prediction_source_name(prediction) == "ocr":
+                stop_evidence_docs.add(_text(label.get("document_id")))
+
+    shadow_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in CRITICAL_FIELDS
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    ]
+    ocr_selected_rows = [
+        row for row in shadow_rows if _text(row.get("source")) == "ocr" and row.get("predicted")
+    ]
+    ocr_correct_rows = [row for row in ocr_selected_rows if _status_correct(row.get("status"))]
+    ocr_partial_rows = [row for row in ocr_selected_rows if _status_partial(row.get("status"))]
+    ocr_wrong_rows = [
+        row for row in ocr_selected_rows if row.get("status") == STATUS_WRONG_VALUE
+    ]
+    missing_by_field = Counter(
+        row.get("field")
+        for row in shadow_rows
+        if row.get("status") in EXTRACTOR_MISSING_STATUSES
+    )
+    return {
+        "provider_status_counts": dict(provider_status_counts.most_common()),
+        "ocr_candidates_total": candidate_total,
+        "ocr_candidates_by_field": dict(candidates_by_field.most_common()),
+        "ocr_candidates_by_generator": dict(candidates_by_generator.most_common()),
+        "ocr_gold_load_in_candidates": load_matches,
+        "ocr_gold_rate_in_candidates": rate_matches,
+        "ocr_gold_stop_evidence_docs": len(stop_evidence_docs),
+        "ocr_selected_predictions": len(ocr_selected_rows),
+        "ocr_resolved_docs": len(
+            {
+                _text(row.get("document_id"))
+                for row in ocr_correct_rows + ocr_partial_rows
+                if _text(row.get("document_id"))
+            }
+        ),
+        "ocr_still_missing_docs": len(
+            {
+                _text(row.get("document_id"))
+                for row in shadow_rows
+                if row.get("status") in EXTRACTOR_MISSING_STATUSES
+                and _text(row.get("document_id"))
+            }
+        ),
+        "ocr_wrong_predictions": len(ocr_wrong_rows),
+        "load_missing_current": missing_by_field.get(FIELD_LOAD_NUMBER, 0),
+        "rate_missing_current": missing_by_field.get(FIELD_TOTAL_CARRIER_RATE, 0),
+        "stop_missing_current": missing_by_field.get(FIELD_PICKUP_STOPS, 0)
+        + missing_by_field.get(FIELD_DELIVERY_STOPS, 0),
+        "document_type_counts": dict(document_type_counts.most_common()),
+        "skip_reason_counts": dict(skip_reason_counts.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
     indexed = _audit_by_key(audit_records)
     metrics = defaultdict(lambda: defaultdict(_empty_metric))
@@ -3182,6 +3324,11 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "ocr_vision_backlog_summary": _build_ocr_vision_backlog_summary(
             gold_labels,
             indexed,
+        ),
+        "ocr_gold_eval_summary": _build_ocr_gold_eval_summary(
+            gold_labels,
+            indexed,
+            comparison_rows,
         ),
         "document_metrics": document_rows,
         "comparison_rows": comparison_rows,

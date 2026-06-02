@@ -13,6 +13,7 @@ from app.document_ai.field_candidate_provenance import (
     SOURCE_LEGACY_PARSER,
     SOURCE_NATIVE_LAYOUT,
     SOURCE_NATIVE_TEXT,
+    SOURCE_OCR,
     build_field_candidate,
     adapt_candidate_result_to_field_candidates,
     adapt_ratecon_candidate_to_field_candidate,
@@ -171,7 +172,7 @@ def _page_text_pages(artifact):
         {
             "page_number": page.get("page_number", index),
             "text": page.get("text", ""),
-            "source_method": artifact.get("source", "native"),
+            "source_method": page.get("source") or artifact.get("source", "native"),
         }
         for index, page in enumerate((artifact or {}).get("pages", []) or [], start=1)
     ]
@@ -304,6 +305,7 @@ def _text_candidate_generator(artifact, triage=None, legacy_context=None):
     if not _text((artifact or {}).get("full_text")):
         return [], ["artifact_full_text_missing"]
     result = extract_ratecon_candidates(_candidate_artifact(artifact or {}))
+    artifact_source = _text((artifact or {}).get("source"))
     candidates = [
         _annotate(candidate, GENERATOR_TEXT_CANDIDATES, independent=True)
         for candidate in adapt_candidate_result_to_field_candidates(
@@ -311,6 +313,12 @@ def _text_candidate_generator(artifact, triage=None, legacy_context=None):
             parser_name=GENERATOR_TEXT_CANDIDATES,
         )
     ]
+    if artifact_source == "ocr":
+        for candidate in candidates:
+            candidate["source"] = SOURCE_OCR
+            metadata = dict(candidate.get("metadata") or {})
+            metadata["ocr_candidate"] = True
+            candidate["metadata"] = metadata
     return candidates, list(result.get("warnings", []) or [])
 
 
@@ -402,6 +410,32 @@ def _artifact_page_lines(artifact):
     return pages
 
 
+def _artifact_page_line_sources(artifact):
+    sources = {}
+    for page in (artifact or {}).get("pages", []) or []:
+        page_number = page.get("page_number", "")
+        line_items = page.get("lines", []) or []
+        if line_items:
+            for index, item in enumerate(line_items):
+                if isinstance(item, dict) and _text(item.get("text")):
+                    sources[(page_number, index)] = _text(item.get("source")) or SOURCE_NATIVE_TEXT
+            continue
+        page_source = (
+            _text(page.get("source"))
+            or _text((artifact or {}).get("source"))
+            or SOURCE_NATIVE_TEXT
+        )
+        for index, line in enumerate(str(page.get("text") or "").splitlines()):
+            if _text(line):
+                sources[(page_number, index)] = page_source
+    if not sources and _text((artifact or {}).get("full_text")):
+        page_source = _text((artifact or {}).get("source")) or SOURCE_NATIVE_TEXT
+        for index, line in enumerate(str((artifact or {}).get("full_text") or "").splitlines()):
+            if _text(line):
+                sources[(1, index)] = page_source
+    return sources
+
+
 def _next_nonempty_line(lines, index):
     for position in range(index + 1, min(len(lines), index + 4)):
         value = _text(lines[position])
@@ -457,6 +491,7 @@ def _load_identifier_candidate(
     match_kind,
     label_hit_type="unknown",
     section_context="unknown",
+    source=SOURCE_NATIVE_TEXT,
 ):
     context = _identifier_context(lines, index)
     classification = classify_identifier_label(
@@ -485,7 +520,7 @@ def _load_identifier_candidate(
             label=label,
             evidence_text=evidence,
             page=page_number,
-            source=SOURCE_NATIVE_TEXT,
+            source=source,
             parser_name=GENERATOR_LOAD_ID_LINES,
             confidence=confidence,
             metadata={
@@ -521,6 +556,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
         page_number: lines
         for page_number, lines in _artifact_page_lines(artifact)
     }
+    line_sources = _artifact_page_line_sources(artifact)
     forensic_records = analyze_load_identity_label_hits(artifact or {})
     diagnostics = {
         "lines_scanned_count": sum(len(lines) for lines in page_lines.values()),
@@ -547,6 +583,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
             skipped[skip_reason] += 1
             continue
         evidence = f"{label} [{match_kind}-value-present]"
+        source = line_sources.get((page_number, index), SOURCE_NATIVE_TEXT)
         candidates.append(
             _load_identifier_candidate(
                 label,
@@ -558,6 +595,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
                 match_kind,
                 label_hit_type=record.get("hit_type", "unknown"),
                 section_context=record.get("section_context", "unknown"),
+                source=source,
             )
         )
         emitted_by_method[match_kind] += 1
@@ -766,7 +804,14 @@ def _header_load_candidate(row, label, value, method, diagnostics):
     diagnostics["emitted_by_method"][method] += 1
     diagnostics["emitted_by_id_type"][id_hint] += 1
     diagnostics["emitted_by_region"][document_region] += 1
-    source = SOURCE_NATIVE_LAYOUT if row.get("bbox") else SOURCE_NATIVE_TEXT
+    row_source = _text(row.get("source"))
+    source = (
+        SOURCE_OCR
+        if row_source == SOURCE_OCR
+        else SOURCE_NATIVE_LAYOUT
+        if row.get("bbox")
+        else SOURCE_NATIVE_TEXT
+    )
     return _annotate(
         build_field_candidate(
             field=FIELD_LOAD_NUMBER if primary else "reference_numbers",
