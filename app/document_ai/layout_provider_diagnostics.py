@@ -679,11 +679,11 @@ def _profile_summary_from_result(profile_name, provider_result, document_alias="
 
 
 def compare_pdfplumber_table_profiles(pdf_path, profiles=None, document_alias=""):
-    from app.document_ai.pdfplumber_layout_provider import (
+    from app.document_ai.pdfplumber_layout_settings import (
         PDFPLUMBER_TABLE_SETTING_PROFILES,
-        extract_pdfplumber_layout,
         normalize_pdfplumber_table_profile,
     )
+    from app.document_ai.pdfplumber_layout_provider import extract_pdfplumber_layout
 
     requested = profiles or PDFPLUMBER_TABLE_SETTING_PROFILES
     normalized_profiles = []

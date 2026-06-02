@@ -97,6 +97,43 @@ class PrivateMeasurementPipelineTests(unittest.TestCase):
         self.assertNotIn("FAKE BROKER LLC", payload)
         self.assertNotIn("FAKE-REF-001", payload)
 
+    def test_shadow_mode_disabled_keeps_legacy_row_shape(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir)
+            row = measure_private_ratecon_pdf(pdf_path, "RATECON_001")
+
+        self.assertNotIn("ratecon_shadow_audit_records", row)
+        self.assertNotIn("ratecon_shadow_enabled", row)
+
+    def test_shadow_mode_attaches_diagnostics_without_mutating_legacy_fields(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            pdf_path = write_fake_text_pdf(temp_dir)
+            legacy_row = measure_private_ratecon_pdf(pdf_path, "RATECON_001")
+            shadow_row = measure_private_ratecon_pdf(
+                pdf_path,
+                "RATECON_001",
+                ratecon_shadow_document_pipeline=True,
+            )
+
+        for key in [
+            "document_alias",
+            "extraction_status",
+            "candidate_counts_by_field",
+            "missing_fields",
+            "conflict_fields",
+            "review_required",
+        ]:
+            self.assertEqual(shadow_row.get(key), legacy_row.get(key))
+        self.assertTrue(shadow_row["ratecon_shadow_enabled"])
+        self.assertEqual(len(shadow_row["ratecon_shadow_audit_records"]), 1)
+        record = shadow_row["ratecon_shadow_audit_records"][0]
+        self.assertIn("triage", record)
+        self.assertIn("artifact_summary", record)
+        self.assertIn("candidate_summary", record)
+        self.assertIn("failure_attribution", record)
+        self.assertFalse(record["private_values_included"])
+        self.assertNotIn("FAKE BROKER LLC", json.dumps(record))
+
     def test_bol_like_text_skips_ratecon_extraction_without_missing_core_fields(self):
         text = load_classification_fixture("fake_bol_scanned_like_text.txt")
 

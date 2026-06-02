@@ -4,7 +4,10 @@ from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from pathlib import Path
 
-import pdfplumber
+try:
+    import pdfplumber
+except ModuleNotFoundError:  # pragma: no cover - exercised via import-boundary tests
+    pdfplumber = None
 
 from app.document_ai.layout_artifacts import (
     BLOCK_TYPE_TABLE,
@@ -23,66 +26,44 @@ from app.document_ai.layout_provider import (
     PROVIDER_PDFPLUMBER,
     STATUS_EMPTY_TEXT,
     STATUS_EXTRACTION_FAILED,
+    STATUS_DEPENDENCY_MISSING,
     STATUS_SUCCESS,
     STATUS_UNSUPPORTED_PDF,
     build_layout_provider_result,
 )
-
-
-PDFPLUMBER_SOURCE_METHOD = "pdfplumber_layout_v1"
-LINE_Y_TOLERANCE = 3.0
-TABLE_PROFILE_DEFAULT = "default"
-TABLE_PROFILE_LINES = "lines"
-TABLE_PROFILE_TEXT = "text"
-TABLE_PROFILE_LINES_STRICT = "lines_strict"
-TABLE_PROFILE_TEXT_STRICT = "text_strict"
-PDFPLUMBER_TABLE_SETTING_PROFILES = (
+from app.document_ai.pdfplumber_layout_settings import (
+    PDFPLUMBER_TABLE_SETTING_PROFILES,
     TABLE_PROFILE_DEFAULT,
     TABLE_PROFILE_LINES,
-    TABLE_PROFILE_TEXT,
     TABLE_PROFILE_LINES_STRICT,
+    TABLE_PROFILE_TEXT,
     TABLE_PROFILE_TEXT_STRICT,
+    get_pdfplumber_table_settings,
+    normalize_pdfplumber_table_profile,
 )
 
 
-def normalize_pdfplumber_table_profile(value):
-    text = str(value or "").strip().lower().replace("-", "_").replace(" ", "_")
-    return text if text in PDFPLUMBER_TABLE_SETTING_PROFILES else TABLE_PROFILE_DEFAULT
+PDFPLUMBER_SOURCE_METHOD = "pdfplumber_layout_v1"
+PDFPLUMBER_AVAILABLE = pdfplumber is not None
+LINE_Y_TOLERANCE = 3.0
 
 
-def get_pdfplumber_table_settings(profile_name=TABLE_PROFILE_DEFAULT):
-    profile = normalize_pdfplumber_table_profile(profile_name)
-    if profile == TABLE_PROFILE_DEFAULT:
-        return None
-    if profile == TABLE_PROFILE_LINES:
-        return {
-            "vertical_strategy": "lines",
-            "horizontal_strategy": "lines",
-        }
-    if profile == TABLE_PROFILE_TEXT:
-        return {
-            "vertical_strategy": "text",
-            "horizontal_strategy": "text",
-        }
-    if profile == TABLE_PROFILE_LINES_STRICT:
-        return {
-            "vertical_strategy": "lines_strict",
-            "horizontal_strategy": "lines_strict",
-            "snap_tolerance": 2,
-            "join_tolerance": 2,
-            "intersection_tolerance": 2,
-        }
-    if profile == TABLE_PROFILE_TEXT_STRICT:
-        return {
-            "vertical_strategy": "text",
-            "horizontal_strategy": "text",
-            "text_x_tolerance": 1,
-            "text_y_tolerance": 1,
-            "snap_tolerance": 1,
-            "join_tolerance": 1,
-            "intersection_tolerance": 1,
-        }
-    return None
+class PdfPlumberUnavailableError(RuntimeError):
+    """Raised when the optional pdfplumber provider is requested but unavailable."""
+
+
+def _provider_version():
+    return getattr(pdfplumber, "__version__", "") if pdfplumber is not None else ""
+
+
+def _unavailable_message():
+    return "pdfplumber is not installed. Install optional dependency with: pip install pdfplumber"
+
+
+def require_pdfplumber_available():
+    if pdfplumber is None:
+        raise PdfPlumberUnavailableError(_unavailable_message())
+    return True
 
 
 def _number(value, default=0.0):
@@ -363,6 +344,17 @@ def extract_pdfplumber_layout(
     requested_profile = str(table_settings_profile or "").strip()
     normalized_table_profile = normalize_pdfplumber_table_profile(requested_profile)
 
+    if pdfplumber is None:
+        return build_layout_provider_result(
+            provider_name=PROVIDER_PDFPLUMBER,
+            status=STATUS_DEPENDENCY_MISSING,
+            warning_codes=["layout_provider_dependency_missing", "LAYOUT_PROVIDER_UNAVAILABLE"],
+            error_code="layout_provider_dependency_missing",
+            safe_message=_unavailable_message(),
+            provider_version="",
+            table_settings_profile=normalized_table_profile,
+        )
+
     if not file_path.exists():
         return build_layout_provider_result(
             provider_name=PROVIDER_PDFPLUMBER,
@@ -370,7 +362,7 @@ def extract_pdfplumber_layout(
             warning_codes=["layout_input_missing"],
             error_code="layout_input_missing",
             safe_message="Layout input file does not exist.",
-            provider_version=pdfplumber.__version__,
+            provider_version=_provider_version(),
             table_settings_profile=normalized_table_profile,
         )
 
@@ -381,7 +373,7 @@ def extract_pdfplumber_layout(
             warning_codes=["unsupported_file_type"],
             error_code="unsupported_file_type",
             safe_message="Layout provider only accepts PDF inputs.",
-            provider_version=pdfplumber.__version__,
+            provider_version=_provider_version(),
             table_settings_profile=normalized_table_profile,
         )
 
@@ -427,7 +419,7 @@ def extract_pdfplumber_layout(
             warning_codes=[f"pdfplumber_open_failed:{exc.__class__.__name__}"],
             error_code="pdfplumber_open_failed",
             safe_message="Layout provider could not read the PDF.",
-            provider_version=pdfplumber.__version__,
+            provider_version=_provider_version(),
             table_settings_profile=normalized_table_profile,
         )
 
@@ -445,7 +437,7 @@ def extract_pdfplumber_layout(
         document_id=document_id or "",
         source_method=PDFPLUMBER_SOURCE_METHOD,
         provider=PROVIDER_PDFPLUMBER,
-        provider_version=pdfplumber.__version__,
+        provider_version=_provider_version(),
         pages=pages,
         page_count=page_count,
         warning_codes=warnings,
@@ -460,6 +452,6 @@ def extract_pdfplumber_layout(
         page_count=page_count,
         warning_codes=warnings,
         safe_message="Layout extraction completed." if has_text else "No extractable layout text found.",
-        provider_version=pdfplumber.__version__,
+        provider_version=_provider_version(),
         table_settings_profile=normalized_table_profile,
     )

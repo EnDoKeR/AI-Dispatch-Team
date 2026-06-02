@@ -14,6 +14,7 @@ from scripts.run_private_ratecon_measurement import (
     format_private_measurement_report,
     main,
 )
+from app.document_ai.layout_provider import LayoutProviderDependencyError
 from tests.fixtures.document_ai.broker_templates.fixture_loader import load_template_fixture
 from tests.fixtures.document_ai.pdf_triage.fake_pdf_factory import (
     write_fake_empty_text_pdf,
@@ -144,6 +145,27 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertEqual(exit_code, 2)
         self.assertIn("requires --layout-provider pdfplumber", stderr.getvalue())
 
+    def test_cli_private_eval_values_require_shadow_audit(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stderr = io.StringIO()
+
+        with redirect_stderr(stderr):
+            exit_code = main(
+                [
+                    "--input-dir",
+                    str(root),
+                    "--confirm-private-local-run",
+                    "--include-private-eval-values",
+                ]
+            )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn(
+            "--include-private-eval-values requires --ratecon-shadow-document-pipeline and --write-ratecon-shadow-audit",
+            stderr.getvalue(),
+        )
+
     def test_cli_refuses_unknown_layout_provider(self):
         temp, root = self._fake_pdf_dir(count=1)
         self.addCleanup(temp.cleanup)
@@ -163,6 +185,114 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
 
         self.assertEqual(exit_code, 2)
         self.assertIn("unknown layout provider", stderr.getvalue())
+
+    def test_cli_explicit_pdfplumber_missing_dependency_returns_friendly_error(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with patch(
+            "scripts.run_private_ratecon_measurement.require_provider_dependency",
+            side_effect=LayoutProviderDependencyError("missing"),
+        ):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--confirm-private-local-run",
+                        "--layout-provider",
+                        "pdfplumber",
+                        "--enable-layout-candidates",
+                    ]
+                )
+
+        combined_output = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 2)
+        self.assertIn("pdfplumber is not installed", stderr.getvalue())
+        self.assertNotIn("Traceback", combined_output)
+
+    def test_cli_shadow_mode_does_not_require_pdfplumber_dependency(self):
+        temp, root = self._fake_pdf_dir(count=1)
+        self.addCleanup(temp.cleanup)
+        stdout = io.StringIO()
+        stderr = io.StringIO()
+
+        with patch(
+            "scripts.run_private_ratecon_measurement.require_provider_dependency",
+            side_effect=AssertionError("pdfplumber dependency check should not run"),
+        ):
+            with redirect_stdout(stdout), redirect_stderr(stderr):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        str(root),
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--write-ratecon-shadow-audit",
+                        "--dry-run",
+                    ]
+                )
+
+        combined_output = stdout.getvalue() + stderr.getvalue()
+        self.assertEqual(exit_code, 0)
+        self.assertIn("documents_measured", stdout.getvalue())
+        self.assertNotIn("Traceback", combined_output)
+
+    def test_cli_accepts_shadow_layout_provider_flags_without_legacy_layout_provider(self):
+        fake_report = {"rows": [], "aggregate": {}, "document_count": 0}
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ) as build_report:
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--ratecon-shadow-layout-provider",
+                        "auto",
+                        "--ratecon-shadow-table-profile",
+                        "lines",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_layout_provider"],
+            "auto",
+        )
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_table_profile"],
+            "lines",
+        )
+
+    def test_cli_accepts_shadow_load_candidate_profile_flag(self):
+        fake_report = {"rows": [], "aggregate": {}, "document_count": 0}
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ) as build_report:
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--ratecon-shadow-load-candidate-profile",
+                        "header_recall_table_safety_v1",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_load_candidate_profile"],
+            "header_recall_table_safety_v1",
+        )
 
     def test_cli_enable_layout_fusion_requires_layout_candidates(self):
         temp, root = self._fake_pdf_dir(count=1)
@@ -343,21 +473,25 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
 
         with tempfile.TemporaryDirectory() as output_dir:
             buffer = io.StringIO()
-            with redirect_stdout(buffer):
-                exit_code = main(
-                    [
-                        "--input-dir",
-                        str(root),
-                        "--confirm-private-local-run",
-                        "--layout-provider",
-                        "pdfplumber",
-                        "--enable-layout-candidates",
-                        "--layout-diagnostics",
-                        "--output-dir",
-                        output_dir,
-                        "--allow-custom-output-dir",
-                    ]
-                )
+            with patch(
+                "scripts.run_private_ratecon_measurement.require_provider_dependency",
+                return_value=True,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            str(root),
+                            "--confirm-private-local-run",
+                            "--layout-provider",
+                            "pdfplumber",
+                            "--enable-layout-candidates",
+                            "--layout-diagnostics",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                        ]
+                    )
             diagnostics_path = Path(output_dir) / "layout_provider_diagnostics.md"
             exists = diagnostics_path.exists()
             text = diagnostics_path.read_text(encoding="utf-8")
@@ -1074,6 +1208,131 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertNotIn("$", console_output + json_text + md_text)
         self.assertNotIn("FAKE_RATE", console_output + json_text + md_text)
         self.assertNotIn(output_dir, console_output)
+
+    def test_cli_writes_ratecon_shadow_audit_without_console_values(self):
+        fake_report = {
+            "rows": [
+                {
+                    "document_alias": "RATECON_001",
+                    "ratecon_shadow_audit_records": [
+                        {
+                            "document_id": "RATECON_001",
+                            "file_name": "",
+                            "file_hash": "",
+                            "legacy": {
+                                "fields_present": ["load_number"],
+                                "pickup_count": 1,
+                                "delivery_count": 1,
+                            },
+                            "shadow": {
+                                "success": True,
+                                "needs_review": True,
+                                "review_reasons": ["MISSING_CRITICAL_FIELD:load_number"],
+                                "resolved_fields": {
+                                    "load_number": {
+                                        "value": "",
+                                        "confidence": 0.0,
+                                        "evidence_text": "",
+                                        "source": "",
+                                        "candidate_count": 0,
+                                    }
+                                },
+                            },
+                            "triage": {
+                                "pdf_type": "born_digital",
+                                "page_count": 1,
+                                "native_text_available": True,
+                                "native_text_token_count": 20,
+                                "ocr_required": False,
+                                "routing_decision": "native_layout",
+                                "quality_flags": [],
+                            },
+                            "artifact_summary": {
+                                "source": "native",
+                                "page_count": 1,
+                                "line_count": 4,
+                                "word_count": 0,
+                                "table_count": 0,
+                                "full_text_length": 200,
+                            },
+                            "candidate_summary": {
+                                "total_candidates": 1,
+                                "candidates_by_field": {"total_carrier_rate": 1},
+                                "candidates_by_source": {"native_text": 1},
+                            },
+                            "legacy_shadow_comparison": {
+                                "load_number": "legacy_only",
+                                "total_carrier_rate": "shadow_only",
+                            },
+                            "failure_attribution": {
+                                "codes": ["MISSING_LOAD_NUMBER_CANDIDATE"],
+                                "primary_suspected_layer": "candidate_generation",
+                            },
+                            "private_values_included": False,
+                            "raw_text_included": False,
+                        }
+                    ],
+                }
+            ],
+            "aggregate": {},
+            "document_count": 1,
+        }
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ):
+                with redirect_stdout(buffer):
+                    exit_code = main(
+                        [
+                            "--input-dir",
+                            output_dir,
+                            "--confirm-private-local-run",
+                            "--output-dir",
+                            output_dir,
+                            "--allow-custom-output-dir",
+                            "--ratecon-shadow-document-pipeline",
+                            "--write-ratecon-shadow-audit",
+                        ]
+                    )
+            jsonl_text = (
+                Path(output_dir) / "ratecon_shadow_document_pipeline_audit.jsonl"
+            ).read_text(encoding="utf-8")
+            summary_text = (
+                Path(output_dir) / "ratecon_shadow_document_pipeline_summary.json"
+            ).read_text(encoding="utf-8")
+            console_output = buffer.getvalue()
+
+        self.assertEqual(exit_code, 0)
+        self.assertIn("ratecon_shadow_audit_written", console_output)
+        self.assertIn("ratecon_shadow_document_pipeline_audit.jsonl", console_output)
+        self.assertIn("MISSING_LOAD_NUMBER_CANDIDATE", jsonl_text)
+        self.assertIn("candidate_generation", summary_text)
+        self.assertNotIn("FAKE_PRIVATE", console_output + jsonl_text + summary_text)
+        self.assertNotIn(output_dir, console_output)
+
+    def test_shadow_audit_requires_shadow_pipeline_flag(self):
+        with tempfile.TemporaryDirectory() as output_dir:
+            buffer = io.StringIO()
+            with redirect_stderr(buffer):
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--output-dir",
+                        output_dir,
+                        "--allow-custom-output-dir",
+                        "--write-ratecon-shadow-audit",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 2)
+        self.assertIn(
+            "--write-ratecon-shadow-audit requires --ratecon-shadow-document-pipeline",
+            buffer.getvalue(),
+        )
 
     def test_cli_writes_local_review_workbook_export_without_printing_values(self):
         fake_report = {

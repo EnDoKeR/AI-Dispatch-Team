@@ -76,7 +76,66 @@ class RateConPdfDryRunTests(unittest.TestCase):
             result["dry_run_result"]["parser_output"]["broker_name"],
             "Synthetic PDF Broker",
         )
+        self.assertIn("routing_decision", result["document_triage"])
         self.assertNotIn("text", result["extraction_metadata"])
+        self.assertNotIn("ratecon_shadow_audit_record", result)
+
+    def test_shadow_mode_attaches_audit_record_without_changing_legacy_result(self):
+        shadow_result = {
+            "final_output": {"load_number": "FAKE LOAD", "total_carrier_rate": "3600"},
+            "needs_review": False,
+            "review_reasons": [],
+            "debug": {
+                "triage": {
+                    "pdf_type": "born_digital",
+                    "page_count": 1,
+                    "native_text_available": True,
+                    "native_text_token_count": 20,
+                    "quality_flags": [],
+                    "routing_decision": "native_layout",
+                },
+                "artifact_summary": {
+                    "source": "native",
+                    "page_count": 1,
+                    "line_count": 2,
+                    "word_count": 0,
+                    "table_count": 0,
+                    "full_text_length": 200,
+                    "full_text_present": True,
+                },
+                "candidates": [
+                    {"field": "load_number", "source": "native_text"},
+                    {"field": "total_carrier_rate", "source": "native_text"},
+                ],
+                "resolved_fields": {
+                    "load_number": {
+                        "value": "FAKE LOAD",
+                        "confidence": 0.9,
+                        "candidate_count": 1,
+                    }
+                },
+            },
+        }
+        with patch.object(
+            ratecon_pdf_dry_run,
+            "extract_pdf_text_local",
+            return_value=extraction_result(CLEAN_TEXT),
+        ), patch.object(
+            ratecon_pdf_dry_run,
+            "extract_ratecon_document",
+            return_value=shadow_result,
+        ):
+            result = run_ratecon_pdf_dry_run(
+                "private.pdf",
+                anonymized_label="RATECON_001",
+                ratecon_shadow_document_pipeline=True,
+            )
+
+        self.assertEqual(result["status"], READY_FOR_REVIEW)
+        self.assertTrue(result["ratecon_shadow_enabled"])
+        self.assertIn("ratecon_shadow_audit_record", result)
+        self.assertFalse(result["ratecon_shadow_audit_record"]["private_values_included"])
+        self.assertNotIn("Synthetic PDF Broker", json.dumps(result["ratecon_shadow_audit_record"]))
 
     def test_missing_fields_from_text_become_needs_field_fix(self):
         with patch.object(

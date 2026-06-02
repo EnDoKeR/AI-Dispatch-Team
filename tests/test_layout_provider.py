@@ -73,8 +73,19 @@ class LayoutProviderContractTests(unittest.TestCase):
         self.assertEqual(result["error_code"], "layout_provider_dependency_missing")
         self.assertFalse(result["raw_text_saved"])
 
-    def test_require_dependency_accepts_installed_pdfplumber(self):
-        self.assertTrue(require_provider_dependency(PROVIDER_PDFPLUMBER))
+    def test_require_dependency_accepts_available_pdfplumber(self):
+        with patch("app.document_ai.layout_provider.import_module", return_value=object()):
+            self.assertTrue(require_provider_dependency(PROVIDER_PDFPLUMBER))
+
+    def test_require_dependency_raises_clear_pdfplumber_message_when_missing(self):
+        with patch(
+            "app.document_ai.layout_provider.import_module",
+            side_effect=ImportError("missing"),
+        ):
+            with self.assertRaises(LayoutProviderDependencyError) as raised:
+                require_provider_dependency(PROVIDER_PDFPLUMBER)
+
+        self.assertIn("pip install pdfplumber", str(raised.exception))
 
 
 if __name__ == "__main__":

@@ -89,7 +89,9 @@ def require_provider_dependency(provider_name):
     try:
         import_module("pdfplumber")
     except ImportError as exc:
-        raise LayoutProviderDependencyError("pdfplumber dependency is not installed") from exc
+        raise LayoutProviderDependencyError(
+            "pdfplumber is not installed. Install optional dependency with: pip install pdfplumber"
+        ) from exc
 
     return True
 

@@ -3,6 +3,7 @@ import io
 import json
 import tempfile
 import unittest
+from unittest.mock import patch
 
 from app.document_ai.layout_provider import (
     STATUS_EMPTY_TEXT,
@@ -11,6 +12,7 @@ from app.document_ai.layout_provider import (
     extract_layout_artifact,
 )
 from app.document_ai.pdfplumber_layout_provider import (
+    PDFPLUMBER_AVAILABLE,
     PDFPLUMBER_TABLE_SETTING_PROFILES,
     TABLE_PROFILE_LINES,
     TABLE_PROFILE_TEXT_STRICT,
@@ -57,6 +59,24 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
             self.table_settings_seen = table_settings
             return [PdfplumberLayoutProviderTests._FakeTable()]
 
+    def test_provider_module_imports_without_hard_dependency(self):
+        self.assertIsInstance(PDFPLUMBER_AVAILABLE, bool)
+
+    def test_missing_dependency_returns_safe_unavailable_result(self):
+        with tempfile.TemporaryDirectory() as temp_dir:
+            path = write_fake_text_pdf(temp_dir)
+            with patch(
+                "app.document_ai.pdfplumber_layout_provider.pdfplumber",
+                None,
+            ):
+                result = extract_pdfplumber_layout(path, document_id="DOC-MISSING-DEPENDENCY")
+
+        self.assertEqual(result["status"], "dependency_missing")
+        self.assertEqual(result["error_code"], "layout_provider_dependency_missing")
+        self.assertIn("pdfplumber is not installed", result["safe_message"])
+        self.assertFalse(result["raw_text_saved"])
+
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_invalid_pdf_returns_safe_failure(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_invalid_pdf(temp_dir)
@@ -67,6 +87,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertFalse(result["raw_text_saved"])
         self.assertNotIn(str(path), result["safe_message"])
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_fake_digital_text_pdf_returns_layout_artifact(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_text_pdf(temp_dir, text=FAKE_RATECON_TEXT)
@@ -83,6 +104,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertTrue(artifact["pages"][0]["lines"])
         json.dumps(result)
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_extract_layout_artifact_dispatches_to_pdfplumber(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_text_pdf(temp_dir)
@@ -91,6 +113,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertEqual(result["status"], STATUS_SUCCESS)
         self.assertEqual(result["artifact"]["source_method"], "pdfplumber_layout_v1")
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_no_raw_text_printed(self):
         stdout = io.StringIO()
         stderr = io.StringIO()
@@ -103,6 +126,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertEqual(stdout.getvalue(), "")
         self.assertEqual(stderr.getvalue(), "")
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_empty_text_pdf_returns_empty_text_status(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_empty_text_pdf(temp_dir)
@@ -112,6 +136,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertIn("no_extractable_layout_text", result["warning_codes"])
         self.assertFalse(result["raw_text_saved"])
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_table_extraction_path_does_not_crash_without_tables(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_text_pdf(temp_dir, text="Total Carrier Pay $1234.00")
@@ -166,6 +191,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
             "text",
         )
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_invalid_table_profile_defaults_with_warning(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_text_pdf(temp_dir, text="Total Carrier Pay $1234.00")
@@ -179,6 +205,7 @@ class PdfplumberLayoutProviderTests(unittest.TestCase):
         self.assertEqual(result["table_settings_profile"], "default")
         self.assertIn("unsupported_pdfplumber_table_profile_defaulted", result["warning_codes"])
 
+    @unittest.skipUnless(PDFPLUMBER_AVAILABLE, "pdfplumber optional dependency not installed")
     def test_dispatcher_accepts_table_profile_option(self):
         with tempfile.TemporaryDirectory() as temp_dir:
             path = write_fake_text_pdf(temp_dir)
