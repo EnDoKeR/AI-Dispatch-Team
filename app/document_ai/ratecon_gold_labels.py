@@ -98,19 +98,44 @@ REFERENCE_TYPES = {
 
 SYSTEM_LEGACY = "legacy"
 SYSTEM_SHADOW = "shadow"
+SYSTEM_SHADOW_SELECTED_STOP = "shadow_selected_stop"
 SYSTEM_SHADOW_CANDIDATE_BEST = "shadow_candidate_best"
 SYSTEM_SHADOW_BEST_INDEPENDENT = "shadow_best_independent_candidate"
 SYSTEM_SHADOW_BEST_LAYOUT = "shadow_best_layout_candidate"
+SYSTEM_SHADOW_BEST_STRUCTURED_STOP = "shadow_best_structured_stop_candidate"
+SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP = "shadow_best_dispatch_usable_stop_candidate"
+SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP = "shadow_best_ocr_column_stop_candidate"
+SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP = "shadow_best_native_layout_stop_candidate"
+SYSTEM_SHADOW_STOP_REVIEW_DRAFT = "shadow_stop_review_draft"
 SYSTEM_LEGACY_FALLBACK_CANDIDATE = "legacy_fallback_candidate"
+SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE = "legacy_fallback_stop_candidate"
 
 EVALUATION_SYSTEMS = (
     SYSTEM_LEGACY,
     SYSTEM_SHADOW,
+    SYSTEM_SHADOW_SELECTED_STOP,
     SYSTEM_SHADOW_CANDIDATE_BEST,
     SYSTEM_SHADOW_BEST_INDEPENDENT,
     SYSTEM_SHADOW_BEST_LAYOUT,
+    SYSTEM_SHADOW_BEST_STRUCTURED_STOP,
+    SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
+    SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP,
+    SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
     SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+    SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE,
 )
+
+STOP_DIAGNOSTIC_SYSTEMS = (
+    SYSTEM_SHADOW_SELECTED_STOP,
+    SYSTEM_SHADOW_BEST_STRUCTURED_STOP,
+    SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
+    SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP,
+    SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE,
+)
+
+STOP_DRAFT_SYSTEMS = (SYSTEM_SHADOW_STOP_REVIEW_DRAFT,)
 
 STATUS_EXACT = "correct_exact"
 STATUS_NORMALIZED_MATCH = "correct_normalized"
@@ -3592,10 +3617,10 @@ def _empty_stop_usability():
     }
 
 
-def _component_status_map(comparison_rows):
+def _component_status_map(comparison_rows, system_name=SYSTEM_SHADOW):
     by_doc_field = {}
     for row in comparison_rows or []:
-        if row.get("system") != SYSTEM_SHADOW:
+        if row.get("system") != system_name:
             continue
         field = row.get("field")
         if field not in STOP_COMPONENT_FIELDS:
@@ -3675,7 +3700,7 @@ def _stop_usability_tier(row, component_rows):
 
 
 def _build_stop_usability_summary(comparison_rows):
-    component_rows = _component_status_map(comparison_rows)
+    component_rows = _component_status_map(comparison_rows, SYSTEM_SHADOW)
     summary = {
         "pickup": _empty_stop_usability(),
         "delivery": _empty_stop_usability(),
@@ -3752,6 +3777,39 @@ def _build_stop_gold_consistency_audit(comparison_rows):
         "private_values_printed": False,
         "raw_text_printed": False,
     }
+
+
+def _build_stop_group_usability_metrics(comparison_rows, systems):
+    systems = tuple(systems or [])
+    summary = {}
+    for system_name in systems:
+        component_rows = _component_status_map(comparison_rows, system_name)
+        system_payload = {
+            "pickup": _empty_stop_usability(),
+            "delivery": _empty_stop_usability(),
+        }
+        for row in comparison_rows or []:
+            if row.get("system") != system_name:
+                continue
+            field = row.get("field")
+            if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+                continue
+            if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                continue
+            role = "pickup" if field == FIELD_PICKUP_STOPS else "delivery"
+            system_payload[role][_stop_usability_tier(row, component_rows)] += 1
+        summary[system_name] = system_payload
+    summary["private_values_printed"] = False
+    summary["raw_text_printed"] = False
+    return summary
+
+
+def _build_stop_candidate_group_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_DIAGNOSTIC_SYSTEMS)
+
+
+def _build_stop_draft_profile_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_DRAFT_SYSTEMS)
 
 
 def _stop_inventory(record):
@@ -3901,6 +3959,145 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         "ocr_geometry_column_structured_stop_candidates": column_structured,
         "ocr_geometry_column_dispatch_usable_candidates": column_dispatch_usable,
         "candidate_field_counts": dict(candidates_by_field.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _resolver_handoff_candidates(record):
+    shadow = record.get("shadow", {}) if isinstance(record, dict) else {}
+    traces = shadow.get("resolver_decision_traces", {}) if isinstance(shadow, dict) else {}
+    if not traces:
+        traces = record.get("resolver_decision_traces", {}) if isinstance(record, dict) else {}
+    rows = []
+    for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        trace = traces.get(field_name, {}) if isinstance(traces, dict) else {}
+        for item in trace.get("dispatch_usable_handoff_candidates", []) or []:
+            if isinstance(item, dict):
+                rows.append(dict(item))
+    return rows
+
+
+def _dispatch_inventory_candidates(record):
+    rows = []
+    for item in _stop_inventory(record):
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+        if not (
+            metadata.get("dispatch_usable")
+            and metadata.get("assembled_from_column_geometry")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+        ):
+            continue
+        rows.append(item)
+    return rows
+
+
+def _candidate_group_rows(comparison_rows, system_name):
+    return [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == system_name
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    ]
+
+
+def _build_dispatch_usable_handoff_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    inventory_count = 0
+    kept_after_dedupe = 0
+    resolver_eligible = 0
+    resolver_selected = 0
+    serialized_for_eval = 0
+    compared_to_gold = 0
+    serialized_gap_count = 0
+    handoff_failure_stage_counts = Counter()
+    not_selected_reason_counts = Counter()
+    evaluator_status_counts = Counter()
+    cases = []
+    draft_rows = _candidate_group_rows(
+        comparison_rows,
+        SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    )
+    predicted_group_rows = [row for row in draft_rows if row.get("predicted")]
+    serialized_for_eval = len(predicted_group_rows)
+    compared_to_gold = len(
+        [
+            row
+            for row in predicted_group_rows
+            if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        ]
+    )
+    serialized_gap_count = len(
+        [
+            row
+            for row in predicted_group_rows
+            if row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        ]
+    )
+    evaluator_status_counts = Counter(
+        _text(row.get("status")) or "unknown" for row in predicted_group_rows
+    )
+    for record in records:
+        inv_rows = _dispatch_inventory_candidates(record)
+        trace_rows = _resolver_handoff_candidates(record)
+        inventory_count += len(inv_rows)
+        kept_after_dedupe += len(trace_rows)
+        for trace in trace_rows:
+            field_name = trace.get("field")
+            stage = _text(trace.get("handoff_failure_stage")) or "unknown"
+            if trace.get("resolver_eligible"):
+                resolver_eligible += 1
+            if trace.get("resolver_selected"):
+                resolver_selected += 1
+            handoff_failure_stage_counts[stage] += 1
+            reason = _text(trace.get("resolver_not_selected_reason"))
+            if reason:
+                not_selected_reason_counts[reason] += 1
+            cases.append(
+                {
+                    "candidate_id": _text(trace.get("candidate_id")),
+                    "field": _text(field_name),
+                    "source": _text(trace.get("source")),
+                    "generator_name": _text(trace.get("generator_name")),
+                    "pairing_method": _text(trace.get("pairing_method")),
+                    "dispatch_usable": bool(trace.get("dispatch_usable")),
+                    "component_completeness": _safe_float(trace.get("component_completeness")),
+                    "role": _text(trace.get("role")),
+                    "has_location": bool(trace.get("has_location")),
+                    "has_date": bool(trace.get("has_date")),
+                    "has_time_or_window": bool(trace.get("has_time_or_window")),
+                    "dedupe_status": _text(trace.get("dedupe_status")) or "unknown",
+                    "resolver_eligible": bool(trace.get("resolver_eligible")),
+                    "resolver_score": trace.get("resolver_score"),
+                    "resolver_selected": bool(trace.get("resolver_selected")),
+                    "resolver_not_selected_reason": reason,
+                    "review_gate_status": _text(trace.get("review_gate_status")),
+                    "serialized_for_eval": False,
+                    "evaluator_status": "see_candidate_group_metrics",
+                    "handoff_failure_stage": stage,
+                }
+            )
+    return {
+        "dispatch_usable_candidates": inventory_count,
+        "kept_after_dedupe": kept_after_dedupe,
+        "resolver_eligible": resolver_eligible,
+        "resolver_selected": resolver_selected,
+        "serialized_for_eval": serialized_for_eval,
+        "compared_to_gold": compared_to_gold,
+        "handoff_failure_stage_counts": dict(handoff_failure_stage_counts.most_common()),
+        "not_selected_reason_counts": dict(not_selected_reason_counts.most_common()),
+        "evaluator_status_counts": dict(evaluator_status_counts.most_common()),
+        "serialized_gap_count": serialized_gap_count,
+        "gold_incomplete_count": _safe_int(
+            (_build_stop_gold_consistency_audit(comparison_rows) or {}).get(
+                "gold_incomplete_count"
+            )
+        ),
+        "cases": cases,
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -4227,6 +4424,16 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         ),
         "stop_usability_summary": _build_stop_usability_summary(comparison_rows),
         "stop_gold_consistency_audit": _build_stop_gold_consistency_audit(
+            comparison_rows,
+        ),
+        "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(
+            comparison_rows,
+        ),
+        "stop_draft_profile_metrics": _build_stop_draft_profile_metrics(
+            comparison_rows,
+        ),
+        "dispatch_usable_handoff_summary": _build_dispatch_usable_handoff_summary(
+            indexed,
             comparison_rows,
         ),
         "ocr_stop_evidence_gap_summary": _build_ocr_stop_evidence_gap_summary(

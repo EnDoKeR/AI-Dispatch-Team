@@ -33,6 +33,10 @@ from app.document_ai.structured_stop_values import (
     FIELD_PICKUP_STOPS,
     normalize_stop_candidate_value,
 )
+from app.document_ai.ratecon_stop_draft_profile import (
+    STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
+    STOP_DRAFT_PROFILE_NONE,
+)
 
 
 RATECON_SHADOW_AUDIT_VERSION = "ratecon_shadow_document_pipeline_audit_v1"
@@ -1476,6 +1480,7 @@ def _metadata_eval_summary(metadata):
     metadata = metadata if isinstance(metadata, dict) else {}
     safe_keys = [
         "id_type_hint",
+        "candidate_id",
         "label_strength",
         "canonical_mapping_strength",
         "money_context",
@@ -1783,6 +1788,31 @@ def _candidate_is_fallback(candidate):
     return bool(metadata.get("diagnostic_fallback") or metadata.get("not_independent_candidate"))
 
 
+def _candidate_is_structured_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(metadata.get("structured_stop_candidate"))
+
+
+def _candidate_is_dispatch_usable_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(metadata.get("dispatch_usable"))
+
+
+def _candidate_is_ocr_column_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(
+        metadata.get("assembled_from_column_geometry")
+        and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+    )
+
+
+def _candidate_is_native_layout_stop(candidate):
+    return _candidate_is_layout(candidate) and _candidate_field(candidate) in {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+    }
+
+
 def _candidate_rank(candidate):
     metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
     score = float((candidate or {}).get("confidence") or 0.0)
@@ -1794,6 +1824,10 @@ def _candidate_rank(candidate):
         metadata.get("has_date") or metadata.get("has_time")
     ):
         score += 0.04
+    if metadata.get("dispatch_usable"):
+        score += 0.06
+    if metadata.get("assembled_from_column_geometry"):
+        score += 0.03
     if _candidate_is_fallback(candidate):
         score -= 0.08
     return score
@@ -1810,6 +1844,56 @@ def _best_candidate(candidates, field_name, predicate=None):
     if not field_candidates:
         return None
     return sorted(field_candidates, key=_candidate_rank, reverse=True)[0]
+
+
+def _stop_draft_reason(raw_resolved, field_name, candidate):
+    resolution = raw_resolved.get(field_name, {}) if isinstance(raw_resolved, dict) else {}
+    if not isinstance(resolution, dict) or not _text(resolution.get("value")):
+        return "selected_missing"
+    selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
+    if not selected:
+        return "selected_serialized_gap"
+    if not _candidate_matches_selected(candidate, selected, field_name):
+        return "dispatch_usable_candidate_not_selected"
+    return "selected_serialized_gap"
+
+
+def _draft_stop_prediction(candidate, field_name, raw_resolved, stop_draft_profile):
+    prediction = _candidate_eval_prediction(candidate, field_name)
+    metadata = dict(prediction.get("metadata_summary") or {})
+    metadata.update(
+        {
+            "review_required": True,
+            "draft_profile": stop_draft_profile,
+            "draft_reason": _stop_draft_reason(raw_resolved, field_name, candidate),
+        }
+    )
+    prediction["metadata_summary"] = metadata
+    prediction["source"] = "shadow_stop_draft"
+    prediction["review_required"] = True
+    prediction["draft_reason"] = metadata["draft_reason"]
+    return prediction
+
+
+def _build_stop_review_draft(raw_resolved, candidates, stop_draft_profile):
+    if stop_draft_profile != STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1:
+        return {}
+    payload = {}
+    for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        candidate = _best_candidate(
+            candidates,
+            field_name,
+            predicate=lambda item: _candidate_is_dispatch_usable_stop(item)
+            and _candidate_is_ocr_column_stop(item),
+        )
+        if candidate:
+            payload[field_name] = _draft_stop_prediction(
+                candidate,
+                field_name,
+                raw_resolved,
+                stop_draft_profile,
+            )
+    return payload
 
 
 def _stops_from_private_stop_set(stop_set, role):
@@ -2125,7 +2209,7 @@ def _stop_component_candidate_inventory(candidates):
         "delivery_date",
         "delivery_time",
     }
-    for candidate in candidates or []:
+    for index, candidate in enumerate(candidates or [], start=1):
         field_name = _candidate_field(candidate)
         if field_name not in stop_fields:
             continue
@@ -2133,6 +2217,7 @@ def _stop_component_candidate_inventory(candidates):
         value = candidate.get("normalized_value") or candidate.get("value")
         inventory.append(
             {
+                "candidate_id": _text(metadata.get("candidate_id")) or f"{field_name}:inventory:{index}",
                 "field": field_name,
                 "value": _json_safe(value),
                 "confidence": round(float(candidate.get("confidence") or 0.0), 3),
@@ -2158,6 +2243,7 @@ def build_private_eval_values(
     legacy_summary=None,
     private_eval_context=None,
     private_eval_artifact=None,
+    stop_draft_profile=STOP_DRAFT_PROFILE_NONE,
 ):
     raw_resolved = raw_resolved if isinstance(raw_resolved, dict) else {}
     candidates = [candidate for candidate in candidates or [] if isinstance(candidate, dict)]
@@ -2169,9 +2255,16 @@ def build_private_eval_values(
         ),
         "shadow_selected": {},
         "shadow_candidate_best": {},
+        "shadow_selected_stop": {},
+        "shadow_best_structured_stop_candidate": {},
+        "shadow_best_dispatch_usable_stop_candidate": {},
+        "shadow_best_ocr_column_stop_candidate": {},
+        "shadow_best_native_layout_stop_candidate": {},
+        "shadow_stop_review_draft": {},
         "shadow_best_independent_candidate": {},
         "shadow_best_layout_candidate": {},
         "legacy_fallback_candidate": {},
+        "legacy_fallback_stop_candidate": {},
         "load_identity_candidate_inventory": [],
         "rate_money_candidate_inventory": [],
         "stop_component_candidate_inventory": [],
@@ -2187,6 +2280,8 @@ def build_private_eval_values(
                 field_name,
                 candidates=candidates,
             )
+            if field_name in PRIVATE_EVAL_STOP_FIELDS:
+                payload["shadow_selected_stop"][field_name] = payload["shadow_selected"][field_name]
         for group_name, predicate in [
             ("shadow_candidate_best", None),
             ("shadow_best_independent_candidate", lambda candidate: not _candidate_is_fallback(candidate)),
@@ -2196,6 +2291,22 @@ def build_private_eval_values(
             candidate = _best_candidate(candidates, field_name, predicate=predicate)
             if candidate:
                 payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+        if field_name in PRIVATE_EVAL_STOP_FIELDS:
+            for group_name, predicate in [
+                ("shadow_best_structured_stop_candidate", _candidate_is_structured_stop),
+                ("shadow_best_dispatch_usable_stop_candidate", _candidate_is_dispatch_usable_stop),
+                ("shadow_best_ocr_column_stop_candidate", _candidate_is_ocr_column_stop),
+                ("shadow_best_native_layout_stop_candidate", _candidate_is_native_layout_stop),
+                ("legacy_fallback_stop_candidate", _candidate_is_fallback),
+            ]:
+                candidate = _best_candidate(candidates, field_name, predicate=predicate)
+                if candidate:
+                    payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+    payload["shadow_stop_review_draft"] = _build_stop_review_draft(
+        raw_resolved,
+        candidates,
+        stop_draft_profile,
+    )
     payload["load_identity_candidate_inventory"] = _load_identity_candidate_inventory(candidates)
     payload["rate_money_candidate_inventory"] = _rate_money_candidate_inventory(candidates)
     payload["stop_component_candidate_inventory"] = _stop_component_candidate_inventory(candidates)
@@ -2894,6 +3005,7 @@ def build_ratecon_shadow_audit_record(
             "ocr_candidate_policy": _text(debug.get("ocr_candidate_policy")),
             "stop_candidate_profile": _text(debug.get("stop_candidate_profile")),
             "stop_ranking_profile": _text(debug.get("stop_ranking_profile")),
+            "stop_draft_profile": _text(debug.get("stop_draft_profile")),
             "field_ranking_profiles": dict(debug.get("field_ranking_profiles") or {}),
             "field_scoped_ranking_enabled": bool(
                 debug.get("field_scoped_ranking_enabled")
@@ -2917,6 +3029,7 @@ def build_ratecon_shadow_audit_record(
             legacy_summary=legacy_summary,
             private_eval_context=private_eval_context,
             private_eval_artifact=debug.get("private_eval_artifact"),
+            stop_draft_profile=_text(debug.get("stop_draft_profile")) or STOP_DRAFT_PROFILE_NONE,
         )
     return record
 

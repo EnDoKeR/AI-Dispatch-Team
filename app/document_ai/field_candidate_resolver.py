@@ -898,6 +898,64 @@ def _candidate_identity(candidate):
     )
 
 
+def _is_dispatch_usable_ocr_column_candidate(candidate):
+    metadata = _metadata(candidate)
+    return bool(
+        _is_stop_field(_canonical_field((candidate or {}).get("field")))
+        and metadata.get("dispatch_usable")
+        and metadata.get("assembled_from_column_geometry")
+        and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+    )
+
+
+def _dispatch_usable_handoff_trace(
+    candidate,
+    field_name,
+    index,
+    eligibility,
+    score=None,
+    selected=False,
+    not_selected_reason="",
+):
+    metadata = _metadata(candidate)
+    role = _text(metadata.get("stop_role") or metadata.get("role"))
+    failure_stage = "none"
+    if not eligibility.get("eligible"):
+        failure_stage = "resolver_eligibility"
+    elif not selected:
+        failure_stage = "resolver_selection"
+    return {
+        "candidate_id": _text(metadata.get("candidate_id")) or _candidate_id(field_name, index),
+        "field": field_name,
+        "source": _text((candidate or {}).get("source")),
+        "generator_name": _text(
+            metadata.get("generator_name")
+            or metadata.get("source_generator_name")
+            or (candidate or {}).get("parser_name")
+        ),
+        "parser_name": _text((candidate or {}).get("parser_name")),
+        "pairing_method": _text(metadata.get("pairing_method")),
+        "dispatch_usable": bool(metadata.get("dispatch_usable")),
+        "component_completeness": round(float(metadata.get("component_completeness") or 0.0), 3),
+        "role": role,
+        "has_location": bool(metadata.get("has_location")),
+        "has_date": bool(metadata.get("has_date")),
+        "has_time_or_window": bool(metadata.get("has_time")),
+        "dedupe_status": "kept",
+        "resolver_eligible": bool(eligibility.get("eligible")),
+        "resolver_score": round(float(score), 3) if score is not None else None,
+        "resolver_selected": bool(selected),
+        "resolver_not_selected_reason": _text(not_selected_reason),
+        "review_gate_status": _text(metadata.get("stop_selection_policy")),
+        "selection_policy": _text(metadata.get("stop_selection_policy")),
+        "stop_abstained": bool(metadata.get("stop_abstained")),
+        "stop_abstention_reason": _text(metadata.get("stop_abstention_reason")),
+        "serialized_for_eval": False,
+        "evaluator_status": "not_compared",
+        "handoff_failure_stage": failure_stage,
+    }
+
+
 def _not_selected_reason(field_name, candidate, selected_score=None, candidate_score=None, resolution=None):
     metadata = _metadata(candidate)
     reasons = set((resolution or {}).get("review_reasons", []) or [])
@@ -979,6 +1037,7 @@ def build_resolver_decision_traces(
         candidates_by_source = defaultdict(int)
         candidates_by_parser = defaultdict(int)
         rejected = []
+        dispatch_usable_handoff_candidates = []
         eligible_count = 0
         ineligible_count = 0
         for index, candidate in enumerate(field_candidates):
@@ -1003,6 +1062,17 @@ def build_resolver_decision_traces(
             )
             if selected_identity and _candidate_identity(candidate) == selected_identity:
                 selected_candidate = _safe_candidate_trace(candidate, field_name, index, score=score)
+                if _is_dispatch_usable_ocr_column_candidate(candidate):
+                    dispatch_usable_handoff_candidates.append(
+                        _dispatch_usable_handoff_trace(
+                            candidate,
+                            field_name,
+                            index,
+                            eligibility,
+                            score=score,
+                            selected=True,
+                        )
+                    )
                 continue
             if not eligibility["eligible"]:
                 reason = eligibility["eligibility_reason"]
@@ -1013,6 +1083,18 @@ def build_resolver_decision_traces(
                     selected_score=selected_score,
                     candidate_score=score,
                     resolution=resolution,
+                )
+            if _is_dispatch_usable_ocr_column_candidate(candidate):
+                dispatch_usable_handoff_candidates.append(
+                    _dispatch_usable_handoff_trace(
+                        candidate,
+                        field_name,
+                        index,
+                        eligibility,
+                        score=score,
+                        selected=False,
+                        not_selected_reason=reason,
+                    )
                 )
             rejected.append(
                 {
@@ -1048,6 +1130,7 @@ def build_resolver_decision_traces(
             "candidates_by_source": dict(sorted(candidates_by_source.items())),
             "candidates_by_parser_name": dict(sorted(candidates_by_parser.items())),
             "candidate_eligibility": eligibility_rows[:50],
+            "dispatch_usable_handoff_candidates": dispatch_usable_handoff_candidates,
             "top_rejected_or_not_selected": sorted(
                 rejected,
                 key=lambda item: (

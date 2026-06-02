@@ -381,6 +381,33 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "dispatch_usable_handoff_summary: "
+        + json.dumps(
+            {
+                key: value
+                for key, value in (
+                    evaluation.get("dispatch_usable_handoff_summary", {}) or {}
+                ).items()
+                if key != "cases"
+            },
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_candidate_group_metrics: "
+        + json.dumps(
+            evaluation.get("stop_candidate_group_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_draft_profile_metrics: "
+        + json.dumps(
+            evaluation.get("stop_draft_profile_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "ocr_stop_evidence_gap_summary: "
         + json.dumps(
             evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},
