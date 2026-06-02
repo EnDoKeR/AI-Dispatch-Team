@@ -1,7 +1,7 @@
 """Create local-only stop gold review packets from RateCon gold evaluation.
 
-This script writes private review artifacts under .local_outputs by default.
-It does not modify gold labels.
+The output is private review material and must stay under .local_outputs.
+This script does not modify gold labels.
 """
 
 from __future__ import annotations
@@ -19,9 +19,11 @@ if str(REPO_ROOT) not in sys.path:
 from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     FIELD_DELIVERY_STOPS,
     FIELD_PICKUP_STOPS,
+    STOP_GOLD_COMPLETENESS_COMPONENTS,
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
+    build_stop_gold_completeness_summary,
     evaluate_ratecon_against_gold,
     load_gold_labels,
 )
@@ -53,22 +55,23 @@ def _is_under_local_outputs(path: Path) -> bool:
 def _gold_stop_completeness(stop):
     stop = stop if isinstance(stop, dict) else {}
     components = {
-        "facility": bool(_text(stop.get("facility"))),
-        "address": bool(_text(stop.get("address"))),
-        "city": bool(_text(stop.get("city"))),
-        "state": bool(_text(stop.get("state"))),
-        "zip": bool(_text(stop.get("zip"))),
-        "date": bool(_text(stop.get("date"))),
-        "time": bool(_text(stop.get("time")) or _text(stop.get("appointment_window"))),
+        component: bool(_text(stop.get(component)))
+        for component in STOP_GOLD_COMPLETENESS_COMPONENTS
     }
     missing = [key for key, present in components.items() if not present]
+    has_city_state = components["city"] and components["state"]
+    has_location = has_city_state or components["address"] or components["facility"]
+    complete_dispatch = bool(has_location and components["date"])
+    complete_exact = bool(
+        complete_dispatch
+        and (components["time"] or components["appointment_window"])
+    )
     return {
         "components_present": components,
         "missing_components": missing,
-        "complete_dispatch_components": bool(
-            (components["city"] or components["address"] or components["facility"])
-            and components["date"]
-        ),
+        "complete_for_exact": complete_exact,
+        "complete_for_dispatch_usable": complete_dispatch,
+        "incomplete_for_dispatch_usable": not complete_dispatch,
     }
 
 
@@ -89,9 +92,11 @@ def _gold_by_doc_field(gold_labels):
 
 
 def _safe_row_summary(row):
+    row = row if isinstance(row, dict) else {}
     return {
         "system": _text(row.get("system")),
-        "status": _text(row.get("status")),
+        "raw_status": _text(row.get("status")),
+        "usability_tier": _text(row.get("stop_usability_tier")),
         "source_status": _text(row.get("source_status")),
         "source": _text(row.get("source")),
         "parser_name": _text(row.get("parser_name")),
@@ -107,42 +112,94 @@ def _safe_row_summary(row):
     }
 
 
-def _reason_for_case(selected, dispatch, draft, gold_info):
-    completeness = gold_info.get("completeness", []) if isinstance(gold_info, dict) else []
+def _missing_gold_components(gold_info):
     missing = set()
-    for item in completeness:
+    for item in gold_info.get("completeness", []) or []:
         missing.update(item.get("missing_components", []) or [])
+    return sorted(missing)
+
+
+def _reason_for_case(selected, dispatch, draft, gold_info):
+    selected = selected if isinstance(selected, dict) else {}
+    dispatch = dispatch if isinstance(dispatch, dict) else {}
+    draft = draft if isinstance(draft, dict) else {}
+    missing = set(_missing_gold_components(gold_info))
     if selected and selected.get("source_status") == "shadow_component_not_serialized":
         return "evaluator_serialized_gap"
-    if dispatch and dispatch.get("status") in {"correct_exact", "correct_normalized", "partial_match"}:
-        return "selected_has_dispatch_components_but_gold_incomplete" if missing else "manual_review_needed"
+    if dispatch.get("status") == "partial_match" and dispatch.get("stop_usability_tier") == "unsafe_wrong":
+        return "candidate_partial_match_but_unsafe_by_usability"
+    if dispatch.get("predicted") and not dispatch.get("status"):
+        return "candidate_not_compared"
+    if dispatch.get("predicted") and missing:
+        return "selected_has_dispatch_components_but_gold_incomplete"
     if "date" in missing:
         return "gold_missing_date"
-    if "time" in missing:
-        return "gold_missing_time"
+    if "time" in missing and "appointment_window" in missing:
+        return "gold_missing_time_or_window"
     if "city" in missing or "state" in missing:
         return "gold_missing_city_state"
-    if draft:
+    if draft.get("predicted"):
         return "candidate_is_review_draft_only"
     return "manual_review_needed"
 
 
-def build_stop_gold_review_packet(gold_labels, audit_records):
-    evaluation = evaluate_ratecon_against_gold(gold_labels, audit_records)
-    gold_lookup = _gold_by_doc_field(gold_labels)
+def _secondary_reasons_for_case(selected, dispatch, draft, gold_info):
+    selected = selected if isinstance(selected, dict) else {}
+    dispatch = dispatch if isinstance(dispatch, dict) else {}
+    draft = draft if isinstance(draft, dict) else {}
+    missing = set(_missing_gold_components(gold_info))
+    reasons = []
+    if selected and selected.get("source_status") == "shadow_component_not_serialized":
+        reasons.append("evaluator_serialized_gap")
+    if dispatch.get("status") == "partial_match" and dispatch.get("stop_usability_tier") == "unsafe_wrong":
+        reasons.append("candidate_partial_match_but_unsafe_by_usability")
+    if dispatch.get("predicted") and missing:
+        reasons.append("dispatch_candidate_compared_against_incomplete_gold")
+    if draft.get("predicted"):
+        reasons.append("candidate_is_review_draft_only")
+    return sorted(set(reasons))
+
+
+def _recommendation_for_reason(reason):
+    if reason == "evaluator_serialized_gap":
+        return "evaluator_bug_suspected"
+    if reason in {
+        "gold_missing_date",
+        "gold_missing_time_or_window",
+        "gold_missing_city_state",
+        "selected_has_dispatch_components_but_gold_incomplete",
+    }:
+        return "manually_review_gold"
+    if reason == "candidate_partial_match_but_unsafe_by_usability":
+        return "candidate_is_review_draft_only"
+    return "manual_review_needed"
+
+
+def _comparison_rows_by_doc_field(evaluation):
     by_key = {}
     for row in evaluation.get("comparison_rows", []) or []:
         if row.get("field") not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
             continue
         key = (row.get("document_id"), row.get("file_hash"), row.get("field"))
         by_key.setdefault(key, {})[row.get("system")] = row
+    return by_key
+
+
+def build_stop_gold_review_packet(gold_labels, audit_records):
+    evaluation = evaluate_ratecon_against_gold(gold_labels, audit_records)
+    gold_lookup = _gold_by_doc_field(gold_labels)
     review_items = []
-    for key, rows in sorted(by_key.items()):
+    for key, rows in sorted(_comparison_rows_by_doc_field(evaluation).items()):
         selected = rows.get(SYSTEM_SHADOW, {})
         dispatch = rows.get(SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP, {})
         draft = rows.get(SYSTEM_SHADOW_STOP_REVIEW_DRAFT, {})
         statuses = {
             _text(row.get("status"))
+            for row in [selected, dispatch, draft]
+            if isinstance(row, dict) and row
+        }
+        tiers = {
+            _text(row.get("stop_usability_tier"))
             for row in [selected, dispatch, draft]
             if isinstance(row, dict) and row
         }
@@ -154,17 +211,16 @@ def build_stop_gold_review_packet(gold_labels, audit_records):
                 "shadow_component_not_serialized",
                 "source_not_available",
             }
-        ):
+        ) and not tiers.intersection({"unsafe_wrong", "useful_partial"}):
             continue
         gold_info = gold_lookup.get(key, {})
         reason = _reason_for_case(selected, dispatch, draft, gold_info)
-        recommendation = (
-            "candidate_is_review_draft_only"
-            if draft and draft.get("predicted")
-            else "manually_review_gold"
+        secondary_reasons = _secondary_reasons_for_case(
+            selected,
+            dispatch,
+            draft,
+            gold_info,
         )
-        if reason == "evaluator_serialized_gap":
-            recommendation = "evaluator_bug_suspected"
         review_items.append(
             {
                 "document_id": _text(key[0]),
@@ -175,25 +231,29 @@ def build_stop_gold_review_packet(gold_labels, audit_records):
                 "selected_stop_component_summary": _safe_row_summary(selected),
                 "best_dispatch_usable_candidate_summary": _safe_row_summary(dispatch),
                 "draft_stop_summary": _safe_row_summary(draft),
-                "missing_gold_components": sorted(
-                    {
-                        component
-                        for item in gold_info.get("completeness", []) or []
-                        for component in item.get("missing_components", []) or []
-                    }
-                ),
+                "missing_gold_components": _missing_gold_components(gold_info),
                 "suspect_reason": reason,
-                "recommendation": recommendation,
+                "secondary_reasons": secondary_reasons,
+                "recommendation": _recommendation_for_reason(reason),
             }
         )
     reason_counts = {}
+    secondary_reason_counts = {}
     for item in review_items:
         reason = item["suspect_reason"]
         reason_counts[reason] = reason_counts.get(reason, 0) + 1
+        for secondary_reason in item.get("secondary_reasons", []) or []:
+            secondary_reason_counts[secondary_reason] = (
+                secondary_reason_counts.get(secondary_reason, 0) + 1
+            )
     return {
-        "schema_version": "ratecon_stop_gold_review_packet_v1",
+        "schema_version": "ratecon_stop_gold_review_packet_v2",
         "review_item_count": len(review_items),
         "reason_counts": reason_counts,
+        "secondary_reason_counts": secondary_reason_counts,
+        "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
+            gold_labels,
+        ),
         "items": review_items,
         "gold_labels_modified": False,
         "private_values_printed": True,
@@ -201,17 +261,63 @@ def build_stop_gold_review_packet(gold_labels, audit_records):
     }
 
 
+def build_patch_template(packet):
+    patches = []
+    for item in packet.get("items", []) or []:
+        patches.append(
+            {
+                "document_id": item.get("document_id", ""),
+                "file_hash": item.get("file_hash", ""),
+                "file_name": item.get("file_name", ""),
+                "field": item.get("field", ""),
+                "stop_index": 1,
+                "review_reason": item.get("suspect_reason", ""),
+                "secondary_reasons": item.get("secondary_reasons", []),
+                "proposed_gold": {
+                    component: None for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+                },
+                "reviewer_notes": "",
+            }
+        )
+    return {
+        "schema_version": "ratecon_stop_gold_patch_template_v1",
+        "instructions": (
+            "Dry-run by default with scripts/apply_ratecon_stop_gold_review_patch.py. "
+            "Fill proposed_gold manually; this template is not populated from shadow candidates."
+        ),
+        "patches": patches,
+        "auto_filled_from_shadow_candidates": False,
+        "gold_labels_modified": False,
+        "local_only": True,
+    }
+
+
 def write_packet(packet, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
-    json_path = output_dir / "stop_gold_review.json"
-    md_path = output_dir / "stop_gold_review.md"
-    csv_path = output_dir / "stop_gold_review.csv"
-    json_path.write_text(json.dumps(packet, indent=2, sort_keys=True), encoding="utf-8")
+    summary_path = output_dir / "stop_gold_review_summary.md"
+    items_json_path = output_dir / "stop_gold_review_items.json"
+    items_csv_path = output_dir / "stop_gold_review_items.csv"
+    patch_template_path = output_dir / "stop_gold_patch_template.json"
+    items_json_path.write_text(
+        json.dumps(packet, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
     lines = [
         "# Stop Gold Review",
         "",
         f"Review items: {packet.get('review_item_count', 0)}",
         f"Reason counts: {json.dumps(packet.get('reason_counts', {}), sort_keys=True)}",
+        f"Secondary reason counts: {json.dumps(packet.get('secondary_reason_counts', {}), sort_keys=True)}",
+        "",
+        "## Stop Gold Completeness",
+        "",
+        json.dumps(
+            packet.get("stop_gold_completeness_summary", {}),
+            indent=2,
+            sort_keys=True,
+        ),
+        "",
+        "## Items",
         "",
     ]
     for item in packet.get("items", []) or []:
@@ -220,8 +326,8 @@ def write_packet(packet, output_dir: Path):
             f"{item.get('field')}: {item.get('suspect_reason')} "
             f"-> {item.get('recommendation')}"
         )
-    md_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
-    with csv_path.open("w", newline="", encoding="utf-8") as handle:
+    summary_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+    with items_csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(
             handle,
             fieldnames=[
@@ -231,12 +337,53 @@ def write_packet(packet, output_dir: Path):
                 "field",
                 "suspect_reason",
                 "recommendation",
+                "secondary_reasons",
+                "missing_gold_components",
+                "selected_raw_status",
+                "selected_usability_tier",
+                "dispatch_raw_status",
+                "dispatch_usability_tier",
+                "draft_raw_status",
+                "draft_usability_tier",
             ],
         )
         writer.writeheader()
         for item in packet.get("items", []) or []:
-            writer.writerow({key: item.get(key, "") for key in writer.fieldnames})
-    return {"json": str(json_path), "md": str(md_path), "csv": str(csv_path)}
+            selected = item.get("selected_stop_component_summary", {}) or {}
+            dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
+            draft = item.get("draft_stop_summary", {}) or {}
+            writer.writerow(
+                {
+                    "document_id": item.get("document_id", ""),
+                    "file_hash": item.get("file_hash", ""),
+                    "file_name": item.get("file_name", ""),
+                    "field": item.get("field", ""),
+                    "suspect_reason": item.get("suspect_reason", ""),
+                    "recommendation": item.get("recommendation", ""),
+                    "secondary_reasons": ",".join(
+                        item.get("secondary_reasons", []) or []
+                    ),
+                    "missing_gold_components": ",".join(
+                        item.get("missing_gold_components", []) or []
+                    ),
+                    "selected_raw_status": selected.get("raw_status", ""),
+                    "selected_usability_tier": selected.get("usability_tier", ""),
+                    "dispatch_raw_status": dispatch.get("raw_status", ""),
+                    "dispatch_usability_tier": dispatch.get("usability_tier", ""),
+                    "draft_raw_status": draft.get("raw_status", ""),
+                    "draft_usability_tier": draft.get("usability_tier", ""),
+                }
+            )
+    patch_template_path.write_text(
+        json.dumps(build_patch_template(packet), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    return {
+        "summary_md": str(summary_path),
+        "items_json": str(items_json_path),
+        "items_csv": str(items_csv_path),
+        "patch_template_json": str(patch_template_path),
+    }
 
 
 def main(argv=None):
@@ -256,7 +403,18 @@ def main(argv=None):
     audit_records = _read_jsonl(Path(args.audit))
     packet = build_stop_gold_review_packet(gold_labels, audit_records)
     paths = write_packet(packet, output_dir)
-    print(json.dumps({"output_paths": paths, "review_item_count": packet["review_item_count"]}, indent=2))
+    print(
+        json.dumps(
+            {
+                "output_paths": paths,
+                "review_item_count": packet["review_item_count"],
+                "reason_counts": packet["reason_counts"],
+                "secondary_reason_counts": packet["secondary_reason_counts"],
+            },
+            indent=2,
+            sort_keys=True,
+        )
+    )
     return 0
 
 

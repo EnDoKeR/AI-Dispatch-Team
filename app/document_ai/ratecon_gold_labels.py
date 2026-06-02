@@ -3617,6 +3617,102 @@ def _empty_stop_usability():
     }
 
 
+STOP_GOLD_COMPLETENESS_COMPONENTS = (
+    "facility",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "date",
+    "time",
+    "appointment_window",
+)
+
+
+def _empty_stop_gold_completeness_bucket():
+    return {
+        "docs_checked": 0,
+        "docs_with_gold_stops": 0,
+        "docs_without_gold_stops": 0,
+        "stops_checked": 0,
+        "component_present_counts": {
+            component: 0 for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+        },
+        "component_missing_counts": {
+            component: 0 for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+        },
+        "complete_for_exact": 0,
+        "complete_for_dispatch_usable": 0,
+        "incomplete_for_dispatch_usable": 0,
+    }
+
+
+def _gold_stop_component_presence(stop):
+    stop = stop if isinstance(stop, dict) else {}
+    return {
+        component: bool(_text(stop.get(component)))
+        for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+    }
+
+
+def _gold_stop_complete_for_dispatch_usable(presence):
+    has_city_state = bool(presence.get("city") and presence.get("state"))
+    has_location = bool(
+        has_city_state or presence.get("address") or presence.get("facility")
+    )
+    return bool(has_location and presence.get("date"))
+
+
+def _gold_stop_complete_for_exact(presence):
+    return bool(
+        _gold_stop_complete_for_dispatch_usable(presence)
+        and (presence.get("time") or presence.get("appointment_window"))
+    )
+
+
+def build_stop_gold_completeness_summary(gold_labels):
+    summary = {
+        "pickup": _empty_stop_gold_completeness_bucket(),
+        "delivery": _empty_stop_gold_completeness_bucket(),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        gold = label.get("gold", {}) if isinstance(label.get("gold"), dict) else {}
+        for field_name, role in [
+            (FIELD_PICKUP_STOPS, "pickup"),
+            (FIELD_DELIVERY_STOPS, "delivery"),
+        ]:
+            bucket = summary[role]
+            bucket["docs_checked"] += 1
+            stops = gold.get(field_name, []) if isinstance(gold.get(field_name), list) else []
+            stops = [stop for stop in stops if isinstance(stop, dict)]
+            if stops:
+                bucket["docs_with_gold_stops"] += 1
+            else:
+                bucket["docs_without_gold_stops"] += 1
+            for stop in stops:
+                presence = _gold_stop_component_presence(stop)
+                bucket["stops_checked"] += 1
+                for component, present in presence.items():
+                    target = (
+                        "component_present_counts"
+                        if present
+                        else "component_missing_counts"
+                    )
+                    bucket[target][component] += 1
+                if _gold_stop_complete_for_exact(presence):
+                    bucket["complete_for_exact"] += 1
+                if _gold_stop_complete_for_dispatch_usable(presence):
+                    bucket["complete_for_dispatch_usable"] += 1
+                else:
+                    bucket["incomplete_for_dispatch_usable"] += 1
+    return summary
+
+
 def _component_status_map(comparison_rows, system_name=SYSTEM_SHADOW):
     by_doc_field = {}
     for row in comparison_rows or []:
@@ -3719,6 +3815,24 @@ def _build_stop_usability_summary(comparison_rows):
         tier = _stop_usability_tier(row, component_rows)
         summary[role][tier] += 1
     return summary
+
+
+def _annotate_stop_usability_tiers(comparison_rows):
+    for system_name in EVALUATION_SYSTEMS:
+        component_rows = _component_status_map(comparison_rows, system_name)
+        for row in comparison_rows or []:
+            if row.get("system") != system_name:
+                continue
+            if row.get("field") not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+                continue
+            if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                row["stop_usability_tier"] = "not_compared"
+            else:
+                row["stop_usability_tier"] = _stop_usability_tier(
+                    row,
+                    component_rows,
+                )
+    return comparison_rows
 
 
 def _build_stop_gold_consistency_audit(comparison_rows):
@@ -4041,6 +4155,16 @@ def _build_dispatch_usable_handoff_summary(audit_index, comparison_rows):
     evaluator_status_counts = Counter(
         _text(row.get("status")) or "unknown" for row in predicted_group_rows
     )
+    component_rows = _component_status_map(
+        comparison_rows,
+        SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    )
+    evaluator_usability_tier_counts = Counter(
+        _text(row.get("stop_usability_tier"))
+        or _stop_usability_tier(row, component_rows)
+        for row in predicted_group_rows
+        if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    )
     for record in records:
         inv_rows = _dispatch_inventory_candidates(record)
         trace_rows = _resolver_handoff_candidates(record)
@@ -4091,6 +4215,13 @@ def _build_dispatch_usable_handoff_summary(audit_index, comparison_rows):
         "handoff_failure_stage_counts": dict(handoff_failure_stage_counts.most_common()),
         "not_selected_reason_counts": dict(not_selected_reason_counts.most_common()),
         "evaluator_status_counts": dict(evaluator_status_counts.most_common()),
+        "evaluator_usability_tier_counts": dict(
+            evaluator_usability_tier_counts.most_common()
+        ),
+        "status_vs_usability_note": (
+            "evaluator_status_counts are raw field comparison statuses; "
+            "evaluator_usability_tier_counts classify the same rows by dispatch usability."
+        ),
         "serialized_gap_count": serialized_gap_count,
         "gold_incomplete_count": _safe_int(
             (_build_stop_gold_consistency_audit(comparison_rows) or {}).get(
@@ -4319,6 +4450,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         )
         doc_result["recommended_action"] = action_counts.most_common(1)[0][0] if action_counts else ACTION_MORE_GOLD
         document_rows.append(doc_result)
+    _annotate_stop_usability_tiers(comparison_rows)
     finalized = {
         system_name: {
             field_name: _finalize_metric(metric)
@@ -4425,6 +4557,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "stop_usability_summary": _build_stop_usability_summary(comparison_rows),
         "stop_gold_consistency_audit": _build_stop_gold_consistency_audit(
             comparison_rows,
+        ),
+        "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
+            gold_labels,
         ),
         "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(
             comparison_rows,

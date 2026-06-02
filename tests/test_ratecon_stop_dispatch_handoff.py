@@ -1,3 +1,4 @@
+import json
 import tempfile
 import unittest
 from pathlib import Path
@@ -8,6 +9,7 @@ from app.document_ai.ratecon_gold_labels import (
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
     SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
+    build_stop_gold_completeness_summary,
     evaluate_ratecon_against_gold,
 )
 from app.document_ai.ratecon_shadow_audit import build_private_eval_values
@@ -22,6 +24,10 @@ from app.document_ai.ratecon_stop_draft_profile import (
 from scripts.create_ratecon_stop_gold_review_packets import (
     build_stop_gold_review_packet,
     write_packet,
+)
+from scripts.apply_ratecon_stop_gold_review_patch import (
+    _require_safe_path,
+    plan_stop_gold_patch,
 )
 
 
@@ -121,6 +127,7 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertEqual(handoff["kept_after_dedupe"], 1)
         self.assertEqual(handoff["resolver_eligible"], 1)
         self.assertEqual(handoff["serialized_for_eval"], 1)
+        self.assertIn("evaluator_usability_tier_counts", handoff)
         self.assertGreater(
             groups[SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP]["pickup"]["dispatch_usable"]
             + groups[SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP]["pickup"]["exact_complete"],
@@ -178,11 +185,62 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
 
         self.assertFalse(packet["gold_labels_modified"])
         self.assertTrue(packet["local_only"])
+        self.assertIn("stop_gold_completeness_summary", packet)
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = write_packet(packet, Path(tmpdir))
-            self.assertTrue(Path(paths["json"]).exists())
-            self.assertTrue(Path(paths["md"]).exists())
-            self.assertTrue(Path(paths["csv"]).exists())
+            self.assertTrue(Path(paths["items_json"]).exists())
+            self.assertTrue(Path(paths["summary_md"]).exists())
+            self.assertTrue(Path(paths["items_csv"]).exists())
+            self.assertTrue(Path(paths["patch_template_json"]).exists())
+
+    def test_stop_gold_completeness_counts_components(self):
+        summary = build_stop_gold_completeness_summary([_gold_label()])
+
+        pickup = summary["pickup"]
+        self.assertEqual(pickup["stops_checked"], 1)
+        self.assertEqual(pickup["component_present_counts"]["city"], 1)
+        self.assertEqual(pickup["component_present_counts"]["date"], 1)
+        self.assertEqual(pickup["component_present_counts"]["appointment_window"], 1)
+        self.assertEqual(pickup["component_missing_counts"]["facility"], 1)
+        self.assertEqual(pickup["complete_for_dispatch_usable"], 1)
+        self.assertEqual(pickup["complete_for_exact"], 1)
+
+    def test_stop_gold_patch_dry_run_uses_only_explicit_values(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            gold_dir = Path(tmpdir)
+            label_path = gold_dir / "handoff.gold.json"
+            label_path.write_text(
+                json.dumps(_gold_label()),
+                encoding="utf-8",
+            )
+            patch = {
+                "patches": [
+                    {
+                        "document_id": "DOC-HANDOFF",
+                        "file_hash": "hash-handoff",
+                        "file_name": "handoff.pdf",
+                        "field": FIELD_PICKUP_STOPS,
+                        "stop_index": 1,
+                        "proposed_gold": {
+                            "facility": None,
+                            "address": "123 Main St",
+                            "city": "",
+                        },
+                    }
+                ]
+            }
+
+            planned, skipped = plan_stop_gold_patch(gold_dir, patch)
+
+            self.assertEqual(len(planned), 1)
+            self.assertEqual(skipped, [])
+            self.assertEqual(planned[0]["updates"], {"address": "123 Main St"})
+            self.assertNotIn("facility", planned[0]["updates"])
+
+    def test_stop_gold_patch_refuses_unsafe_paths_without_confirmation(self):
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with self.assertRaises(SystemExit):
+                _require_safe_path(Path(tmpdir), "gold dir")
 
 
 if __name__ == "__main__":
