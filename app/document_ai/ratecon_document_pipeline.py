@@ -21,10 +21,14 @@ from app.document_ai.field_candidate_resolver import (
     FIELD_LOAD_NUMBER,
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
+    RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
     RANKING_PROFILE_BASELINE,
     resolve_candidates,
 )
 from app.document_ai.pdf_triage import triage_document
+from app.document_ai.ratecon_rate_money_safety import (
+    apply_rate_money_abstention_profile_to_candidates,
+)
 from app.document_ai.section_context import section_context_summary
 
 
@@ -106,6 +110,8 @@ def extract_ratecon_document(
         load_candidate_profile=effective_load_candidate_profile,
     )
     candidates = generation_result.get("candidates", [])
+    if shadow_rate_ranking_profile == RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1:
+        candidates = apply_rate_money_abstention_profile_to_candidates(candidates)
 
     resolved = resolve_candidates(
         candidates,

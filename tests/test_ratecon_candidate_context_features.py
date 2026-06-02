@@ -10,6 +10,13 @@ from app.document_ai.ratecon_load_table_safety import (
     TABLE_NEIGHBOR_UNSAFE,
     apply_table_safety_profile,
 )
+from app.document_ai.ratecon_rate_money_safety import (
+    RATE_MONEY_RISKY,
+    RATE_MONEY_SAFE,
+    RATE_MONEY_UNSAFE,
+    RATE_SELECTION_ABSTAIN,
+    apply_rate_money_abstention_profile_to_candidates,
+)
 
 
 class RateconCandidateContextFeatureTests(unittest.TestCase):
@@ -96,6 +103,132 @@ class RateconCandidateContextFeatureTests(unittest.TestCase):
         self.assertTrue(total["metadata"]["is_total_pay_candidate"])
         self.assertEqual(accessorial["metadata"]["money_context"], "quickpay")
         self.assertTrue(accessorial["metadata"]["is_deduction_or_penalty"])
+        self.assertEqual(total["metadata"]["rate_safety"], RATE_MONEY_SAFE)
+        self.assertEqual(accessorial["metadata"]["rate_safety"], RATE_MONEY_UNSAFE)
+
+    def test_money_context_classifies_generic_safe_totals(self):
+        cases = [
+            ("Total Cost", "Total Cost amount present", "total_cost"),
+            ("Total Rate-USD", "Total Rate-USD amount present", "total_rate"),
+            ("Estimated Rate To Truck", "Estimated Rate To Truck amount present", "estimated_rate_to_truck"),
+            ("Agreed Rate Total", "Agreed Rate Total amount present", "agreed_rate_total"),
+        ]
+        for label, evidence, context in cases:
+            with self.subTest(label=label):
+                candidate = enrich_candidate_context(
+                    {
+                        "field": "total_carrier_rate",
+                        "label": label,
+                        "evidence_text": evidence,
+                        "metadata": {},
+                    }
+                )
+                self.assertEqual(candidate["metadata"]["money_context"], context)
+                self.assertEqual(candidate["metadata"]["rate_safety"], RATE_MONEY_SAFE)
+
+    def test_money_context_classifies_unsafe_payment_noise(self):
+        cases = [
+            ("Comcheck Fee", "Comcheck fee amount present", "comcheck_fee"),
+            ("Fuel Advance", "Fuel advance amount present", "fuel_advance"),
+            ("Tracking Hold", "Tracking hold amount present", "tracking_hold"),
+            ("Payment Terms", "Payment terms net 30 amount present", "payment_terms_amount"),
+            ("Rate / Mile", "Rate per mile amount present", "per_unit_rate"),
+        ]
+        for label, evidence, context in cases:
+            with self.subTest(label=label):
+                candidate = enrich_candidate_context(
+                    {
+                        "field": "total_carrier_rate",
+                        "label": label,
+                        "evidence_text": evidence,
+                        "metadata": {},
+                    }
+                )
+                self.assertEqual(candidate["metadata"]["money_context"], context)
+                self.assertEqual(candidate["metadata"]["rate_safety"], RATE_MONEY_UNSAFE)
+
+    def test_linehaul_and_carrier_freight_pay_are_risky_without_set_context(self):
+        for label, context in [
+            ("Linehaul Total", "linehaul_total"),
+            ("Carrier Freight Pay", "carrier_freight_pay"),
+        ]:
+            candidate = enrich_candidate_context(
+                {
+                    "field": "total_carrier_rate",
+                    "label": label,
+                    "evidence_text": f"{label} amount present",
+                    "metadata": {},
+                }
+            )
+            self.assertEqual(candidate["metadata"]["money_context"], context)
+            self.assertEqual(candidate["metadata"]["rate_safety"], RATE_MONEY_RISKY)
+
+    def test_rate_abstention_demotes_per_unit_when_total_exists(self):
+        total = enrich_candidate_context(
+            {
+                "field": "total_carrier_rate",
+                "value": "2500.00",
+                "normalized_value": "2500.00",
+                "label": "Total Carrier Pay",
+                "evidence_text": "Total Carrier Pay 2500.00",
+                "confidence": 0.76,
+                "metadata": {},
+            }
+        )
+        unit = enrich_candidate_context(
+            {
+                "field": "total_carrier_rate",
+                "value": "2.50",
+                "normalized_value": "2.50",
+                "label": "Rate per mile",
+                "evidence_text": "Rate per mile 2.50",
+                "confidence": 0.98,
+                "metadata": {},
+            }
+        )
+
+        adjusted = apply_rate_money_abstention_profile_to_candidates([unit, total])
+        demoted = [candidate for candidate in adjusted if candidate["label"] == "Rate per mile"][0]
+
+        self.assertEqual(demoted["field"], "accessorial_term")
+        self.assertEqual(demoted["metadata"]["selection_policy"], RATE_SELECTION_ABSTAIN)
+        self.assertTrue(demoted["metadata"]["rate_abstained"])
+
+    def test_rate_abstention_allows_safe_total(self):
+        total = enrich_candidate_context(
+            {
+                "field": "total_carrier_rate",
+                "value": "2500.00",
+                "normalized_value": "2500.00",
+                "label": "Total Carrier Pay",
+                "evidence_text": "Total Carrier Pay 2500.00",
+                "confidence": 0.76,
+                "metadata": {},
+            }
+        )
+
+        adjusted = apply_rate_money_abstention_profile_to_candidates([total])[0]
+
+        self.assertEqual(adjusted["field"], "total_carrier_rate")
+        self.assertEqual(adjusted["metadata"]["selection_policy"], "allowed")
+        self.assertFalse(adjusted["metadata"]["rate_abstained"])
+
+    def test_rate_abstention_demotes_accessorial_and_quickpay(self):
+        for label in ["Detention", "QuickPay Fee", "Penalty"]:
+            candidate = enrich_candidate_context(
+                {
+                    "field": "total_carrier_rate",
+                    "value": "150.00",
+                    "normalized_value": "150.00",
+                    "label": label,
+                    "evidence_text": f"{label} amount present",
+                    "confidence": 0.92,
+                    "metadata": {},
+                }
+            )
+            adjusted = apply_rate_money_abstention_profile_to_candidates([candidate])[0]
+            self.assertEqual(adjusted["field"], "accessorial_term")
+            self.assertTrue(adjusted["metadata"]["rate_abstained"])
 
     def test_safe_header_table_load_candidate_is_marked_safe(self):
         candidate = enrich_candidate_context(

@@ -1474,9 +1474,18 @@ def _metadata_eval_summary(metadata):
         "context_penalty_reason",
         "context_feature_load_identity_candidate",
         "is_total_pay_candidate",
+        "is_total_rate_candidate",
         "is_line_item_only",
+        "is_per_unit_rate",
         "is_deduction_or_penalty",
         "is_payment_terms_amount",
+        "is_accessorial_only",
+        "rate_safety",
+        "rate_safety_reason",
+        "rate_abstained",
+        "rate_abstention_reason",
+        "rate_demoted_from_total_carrier_rate",
+        "rate_candidate_profile_adjustments",
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
@@ -1903,6 +1912,41 @@ def _load_identity_candidate_inventory(candidates):
     return inventory
 
 
+def _rate_money_candidate_inventory(candidates):
+    inventory = []
+    for candidate in candidates or []:
+        if _candidate_field(candidate) not in {"total_carrier_rate", "accessorial_term"}:
+            continue
+        metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+        if not (
+            _candidate_field(candidate) == "total_carrier_rate"
+            or metadata.get("rate_abstained")
+            or metadata.get("rate_demoted_from_total_carrier_rate")
+            or metadata.get("rate_safety")
+        ):
+            continue
+        value = candidate.get("normalized_value") or candidate.get("value")
+        inventory.append(
+            {
+                "field": _candidate_field(candidate),
+                "value": _json_safe(value),
+                "value_hash": _load_probe_hash(value),
+                "confidence": round(float(candidate.get("confidence") or 0.0), 3),
+                "source": _text(candidate.get("source")),
+                "parser_name": _text(candidate.get("parser_name")),
+                "metadata_summary": _metadata_eval_summary(metadata),
+                "independent": not _candidate_is_fallback(candidate),
+                "layout_based": _candidate_is_layout(candidate),
+                "table_based": bool(
+                    metadata.get("table_cell_candidate")
+                    or _text(metadata.get("pairing_method")).startswith("table_")
+                ),
+                "legacy_fallback": _candidate_is_fallback(candidate),
+            }
+        )
+    return inventory
+
+
 def build_private_eval_values(
     raw_resolved=None,
     candidates=None,
@@ -1924,6 +1968,7 @@ def build_private_eval_values(
         "shadow_best_layout_candidate": {},
         "legacy_fallback_candidate": {},
         "load_identity_candidate_inventory": [],
+        "rate_money_candidate_inventory": [],
         "load_visibility_probe": _load_visibility_probe(private_eval_artifact),
         "raw_text_included": False,
         "evidence_text_included": False,
@@ -1945,6 +1990,7 @@ def build_private_eval_values(
             if candidate:
                 payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
     payload["load_identity_candidate_inventory"] = _load_identity_candidate_inventory(candidates)
+    payload["rate_money_candidate_inventory"] = _rate_money_candidate_inventory(candidates)
     return payload
 
 

@@ -167,6 +167,14 @@ def _error_case_rows(evaluation):
                 "document_region": row.get("document_region", ""),
                 "id_type_hint": row.get("id_type_hint", ""),
                 "money_context": row.get("money_context", ""),
+                "rate_safety": row.get("rate_safety", ""),
+                "rate_safety_reason": row.get("rate_safety_reason", ""),
+                "rate_abstained": row.get("rate_abstained", ""),
+                "rate_abstention_reason": row.get("rate_abstention_reason", ""),
+                "rate_demoted_from_total_carrier_rate": row.get(
+                    "rate_demoted_from_total_carrier_rate",
+                    "",
+                ),
                 "table_context_role": row.get("table_context_role", ""),
                 "table_row_role": row.get("table_row_role", ""),
                 "table_neighbor_safety": row.get("table_neighbor_safety", ""),
@@ -283,6 +291,14 @@ def _markdown_report(evaluation):
     lines.append(
         "rate_error_analysis: "
         + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "rate_wrong_case_summary: "
+        + json.dumps(evaluation.get("rate_wrong_case_summary", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "rate_abstention_summary: "
+        + json.dumps(evaluation.get("rate_abstention_summary", {}) or {}, sort_keys=True)
     )
     lines.extend(["", "## Load Candidate Recall", ""])
     recall = dict(evaluation.get("load_candidate_recall_summary", {}) or {})
@@ -402,6 +418,11 @@ def evaluate_and_write(
             "document_region",
             "id_type_hint",
             "money_context",
+            "rate_safety",
+            "rate_safety_reason",
+            "rate_abstained",
+            "rate_abstention_reason",
+            "rate_demoted_from_total_carrier_rate",
             "table_context_role",
             "table_row_role",
             "table_neighbor_safety",

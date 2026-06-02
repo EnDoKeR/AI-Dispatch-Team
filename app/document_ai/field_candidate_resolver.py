@@ -23,6 +23,11 @@ from app.document_ai.structured_stop_values import (
     stop_conflict_types,
     stop_equivalence_key,
 )
+from app.document_ai.ratecon_rate_money_safety import (
+    RATE_SELECTION_ABSTAIN,
+    RATE_SELECTION_WEAK_ONLY,
+    apply_rate_money_abstention_profile_to_candidates,
+)
 
 
 REVIEW_NEEDS_REVIEW = "NEEDS_REVIEW"
@@ -97,6 +102,7 @@ FIELD_THRESHOLDS = {
 
 RANKING_PROFILE_BASELINE = "baseline"
 RANKING_PROFILE_GOLD_DIAGNOSTIC_V1 = "gold_diagnostic_v1"
+RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1 = "money_abstain_v1"
 RANKING_PROFILES = {
     RANKING_PROFILE_BASELINE,
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
@@ -113,6 +119,7 @@ LOAD_RANKING_PROFILES = {
 RATE_RANKING_PROFILES = {
     RANKING_PROFILE_BASELINE,
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+    RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
 }
 
 SOURCE_RANK = {
@@ -337,9 +344,18 @@ def _metadata_summary(candidate):
         "context_penalty_reason",
         "context_feature_load_identity_candidate",
         "is_total_pay_candidate",
+        "is_total_rate_candidate",
         "is_line_item_only",
+        "is_per_unit_rate",
         "is_deduction_or_penalty",
         "is_payment_terms_amount",
+        "is_accessorial_only",
+        "rate_safety",
+        "rate_safety_reason",
+        "rate_abstained",
+        "rate_abstention_reason",
+        "rate_demoted_from_total_carrier_rate",
+        "rate_candidate_profile_adjustments",
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
@@ -467,7 +483,10 @@ def _label_adjustment(field_name, candidate):
 
 
 def _profile_adjustments(field_name, candidate, ranking_profile):
-    if ranking_profile != RANKING_PROFILE_GOLD_DIAGNOSTIC_V1:
+    if ranking_profile not in {
+        RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
+    }:
         return []
     metadata = _metadata(candidate)
     adjustments = []
@@ -494,7 +513,12 @@ def _profile_adjustments(field_name, candidate, ranking_profile):
         money_context = _text(metadata.get("money_context"))
         if money_context == "total_carrier_pay":
             adjustments.append(("total_carrier_pay_context", 0.08))
-        elif money_context == "total_rate":
+        elif money_context in {
+            "total_rate",
+            "total_cost",
+            "estimated_rate_to_truck",
+            "agreed_rate_total",
+        }:
             adjustments.append(("total_rate_context", 0.06))
         elif money_context == "carrier_freight_pay":
             adjustments.append(("carrier_freight_pay_context", 0.04))
@@ -506,8 +530,37 @@ def _profile_adjustments(field_name, candidate, ranking_profile):
             adjustments.append(("deduction_fee_penalty_context", -0.45))
         if metadata.get("is_payment_terms_amount"):
             adjustments.append(("payment_terms_amount_penalty", -0.40))
-        if money_context in {"accessorial", "quickpay", "fuel_advance", "penalty", "fee", "deduction"}:
+        if metadata.get("is_per_unit_rate"):
+            adjustments.append(("per_unit_rate_penalty", -0.45))
+        if metadata.get("is_accessorial_only"):
+            adjustments.append(("accessorial_only_penalty", -0.42))
+        if money_context in {
+            "accessorial",
+            "quickpay",
+            "fuel_advance",
+            "comcheck_fee",
+            "tracking_hold",
+            "penalty",
+            "fee",
+            "deduction",
+        }:
             adjustments.append((f"{money_context}_money_context_penalty", -0.42))
+        if metadata.get("rate_abstained"):
+            adjustments.append(
+                (
+                    metadata.get("rate_abstention_reason")
+                    or "rate_money_abstained",
+                    -0.60,
+                )
+            )
+        elif metadata.get("selection_policy") == RATE_SELECTION_WEAK_ONLY:
+            adjustments.append(
+                (
+                    metadata.get("rate_abstention_reason")
+                    or "rate_money_weak_only",
+                    -0.18,
+                )
+            )
         if _text(metadata.get("document_region")) in {"instructions", "footer_signature"}:
             adjustments.append(("instructions_or_footer_money_penalty", -0.25))
     return adjustments
@@ -545,6 +598,23 @@ def _effective_field_ranking_profiles(
             rate_ranking_profile=rate_ranking_profile,
         ),
     }
+
+
+def _apply_field_scoped_candidate_profiles(
+    candidates,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
+):
+    effective_rate_profile = _effective_ranking_profile(
+        FIELD_TOTAL_CARRIER_RATE,
+        ranking_profile=ranking_profile,
+        load_ranking_profile=load_ranking_profile,
+        rate_ranking_profile=rate_ranking_profile,
+    )
+    if effective_rate_profile == RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1:
+        return apply_rate_money_abstention_profile_to_candidates(candidates)
+    return candidates
 
 
 def _validate_ranking_profiles(
@@ -754,6 +824,12 @@ def build_resolver_decision_traces(
     load_ranking_profile=None,
     rate_ranking_profile=None,
 ):
+    candidates = _apply_field_scoped_candidate_profiles(
+        candidates,
+        ranking_profile=ranking_profile,
+        load_ranking_profile=load_ranking_profile,
+        rate_ranking_profile=rate_ranking_profile,
+    )
     resolved_fields = resolved_fields if isinstance(resolved_fields, dict) else {}
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     traces = {}
@@ -1280,6 +1356,12 @@ def resolve_candidates(
     artifact = artifact or {}
     triage = triage if isinstance(triage, dict) else artifact.get("triage", {})
     _validate_ranking_profiles(
+        ranking_profile=ranking_profile,
+        load_ranking_profile=load_ranking_profile,
+        rate_ranking_profile=rate_ranking_profile,
+    )
+    candidates = _apply_field_scoped_candidate_profiles(
+        candidates,
         ranking_profile=ranking_profile,
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,

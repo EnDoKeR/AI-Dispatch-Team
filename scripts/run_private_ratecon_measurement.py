@@ -668,6 +668,7 @@ def main(argv=None):
         choices=sorted(RATE_RANKING_PROFILES),
         help=(
             "Shadow-only field-scoped total_carrier_rate ranking profile. "
+            "money_abstain_v1 applies local-only money-context abstention. "
             "If omitted, the legacy broad --ratecon-shadow-ranking-profile "
             "behavior is preserved."
         ),

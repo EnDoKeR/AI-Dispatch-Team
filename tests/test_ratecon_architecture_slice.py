@@ -16,6 +16,7 @@ from app.document_ai.field_candidate_resolver import (
     LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
     LOAD_RANKING_PROFILES,
     RATE_RANKING_PROFILES,
+    RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
     RANKING_PROFILE_BASELINE,
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
     REVIEW_CONFLICTING_CANDIDATES,
@@ -377,7 +378,102 @@ class RateConArchitectureSliceTests(unittest.TestCase):
             RANKING_PROFILE_BASELINE,
         )
         self.assertIn(RANKING_PROFILE_GOLD_DIAGNOSTIC_V1, RATE_RANKING_PROFILES)
+        self.assertIn(RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1, RATE_RANKING_PROFILES)
         self.assertIn("header_recall_table_abstain_v1", LOAD_RANKING_PROFILES)
+
+    def test_money_abstain_profile_does_not_affect_load_number(self):
+        candidates = [
+            {
+                "field": "reference_numbers",
+                "value": "PO-PRIMARY",
+                "normalized_value": "PO-PRIMARY",
+                "label": "PO #",
+                "evidence_text": "rate confirmation header id present",
+                "source": "native_layout",
+                "parser_name": "layout_load_identity_pairing_generator",
+                "confidence": 0.82,
+                "metadata": {
+                    "id_type_hint": "po",
+                    "document_region": "load_info",
+                    "is_document_title_or_header_id": True,
+                    "context_feature_load_identity_candidate": True,
+                    "pairing_method": "same_row_right",
+                },
+            }
+        ]
+
+        result = resolve_candidates(
+            candidates,
+            field_names=[FIELD_LOAD_NUMBER],
+            rate_ranking_profile=RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
+        )
+
+        self.assertEqual(result["resolved_fields"][FIELD_LOAD_NUMBER]["value"], "")
+        self.assertEqual(
+            result["field_ranking_profiles"][FIELD_LOAD_NUMBER],
+            RANKING_PROFILE_BASELINE,
+        )
+
+    def test_money_abstain_profile_demotes_per_unit_and_selects_total(self):
+        candidates = [
+            {
+                "field": "total_carrier_rate",
+                "value": "2.50",
+                "normalized_value": "2.50",
+                "label": "Rate per mile",
+                "evidence_text": "Rate per mile 2.50",
+                "source": "native_layout",
+                "parser_name": "layout_rate_candidate_generator",
+                "confidence": 0.98,
+                "metadata": {"money_context": "per_unit_rate", "is_per_unit_rate": True},
+            },
+            {
+                "field": "total_carrier_rate",
+                "value": "2500.00",
+                "normalized_value": "2500.00",
+                "label": "Total Carrier Pay",
+                "evidence_text": "Total Carrier Pay 2500.00",
+                "source": "native_layout",
+                "parser_name": "layout_rate_candidate_generator",
+                "confidence": 0.76,
+                "metadata": {"money_context": "total_carrier_pay"},
+            },
+        ]
+
+        result = resolve_candidates(
+            candidates,
+            field_names=[FIELD_TOTAL_CARRIER_RATE],
+            rate_ranking_profile=RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
+        )
+
+        rate = result["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]
+        self.assertEqual(rate["value"], "2500.00")
+        self.assertEqual(rate["selected_candidate"]["metadata"]["rate_safety"], "safe")
+
+    def test_money_abstain_profile_turns_only_unsafe_rate_into_missing_review(self):
+        candidates = [
+            {
+                "field": "total_carrier_rate",
+                "value": "150.00",
+                "normalized_value": "150.00",
+                "label": "QuickPay Fee",
+                "evidence_text": "QuickPay Fee 150.00",
+                "source": "native_layout",
+                "parser_name": "layout_rate_candidate_generator",
+                "confidence": 0.96,
+                "metadata": {"money_context": "quickpay"},
+            }
+        ]
+
+        result = resolve_candidates(
+            candidates,
+            field_names=[FIELD_TOTAL_CARRIER_RATE],
+            rate_ranking_profile=RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
+        )
+
+        rate = result["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]
+        self.assertEqual(rate["value"], "")
+        self.assertIn(REVIEW_MISSING_CRITICAL_FIELD, rate["review_reasons"])
 
     def test_gold_diagnostic_profile_keeps_conflicting_totals_review_required(self):
         candidates = [

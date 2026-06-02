@@ -157,6 +157,27 @@ def _abstention_delta(baseline, experiment):
     }
 
 
+def _rate_abstention_delta(baseline, experiment):
+    base = baseline.get("rate_abstention_summary", {}) or {}
+    exp = experiment.get("rate_abstention_summary", {}) or {}
+    return {
+        "baseline": {
+            "abstained_candidate_count": base.get("abstained_candidate_count", 0),
+            "reason_counts": base.get("reason_counts", {}) or {},
+            "money_context_counts": base.get("money_context_counts", {}) or {},
+        },
+        "experiment": {
+            "abstained_candidate_count": exp.get("abstained_candidate_count", 0),
+            "reason_counts": exp.get("reason_counts", {}) or {},
+            "money_context_counts": exp.get("money_context_counts", {}) or {},
+        },
+        "delta": {
+            "abstained_candidate_count": int(exp.get("abstained_candidate_count", 0))
+            - int(base.get("abstained_candidate_count", 0)),
+        },
+    }
+
+
 def _profile_shadow_metrics(summary):
     load = _metric(summary, FIELD_LOAD_NUMBER)
     rate = _metric(summary, FIELD_TOTAL_CARRIER_RATE)
@@ -166,6 +187,7 @@ def _profile_shadow_metrics(summary):
     remaining_table_errors = summary.get("remaining_table_neighbor_wrong_summary", {}) or {}
     abstention = summary.get("table_neighbor_abstention_summary", {}) or {}
     rate_errors = summary.get("rate_error_analysis", {}) or {}
+    rate_abstention = summary.get("rate_abstention_summary", {}) or {}
     return {
         "labels_evaluated": summary.get("labels_evaluated", 0),
         "load_number": {
@@ -223,6 +245,17 @@ def _profile_shadow_metrics(summary):
             "recall": rate.get("recall", 0.0),
             "high_confidence_wrong_count": rate.get("high_confidence_but_wrong_count", 0),
             "wrong_reason_counts": rate_errors.get("wrong_reason_counts", {}) or {},
+            "wrong_by_money_context": rate_errors.get("wrong_by_money_context", {}) or {},
+            "wrong_by_rate_safety": rate_errors.get("wrong_by_rate_safety", {}) or {},
+            "rate_abstention_summary": {
+                "abstained_candidate_count": rate_abstention.get(
+                    "abstained_candidate_count",
+                    0,
+                ),
+                "reason_counts": rate_abstention.get("reason_counts", {}) or {},
+                "money_context_counts": rate_abstention.get("money_context_counts", {}) or {},
+                "rate_safety_counts": rate_abstention.get("rate_safety_counts", {}) or {},
+            },
         },
         "stop_component_comparability": {
             "pickup_stops": _stop_serialization(summary, "pickup_stops"),
@@ -260,6 +293,10 @@ def compare_profiles(profile_summaries):
                     experiment,
                 ),
                 "table_neighbor_abstention": _abstention_delta(baseline, experiment).get(
+                    "delta",
+                    {},
+                ),
+                "rate_abstention": _rate_abstention_delta(baseline, experiment).get(
                     "delta",
                     {},
                 ),
@@ -318,6 +355,7 @@ def compare_summaries(baseline, experiment):
         "load_candidate_recall_delta": _recall_summary_delta(baseline, experiment),
         "rate_profile_safety_summary": _rate_profile_safety_summary(baseline, experiment),
         "table_neighbor_abstention_delta": _abstention_delta(baseline, experiment),
+        "rate_abstention_delta": _rate_abstention_delta(baseline, experiment),
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -353,6 +391,8 @@ def _markdown_report(comparison):
     lines.append(
         json.dumps(comparison.get("table_neighbor_abstention_delta", {}) or {}, sort_keys=True)
     )
+    lines.extend(["", "## Rate Abstention Delta", ""])
+    lines.append(json.dumps(comparison.get("rate_abstention_delta", {}) or {}, sort_keys=True))
     if comparison.get("profile_comparison"):
         lines.extend(["", "## Profile Comparison", ""])
         lines.append(json.dumps(comparison.get("profile_comparison", {}) or {}, sort_keys=True))

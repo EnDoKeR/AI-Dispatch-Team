@@ -190,6 +190,16 @@ def _lower(value) -> str:
     return _text(value).lower()
 
 
+def _safe_money_amount(value):
+    text = _text(value).upper().replace("USD", "").replace("$", "").replace(",", "").strip()
+    if not text:
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
+
+
 def _safe_bool(value) -> bool:
     return bool(value)
 
@@ -239,11 +249,22 @@ def safe_value_shape(value) -> dict:
     digits = sum(1 for char in text if char.isdigit())
     letters = sum(1 for char in text if char.isalpha())
     lowered = text.lower()
+    amount = _safe_money_amount(text)
+    if amount is None:
+        magnitude = "unknown"
+    elif amount < 500:
+        magnitude = "small"
+    elif amount < 5000:
+        magnitude = "medium"
+    else:
+        magnitude = "large"
     return {
         "type": "string",
         "length": len(text),
         "has_digits": bool(digits),
         "has_letters": bool(letters),
+        "has_currency_symbol": "$" in text,
+        "amount_magnitude_band": magnitude,
         "looks_like_date": bool(digits and ("/" in text or "-" in text) and len(text) <= 16),
         "looks_like_money": "$" in text or bool(digits and "." in text),
         "looks_like_phone": digits >= 10 and any(char in text for char in ["(", ")", "-"]),
@@ -1332,6 +1353,8 @@ def _classify_error_reason(field_name, system_name, prediction, comparisons):
         if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
             return "gold_total_in_candidates_not_selected"
         context = _text(metadata.get("money_context")).lower()
+        if context == "per_unit_rate" or metadata.get("is_per_unit_rate"):
+            return "selected_per_unit_rate_instead_of_total"
         if context in {"linehaul", "linehaul_total", "line_item_rate"}:
             return "selected_linehaul_instead_of_total"
         if context == "accessorial":
@@ -1346,7 +1369,12 @@ def _classify_error_reason(field_name, system_name, prediction, comparisons):
             return "selected_tracking_hold_or_penalty"
         if context == "payment_terms_amount":
             return "selected_payment_terms_amount"
-        if context and context != "total_rate" and context != "carrier_pay":
+        if context in {"total_rate", "total_cost", "total_carrier_pay", "estimated_rate_to_truck", "agreed_rate_total"}:
+            method = _text(metadata.get("pairing_method"))
+            if method.startswith("table_"):
+                return "selected_wrong_table_cell"
+            return "selected_wrong_money_context"
+        if context and context != "carrier_pay":
             return "selected_wrong_money_context"
         return "unknown"
     return ""
@@ -1626,6 +1654,9 @@ def _build_rate_error_analysis(comparison_rows):
         "missing_count": len(missing_rows),
         "gold_total_in_candidates_not_selected": gold_in_candidates,
         "gold_total_not_in_candidates": len(wrong_rows) + len(missing_rows) - gold_in_candidates,
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
         "wrong_reason_counts": dict(
             Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
         ),
@@ -1638,9 +1669,120 @@ def _build_rate_error_analysis(comparison_rows):
         "wrong_by_money_context": dict(
             Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
         ),
+        "wrong_by_rate_safety": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in wrong_rows).most_common()
+        ),
         "wrong_by_section_context": dict(
             Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
         ),
+    }
+
+
+def _build_rate_wrong_case_summary(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    cases = []
+    for row in wrong_rows:
+        document_id = _text(row.get("document_id"))
+        same_table = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_TOTAL_CARRIER_RATE,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and bool(_text(row.get("table_index"))),
+        )
+        same_page = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_TOTAL_CARRIER_RATE,
+            lambda candidate_row: _text(candidate_row.get("page"))
+            == _text(row.get("page"))
+            and bool(_text(row.get("page"))),
+        )
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "field": FIELD_TOTAL_CARRIER_RATE,
+                "selected_candidate": {
+                    "source": _text(row.get("source")),
+                    "parser_name": _text(row.get("parser_name")),
+                    "pairing_method": _text(row.get("pairing_method")),
+                    "confidence": _safe_float(row.get("confidence")),
+                    "quality_band": _quality_band_from_confidence(row.get("confidence")),
+                    "money_context": _text(row.get("money_context")),
+                    "document_region": _text(row.get("document_region")),
+                    "section_context": _text(row.get("section_context")),
+                    "rate_safety": _text(row.get("rate_safety")),
+                    "rate_safety_reason": _text(row.get("rate_safety_reason")),
+                    "is_total_pay_candidate": bool(row.get("is_total_pay_candidate")),
+                    "is_line_item_only": bool(row.get("is_line_item_only")),
+                    "is_per_unit_rate": bool(row.get("is_per_unit_rate")),
+                    "is_deduction_or_penalty": bool(row.get("is_deduction_or_penalty")),
+                    "is_payment_terms_amount": bool(row.get("is_payment_terms_amount")),
+                    "value_shape": dict(row.get("value_shape") or {}),
+                },
+                "gold_candidate_visibility": {
+                    "gold_total_in_any_candidate": _candidate_group_has_correct(
+                        index,
+                        document_id,
+                        FIELD_TOTAL_CARRIER_RATE,
+                    ),
+                    "gold_total_in_same_table": same_table,
+                    "gold_total_in_same_page": same_page,
+                    "gold_total_requires_ocr": False,
+                },
+                "diagnosis": row.get("error_reason") or "unknown",
+            }
+        )
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "reason_counts": dict(
+            Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_money_context": dict(
+            Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "gold_total_in_candidates_not_selected": sum(
+            1
+            for row in wrong_rows
+            if _candidate_group_has_correct(
+                index,
+                row.get("document_id", ""),
+                FIELD_TOTAL_CARRIER_RATE,
+            )
+        ),
+        "gold_total_not_in_candidates": sum(
+            1
+            for row in wrong_rows
+            if not _candidate_group_has_correct(
+                index,
+                row.get("document_id", ""),
+                FIELD_TOTAL_CARRIER_RATE,
+            )
+        ),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
     }
 
 
@@ -2033,6 +2175,84 @@ def _build_table_neighbor_abstention_summary(comparison_rows, audit_records=None
     }
 
 
+def _rate_inventory_abstention_rows(audit_records):
+    rows = []
+    for record in audit_records or []:
+        payload = _private_eval_values(record)
+        inventory = (
+            payload.get("rate_money_candidate_inventory", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        for item in inventory or []:
+            if not isinstance(item, dict):
+                continue
+            metadata = (
+                item.get("metadata_summary", {})
+                if isinstance(item.get("metadata_summary"), dict)
+                else {}
+            )
+            abstained = bool(metadata.get("rate_abstained"))
+            demoted = bool(metadata.get("rate_demoted_from_total_carrier_rate"))
+            if not (abstained or demoted):
+                continue
+            rows.append(
+                {
+                    "system": "rate_money_candidate_inventory",
+                    "field": _text(item.get("field")),
+                    "rate_abstained": abstained,
+                    "rate_demoted_from_total_carrier_rate": demoted,
+                    "rate_abstention_reason": _text(
+                        metadata.get("rate_abstention_reason")
+                        or metadata.get("rate_safety_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                    "money_context": _text(metadata.get("money_context")),
+                    "rate_safety": _text(metadata.get("rate_safety")),
+                }
+            )
+    return rows
+
+
+def _build_rate_abstention_summary(comparison_rows, audit_records=None):
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("rate_abstained")
+        and row.get("system")
+        in {
+            SYSTEM_SHADOW,
+            SYSTEM_SHADOW_CANDIDATE_BEST,
+            SYSTEM_SHADOW_BEST_INDEPENDENT,
+            SYSTEM_SHADOW_BEST_LAYOUT,
+        }
+    ]
+    inventory_rows = _rate_inventory_abstention_rows(audit_records)
+    rows = rows + inventory_rows
+    return {
+        "abstained_candidate_count": len(rows),
+        "demoted_from_total_carrier_rate_count": sum(
+            1 for row in rows if row.get("rate_demoted_from_total_carrier_rate")
+        ),
+        "reason_counts": dict(
+            Counter(row.get("rate_abstention_reason") or "unknown" for row in rows).most_common()
+        ),
+        "selection_policy_counts": dict(
+            Counter(row.get("selection_policy") or "unknown" for row in rows).most_common()
+        ),
+        "money_context_counts": dict(
+            Counter(row.get("money_context") or "unknown" for row in rows).most_common()
+        ),
+        "rate_safety_counts": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in rows).most_common()
+        ),
+        "by_system": dict(Counter(row.get("system") or "unknown" for row in rows).most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _ocr_backlog_doc_type(triage, artifact):
     if triage.get("ocr_required"):
         return "scanned"
@@ -2215,6 +2435,15 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "document_region": _text(metadata.get("document_region")),
                     "id_type_hint": _text(metadata.get("id_type_hint")),
                     "money_context": _text(metadata.get("money_context")),
+                    "rate_safety": _text(metadata.get("rate_safety")),
+                    "rate_safety_reason": _text(metadata.get("rate_safety_reason")),
+                    "rate_abstained": bool(metadata.get("rate_abstained")),
+                    "rate_abstention_reason": _text(
+                        metadata.get("rate_abstention_reason")
+                    ),
+                    "rate_demoted_from_total_carrier_rate": bool(
+                        metadata.get("rate_demoted_from_total_carrier_rate")
+                    ),
                     "table_context_role": _text(metadata.get("table_context_role")),
                     "table_row_role": _text(metadata.get("table_row_role")),
                     "table_neighbor_safety": _text(metadata.get("table_neighbor_safety")),
@@ -2249,6 +2478,16 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "money_like_cell_count_in_row": _safe_int(
                         metadata.get("money_like_cell_count_in_row")
                     ),
+                    "is_total_pay_candidate": bool(metadata.get("is_total_pay_candidate")),
+                    "is_line_item_only": bool(metadata.get("is_line_item_only")),
+                    "is_per_unit_rate": bool(metadata.get("is_per_unit_rate")),
+                    "is_deduction_or_penalty": bool(
+                        metadata.get("is_deduction_or_penalty")
+                    ),
+                    "is_payment_terms_amount": bool(
+                        metadata.get("is_payment_terms_amount")
+                    ),
+                    "is_accessorial_only": bool(metadata.get("is_accessorial_only")),
                     "error_reason": _classify_error_reason(
                         field_name,
                         system_name,
@@ -2348,6 +2587,11 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             _unique_audit_records(indexed),
         ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
+        "rate_wrong_case_summary": _build_rate_wrong_case_summary(comparison_rows),
+        "rate_abstention_summary": _build_rate_abstention_summary(
+            comparison_rows,
+            _unique_audit_records(indexed),
+        ),
         "load_candidate_recall_summary": _build_load_candidate_recall_summary(
             gold_labels,
             indexed,

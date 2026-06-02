@@ -570,6 +570,79 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(summary["by_system"]["load_identity_candidate_inventory"], 1)
         self.assertNotIn("ABSTAINED-ID", json.dumps(summary))
 
+    def test_rate_wrong_case_summary_uses_safe_money_context(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "150.00",
+                    "confidence": 0.92,
+                    "source": "native_layout",
+                    "parser_name": "layout_rate_pairing",
+                    "page": 1,
+                    "metadata_summary": {
+                        "money_context": "quickpay",
+                        "document_region": "quickpay_terms",
+                        "rate_safety": "unsafe",
+                        "rate_safety_reason": "quickpay",
+                        "is_deduction_or_penalty": True,
+                        "pairing_method": "table_row",
+                    },
+                }
+            }
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["rate_wrong_case_summary"]
+
+        self.assertEqual(summary["wrong_selected_count"], 1)
+        self.assertEqual(summary["reason_counts"]["selected_quickpay_fee"], 1)
+        self.assertEqual(summary["wrong_by_money_context"]["quickpay"], 1)
+        self.assertEqual(summary["high_confidence_wrong_count"], 1)
+        self.assertNotIn("150.00", json.dumps(summary))
+        self.assertFalse(summary["private_values_printed"])
+
+    def test_rate_abstention_summary_counts_private_eval_inventory(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "rate_money_candidate_inventory": [
+                {
+                    "field": "accessorial_term",
+                    "value": "2.50",
+                    "confidence": 0.35,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "money_context": "per_unit_rate",
+                        "rate_safety": "unsafe",
+                        "rate_abstained": True,
+                        "rate_demoted_from_total_carrier_rate": True,
+                        "rate_abstention_reason": "per_unit_rate",
+                        "selection_policy": "abstain",
+                    },
+                }
+            ],
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["rate_abstention_summary"]
+
+        self.assertEqual(summary["abstained_candidate_count"], 1)
+        self.assertEqual(summary["demoted_from_total_carrier_rate_count"], 1)
+        self.assertEqual(summary["reason_counts"]["per_unit_rate"], 1)
+        self.assertEqual(summary["money_context_counts"]["per_unit_rate"], 1)
+        self.assertEqual(summary["rate_safety_counts"]["unsafe"], 1)
+        self.assertEqual(summary["by_system"]["rate_money_candidate_inventory"], 1)
+        self.assertNotIn("2.50", json.dumps(summary))
+
     def test_ocr_vision_backlog_counts_low_text_without_running_ocr(self):
         label = self._gold_label()
         record = self._audit_record()
@@ -765,6 +838,11 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "missing_count": 0,
                 "gold_total_in_candidates_not_selected": 1,
             },
+            "rate_abstention_summary": {
+                "abstained_candidate_count": 0,
+                "reason_counts": {},
+                "money_context_counts": {},
+            },
             "load_candidate_recall_summary": {
                 "evaluated_docs": 1,
                 "gold_load_in_any_candidate": 0,
@@ -812,6 +890,11 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "missing_count": 0,
                 "gold_total_in_candidates_not_selected": 0,
             },
+            "rate_abstention_summary": {
+                "abstained_candidate_count": 2,
+                "reason_counts": {"per_unit_rate": 2},
+                "money_context_counts": {"per_unit_rate": 2},
+            },
             "load_candidate_recall_summary": {
                 "evaluated_docs": 1,
                 "gold_load_in_any_candidate": 1,
@@ -848,6 +931,10 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(
             comparison["rate_profile_safety_summary"]["wrong_delta"],
             -1,
+        )
+        self.assertEqual(
+            comparison["rate_abstention_delta"]["delta"]["abstained_candidate_count"],
+            2,
         )
 
     def test_compare_profiles_reports_all_configurations(self):
@@ -893,6 +980,11 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                     "abstained_candidate_count": table_wrong,
                     "reason_counts": {"table_neighbor_multi_id_unclear_alignment": table_wrong},
                 },
+                "rate_abstention_summary": {
+                    "abstained_candidate_count": max(0, 15 - rate_correct),
+                    "reason_counts": {"per_unit_rate": max(0, 15 - rate_correct)},
+                    "money_context_counts": {"per_unit_rate": max(0, 15 - rate_correct)},
+                },
                 "rate_error_analysis": {"wrong_reason_counts": {}},
             }
 
@@ -922,6 +1014,12 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
             comparison["deltas_from_first_profile"]["combined"][
                 "table_neighbor_abstention"
             ]["abstained_candidate_count"],
+            -2,
+        )
+        self.assertEqual(
+            comparison["deltas_from_first_profile"]["combined"]["rate_abstention"][
+                "abstained_candidate_count"
+            ],
             -2,
         )
 
