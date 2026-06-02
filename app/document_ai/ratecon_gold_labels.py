@@ -3580,18 +3580,24 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         and row.get("predicted")
         and _text(row.get("source")) == "ocr"
     ]
-    rejected = [
-        item
-        for item in ocr_items
-        if _text(item.get("field")) not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
-    ]
-    rejection_reasons = Counter(_ocr_stop_not_selected_reason(item) for item in rejected)
     candidates_by_field = Counter(_text(item.get("field")) for item in ocr_items)
     structured = [
         item
         for item in ocr_items
         if _text(item.get("field")) in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
     ]
+    selected_by_field = Counter(_text(row.get("field")) for row in selected_rows)
+    rejected = []
+    for item in ocr_items:
+        field_name = _text(item.get("field"))
+        if field_name not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            rejected.append(item)
+            continue
+        if selected_by_field.get(field_name, 0) > 0:
+            selected_by_field[field_name] -= 1
+        else:
+            rejected.append(item)
+    rejection_reasons = Counter(_ocr_stop_not_selected_reason(item) for item in rejected)
     return {
         "ocr_docs": len(docs_with_ocr),
         "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),

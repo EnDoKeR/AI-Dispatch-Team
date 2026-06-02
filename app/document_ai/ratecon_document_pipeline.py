@@ -12,6 +12,7 @@ from app.document_ai.document_extraction_artifact import (
 )
 from app.document_ai.field_candidate_generators import (
     LOAD_CANDIDATE_PROFILE_BASELINE,
+    STOP_CANDIDATE_PROFILE_BASELINE,
     generate_field_candidates,
 )
 from app.document_ai.field_candidate_resolver import (
@@ -96,6 +97,7 @@ def extract_ratecon_document(
     shadow_ocr_dpi=200,
     strict_ocr=False,
     shadow_ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    shadow_stop_candidate_profile=STOP_CANDIDATE_PROFILE_BASELINE,
     shadow_stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
     shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
@@ -127,6 +129,7 @@ def extract_ratecon_document(
         include_legacy_final_candidates=include_legacy_final_candidates,
         strict=strict_candidate_generators,
         load_candidate_profile=effective_load_candidate_profile,
+        stop_candidate_profile=shadow_stop_candidate_profile,
     )
     candidates = generation_result.get("candidates", [])
     if shadow_rate_ranking_profile == RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1:
@@ -193,6 +196,7 @@ def extract_ratecon_document(
                 "ocr_candidate_policy",
                 shadow_ocr_candidate_policy,
             ),
+            "stop_candidate_profile": shadow_stop_candidate_profile,
             "stop_ranking_profile": resolved.get(
                 "stop_ranking_profile",
                 shadow_stop_ranking_profile,

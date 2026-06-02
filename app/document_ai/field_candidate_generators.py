@@ -66,6 +66,13 @@ from app.document_ai.ratecon_candidates import (
     FIELD_PICKUP_LOCATION,
     FIELD_RATE,
 )
+from app.document_ai.ocr_stop_block_assembler import (
+    GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+    STOP_CANDIDATE_PROFILE_BASELINE,
+    STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1,
+    STOP_CANDIDATE_PROFILES,
+    generate_ocr_stop_block_candidates,
+)
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.document_ai.stop_evidence_assembler import (
     GENERATOR_STOP_EVIDENCE_ASSEMBLER,
@@ -1203,7 +1210,10 @@ def generate_field_candidates(
     strict=False,
     generators=None,
     load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
+    stop_candidate_profile=STOP_CANDIDATE_PROFILE_BASELINE,
 ):
+    if stop_candidate_profile not in STOP_CANDIDATE_PROFILES:
+        raise ValueError(f"unknown stop candidate profile: {stop_candidate_profile}")
     active_generators = list(generators or DEFAULT_GENERATORS)
     if generators is None and load_candidate_profile in {
         LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
@@ -1293,6 +1303,35 @@ def generate_field_candidates(
                 diagnostics=diagnostics,
             )
         )
+
+        if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1:
+            try:
+                generated, diagnostics = generate_ocr_stop_block_candidates(
+                    artifact,
+                )
+                warnings = []
+            except Exception as exc:
+                if strict:
+                    raise
+                generated = []
+                warnings = []
+                diagnostics = {}
+                errors.append(
+                    {
+                        "generator_name": GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+                        "error_type": exc.__class__.__name__,
+                    }
+                )
+            candidates.extend(generated)
+            summaries.append(
+                _summary(
+                    GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+                    "shadow_ocr_stop_block_assembly",
+                    generated,
+                    warnings,
+                    diagnostics=diagnostics,
+                )
+            )
 
     if include_legacy_final_candidates:
         generator = FieldCandidateGenerator(
