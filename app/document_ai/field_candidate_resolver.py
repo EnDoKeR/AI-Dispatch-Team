@@ -34,6 +34,13 @@ from app.document_ai.ratecon_ocr_candidate_policy import (
     OCR_CANDIDATE_POLICY_FILL_MISSING_STRICT_V1,
     apply_ocr_candidate_policy_to_candidates,
 )
+from app.document_ai.ratecon_stop_component_policy import (
+    STOP_RANKING_PROFILE_BASELINE,
+    STOP_RANKING_PROFILE_COMPONENT_STRICT_V1,
+    STOP_RANKING_PROFILES as STOP_PROFILE_CHOICES,
+    STOP_SELECTION_ABSTAIN,
+    apply_stop_component_strict_profile_to_candidates,
+)
 
 
 REVIEW_NEEDS_REVIEW = "NEEDS_REVIEW"
@@ -95,6 +102,7 @@ REJECT_TRUE_CONFLICT = "true_conflict"
 REJECT_UNSUPPORTED_STOP_VALUE = "unsupported_stop_value"
 REJECT_EMPTY_STOP_VALUE = "empty_stop_value"
 REJECT_LOW_QUALITY = "low_quality"
+REJECT_STOP_ABSTAINED = "stop_abstained"
 REJECT_UNKNOWN = "unknown"
 
 FIELD_THRESHOLDS = {
@@ -127,6 +135,7 @@ RATE_RANKING_PROFILES = {
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
     RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1,
 }
+STOP_RANKING_PROFILES = STOP_PROFILE_CHOICES
 
 SOURCE_RANK = {
     "native_layout": 0.12,
@@ -339,6 +348,12 @@ def _metadata_summary(candidate):
         "stop_completeness_score",
         "stop_selected_status",
         "stop_conflict_type",
+        "stop_abstained",
+        "stop_abstention_reason",
+        "stop_selection_policy",
+        "role_confidence",
+        "component_completeness",
+        "stop_profile_adjustments",
         "generator_name",
         "document_region",
         "is_document_title_or_header_id",
@@ -433,6 +448,11 @@ def _stop_is_selectable(normalized):
         STOP_STATUS_COMPLETE,
         STOP_STATUS_USEFUL_PARTIAL,
     }
+
+
+def _stop_candidate_abstained(candidate):
+    metadata = _metadata(candidate)
+    return bool(metadata.get("stop_abstained")) or _text(metadata.get("stop_selection_policy")) == STOP_SELECTION_ABSTAIN
 
 
 def _stop_status_from_resolution(resolution):
@@ -612,6 +632,7 @@ def _apply_field_scoped_candidate_profiles(
     load_ranking_profile=None,
     rate_ranking_profile=None,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     effective_rate_profile = _effective_ranking_profile(
         FIELD_TOTAL_CARRIER_RATE,
@@ -627,6 +648,8 @@ def _apply_field_scoped_candidate_profiles(
             adjusted,
             policy=ocr_candidate_policy,
         )
+    if stop_ranking_profile == STOP_RANKING_PROFILE_COMPONENT_STRICT_V1:
+        adjusted = apply_stop_component_strict_profile_to_candidates(adjusted)
     return adjusted
 
 
@@ -635,6 +658,7 @@ def _validate_ranking_profiles(
     load_ranking_profile=None,
     rate_ranking_profile=None,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     if ranking_profile not in RANKING_PROFILES:
         raise ValueError(f"unknown ranking profile: {ranking_profile}")
@@ -644,6 +668,8 @@ def _validate_ranking_profiles(
         raise ValueError(f"unknown rate ranking profile: {rate_ranking_profile}")
     if ocr_candidate_policy not in OCR_CANDIDATE_POLICIES:
         raise ValueError(f"unknown OCR candidate policy: {ocr_candidate_policy}")
+    if stop_ranking_profile not in STOP_RANKING_PROFILES:
+        raise ValueError(f"unknown stop ranking profile: {stop_ranking_profile}")
 
 
 def _apply_score_trace(candidate, ranking_profile, adjustments):
@@ -768,7 +794,10 @@ def classify_candidate_eligibility(candidate, field_name, index=0):
     elif _is_stop_field(field_name):
         normalized = _stop_normalization(candidate, field_name)
         status = normalized.get("structure_status")
-        if status == STOP_STATUS_EMPTY:
+        if _stop_candidate_abstained(candidate):
+            eligible = False
+            reason = REJECT_STOP_ABSTAINED
+        elif status == STOP_STATUS_EMPTY:
             eligible = False
             reason = INELIGIBLE_MISSING_VALUE
         elif status == STOP_STATUS_UNSUPPORTED:
@@ -838,6 +867,8 @@ def _not_selected_reason(field_name, candidate, selected_score=None, candidate_s
     if REVIEW_CONFLICTING_CANDIDATES in reasons:
         return REJECT_CONFLICT
     if _is_stop_field(field_name):
+        if _stop_candidate_abstained(candidate):
+            return REJECT_STOP_ABSTAINED
         normalized = _stop_normalization(candidate, field_name)
         status = normalized.get("structure_status")
         if status == STOP_STATUS_UNSUPPORTED:
@@ -874,6 +905,7 @@ def build_resolver_decision_traces(
     load_ranking_profile=None,
     rate_ranking_profile=None,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     candidates = _apply_field_scoped_candidate_profiles(
         candidates,
@@ -881,6 +913,7 @@ def build_resolver_decision_traces(
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
         ocr_candidate_policy=ocr_candidate_policy,
+        stop_ranking_profile=stop_ranking_profile,
     )
     resolved_fields = resolved_fields if isinstance(resolved_fields, dict) else {}
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
@@ -1172,6 +1205,7 @@ def _resolve_stop_field(
     triage,
     ranking_profile=RANKING_PROFILE_BASELINE,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     field_candidates = _field_candidates(
         candidates,
@@ -1198,7 +1232,12 @@ def _resolve_stop_field(
     ]
     unsupported = [row for row in rows if row["status"] == STOP_STATUS_UNSUPPORTED]
     nonempty = [row for row in rows if row["status"] != STOP_STATUS_EMPTY]
-    selectable = [row for row in rows if _stop_is_selectable(row["normalized"])]
+    selectable = [
+        row
+        for row in rows
+        if _stop_is_selectable(row["normalized"])
+        and not _stop_candidate_abstained(row.get("candidate"))
+    ]
     if not selectable:
         reason = (
             REVIEW_STRUCTURED_STOP_UNSUPPORTED
@@ -1310,6 +1349,7 @@ def _resolve_one_field(
     triage,
     ranking_profile=RANKING_PROFILE_BASELINE,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     if _is_stop_field(field_name):
         return _resolve_stop_field(
@@ -1318,6 +1358,7 @@ def _resolve_one_field(
             triage,
             ranking_profile=ranking_profile,
             ocr_candidate_policy=ocr_candidate_policy,
+            stop_ranking_profile=stop_ranking_profile,
         )
     field_candidates = _field_candidates(
         candidates,
@@ -1411,6 +1452,7 @@ def resolve_candidates(
     load_ranking_profile=None,
     rate_ranking_profile=None,
     ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+    stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
 ):
     artifact = artifact or {}
     triage = triage if isinstance(triage, dict) else artifact.get("triage", {})
@@ -1419,6 +1461,7 @@ def resolve_candidates(
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
         ocr_candidate_policy=ocr_candidate_policy,
+        stop_ranking_profile=stop_ranking_profile,
     )
     candidates = _apply_field_scoped_candidate_profiles(
         candidates,
@@ -1426,6 +1469,7 @@ def resolve_candidates(
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
         ocr_candidate_policy=ocr_candidate_policy,
+        stop_ranking_profile=stop_ranking_profile,
     )
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     resolved_fields = {
@@ -1440,6 +1484,7 @@ def resolve_candidates(
                 rate_ranking_profile=rate_ranking_profile,
             ),
             ocr_candidate_policy=ocr_candidate_policy,
+            stop_ranking_profile=stop_ranking_profile,
         )
         for field_name in target_fields
     }
@@ -1489,13 +1534,16 @@ def resolve_candidates(
         "load_ranking_profile": load_ranking_profile or RANKING_PROFILE_BASELINE,
         "rate_ranking_profile": rate_ranking_profile or RANKING_PROFILE_BASELINE,
         "ocr_candidate_policy": ocr_candidate_policy,
+        "stop_ranking_profile": stop_ranking_profile,
         "field_ranking_profiles": _effective_field_ranking_profiles(
             ranking_profile=ranking_profile,
             load_ranking_profile=load_ranking_profile,
             rate_ranking_profile=rate_ranking_profile,
         ),
         "field_scoped_ranking_enabled": bool(
-            load_ranking_profile is not None or rate_ranking_profile is not None
+            load_ranking_profile is not None
+            or rate_ranking_profile is not None
+            or stop_ranking_profile != STOP_RANKING_PROFILE_BASELINE
         ),
     }
     result["resolver_decision_traces"] = build_resolver_decision_traces(
@@ -1507,6 +1555,7 @@ def resolve_candidates(
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
         ocr_candidate_policy=ocr_candidate_policy,
+        stop_ranking_profile=stop_ranking_profile,
     )
     result["review_gate_trace"] = build_review_gate_trace(
         resolved_fields=resolved_fields,

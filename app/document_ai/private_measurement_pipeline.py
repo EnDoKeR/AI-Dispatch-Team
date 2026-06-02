@@ -1258,6 +1258,7 @@ def _with_shadow_document_pipeline(
     shadow_ocr_pages="ocr_required",
     shadow_ocr_dpi=200,
     shadow_ocr_candidate_policy="baseline",
+    shadow_stop_ranking_profile="baseline",
     strict_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -1299,6 +1300,7 @@ def _with_shadow_document_pipeline(
             shadow_ocr_pages=shadow_ocr_pages,
             shadow_ocr_dpi=shadow_ocr_dpi,
             shadow_ocr_candidate_policy=shadow_ocr_candidate_policy,
+            shadow_stop_ranking_profile=shadow_stop_ranking_profile,
             strict_ocr=strict_shadow_ocr,
             strict_layout_provider=strict,
             include_private_eval_artifact=include_private_eval_values,
@@ -1489,6 +1491,7 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_ocr_pages="ocr_required",
     ratecon_shadow_ocr_dpi=200,
     ratecon_shadow_ocr_candidate_policy="baseline",
+    ratecon_shadow_stop_ranking_profile="baseline",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -1528,6 +1531,7 @@ def measure_private_ratecon_pdf(
             shadow_ocr_pages=ratecon_shadow_ocr_pages,
             shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
             shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+            shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -1568,6 +1572,7 @@ def measure_private_ratecon_pdf(
             shadow_ocr_pages=ratecon_shadow_ocr_pages,
             shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
             shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+            shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -1655,6 +1660,7 @@ def measure_private_ratecon_pdf(
             shadow_ocr_pages=ratecon_shadow_ocr_pages,
             shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
             shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+            shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -2088,6 +2094,7 @@ def measure_private_ratecon_pdf(
         shadow_ocr_pages=ratecon_shadow_ocr_pages,
         shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
         shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+        shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
         strict_shadow_ocr=strict_ratecon_shadow_ocr,
         include_private_eval_values=include_private_eval_values,
     )

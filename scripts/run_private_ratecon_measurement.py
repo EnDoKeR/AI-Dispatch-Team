@@ -70,6 +70,7 @@ from app.document_ai.field_candidate_resolver import (
     LOAD_RANKING_PROFILES,
     RANKING_PROFILES,
     RATE_RANKING_PROFILES,
+    STOP_RANKING_PROFILES,
 )
 from app.document_ai.field_candidate_generators import LOAD_CANDIDATE_PROFILES
 from app.document_ai.stop_review_packet import write_stop_review_packet
@@ -180,6 +181,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_ocr_pages="ocr_required",
     ratecon_shadow_ocr_dpi=200,
     ratecon_shadow_ocr_candidate_policy="baseline",
+    ratecon_shadow_stop_ranking_profile="baseline",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -225,6 +227,7 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_ocr_pages=ratecon_shadow_ocr_pages,
             ratecon_shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
             ratecon_shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+            ratecon_shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -721,6 +724,16 @@ def main(argv=None):
         ),
     )
     parser.add_argument(
+        "--ratecon-shadow-stop-ranking-profile",
+        default="baseline",
+        choices=sorted(STOP_RANKING_PROFILES),
+        help=(
+            "Shadow-only pickup/delivery stop selection profile. "
+            "stop_component_strict_v1 conservatively abstains from ambiguous "
+            "or weakly role-scoped structured stop candidates."
+        ),
+    )
+    parser.add_argument(
         "--strict-ratecon-shadow-ocr",
         action="store_true",
         help="Fail cleanly when explicit shadow OCR cannot run.",
@@ -941,6 +954,7 @@ def main(argv=None):
             ratecon_shadow_ocr_pages=args.ratecon_shadow_ocr_pages,
             ratecon_shadow_ocr_dpi=args.ratecon_shadow_ocr_dpi,
             ratecon_shadow_ocr_candidate_policy=args.ratecon_shadow_ocr_candidate_policy,
+            ratecon_shadow_stop_ranking_profile=args.ratecon_shadow_stop_ranking_profile,
             strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
         )

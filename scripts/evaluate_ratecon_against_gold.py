@@ -175,6 +175,15 @@ def _error_case_rows(evaluation):
                     "rate_demoted_from_total_carrier_rate",
                     "",
                 ),
+                "stop_role": row.get("stop_role", ""),
+                "has_location": row.get("has_location", ""),
+                "has_date": row.get("has_date", ""),
+                "has_time": row.get("has_time", ""),
+                "stop_selection_policy": row.get("stop_selection_policy", ""),
+                "stop_abstained": row.get("stop_abstained", ""),
+                "stop_abstention_reason": row.get("stop_abstention_reason", ""),
+                "role_confidence": row.get("role_confidence", ""),
+                "component_completeness": row.get("component_completeness", ""),
                 "table_context_role": row.get("table_context_role", ""),
                 "table_row_role": row.get("table_row_role", ""),
                 "table_neighbor_safety": row.get("table_neighbor_safety", ""),
@@ -349,6 +358,21 @@ def _markdown_report(evaluation):
             sort_keys=True,
         )
     )
+    lines.extend(["", "## Stop Component Forensics", ""])
+    lines.append(
+        "stop_component_forensics_summary: "
+        + json.dumps(
+            evaluation.get("stop_component_forensics_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "ocr_stop_evidence_gap_summary: "
+        + json.dumps(
+            evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:
@@ -464,6 +488,15 @@ def evaluate_and_write(
             "rate_abstained",
             "rate_abstention_reason",
             "rate_demoted_from_total_carrier_rate",
+            "stop_role",
+            "has_location",
+            "has_date",
+            "has_time",
+            "stop_selection_policy",
+            "stop_abstained",
+            "stop_abstention_reason",
+            "role_confidence",
+            "component_completeness",
             "table_context_role",
             "table_row_role",
             "table_neighbor_safety",

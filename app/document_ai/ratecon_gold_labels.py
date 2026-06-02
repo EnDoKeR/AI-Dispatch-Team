@@ -3349,6 +3349,267 @@ def _build_ocr_accessorial_noise_summary(audit_index, comparison_rows):
     }
 
 
+def _stop_component_keys():
+    return [
+        "facility",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "date",
+        "time",
+        "appointment_window",
+    ]
+
+
+def _component_field_for_stop(field_name):
+    if field_name == FIELD_PICKUP_STOPS:
+        return {
+            "location": FIELD_PICKUP_LOCATION,
+            "date": FIELD_PICKUP_DATE,
+            "time": FIELD_PICKUP_TIME,
+        }
+    return {
+        "location": FIELD_DELIVERY_LOCATION,
+        "date": FIELD_DELIVERY_DATE,
+        "time": FIELD_DELIVERY_TIME,
+    }
+
+
+def _stop_source_bucket(row):
+    source = _text(row.get("source")) or "unknown"
+    parser = _text(row.get("parser_name")).lower()
+    if source == "ocr":
+        return "ocr"
+    if source == "native_layout" and "table" in parser:
+        return "pdfplumber_table"
+    if source == "native_layout":
+        return "native_layout"
+    if source in {"native_text", "regex"}:
+        return "native_text"
+    if "legacy" in parser or source == "legacy_parser":
+        return "legacy_fallback"
+    return source or "unknown"
+
+
+def _stop_wrong_reason(row):
+    issues = set(row.get("issues") or [])
+    if row.get("stop_role") and row.get("field") == FIELD_PICKUP_STOPS and row.get("stop_role") == "delivery":
+        return "pickup_delivery_swapped"
+    if row.get("stop_role") and row.get("field") == FIELD_DELIVERY_STOPS and row.get("stop_role") == "pickup":
+        return "pickup_delivery_swapped"
+    if "wrong_role" in issues:
+        return "wrong_role"
+    if "wrong_stop_count" in issues:
+        return "wrong_stop_count"
+    if "wrong_date" in issues:
+        return "wrong_date"
+    if "wrong_time" in issues:
+        return "wrong_time"
+    if any(issue in issues for issue in ["wrong_city", "wrong_state", "wrong_zip"]):
+        return "wrong_city_state"
+    if any(issue in issues for issue in ["wrong_facility", "wrong_address", "wrong_location"]):
+        return "wrong_location"
+    if row.get("source") == "ocr":
+        return "ocr_line_misaligned"
+    if _text(row.get("pairing_method")).startswith("table_"):
+        return "table_row_misaligned"
+    if row.get("status") == STATUS_PARTIAL_MATCH:
+        return "partial_selected_as_complete"
+    return "unknown"
+
+
+def _stop_missing_reason(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "serialized_gap"
+    if source_status == STATUS_UNSUPPORTED_VALUE_TYPE:
+        return "unsupported_structured_value"
+    if row.get("stop_abstained"):
+        return "candidate_abstained"
+    if row.get("source") == "ocr":
+        return "ocr_text_present_not_scanned"
+    if status in EXTRACTOR_MISSING_STATUSES:
+        return "no_stop_candidate"
+    return "unknown"
+
+
+def _empty_stop_forensics(field_name):
+    return {
+        "field": field_name,
+        "evaluated_docs": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "wrong": 0,
+        "missing": 0,
+        "serialized_gap": 0,
+        "role_swapped_count": 0,
+        "order_ambiguous_count": 0,
+        "component_status_counts": {key: {} for key in _stop_component_keys()},
+        "source_counts": {
+            "native_text": 0,
+            "native_layout": 0,
+            "pdfplumber_table": 0,
+            "ocr": 0,
+            "legacy_fallback": 0,
+        },
+        "wrong_reason_counts": {},
+        "missing_reason_counts": {},
+    }
+
+
+def _build_stop_component_forensics_summary(comparison_rows, audit_index=None):
+    summary = {
+        FIELD_PICKUP_STOPS: _empty_stop_forensics(FIELD_PICKUP_STOPS),
+        FIELD_DELIVERY_STOPS: _empty_stop_forensics(FIELD_DELIVERY_STOPS),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    rows_by_field = defaultdict(list)
+    for row in comparison_rows or []:
+        if row.get("system") == SYSTEM_SHADOW:
+            rows_by_field[row.get("field")].append(row)
+
+    for stop_field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        payload = summary[stop_field]
+        wrong_reasons = Counter()
+        missing_reasons = Counter()
+        source_counts = Counter()
+        for row in rows_by_field.get(stop_field, []):
+            status = row.get("status")
+            if status in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                continue
+            payload["evaluated_docs"] += 1
+            if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}:
+                payload["exact_match"] += 1
+            elif status == STATUS_PARTIAL_MATCH:
+                payload["partial_match"] += 1
+                wrong_reasons[_stop_wrong_reason(row)] += 1
+            elif status == STATUS_WRONG_VALUE:
+                payload["wrong"] += 1
+                reason = _stop_wrong_reason(row)
+                wrong_reasons[reason] += 1
+                if reason == "pickup_delivery_swapped":
+                    payload["role_swapped_count"] += 1
+            elif status in EXTRACTOR_MISSING_STATUSES or status in SOURCE_AVAILABILITY_STATUSES:
+                payload["missing"] += 1
+                reason = _stop_missing_reason(row)
+                missing_reasons[reason] += 1
+                if reason == "serialized_gap":
+                    payload["serialized_gap"] += 1
+            if row.get("predicted"):
+                source_counts[_stop_source_bucket(row)] += 1
+            if "wrong_stop_count" in set(row.get("issues") or []):
+                payload["order_ambiguous_count"] += 1
+
+        component_fields = _component_field_for_stop(stop_field)
+        component_map = {
+            "facility": "location",
+            "address": "location",
+            "city": "location",
+            "state": "location",
+            "zip": "location",
+            "date": "date",
+            "time": "time",
+            "appointment_window": "time",
+        }
+        for component, derived_name in component_map.items():
+            field = component_fields[derived_name]
+            counts = Counter(
+                row.get("status") or "unknown"
+                for row in rows_by_field.get(field, [])
+                if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+            )
+            payload["component_status_counts"][component] = dict(counts.most_common())
+
+        for key in payload["source_counts"]:
+            payload["source_counts"][key] = source_counts.get(key, 0)
+        for key, value in source_counts.items():
+            if key not in payload["source_counts"]:
+                payload["source_counts"][key] = value
+        payload["wrong_reason_counts"] = dict(wrong_reasons.most_common())
+        payload["missing_reason_counts"] = dict(missing_reasons.most_common())
+    return summary
+
+
+def _stop_inventory(record):
+    payload = _private_eval_values(record)
+    return (
+        payload.get("stop_component_candidate_inventory", [])
+        if isinstance(payload, dict)
+        else []
+    )
+
+
+def _is_ocr_stop_inventory_item(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    return _text(item.get("source")) == "ocr" or bool(metadata.get("ocr_candidate"))
+
+
+def _ocr_stop_not_selected_reason(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    if metadata.get("stop_abstained"):
+        return _text(metadata.get("stop_abstention_reason")) or "candidate_abstained"
+    if _text(metadata.get("stop_selection_policy")) == "partial_review":
+        return _text(metadata.get("stop_abstention_reason")) or "partial_review"
+    if not metadata.get("structured_stop_candidate"):
+        return "not_assembled_structured_stop"
+    if metadata.get("ambiguous_stop_candidate"):
+        return "ambiguous_stop_candidate"
+    return "resolver_excluded_ocr"
+
+
+def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    docs_with_ocr = [
+        record
+        for record in records
+        if _record_ocr_status(record) in {"success", "partial"} or _record_has_ocr_text(record)
+    ]
+    ocr_items = []
+    for record in docs_with_ocr:
+        for item in _stop_inventory(record):
+            if isinstance(item, dict) and _is_ocr_stop_inventory_item(item):
+                ocr_items.append(item)
+    selected_rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("predicted")
+        and _text(row.get("source")) == "ocr"
+    ]
+    rejected = [
+        item
+        for item in ocr_items
+        if _text(item.get("field")) not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+    ]
+    rejection_reasons = Counter(_ocr_stop_not_selected_reason(item) for item in rejected)
+    candidates_by_field = Counter(_text(item.get("field")) for item in ocr_items)
+    structured = [
+        item
+        for item in ocr_items
+        if _text(item.get("field")) in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+    ]
+    return {
+        "ocr_docs": len(docs_with_ocr),
+        "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),
+        "ocr_pickup_date_candidates": candidates_by_field.get(FIELD_PICKUP_DATE, 0),
+        "ocr_pickup_time_candidates": candidates_by_field.get(FIELD_PICKUP_TIME, 0),
+        "ocr_delivery_location_candidates": candidates_by_field.get(FIELD_DELIVERY_LOCATION, 0),
+        "ocr_delivery_date_candidates": candidates_by_field.get(FIELD_DELIVERY_DATE, 0),
+        "ocr_delivery_time_candidates": candidates_by_field.get(FIELD_DELIVERY_TIME, 0),
+        "ocr_structured_stop_candidates": len(structured),
+        "ocr_stop_candidates_selected": len(selected_rows),
+        "ocr_stop_candidates_rejected": max(0, len(ocr_items) - len(selected_rows)),
+        "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "candidate_field_counts": dict(candidates_by_field.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
     indexed = _audit_by_key(audit_records)
     metrics = defaultdict(lambda: defaultdict(_empty_metric))
@@ -3433,6 +3694,20 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     ),
                     "rate_demoted_from_total_carrier_rate": bool(
                         metadata.get("rate_demoted_from_total_carrier_rate")
+                    ),
+                    "stop_role": _text(metadata.get("stop_role")),
+                    "has_location": bool(metadata.get("has_location")),
+                    "has_date": bool(metadata.get("has_date")),
+                    "has_time": bool(metadata.get("has_time")),
+                    "has_facility": bool(metadata.get("has_facility")),
+                    "has_address": bool(metadata.get("has_address")),
+                    "stop_structure_status": _text(metadata.get("stop_structure_status")),
+                    "stop_selection_policy": _text(metadata.get("stop_selection_policy")),
+                    "stop_abstained": bool(metadata.get("stop_abstained")),
+                    "stop_abstention_reason": _text(metadata.get("stop_abstention_reason")),
+                    "role_confidence": _safe_float(metadata.get("role_confidence")),
+                    "component_completeness": _safe_float(
+                        metadata.get("component_completeness")
                     ),
                     "table_context_role": _text(metadata.get("table_context_role")),
                     "table_row_role": _text(metadata.get("table_row_role")),
@@ -3619,6 +3894,14 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             comparison_rows,
         ),
         "ocr_accessorial_noise_summary": _build_ocr_accessorial_noise_summary(
+            indexed,
+            comparison_rows,
+        ),
+        "stop_component_forensics_summary": _build_stop_component_forensics_summary(
+            comparison_rows,
+            indexed,
+        ),
+        "ocr_stop_evidence_gap_summary": _build_ocr_stop_evidence_gap_summary(
             indexed,
             comparison_rows,
         ),

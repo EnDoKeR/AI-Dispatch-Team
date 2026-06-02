@@ -1517,6 +1517,12 @@ def _metadata_eval_summary(metadata):
         "has_address",
         "structure_status",
         "stop_structure_status",
+        "stop_abstained",
+        "stop_abstention_reason",
+        "stop_selection_policy",
+        "role_confidence",
+        "component_completeness",
+        "stop_profile_adjustments",
         "document_region",
         "is_document_title_or_header_id",
         "is_stop_level_reference",
@@ -2078,6 +2084,45 @@ def _rate_money_candidate_inventory(candidates):
     return inventory
 
 
+def _stop_component_candidate_inventory(candidates):
+    inventory = []
+    stop_fields = {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+        "pickup_location",
+        "pickup_date",
+        "pickup_time",
+        "delivery_location",
+        "delivery_date",
+        "delivery_time",
+    }
+    for candidate in candidates or []:
+        field_name = _candidate_field(candidate)
+        if field_name not in stop_fields:
+            continue
+        metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+        value = candidate.get("normalized_value") or candidate.get("value")
+        inventory.append(
+            {
+                "field": field_name,
+                "value": _json_safe(value),
+                "confidence": round(float(candidate.get("confidence") or 0.0), 3),
+                "source": _text(candidate.get("source")),
+                "parser_name": _text(candidate.get("parser_name")),
+                "metadata_summary": _metadata_eval_summary(metadata),
+                "value_shape": value_shape(value),
+                "independent": not _candidate_is_fallback(candidate),
+                "layout_based": _candidate_is_layout(candidate),
+                "table_based": bool(
+                    metadata.get("table_cell_candidate")
+                    or _text(metadata.get("pairing_method")).startswith("table_")
+                ),
+                "legacy_fallback": _candidate_is_fallback(candidate),
+            }
+        )
+    return inventory
+
+
 def build_private_eval_values(
     raw_resolved=None,
     candidates=None,
@@ -2100,6 +2145,7 @@ def build_private_eval_values(
         "legacy_fallback_candidate": {},
         "load_identity_candidate_inventory": [],
         "rate_money_candidate_inventory": [],
+        "stop_component_candidate_inventory": [],
         "load_visibility_probe": _load_visibility_probe(private_eval_artifact),
         "rate_visibility_probe": _rate_visibility_probe(private_eval_artifact),
         "raw_text_included": False,
@@ -2123,6 +2169,7 @@ def build_private_eval_values(
                 payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
     payload["load_identity_candidate_inventory"] = _load_identity_candidate_inventory(candidates)
     payload["rate_money_candidate_inventory"] = _rate_money_candidate_inventory(candidates)
+    payload["stop_component_candidate_inventory"] = _stop_component_candidate_inventory(candidates)
     return payload
 
 
@@ -2816,6 +2863,7 @@ def build_ratecon_shadow_audit_record(
             "load_ranking_profile": _text(debug.get("load_ranking_profile")),
             "rate_ranking_profile": _text(debug.get("rate_ranking_profile")),
             "ocr_candidate_policy": _text(debug.get("ocr_candidate_policy")),
+            "stop_ranking_profile": _text(debug.get("stop_ranking_profile")),
             "field_ranking_profiles": dict(debug.get("field_ranking_profiles") or {}),
             "field_scoped_ranking_enabled": bool(
                 debug.get("field_scoped_ranking_enabled")
