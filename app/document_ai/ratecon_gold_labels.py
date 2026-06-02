@@ -3070,6 +3070,285 @@ def _build_ocr_gold_eval_summary(gold_labels, audit_index, comparison_rows):
     }
 
 
+def _record_ocr_status(record):
+    artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+    summary = artifact.get("ocr_provider_summary", {}) or {}
+    return _text(summary.get("status")) or "skipped"
+
+
+def _record_has_ocr_text(record):
+    artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+    summary = artifact.get("ocr_provider_summary", {}) or {}
+    return _safe_int(summary.get("ocr_text_page_count")) > 0
+
+
+def _ocr_load_inventory(record):
+    return [
+        item
+        for item in _load_inventory(record)
+        if isinstance(item, dict) and _candidate_source_is_ocr(item)
+    ]
+
+
+def _ocr_rate_inventory(record):
+    return [
+        item
+        for item in _rate_inventory(record)
+        if isinstance(item, dict) and _candidate_source_is_ocr(item)
+    ]
+
+
+def _ocr_load_gap_diagnosis(record, gold, gold_hashes):
+    if not isinstance(record, dict) or not record:
+        return "unknown"
+    artifact = record.get("artifact_summary", {}) or {}
+    classification = artifact.get("ocr_document_classification", {}) or {}
+    if _text(classification.get("document_type")) == "non_rate_confirmation":
+        return "skipped_non_rc"
+    if not _record_has_ocr_text(record):
+        return "ocr_text_missing"
+    visibility = _load_visibility_status(record, gold_hashes)
+    gold_in_ocr = visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+    if not gold_in_ocr:
+        return "gold_not_in_ocr_text"
+    selected = _shadow_prediction(record, FIELD_LOAD_NUMBER)
+    if (
+        isinstance(selected, dict)
+        and _prediction_source_name(selected) == "ocr"
+        and _load_value_matches(
+            selected.get("value"),
+            _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {})),
+        )
+    ):
+        return "ocr_load_candidate_selected"
+    inventory = _ocr_load_inventory(record)
+    if any(_gold_load_matches_candidate(item, gold) for item in inventory):
+        return "resolver_excluded_ocr"
+    if inventory:
+        return "value_shape_rejected"
+    candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+        "ocr_candidate_summary",
+        {},
+    )
+    if _safe_int(candidate_summary.get("ocr_candidates_total")) > 0:
+        return "label_hit_no_candidate"
+    return "ocr_text_present_not_scanned"
+
+
+def _build_ocr_load_candidate_gap_summary(gold_labels, audit_index):
+    docs = []
+    reasons = Counter()
+    totals = Counter()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        record = _find_record(label, audit_index)
+        if not isinstance(record, dict) or not record:
+            continue
+        ocr_status = _record_ocr_status(record)
+        if ocr_status not in {"success", "partial"} and not _record_has_ocr_text(record):
+            continue
+        gold = label.get("gold", {}) or {}
+        gold_values = _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {}))
+        gold_hashes = _load_value_hashes(gold_values)
+        visibility = _load_visibility_status(record, gold_hashes)
+        inventory = _ocr_load_inventory(record)
+        matching = [item for item in inventory if _gold_load_matches_candidate(item, gold)]
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        by_field = candidate_summary.get("ocr_candidates_by_field", {}) or {}
+        by_generator = candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        diagnosis = _ocr_load_gap_diagnosis(record, gold, gold_hashes)
+        reasons[diagnosis] += 1
+        totals["ocr_docs"] += 1
+        totals["evaluated_rc_ocr_docs"] += 1
+        totals["gold_load_in_ocr_text"] += int(
+            visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+        )
+        totals["ocr_load_label_hits"] += sum(
+            1
+            for item in inventory
+            if (_rate_inventory_metadata(item) or {}).get("header_load_identity_candidate")
+        )
+        totals["ocr_load_candidates_emitted"] += _safe_int(by_field.get(FIELD_LOAD_NUMBER))
+        selected = _shadow_prediction(record, FIELD_LOAD_NUMBER)
+        totals["ocr_load_candidates_selected"] += int(
+            isinstance(selected, dict)
+            and _prediction_source_name(selected) == "ocr"
+            and bool(_text(selected.get("value")))
+        )
+        docs.append(
+            {
+                "file_name": _text(label.get("file_name")),
+                "document_id": _text(label.get("document_id")),
+                "ocr_status": ocr_status,
+                "gold_load_status": "uncertain"
+                if _gold_uncertain(gold.get(FIELD_LOAD_NUMBER, {}))
+                else "labeled",
+                "gold_load_in_ocr_text": bool(
+                    visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+                ),
+                "gold_load_in_ocr_lines": bool(visibility["visible_in_lines"]),
+                "gold_load_in_ocr_candidates": bool(matching),
+                "ocr_load_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get(
+                        "header_load_identity_candidate"
+                    )
+                ),
+                "ocr_header_load_label_hits": _safe_int(
+                    by_generator.get("header_load_identity_candidate_generator")
+                ),
+                "ocr_order_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get("id_type_hint")
+                    == "order"
+                ),
+                "ocr_po_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get("id_type_hint") == "po"
+                ),
+                "ocr_candidate_rejection_reasons": {},
+                "ocr_artifact_merge_status": {
+                    "ocr_text_attached": _record_has_ocr_text(record),
+                    "ocr_lines_attached": _record_has_ocr_text(record),
+                    "candidate_generators_scanned_ocr": bool(
+                        _safe_int(candidate_summary.get("ocr_candidates_total"))
+                    ),
+                },
+                "diagnosis": diagnosis,
+                "private_values_printed": False,
+                "raw_text_printed": False,
+            }
+        )
+    return {
+        "ocr_docs": totals.get("ocr_docs", 0),
+        "evaluated_rc_ocr_docs": totals.get("evaluated_rc_ocr_docs", 0),
+        "gold_load_in_ocr_text": totals.get("gold_load_in_ocr_text", 0),
+        "ocr_load_label_hits": totals.get("ocr_load_label_hits", 0),
+        "ocr_load_candidates_emitted": totals.get("ocr_load_candidates_emitted", 0),
+        "ocr_load_candidates_selected": totals.get("ocr_load_candidates_selected", 0),
+        "gap_reason_counts": dict(reasons.most_common()),
+        "documents": docs,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _ocr_rate_diagnosis(row, record, gold):
+    if _status_correct(row.get("status")):
+        return "ocr_correct_total"
+    context = _text(row.get("money_context")) or "unknown"
+    safety = _text(row.get("rate_safety")) or "unknown"
+    if row.get("status") != STATUS_WRONG_VALUE:
+        return "unknown"
+    if context in {"accessorial", "deduction", "fee", "quickpay", "fuel_advance", "tracking_hold", "penalty"}:
+        return "ocr_accessorial_or_penalty"
+    if context == "payment_terms_amount":
+        return "ocr_terms_amount"
+    if safety in {"risky", "unknown"}:
+        return "ocr_ambiguous_total" if safety == "risky" else "ocr_wrong_money_context"
+    if not any(_gold_rate_matches_candidate(item, gold) for item in _ocr_rate_inventory(record)):
+        return "ocr_gold_not_in_text"
+    return "ocr_wrong_money_context"
+
+
+def _build_ocr_rate_selection_summary(gold_labels, audit_index, comparison_rows):
+    labels_by_doc = {
+        _text(label.get("document_id")): label
+        for label in gold_labels or []
+        if _text(label.get("document_id"))
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("predicted")
+        and _text(row.get("source")) == "ocr"
+    ]
+    diagnoses = Counter()
+    safety = Counter()
+    contexts = Counter()
+    cases = []
+    for row in rows:
+        label = labels_by_doc.get(_text(row.get("document_id")), {}) or {}
+        record = _find_record(label, audit_index)
+        gold = label.get("gold", {}) or {}
+        diagnosis = _ocr_rate_diagnosis(row, record, gold)
+        diagnoses[diagnosis] += 1
+        contexts[_text(row.get("money_context")) or "unknown"] += 1
+        safety[_text(row.get("rate_safety")) or "unknown"] += 1
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": _text(row.get("document_id")),
+                "selected_from_ocr": True,
+                "ocr_rate_candidate_context": _text(row.get("money_context")) or "unknown",
+                "ocr_rate_safety": _text(row.get("rate_safety")) or "unknown",
+                "gold_rate_in_ocr_candidates": any(
+                    _gold_rate_matches_candidate(item, gold)
+                    for item in _ocr_rate_inventory(record)
+                ),
+                "diagnosis": diagnosis,
+                "private_values_printed": False,
+            }
+        )
+    wrong_rows = [row for row in rows if row.get("status") == STATUS_WRONG_VALUE]
+    return {
+        "ocr_selected_rate_count": len(rows),
+        "ocr_wrong_rate_count": len(wrong_rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "ocr_rate_safety_counts": dict(safety.most_common()),
+        "ocr_rate_context_counts": dict(contexts.most_common()),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_ocr_accessorial_noise_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    by_section = Counter()
+    candidate_count = 0
+    demoted = 0
+    for record in records:
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        candidate_count += _safe_int(
+            candidate_summary.get("ocr_accessorial_candidate_count")
+        )
+        demoted += _safe_int(candidate_summary.get("ocr_accessorial_deduped_or_demoted"))
+        by_section.update(candidate_summary.get("ocr_accessorial_by_section", {}) or {})
+    used_in_rate = sum(
+        1
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and _text(row.get("source")) == "ocr"
+        and _text(row.get("money_context")) in {"accessorial", "deduction", "quickpay", "penalty", "fee"}
+    )
+    return {
+        "ocr_accessorial_candidate_count": candidate_count,
+        "ocr_accessorial_by_section": dict(by_section.most_common()),
+        "ocr_accessorial_used_in_rate_selection": used_in_rate,
+        "ocr_accessorial_deduped_or_demoted": demoted,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
     indexed = _audit_by_key(audit_records)
     metrics = defaultdict(lambda: defaultdict(_empty_metric))
@@ -3327,6 +3606,19 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         ),
         "ocr_gold_eval_summary": _build_ocr_gold_eval_summary(
             gold_labels,
+            indexed,
+            comparison_rows,
+        ),
+        "ocr_load_candidate_gap_summary": _build_ocr_load_candidate_gap_summary(
+            gold_labels,
+            indexed,
+        ),
+        "ocr_rate_selection_summary": _build_ocr_rate_selection_summary(
+            gold_labels,
+            indexed,
+            comparison_rows,
+        ),
+        "ocr_accessorial_noise_summary": _build_ocr_accessorial_noise_summary(
             indexed,
             comparison_rows,
         ),

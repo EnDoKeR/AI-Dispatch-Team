@@ -28,6 +28,12 @@ from app.document_ai.ratecon_rate_money_safety import (
     RATE_SELECTION_WEAK_ONLY,
     apply_rate_money_abstention_profile_to_candidates,
 )
+from app.document_ai.ratecon_ocr_candidate_policy import (
+    OCR_CANDIDATE_POLICIES,
+    OCR_CANDIDATE_POLICY_BASELINE,
+    OCR_CANDIDATE_POLICY_FILL_MISSING_STRICT_V1,
+    apply_ocr_candidate_policy_to_candidates,
+)
 
 
 REVIEW_NEEDS_REVIEW = "NEEDS_REVIEW"
@@ -605,6 +611,7 @@ def _apply_field_scoped_candidate_profiles(
     ranking_profile=RANKING_PROFILE_BASELINE,
     load_ranking_profile=None,
     rate_ranking_profile=None,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     effective_rate_profile = _effective_ranking_profile(
         FIELD_TOTAL_CARRIER_RATE,
@@ -612,15 +619,22 @@ def _apply_field_scoped_candidate_profiles(
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
     )
+    adjusted = candidates
     if effective_rate_profile == RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1:
-        return apply_rate_money_abstention_profile_to_candidates(candidates)
-    return candidates
+        adjusted = apply_rate_money_abstention_profile_to_candidates(adjusted)
+    if ocr_candidate_policy != OCR_CANDIDATE_POLICY_BASELINE:
+        adjusted = apply_ocr_candidate_policy_to_candidates(
+            adjusted,
+            policy=ocr_candidate_policy,
+        )
+    return adjusted
 
 
 def _validate_ranking_profiles(
     ranking_profile=RANKING_PROFILE_BASELINE,
     load_ranking_profile=None,
     rate_ranking_profile=None,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     if ranking_profile not in RANKING_PROFILES:
         raise ValueError(f"unknown ranking profile: {ranking_profile}")
@@ -628,6 +642,8 @@ def _validate_ranking_profiles(
         raise ValueError(f"unknown load ranking profile: {load_ranking_profile}")
     if rate_ranking_profile is not None and rate_ranking_profile not in RATE_RANKING_PROFILES:
         raise ValueError(f"unknown rate ranking profile: {rate_ranking_profile}")
+    if ocr_candidate_policy not in OCR_CANDIDATE_POLICIES:
+        raise ValueError(f"unknown OCR candidate policy: {ocr_candidate_policy}")
 
 
 def _apply_score_trace(candidate, ranking_profile, adjustments):
@@ -674,7 +690,35 @@ def _public_candidate(candidate, score):
     }
 
 
-def _field_candidates(candidates, field_name, ranking_profile=RANKING_PROFILE_BASELINE):
+def _candidate_is_ocr(candidate):
+    metadata = _metadata(candidate)
+    return _text((candidate or {}).get("source")).lower() == "ocr" or bool(
+        metadata.get("ocr_candidate")
+    )
+
+
+def _strict_policy_non_ocr_available(direct):
+    for candidate in direct or []:
+        if _candidate_is_ocr(candidate):
+            continue
+        metadata = _metadata(candidate)
+        if metadata.get("rate_demoted_from_total_carrier_rate") or metadata.get(
+            "table_neighbor_demoted_from_load_number"
+        ):
+            continue
+        if _text((candidate or {}).get("value")) or _text(
+            (candidate or {}).get("normalized_value")
+        ):
+            return True
+    return False
+
+
+def _field_candidates(
+    candidates,
+    field_name,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
+):
     direct = []
     for candidate in candidates or []:
         if not isinstance(candidate, dict):
@@ -692,6 +736,12 @@ def _field_candidates(candidates, field_name, ranking_profile=RANKING_PROFILE_BA
             and metadata.get("context_feature_load_identity_candidate")
         ):
             direct.append(candidate)
+    if (
+        ocr_candidate_policy == OCR_CANDIDATE_POLICY_FILL_MISSING_STRICT_V1
+        and field_name in {FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE}
+        and _strict_policy_non_ocr_available(direct)
+    ):
+        return [candidate for candidate in direct if not _candidate_is_ocr(candidate)]
     return direct
 
 
@@ -823,12 +873,14 @@ def build_resolver_decision_traces(
     ranking_profile=RANKING_PROFILE_BASELINE,
     load_ranking_profile=None,
     rate_ranking_profile=None,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     candidates = _apply_field_scoped_candidate_profiles(
         candidates,
         ranking_profile=ranking_profile,
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     resolved_fields = resolved_fields if isinstance(resolved_fields, dict) else {}
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
@@ -844,6 +896,7 @@ def build_resolver_decision_traces(
             candidates,
             field_name,
             ranking_profile=field_ranking_profile,
+            ocr_candidate_policy=ocr_candidate_policy,
         )
         resolution = resolved_fields.get(field_name, {}) or {}
         selected_identity = _selected_candidate_identity(resolution)
@@ -1118,11 +1171,13 @@ def _resolve_stop_field(
     candidates,
     triage,
     ranking_profile=RANKING_PROFILE_BASELINE,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     field_candidates = _field_candidates(
         candidates,
         field_name,
         ranking_profile=ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     threshold = FIELD_THRESHOLDS.get(field_name, 0.70)
     if not field_candidates:
@@ -1254,6 +1309,7 @@ def _resolve_one_field(
     candidates,
     triage,
     ranking_profile=RANKING_PROFILE_BASELINE,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     if _is_stop_field(field_name):
         return _resolve_stop_field(
@@ -1261,11 +1317,13 @@ def _resolve_one_field(
             candidates,
             triage,
             ranking_profile=ranking_profile,
+            ocr_candidate_policy=ocr_candidate_policy,
         )
     field_candidates = _field_candidates(
         candidates,
         field_name,
         ranking_profile=ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     threshold = FIELD_THRESHOLDS.get(field_name, 0.65)
     if not field_candidates:
@@ -1352,6 +1410,7 @@ def resolve_candidates(
     ranking_profile=RANKING_PROFILE_BASELINE,
     load_ranking_profile=None,
     rate_ranking_profile=None,
+    ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
 ):
     artifact = artifact or {}
     triage = triage if isinstance(triage, dict) else artifact.get("triage", {})
@@ -1359,12 +1418,14 @@ def resolve_candidates(
         ranking_profile=ranking_profile,
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     candidates = _apply_field_scoped_candidate_profiles(
         candidates,
         ranking_profile=ranking_profile,
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     resolved_fields = {
@@ -1378,6 +1439,7 @@ def resolve_candidates(
                 load_ranking_profile=load_ranking_profile,
                 rate_ranking_profile=rate_ranking_profile,
             ),
+            ocr_candidate_policy=ocr_candidate_policy,
         )
         for field_name in target_fields
     }
@@ -1414,6 +1476,7 @@ def resolve_candidates(
                                     load_ranking_profile=load_ranking_profile,
                                     rate_ranking_profile=rate_ranking_profile,
                                 ),
+                                ocr_candidate_policy=ocr_candidate_policy,
                             )
                         )
                         for field_name in target_fields
@@ -1425,6 +1488,7 @@ def resolve_candidates(
         "ranking_profile": ranking_profile,
         "load_ranking_profile": load_ranking_profile or RANKING_PROFILE_BASELINE,
         "rate_ranking_profile": rate_ranking_profile or RANKING_PROFILE_BASELINE,
+        "ocr_candidate_policy": ocr_candidate_policy,
         "field_ranking_profiles": _effective_field_ranking_profiles(
             ranking_profile=ranking_profile,
             load_ranking_profile=load_ranking_profile,
@@ -1442,6 +1506,7 @@ def resolve_candidates(
         ranking_profile=ranking_profile,
         load_ranking_profile=load_ranking_profile,
         rate_ranking_profile=rate_ranking_profile,
+        ocr_candidate_policy=ocr_candidate_policy,
     )
     result["review_gate_trace"] = build_review_gate_trace(
         resolved_fields=resolved_fields,

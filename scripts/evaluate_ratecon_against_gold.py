@@ -330,6 +330,25 @@ def _markdown_report(evaluation):
         "ocr_gold_eval_summary: "
         + json.dumps(evaluation.get("ocr_gold_eval_summary", {}) or {}, sort_keys=True)
     )
+    load_gap = dict(evaluation.get("ocr_load_candidate_gap_summary", {}) or {})
+    load_gap.pop("documents", None)
+    lines.append(
+        "ocr_load_candidate_gap_summary: "
+        + json.dumps(load_gap, sort_keys=True)
+    )
+    rate_selection = dict(evaluation.get("ocr_rate_selection_summary", {}) or {})
+    rate_selection.pop("cases", None)
+    lines.append(
+        "ocr_rate_selection_summary: "
+        + json.dumps(rate_selection, sort_keys=True)
+    )
+    lines.append(
+        "ocr_accessorial_noise_summary: "
+        + json.dumps(
+            evaluation.get("ocr_accessorial_noise_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:

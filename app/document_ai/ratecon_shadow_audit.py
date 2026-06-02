@@ -495,6 +495,8 @@ def build_candidate_summary(candidates, generator_summaries=None):
     duplicate_identities = Counter()
     ocr_candidates_by_field = Counter()
     ocr_candidates_by_generator = Counter()
+    ocr_accessorial_by_section = Counter()
+    ocr_accessorial_deduped_or_demoted = 0
     seen_identities = set()
     independent_fields = set()
     fallback_fields = set()
@@ -586,6 +588,16 @@ def build_candidate_summary(candidates, generator_summaries=None):
         if source == "ocr" or metadata.get("ocr_candidate"):
             ocr_candidates_by_field[field_name or "unknown"] += 1
             ocr_candidates_by_generator[generator] += 1
+            if field_name == "accessorial_term" or metadata.get("ocr_accessorial_diagnostic_only"):
+                ocr_accessorial_by_section[
+                    _text(metadata.get("document_region"))
+                    or _text(metadata.get("section_context"))
+                    or "unknown"
+                ] += 1
+                if metadata.get("rate_demoted_from_total_carrier_rate") or metadata.get(
+                    "ocr_rate_abstained"
+                ):
+                    ocr_accessorial_deduped_or_demoted += 1
         if diagnostic_fallback:
             fallback_count += 1
         else:
@@ -1010,6 +1022,9 @@ def build_candidate_summary(candidates, generator_summaries=None):
             "ocr_candidates_total": sum(ocr_candidates_by_field.values()),
             "ocr_candidates_by_field": dict(sorted(ocr_candidates_by_field.items())),
             "ocr_candidates_by_generator": dict(sorted(ocr_candidates_by_generator.items())),
+            "ocr_accessorial_candidate_count": sum(ocr_accessorial_by_section.values()),
+            "ocr_accessorial_by_section": dict(sorted(ocr_accessorial_by_section.items())),
+            "ocr_accessorial_deduped_or_demoted": ocr_accessorial_deduped_or_demoted,
             "raw_text_included": False,
         },
     }
@@ -1524,6 +1539,14 @@ def _metadata_eval_summary(metadata):
         "rate_abstention_reason",
         "rate_demoted_from_total_carrier_rate",
         "rate_candidate_profile_adjustments",
+        "ocr_candidate_policy",
+        "ocr_candidate_policy_reason",
+        "ocr_candidate_policy_adjustments",
+        "ocr_load_promoted_to_load_number",
+        "ocr_rate_safety",
+        "ocr_rate_abstained",
+        "ocr_rate_abstention_reason",
+        "ocr_accessorial_diagnostic_only",
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
@@ -2792,6 +2815,7 @@ def build_ratecon_shadow_audit_record(
             ),
             "load_ranking_profile": _text(debug.get("load_ranking_profile")),
             "rate_ranking_profile": _text(debug.get("rate_ranking_profile")),
+            "ocr_candidate_policy": _text(debug.get("ocr_candidate_policy")),
             "field_ranking_profiles": dict(debug.get("field_ranking_profiles") or {}),
             "field_scoped_ranking_enabled": bool(
                 debug.get("field_scoped_ranking_enabled")
@@ -3034,6 +3058,7 @@ def summarize_ratecon_shadow_audit_records(records):
     ocr_candidate_totals = Counter()
     ocr_candidates_by_field = Counter()
     ocr_candidates_by_generator = Counter()
+    ocr_accessorial_by_section = Counter()
     ocr_classification_counts = Counter()
     ocr_classification_skip_reasons = Counter()
     table_totals = Counter()
@@ -3298,6 +3323,15 @@ def summarize_ratecon_shadow_audit_records(records):
         ocr_candidates_by_generator.update(
             ocr_candidate_summary.get("ocr_candidates_by_generator", {}) or {}
         )
+        ocr_candidate_totals["ocr_accessorial_candidate_count"] += _safe_int(
+            ocr_candidate_summary.get("ocr_accessorial_candidate_count")
+        )
+        ocr_candidate_totals["ocr_accessorial_deduped_or_demoted"] += _safe_int(
+            ocr_candidate_summary.get("ocr_accessorial_deduped_or_demoted")
+        )
+        ocr_accessorial_by_section.update(
+            ocr_candidate_summary.get("ocr_accessorial_by_section", {}) or {}
+        )
         table_summary = candidate_summary.get("table_extraction_summary", {}) or {}
         for key, value in (table_summary or {}).items():
             if isinstance(value, dict):
@@ -3508,6 +3542,15 @@ def summarize_ratecon_shadow_audit_records(records):
             "ocr_candidates_total": ocr_candidate_totals.get("ocr_candidates_total", 0),
             "ocr_candidates_by_field": dict(ocr_candidates_by_field.most_common()),
             "ocr_candidates_by_generator": dict(ocr_candidates_by_generator.most_common()),
+            "ocr_accessorial_candidate_count": ocr_candidate_totals.get(
+                "ocr_accessorial_candidate_count",
+                0,
+            ),
+            "ocr_accessorial_by_section": dict(ocr_accessorial_by_section.most_common()),
+            "ocr_accessorial_deduped_or_demoted": ocr_candidate_totals.get(
+                "ocr_accessorial_deduped_or_demoted",
+                0,
+            ),
             "raw_text_printed": False,
         },
         "ocr_document_classification_summary": {

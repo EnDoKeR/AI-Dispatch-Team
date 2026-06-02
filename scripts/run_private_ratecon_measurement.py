@@ -36,6 +36,7 @@ from app.document_ai.ocr_provider_contract import (
     OCR_PAGE_MODE_CHOICES,
     OCR_PROVIDER_CHOICES,
 )
+from app.document_ai.ratecon_ocr_candidate_policy import OCR_CANDIDATE_POLICIES
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -178,6 +179,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_ocr_provider="none",
     ratecon_shadow_ocr_pages="ocr_required",
     ratecon_shadow_ocr_dpi=200,
+    ratecon_shadow_ocr_candidate_policy="baseline",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -222,6 +224,7 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_ocr_provider=ratecon_shadow_ocr_provider,
             ratecon_shadow_ocr_pages=ratecon_shadow_ocr_pages,
             ratecon_shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
+            ratecon_shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
             strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -708,6 +711,16 @@ def main(argv=None):
         help="Shadow-only OCR render DPI when local OCR is explicitly enabled.",
     )
     parser.add_argument(
+        "--ratecon-shadow-ocr-candidate-policy",
+        default="baseline",
+        choices=sorted(OCR_CANDIDATE_POLICIES),
+        help=(
+            "Shadow-only OCR candidate selection policy. "
+            "fill_missing_strict_v1 keeps OCR diagnostic and only lets safe OCR "
+            "candidates fill missing load/rate fields."
+        ),
+    )
+    parser.add_argument(
         "--strict-ratecon-shadow-ocr",
         action="store_true",
         help="Fail cleanly when explicit shadow OCR cannot run.",
@@ -927,6 +940,7 @@ def main(argv=None):
             ratecon_shadow_ocr_provider=args.ratecon_shadow_ocr_provider,
             ratecon_shadow_ocr_pages=args.ratecon_shadow_ocr_pages,
             ratecon_shadow_ocr_dpi=args.ratecon_shadow_ocr_dpi,
+            ratecon_shadow_ocr_candidate_policy=args.ratecon_shadow_ocr_candidate_policy,
             strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
         )

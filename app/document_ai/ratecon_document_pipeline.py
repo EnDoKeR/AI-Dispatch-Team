@@ -29,6 +29,10 @@ from app.document_ai.pdf_triage import triage_document
 from app.document_ai.ratecon_rate_money_safety import (
     apply_rate_money_abstention_profile_to_candidates,
 )
+from app.document_ai.ratecon_ocr_candidate_policy import (
+    OCR_CANDIDATE_POLICY_BASELINE,
+    apply_ocr_candidate_policy_to_candidates,
+)
 from app.document_ai.section_context import section_context_summary
 
 
@@ -86,6 +90,7 @@ def extract_ratecon_document(
     shadow_ocr_pages="ocr_required",
     shadow_ocr_dpi=200,
     strict_ocr=False,
+    shadow_ocr_candidate_policy=OCR_CANDIDATE_POLICY_BASELINE,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
     shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
     shadow_load_ranking_profile=None,
@@ -120,6 +125,11 @@ def extract_ratecon_document(
     candidates = generation_result.get("candidates", [])
     if shadow_rate_ranking_profile == RATE_RANKING_PROFILE_MONEY_ABSTAIN_V1:
         candidates = apply_rate_money_abstention_profile_to_candidates(candidates)
+    if shadow_ocr_candidate_policy != OCR_CANDIDATE_POLICY_BASELINE:
+        candidates = apply_ocr_candidate_policy_to_candidates(
+            candidates,
+            policy=shadow_ocr_candidate_policy,
+        )
 
     resolved = resolve_candidates(
         candidates,
@@ -128,6 +138,7 @@ def extract_ratecon_document(
         ranking_profile=shadow_ranking_profile,
         load_ranking_profile=shadow_load_ranking_profile,
         rate_ranking_profile=shadow_rate_ranking_profile,
+        ocr_candidate_policy=shadow_ocr_candidate_policy,
     )
     final_output = _legacy_output_from_resolution(
         resolved,
@@ -168,6 +179,10 @@ def extract_ratecon_document(
             "rate_ranking_profile": resolved.get(
                 "rate_ranking_profile",
                 shadow_rate_ranking_profile or RANKING_PROFILE_BASELINE,
+            ),
+            "ocr_candidate_policy": resolved.get(
+                "ocr_candidate_policy",
+                shadow_ocr_candidate_policy,
             ),
             "field_ranking_profiles": resolved.get("field_ranking_profiles", {}),
             "field_scoped_ranking_enabled": resolved.get(
