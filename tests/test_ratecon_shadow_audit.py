@@ -29,6 +29,7 @@ from app.document_ai.ratecon_shadow_audit import (
     LAYER_TEXT_EXTRACTION,
     assign_failure_attribution,
     build_candidate_summary,
+    build_private_eval_values,
     build_legacy_summary_from_resolution,
     build_load_number_selection_summary,
     build_ratecon_shadow_audit_record,
@@ -80,6 +81,43 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertEqual(comparison["load_number"], COMPARISON_DIFFERENT)
         self.assertEqual(comparison["total_carrier_rate"], COMPARISON_LEGACY_ONLY)
         self.assertEqual(comparison["carrier_name"], COMPARISON_SHADOW_ONLY)
+
+    def test_private_eval_values_include_hashed_rate_visibility_probe(self):
+        payload = build_private_eval_values(
+            raw_resolved={},
+            candidates=[],
+            private_eval_artifact={
+                "full_text": "Total Carrier Pay $2,500.00",
+                "pages": [
+                    {
+                        "lines": [{"text": "Total Carrier Pay $2,500.00"}],
+                        "words": [{"text": "$2,500.00"}],
+                        "tables": [
+                            {
+                                "rows": [
+                                    {
+                                        "cells": [
+                                            {"text": "Total Carrier Pay"},
+                                            {"text": "$2,500.00"},
+                                        ]
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+        probe = payload["rate_visibility_probe"]
+
+        self.assertEqual(probe["schema_version"], "ratecon_rate_visibility_probe_v1")
+        self.assertTrue(probe["full_text_money_hashes"])
+        self.assertTrue(probe["line_money_hashes"])
+        self.assertTrue(probe["layout_word_money_hashes"])
+        self.assertTrue(probe["layout_table_money_hashes"])
+        self.assertNotIn("2500", json.dumps(probe))
+        self.assertNotIn("$2,500.00", json.dumps(probe))
 
     def test_failure_attribution_low_text_and_missing_candidates(self):
         result = assign_failure_attribution(

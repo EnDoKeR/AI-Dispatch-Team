@@ -297,6 +297,24 @@ def _markdown_report(evaluation):
         + json.dumps(evaluation.get("rate_wrong_case_summary", {}) or {}, sort_keys=True)
     )
     lines.append(
+        "residual_wrong_rate_forensics: "
+        + json.dumps(
+            evaluation.get("residual_wrong_rate_forensics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "gold_rate_consistency_audit: "
+        + json.dumps(
+            evaluation.get("gold_rate_consistency_audit", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "missing_rate_forensics: "
+        + json.dumps(evaluation.get("missing_rate_forensics", {}) or {}, sort_keys=True)
+    )
+    lines.append(
         "rate_abstention_summary: "
         + json.dumps(evaluation.get("rate_abstention_summary", {}) or {}, sort_keys=True)
     )

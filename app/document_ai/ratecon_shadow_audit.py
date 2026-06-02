@@ -1818,6 +1818,24 @@ def _load_probe_hash(value):
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _normalize_money_probe_value(value):
+    text = _text(value).upper().replace("USD", "")
+    text = text.replace("$", "").replace(",", "").strip()
+    if not text:
+        return ""
+    try:
+        return str(Decimal(text).quantize(Decimal("0.01")))
+    except (InvalidOperation, ValueError):
+        return ""
+
+
+def _money_probe_hash(value):
+    normalized = _normalize_money_probe_value(value)
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def _identifier_like_tokens(text):
     tokens = set()
     for raw in re.findall(r"[A-Za-z0-9][A-Za-z0-9_./-]{2,}", _text(text)):
@@ -1837,7 +1855,21 @@ def _token_hashes_from_texts(texts):
     return sorted(hashes)
 
 
-def _load_visibility_probe(artifact):
+def _money_token_hashes_from_texts(texts):
+    hashes = set()
+    money_pattern = re.compile(
+        r"(?:\$|USD\s*)?\b\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b|\b\d+(?:\.\d{2})\b",
+        re.IGNORECASE,
+    )
+    for text in texts or []:
+        for token in money_pattern.findall(_text(text)):
+            digest = _money_probe_hash(token)
+            if digest:
+                hashes.add(digest)
+    return sorted(hashes)
+
+
+def _artifact_text_buckets(artifact):
     artifact = artifact if isinstance(artifact, dict) else {}
     pages = artifact.get("pages", []) or []
     full_texts = [artifact.get("full_text", "")]
@@ -1866,11 +1898,47 @@ def _load_visibility_probe(artifact):
                     for cell in row.get("cells", []) or []
                 )
     return {
+        "full_texts": full_texts,
+        "line_texts": line_texts,
+        "word_texts": word_texts,
+        "table_texts": table_texts,
+    }
+
+
+def _load_visibility_probe(artifact):
+    artifact = artifact if isinstance(artifact, dict) else {}
+    buckets = _artifact_text_buckets(artifact)
+    full_texts = buckets["full_texts"]
+    line_texts = buckets["line_texts"]
+    word_texts = buckets["word_texts"]
+    table_texts = buckets["table_texts"]
+    return {
         "schema_version": "ratecon_load_visibility_probe_v1",
         "full_text_token_hashes": _token_hashes_from_texts(full_texts),
         "line_token_hashes": _token_hashes_from_texts(line_texts),
         "layout_word_token_hashes": _token_hashes_from_texts(word_texts),
         "layout_table_token_hashes": _token_hashes_from_texts(table_texts),
+        "has_full_text": bool(_text(artifact.get("full_text"))),
+        "has_lines": bool(line_texts),
+        "has_layout_words": bool(word_texts),
+        "has_layout_tables": bool(table_texts),
+        "raw_text_included": False,
+    }
+
+
+def _rate_visibility_probe(artifact):
+    artifact = artifact if isinstance(artifact, dict) else {}
+    buckets = _artifact_text_buckets(artifact)
+    full_texts = buckets["full_texts"]
+    line_texts = buckets["line_texts"]
+    word_texts = buckets["word_texts"]
+    table_texts = buckets["table_texts"]
+    return {
+        "schema_version": "ratecon_rate_visibility_probe_v1",
+        "full_text_money_hashes": _money_token_hashes_from_texts(full_texts),
+        "line_money_hashes": _money_token_hashes_from_texts(line_texts),
+        "layout_word_money_hashes": _money_token_hashes_from_texts(word_texts),
+        "layout_table_money_hashes": _money_token_hashes_from_texts(table_texts),
         "has_full_text": bool(_text(artifact.get("full_text"))),
         "has_lines": bool(line_texts),
         "has_layout_words": bool(word_texts),
@@ -1930,7 +1998,7 @@ def _rate_money_candidate_inventory(candidates):
             {
                 "field": _candidate_field(candidate),
                 "value": _json_safe(value),
-                "value_hash": _load_probe_hash(value),
+                "value_hash": _money_probe_hash(value),
                 "confidence": round(float(candidate.get("confidence") or 0.0), 3),
                 "source": _text(candidate.get("source")),
                 "parser_name": _text(candidate.get("parser_name")),
@@ -1970,6 +2038,7 @@ def build_private_eval_values(
         "load_identity_candidate_inventory": [],
         "rate_money_candidate_inventory": [],
         "load_visibility_probe": _load_visibility_probe(private_eval_artifact),
+        "rate_visibility_probe": _rate_visibility_probe(private_eval_artifact),
         "raw_text_included": False,
         "evidence_text_included": False,
     }

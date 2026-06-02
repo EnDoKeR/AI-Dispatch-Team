@@ -1441,15 +1441,42 @@ def _load_value_hashes(gold_values):
     return hashes
 
 
+def _money_value_matches(candidate_value, gold_value) -> bool:
+    candidate_normalized = normalize_money(candidate_value)
+    gold_normalized = normalize_money(gold_value)
+    return bool(candidate_normalized and gold_normalized and candidate_normalized == gold_normalized)
+
+
+def _money_value_hashes(gold_value):
+    import hashlib
+
+    normalized = normalize_money(gold_value)
+    if not normalized:
+        return set()
+    return {hashlib.sha256(normalized.encode("utf-8")).hexdigest()}
+
+
 def _load_inventory(record):
     payload = _private_eval_values(record)
     inventory = payload.get("load_identity_candidate_inventory", [])
     return inventory if isinstance(inventory, list) else []
 
 
+def _rate_inventory(record):
+    payload = _private_eval_values(record)
+    inventory = payload.get("rate_money_candidate_inventory", [])
+    return inventory if isinstance(inventory, list) else []
+
+
 def _load_visibility_probe(record):
     payload = _private_eval_values(record)
     probe = payload.get("load_visibility_probe", {})
+    return probe if isinstance(probe, dict) else {}
+
+
+def _rate_visibility_probe(record):
+    payload = _private_eval_values(record)
+    probe = payload.get("rate_visibility_probe", {})
     return probe if isinstance(probe, dict) else {}
 
 
@@ -1473,6 +1500,86 @@ def _load_visibility_status(record, gold_hashes):
         "visible_in_layout_words": bool(gold_hashes & _hash_set(probe, "layout_word_token_hashes")),
         "visible_in_layout_tables": bool(gold_hashes & _hash_set(probe, "layout_table_token_hashes")),
         "visibility_available": True,
+    }
+
+
+def _rate_visibility_status(record, gold_hashes):
+    probe = _rate_visibility_probe(record)
+    if not probe:
+        return {
+            "visible_in_full_text": False,
+            "visible_in_lines": False,
+            "visible_in_layout_words": False,
+            "visible_in_layout_tables": False,
+            "visibility_available": False,
+        }
+    return {
+        "visible_in_full_text": bool(gold_hashes & _hash_set(probe, "full_text_money_hashes")),
+        "visible_in_lines": bool(gold_hashes & _hash_set(probe, "line_money_hashes")),
+        "visible_in_layout_words": bool(gold_hashes & _hash_set(probe, "layout_word_money_hashes")),
+        "visible_in_layout_tables": bool(gold_hashes & _hash_set(probe, "layout_table_money_hashes")),
+        "visibility_available": True,
+    }
+
+
+def _rate_inventory_matching_gold(record, gold_value):
+    return [
+        item
+        for item in _rate_inventory(record)
+        if isinstance(item, dict) and _money_value_matches(item.get("value"), gold_value)
+    ]
+
+
+def _rate_inventory_context(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return _text(metadata.get("money_context")) or "unknown"
+
+
+def _rate_inventory_safety(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return _text(metadata.get("rate_safety")) or "unknown"
+
+
+def _rate_inventory_metadata(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _rate_candidate_summary(record):
+    inventory = [item for item in _rate_inventory(record) if isinstance(item, dict)]
+    context_counts = Counter()
+    safe = risky = unsafe = unknown = 0
+    amount_count = 0
+    for item in inventory:
+        amount_count += 1
+        context = _rate_inventory_context(item)
+        safety = _rate_inventory_safety(item)
+        context_counts[context] += 1
+        if safety == "safe":
+            safe += 1
+        elif safety == "risky":
+            risky += 1
+        elif safety == "unsafe":
+            unsafe += 1
+        else:
+            unknown += 1
+    return {
+        "safe_total_candidates": safe,
+        "risky_total_candidates": risky,
+        "unsafe_money_candidates": unsafe,
+        "unknown_money_candidates": unknown,
+        "candidate_amount_count": amount_count,
+        "candidate_context_counts": dict(context_counts.most_common()),
+    }
+
+
+def _gold_rate_visible_in_artifact(record, gold_value):
+    visibility = _rate_visibility_status(record, _money_value_hashes(gold_value))
+    return {
+        "visible_in_text": visibility["visible_in_full_text"] or visibility["visible_in_lines"],
+        "visible_in_layout": visibility["visible_in_layout_words"] or visibility["visible_in_layout_tables"],
+        "visible_in_table": visibility["visible_in_layout_tables"],
+        "visibility_available": visibility["visibility_available"],
     }
 
 
@@ -1780,6 +1887,375 @@ def _build_rate_wrong_case_summary(comparison_rows):
         "high_confidence_wrong_count": sum(
             1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
         ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _comparison_index(comparison_rows):
+    return {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+
+
+def _rate_gold_in_selected_group(index, document_id, selected_row):
+    selected_source = _text(selected_row.get("source"))
+    selected_parser = _text(selected_row.get("parser_name"))
+    return _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: (
+            bool(selected_source)
+            and _text(candidate_row.get("source")) == selected_source
+        )
+        or (
+            bool(selected_parser)
+            and _text(candidate_row.get("parser_name")) == selected_parser
+        ),
+    )
+
+
+def _rate_matching_contexts(record, gold_value):
+    return {
+        _rate_inventory_context(item)
+        for item in _rate_inventory_matching_gold(record, gold_value)
+        if isinstance(item, dict)
+    }
+
+
+def _classify_residual_wrong_rate(row, record, gold_field, index):
+    document_id = _text(row.get("document_id"))
+    gold_value = _gold_scalar_value(gold_field)
+    selected = _shadow_prediction(record, FIELD_TOTAL_CARRIER_RATE)
+    selected_value = _prediction_value(selected)
+    selected_context = _text(row.get("money_context")) or "unknown"
+    matching_contexts = _rate_matching_contexts(record, gold_value)
+    summary = _rate_candidate_summary(record)
+    triage = record.get("triage", {}) if isinstance(record, dict) else {}
+    visibility = _gold_rate_visible_in_artifact(record, gold_value)
+    if _money_value_matches(selected_value, gold_value):
+        return "selected_same_amount_but_normalization_failed"
+    if _gold_uncertain(gold_field):
+        return "selected_amount_correct_but_gold_uncertain"
+    if selected_context == "carrier_freight_pay" and "total_carrier_pay" in matching_contexts:
+        return "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay"
+    if selected_context == "total_carrier_pay" and "carrier_freight_pay" in matching_contexts:
+        return "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay"
+    if selected_context in {"linehaul", "linehaul_total", "line_item_rate"} and matching_contexts:
+        return "selected_linehaul_but_gold_uses_grand_total"
+    if selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    } and matching_contexts & {"linehaul", "linehaul_total", "line_item_rate"}:
+        return "selected_grand_total_but_gold_uses_linehaul"
+    if _candidate_group_has_correct(index, document_id, FIELD_TOTAL_CARRIER_RATE):
+        return "gold_total_in_candidates_not_selected"
+    if summary.get("safe_total_candidates", 0) > 1 and selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+        "carrier_freight_pay",
+    }:
+        return "multiple_valid_totals_ambiguous"
+    if triage.get("ocr_required") and not matching_contexts and not (
+        visibility["visible_in_text"] or visibility["visible_in_layout"]
+    ):
+        return "gold_total_requires_ocr"
+    if selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    }:
+        return "selected_safe_total_but_gold_differs"
+    if not matching_contexts:
+        return "gold_total_not_in_candidates"
+    return "unknown"
+
+
+def _rate_wrong_case_payload(row, record, gold_field, index):
+    document_id = _text(row.get("document_id"))
+    gold_value = _gold_scalar_value(gold_field)
+    same_table = _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: _text(candidate_row.get("table_index"))
+        == _text(row.get("table_index"))
+        and bool(_text(row.get("table_index"))),
+    )
+    same_page = _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: _text(candidate_row.get("page"))
+        == _text(row.get("page"))
+        and bool(_text(row.get("page"))),
+    )
+    return {
+        "file_name": _text(row.get("file_name")),
+        "document_id": document_id,
+        "gold_label_status": _text(row.get("label_status")) or LABEL_LABELED,
+        "selected_rate": {
+            "source": _text(row.get("source")),
+            "parser_name": _text(row.get("parser_name")),
+            "confidence": _safe_float(row.get("confidence")),
+            "quality_band": _quality_band_from_confidence(row.get("confidence")),
+            "money_context": _text(row.get("money_context")),
+            "rate_safety": _text(row.get("rate_safety")),
+            "document_region": _text(row.get("document_region")),
+            "section_context": _text(row.get("section_context")),
+            "pairing_method": _text(row.get("pairing_method")),
+            "value_shape": {
+                "looks_like_money": bool((row.get("value_shape") or {}).get("looks_like_money")),
+                "has_currency_symbol": bool(
+                    (row.get("value_shape") or {}).get("has_currency_symbol")
+                ),
+                "amount_magnitude_band": _text(
+                    (row.get("value_shape") or {}).get("amount_magnitude_band")
+                )
+                or "unknown",
+            },
+        },
+        "gold_visibility": {
+            "gold_total_in_any_candidate": _candidate_group_has_correct(
+                index,
+                document_id,
+                FIELD_TOTAL_CARRIER_RATE,
+            ),
+            "gold_total_in_selected_candidate_group": _rate_gold_in_selected_group(
+                index,
+                document_id,
+                row,
+            ),
+            "gold_total_in_same_table": same_table,
+            "gold_total_in_same_page": same_page,
+            "gold_total_requires_ocr": bool(
+                (record.get("triage", {}) if isinstance(record, dict) else {}).get(
+                    "ocr_required"
+                )
+            )
+            and not _rate_inventory_matching_gold(record, gold_value),
+        },
+        "all_plausible_rate_candidate_summary": _rate_candidate_summary(record),
+        "diagnosis": _classify_residual_wrong_rate(row, record, gold_field, index),
+    }
+
+
+def _build_residual_wrong_rate_forensics(comparison_rows, gold_labels, audit_index):
+    index = _comparison_index(comparison_rows)
+    label_by_document = {
+        _text(label.get("document_id")): label
+        for label in gold_labels or []
+        if _text(label.get("document_id"))
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    cases = []
+    diagnoses = Counter()
+    for row in wrong_rows:
+        label = label_by_document.get(_text(row.get("document_id")), {}) or {}
+        gold = label.get("gold", {}) or {}
+        gold_field = gold.get(FIELD_TOTAL_CARRIER_RATE, {})
+        record = _find_record(label, audit_index)
+        case = _rate_wrong_case_payload(row, record, gold_field, index)
+        diagnoses[case["diagnosis"]] += 1
+        cases.append(case)
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "wrong_by_money_context": dict(
+            Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_rate_safety": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _gold_consistency_reason(case):
+    diagnosis = _text(case.get("diagnosis"))
+    selected = case.get("selected_rate", {}) or {}
+    plausible = case.get("all_plausible_rate_candidate_summary", {}) or {}
+    if diagnosis == "selected_same_amount_but_normalization_failed":
+        return "selected_and_gold_are_same_after_normalization"
+    if diagnosis == "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay":
+        return "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+    if diagnosis == "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay":
+        return "gold_uses_total_carrier_pay_but_total_blank_and_carrier_freight_pay_present"
+    if diagnosis == "selected_grand_total_but_gold_uses_linehaul":
+        return "gold_uses_linehaul_but_document_has_explicit_total"
+    if diagnosis == "multiple_valid_totals_ambiguous" or plausible.get("safe_total_candidates", 0) > 1:
+        return "ambiguous_multiple_totals"
+    if diagnosis == "selected_safe_total_but_gold_differs" and selected.get("money_context") in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    }:
+        return "gold_uses_rate_table_amount_but_document_total_differs"
+    if diagnosis == "gold_total_not_in_candidates":
+        return "gold_total_not_visible_in_document_artifact"
+    return "unknown"
+
+
+def _build_gold_rate_consistency_audit(residual_wrong_summary):
+    cases = list((residual_wrong_summary or {}).get("cases", []) or [])
+    reasons = Counter()
+    suspect_count = 0
+    uncertain_count = 0
+    matches_selected = 0
+    not_visible = 0
+    recommend_review = 0
+    review_cases = []
+    for case in cases:
+        reason = _gold_consistency_reason(case)
+        reasons[reason] += 1
+        if case.get("gold_label_status") == "uncertain":
+            uncertain_count += 1
+        if reason == "selected_and_gold_are_same_after_normalization":
+            matches_selected += 1
+        if reason == "gold_total_not_visible_in_document_artifact":
+            not_visible += 1
+        if reason != "unknown":
+            suspect_count += 1
+            recommend_review += 1
+            review_cases.append(
+                {
+                    "file_name": _text(case.get("file_name")),
+                    "document_id": _text(case.get("document_id")),
+                    "suspect_reason": reason,
+                    "diagnosis": _text(case.get("diagnosis")),
+                    "private_values_printed": False,
+                }
+            )
+    return {
+        "cases_checked": len(cases),
+        "gold_label_suspect_count": suspect_count,
+        "gold_label_uncertain_count": uncertain_count,
+        "gold_rate_matches_selected_but_marked_wrong_count": matches_selected,
+        "gold_rate_not_visible_in_artifact_count": not_visible,
+        "recommend_human_review_count": recommend_review,
+        "suspect_reasons": dict(reasons.most_common()),
+        "review_cases": review_cases,
+        "gold_files_modified": False,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _classify_missing_rate(label, record, row):
+    gold = label.get("gold", {}) if isinstance(label, dict) else {}
+    gold_field = gold.get(FIELD_TOTAL_CARRIER_RATE, {})
+    gold_value = _gold_scalar_value(gold_field)
+    if _gold_uncertain(gold_field):
+        return "gold_label_uncertain"
+    triage = record.get("triage", {}) if isinstance(record, dict) else {}
+    matching = _rate_inventory_matching_gold(record, gold_value)
+    if matching:
+        if any(
+            (_rate_inventory_metadata(item).get("rate_abstained"))
+            or (_rate_inventory_metadata(item).get("rate_demoted_from_total_carrier_rate"))
+            for item in matching
+        ):
+            return "rate_in_candidate_but_abstained"
+        return "unknown"
+    visibility = _gold_rate_visible_in_artifact(record, gold_value)
+    if visibility["visible_in_text"]:
+        return "rate_visible_in_text_but_no_candidate"
+    if visibility["visible_in_layout"]:
+        return "rate_visible_in_layout_but_no_candidate"
+    if triage.get("ocr_required"):
+        return "rate_requires_ocr"
+    inventory = [item for item in _rate_inventory(record) if isinstance(item, dict)]
+    if inventory:
+        safeties = {_rate_inventory_safety(item) for item in inventory}
+        if safeties <= {"unsafe"}:
+            return "only_unsafe_money_candidates"
+        if safeties <= {"unknown"}:
+            return "only_unknown_money_context_candidates"
+    if row.get("label_status") == LABEL_SKIPPED:
+        return "skipped_non_rc"
+    return "rate_not_in_artifact_text"
+
+
+def _build_missing_rate_forensics(comparison_rows, gold_labels, audit_index):
+    row_by_document = {
+        _text(row.get("document_id")): row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") in EXTRACTOR_MISSING_STATUSES
+    }
+    cases = []
+    reasons = Counter()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        document_id = _text(label.get("document_id"))
+        row = row_by_document.get(document_id)
+        if not row:
+            continue
+        record = _find_record(label, audit_index)
+        reason = _classify_missing_rate(label, record, row)
+        reasons[reason] += 1
+        gold_value = _gold_scalar_value((label.get("gold", {}) or {}).get(FIELD_TOTAL_CARRIER_RATE, {}))
+        visibility = _gold_rate_visible_in_artifact(record, gold_value)
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "reason": reason,
+                "gold_rate_visible_in_text": visibility["visible_in_text"],
+                "gold_rate_visible_in_layout": visibility["visible_in_layout"],
+                "candidate_amount_count": _rate_candidate_summary(record).get("candidate_amount_count", 0),
+                "private_values_printed": False,
+            }
+        )
+    return {
+        "missing_count": len(cases),
+        "reason_counts": dict(reasons.most_common()),
+        "gold_rate_visible_in_text_but_not_candidate": reasons.get(
+            "rate_visible_in_text_but_no_candidate",
+            0,
+        ),
+        "gold_rate_visible_in_layout_but_not_candidate": reasons.get(
+            "rate_visible_in_layout_but_no_candidate",
+            0,
+        ),
+        "gold_rate_in_candidate_but_abstained": reasons.get(
+            "rate_in_candidate_but_abstained",
+            0,
+        ),
+        "rate_requires_ocr": reasons.get("rate_requires_ocr", 0),
         "cases": cases,
         "private_values_printed": False,
         "raw_text_printed": False,
@@ -2413,6 +2889,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "document_id": _text(label.get("document_id")),
                     "file_name": _text(label.get("file_name")),
                     "file_hash": _text(label.get("file_hash")),
+                    "label_status": status,
                     "system": system_name,
                     "field": field_name,
                     "status": comparison["status"],
@@ -2555,6 +3032,11 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         )
         for field_name in [FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE]
     }
+    residual_wrong_rate_forensics = _build_residual_wrong_rate_forensics(
+        comparison_rows,
+        gold_labels,
+        indexed,
+    )
     return {
         "schema_version": "ratecon_gold_evaluation_v1",
         "labels_loaded": len(gold_labels or []),
@@ -2588,6 +3070,15 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
         "rate_wrong_case_summary": _build_rate_wrong_case_summary(comparison_rows),
+        "residual_wrong_rate_forensics": residual_wrong_rate_forensics,
+        "gold_rate_consistency_audit": _build_gold_rate_consistency_audit(
+            residual_wrong_rate_forensics,
+        ),
+        "missing_rate_forensics": _build_missing_rate_forensics(
+            comparison_rows,
+            gold_labels,
+            indexed,
+        ),
         "rate_abstention_summary": _build_rate_abstention_summary(
             comparison_rows,
             _unique_audit_records(indexed),
