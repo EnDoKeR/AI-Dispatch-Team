@@ -287,6 +287,13 @@ def _metadata_summary(candidate):
         "not_independent_candidate",
         "independent_candidate",
         "table_cell_candidate",
+        "table_context_role",
+        "table_row_role",
+        "table_neighbor_safety",
+        "table_neighbor_penalty_reason",
+        "table_neighbor_demoted_from_load_number",
+        "table_semantic_kind",
+        "table_row_identifier_like_cell_count",
         "has_location",
         "has_date",
         "has_time",
@@ -313,6 +320,8 @@ def _metadata_summary(candidate):
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
+        "load_candidate_profile",
+        "load_candidate_profile_adjustments",
     ]
     return {key: metadata.get(key) for key in safe_keys if key in metadata}
 

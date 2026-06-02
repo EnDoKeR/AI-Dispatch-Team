@@ -636,7 +636,8 @@ def main(argv=None):
             "Shadow-only load candidate generation profile. Default baseline "
             "preserves current candidate generation; header_recall_v1 enables "
             "a local gold-recall experiment for generic document header/title "
-            "load identifiers."
+            "load identifiers; header_recall_table_safety_v1 also applies "
+            "generic table-neighbor safety metadata/penalties."
         ),
     )
     parser.add_argument(

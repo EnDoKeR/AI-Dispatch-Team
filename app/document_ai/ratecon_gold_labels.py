@@ -1629,6 +1629,155 @@ def _build_rate_error_analysis(comparison_rows):
     }
 
 
+def _classify_table_neighbor_error(row, comparison_index):
+    table_context = _text(row.get("table_context_role"))
+    table_row = _text(row.get("table_row_role"))
+    id_hint = _text(row.get("id_type_hint")).lower()
+    penalty = _text(row.get("table_neighbor_penalty_reason"))
+    document_id = _text(row.get("document_id"))
+    if _candidate_group_has_correct(comparison_index, document_id, FIELD_LOAD_NUMBER):
+        return "gold_value_elsewhere_in_header_candidate"
+    if table_row == "pickup_delivery_ref_row" or penalty == "pickup_delivery_reference_row":
+        return "table_neighbor_from_pickup_delivery_ref_row"
+    if table_row == "stop_reference_row" or penalty == "stop_reference_row":
+        return "table_neighbor_from_stop_reference_row"
+    if id_hint in {"bol", "po", "reference", "customer_ref"} or penalty in {
+        "reference_label",
+        "po_outside_header_load_info",
+        "reference_table",
+    }:
+        return "table_neighbor_from_bol_or_po_row"
+    if table_context == "rate_table" or table_row == "rate_row" or penalty == "rate_or_money_table":
+        return "table_neighbor_from_rate_or_money_table"
+    if table_context == "carrier_contact_table" or table_row == "carrier_contact_row":
+        return "table_neighbor_from_carrier_contact_table"
+    if table_context == "signature_footer" or table_row == "footer_row":
+        return "table_neighbor_from_signature_or_footer_table"
+    if penalty == "multi_value_row":
+        return "table_neighbor_from_multi_value_row"
+    if penalty == "table_neighbor_missing_header_context":
+        return "table_neighbor_missing_header_context"
+    if row.get("status") in EXTRACTOR_MISSING_STATUSES:
+        return "gold_value_not_in_candidates"
+    return "unknown"
+
+
+def _build_load_table_neighbor_error_summary(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+        and row.get("error_reason") == "selected_table_neighbor_wrong_cell"
+    ]
+    reasons = Counter()
+    gold_elsewhere = 0
+    gold_absent = 0
+    for row in rows:
+        reason = _classify_table_neighbor_error(row, index)
+        reasons[reason] += 1
+        if _candidate_group_has_correct(index, row.get("document_id", ""), FIELD_LOAD_NUMBER):
+            gold_elsewhere += 1
+        else:
+            gold_absent += 1
+    return {
+        "wrong_table_neighbor_count": len(rows),
+        "reason_counts": dict(reasons.most_common()),
+        "by_table_role": dict(
+            Counter(row.get("table_context_role") or "unknown" for row in rows).most_common()
+        ),
+        "by_table_row_role": dict(
+            Counter(row.get("table_row_role") or "unknown" for row in rows).most_common()
+        ),
+        "by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in rows).most_common()
+        ),
+        "by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in rows).most_common()
+        ),
+        "by_table_neighbor_safety": dict(
+            Counter(row.get("table_neighbor_safety") or "unknown" for row in rows).most_common()
+        ),
+        "gold_value_available_elsewhere_count": gold_elsewhere,
+        "gold_value_not_in_candidates_count": gold_absent,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _ocr_backlog_doc_type(triage, artifact):
+    if triage.get("ocr_required"):
+        return "scanned"
+    if triage.get("pdf_type") in {"scanned", "image_heavy"}:
+        return _text(triage.get("pdf_type"))
+    if not artifact.get("full_text_present") or _safe_int(triage.get("native_text_token_count")) <= 10:
+        return "low_text"
+    if _safe_int(artifact.get("word_count")) <= 0 and _safe_int(artifact.get("table_count")) <= 0:
+        return "image_heavy"
+    return "unknown"
+
+
+def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
+    docs = []
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        record = _find_record(label, audit_index)
+        if not isinstance(record, dict):
+            continue
+        triage = record.get("triage", {}) or {}
+        artifact = record.get("artifact_summary", {}) or {}
+        text_blocked = bool(triage.get("ocr_required")) or (
+            not artifact.get("full_text_present")
+            and _safe_int(artifact.get("word_count")) <= 0
+        )
+        gold = label.get("gold", {}) or {}
+        gold_load_known = bool(_gold_load_values(gold.get(FIELD_LOAD_NUMBER, {})))
+        gold_rate_known = bool(_gold_scalar_value(gold.get(FIELD_TOTAL_CARRIER_RATE, {})))
+        if not text_blocked and not triage.get("ocr_required"):
+            continue
+        fields = []
+        if gold_load_known:
+            fields.append(FIELD_LOAD_NUMBER)
+        if gold_rate_known:
+            fields.append(FIELD_TOTAL_CARRIER_RATE)
+        docs.append(
+            {
+                "document_id": _text(label.get("document_id")),
+                "file_name": _text(record.get("file_name")),
+                "pdf_type": _ocr_backlog_doc_type(triage, artifact),
+                "page_count": _safe_int(triage.get("page_count") or artifact.get("page_count")),
+                "native_text_token_count": _safe_int(triage.get("native_text_token_count")),
+                "layout_provider_status": _text(
+                    (artifact.get("layout_provider_summary", {}) or {}).get("status")
+                ),
+                "gold_load_known": gold_load_known,
+                "gold_rate_known": gold_rate_known,
+                "fields_missing_due_to_text_extraction": fields,
+                "recommended_route": "ocr" if triage.get("ocr_required") else "manual_review",
+                "raw_value_printed": False,
+            }
+        )
+    return {
+        "ocr_or_vision_required_doc_count": len(docs),
+        "pdf_type_counts": dict(Counter(doc["pdf_type"] for doc in docs).most_common()),
+        "recommended_route_counts": dict(
+            Counter(doc["recommended_route"] for doc in docs).most_common()
+        ),
+        "documents": docs,
+        "ocr_run": False,
+        "ai_cloud_used": False,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
     indexed = _audit_by_key(audit_records)
     metrics = defaultdict(lambda: defaultdict(_empty_metric))
@@ -1694,6 +1843,12 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "document_region": _text(metadata.get("document_region")),
                     "id_type_hint": _text(metadata.get("id_type_hint")),
                     "money_context": _text(metadata.get("money_context")),
+                    "table_context_role": _text(metadata.get("table_context_role")),
+                    "table_row_role": _text(metadata.get("table_row_role")),
+                    "table_neighbor_safety": _text(metadata.get("table_neighbor_safety")),
+                    "table_neighbor_penalty_reason": _text(
+                        metadata.get("table_neighbor_penalty_reason")
+                    ),
                     "error_reason": _classify_error_reason(
                         field_name,
                         system_name,
@@ -1779,8 +1934,15 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         },
         "error_case_breakdown": error_case_breakdown,
         "load_number_error_analysis": _build_load_number_error_analysis(comparison_rows),
+        "load_table_neighbor_error_summary": _build_load_table_neighbor_error_summary(
+            comparison_rows,
+        ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
         "load_candidate_recall_summary": _build_load_candidate_recall_summary(
+            gold_labels,
+            indexed,
+        ),
+        "ocr_vision_backlog_summary": _build_ocr_vision_backlog_summary(
             gold_labels,
             indexed,
         ),

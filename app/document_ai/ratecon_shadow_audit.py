@@ -1436,6 +1436,13 @@ def _metadata_eval_summary(metadata):
         "table_cell_candidate",
         "table_index",
         "row_index",
+        "table_context_role",
+        "table_row_role",
+        "table_neighbor_safety",
+        "table_neighbor_penalty_reason",
+        "table_neighbor_demoted_from_load_number",
+        "table_semantic_kind",
+        "table_row_identifier_like_cell_count",
         "stop_role",
         "structured_stop_candidate",
         "partial_stop_candidate",
@@ -1466,6 +1473,8 @@ def _metadata_eval_summary(metadata):
         "header_load_identity_candidate",
         "value_extraction_method",
         "gold_recall_debug",
+        "load_candidate_profile",
+        "load_candidate_profile_adjustments",
     ]
     return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
 

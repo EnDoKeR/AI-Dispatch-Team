@@ -284,14 +284,14 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
                         "--confirm-private-local-run",
                         "--ratecon-shadow-document-pipeline",
                         "--ratecon-shadow-load-candidate-profile",
-                        "header_recall_v1",
+                        "header_recall_table_safety_v1",
                     ]
                 )
 
         self.assertEqual(exit_code, 0)
         self.assertEqual(
             build_report.call_args.kwargs["ratecon_shadow_load_candidate_profile"],
-            "header_recall_v1",
+            "header_recall_table_safety_v1",
         )
 
     def test_cli_enable_layout_fusion_requires_layout_candidates(self):

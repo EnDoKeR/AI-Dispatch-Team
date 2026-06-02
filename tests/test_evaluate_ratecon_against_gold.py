@@ -24,7 +24,7 @@ from app.document_ai.ratecon_gold_labels import (
     evaluate_ratecon_against_gold,
 )
 from scripts.evaluate_ratecon_against_gold import evaluate_and_write
-from scripts.compare_ratecon_gold_evaluations import compare_summaries
+from scripts.compare_ratecon_gold_evaluations import compare_profiles, compare_summaries
 
 
 class EvaluateRateconAgainstGoldTests(unittest.TestCase):
@@ -414,6 +414,62 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
             1,
         )
 
+    def test_table_neighbor_error_summary_classifies_stop_reference_row(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "WRONG-STOP-REF",
+                    "confidence": 0.88,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_context_role": "stop_table",
+                        "table_row_role": "pickup_delivery_ref_row",
+                        "table_neighbor_safety": "unsafe",
+                        "table_neighbor_penalty_reason": "pickup_delivery_reference_row",
+                        "id_type_hint": "load",
+                    },
+                },
+            }
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["load_table_neighbor_error_summary"]
+
+        self.assertEqual(summary["wrong_table_neighbor_count"], 1)
+        self.assertEqual(
+            summary["reason_counts"]["table_neighbor_from_pickup_delivery_ref_row"],
+            1,
+        )
+        self.assertEqual(summary["by_table_neighbor_safety"]["unsafe"], 1)
+        self.assertFalse(summary["private_values_printed"])
+
+    def test_ocr_vision_backlog_counts_low_text_without_running_ocr(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["triage"] = {
+            "ocr_required": True,
+            "pdf_type": "scanned",
+            "page_count": 2,
+            "native_text_token_count": 0,
+        }
+        record["artifact_summary"] = {
+            "full_text_present": False,
+            "word_count": 0,
+            "table_count": 0,
+            "layout_provider_summary": {"status": "partial"},
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        backlog = result["ocr_vision_backlog_summary"]
+
+        self.assertEqual(backlog["ocr_or_vision_required_doc_count"], 1)
+        self.assertEqual(backlog["pdf_type_counts"]["scanned"], 1)
+        self.assertFalse(backlog["ocr_run"])
+        self.assertFalse(backlog["ai_cloud_used"])
+
     def test_confidence_calibration_counts_low_confidence_correct(self):
         result = evaluate_ratecon_against_gold([self._gold_label()], [self._audit_record()])
 
@@ -628,6 +684,71 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(
             comparison["rate_profile_safety_summary"]["wrong_delta"],
             -1,
+        )
+
+    def test_compare_profiles_reports_all_configurations(self):
+        def summary(load_correct, load_wrong, rate_correct, table_wrong):
+            return {
+                "labels_evaluated": 31,
+                "field_metrics": {
+                    SYSTEM_SHADOW: {
+                        FIELD_LOAD_NUMBER: {
+                            "exact_match_count": load_correct,
+                            "normalized_match_count": 0,
+                            "missing_count": 31 - load_correct - load_wrong,
+                            "wrong_value_count": load_wrong,
+                            "precision": round(load_correct / max(load_correct + load_wrong, 1), 4),
+                            "recall": round(load_correct / 31, 4),
+                            "high_confidence_but_wrong_count": 2,
+                        },
+                        FIELD_TOTAL_CARRIER_RATE: {
+                            "exact_match_count": rate_correct,
+                            "normalized_match_count": 0,
+                            "missing_count": 31 - rate_correct,
+                            "wrong_value_count": 0,
+                            "precision": 1.0,
+                            "recall": round(rate_correct / 31, 4),
+                            "high_confidence_but_wrong_count": 0,
+                        },
+                    }
+                },
+                "load_number_error_analysis": {
+                    "wrong_reason_counts": {
+                        "selected_table_neighbor_wrong_cell": table_wrong,
+                    }
+                },
+                "load_candidate_recall_summary": {
+                    "gold_load_in_any_candidate": load_correct + 1,
+                    "gold_load_not_in_candidates": 31 - load_correct - 1,
+                },
+                "load_table_neighbor_error_summary": {
+                    "wrong_table_neighbor_count": table_wrong,
+                    "reason_counts": {"table_neighbor_from_stop_reference_row": table_wrong},
+                },
+                "rate_error_analysis": {"wrong_reason_counts": {}},
+            }
+
+        comparison = compare_profiles(
+            {
+                "baseline": summary(9, 10, 13, 6),
+                "header_recall_v1": summary(15, 7, 13, 6),
+                "header_recall_table_safety_v1": summary(15, 5, 13, 4),
+                "combined": summary(15, 5, 15, 4),
+            }
+        )
+
+        self.assertEqual(len(comparison["profiles"]), 4)
+        self.assertEqual(
+            comparison["profiles"]["header_recall_table_safety_v1"]["load_number"][
+                "selected_table_neighbor_wrong_cell"
+            ],
+            4,
+        )
+        self.assertEqual(
+            comparison["deltas_from_first_profile"]["combined"]["total_carrier_rate"][
+                "correct_count"
+            ],
+            2,
         )
 
 

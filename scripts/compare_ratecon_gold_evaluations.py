@@ -138,6 +138,98 @@ def _rate_profile_safety_summary(baseline, experiment):
     }
 
 
+def _profile_shadow_metrics(summary):
+    load = _metric(summary, FIELD_LOAD_NUMBER)
+    rate = _metric(summary, FIELD_TOTAL_CARRIER_RATE)
+    recall = summary.get("load_candidate_recall_summary", {}) or {}
+    load_errors = summary.get("load_number_error_analysis", {}) or {}
+    table_errors = summary.get("load_table_neighbor_error_summary", {}) or {}
+    rate_errors = summary.get("rate_error_analysis", {}) or {}
+    return {
+        "labels_evaluated": summary.get("labels_evaluated", 0),
+        "load_number": {
+            "correct_count": load.get("exact_match_count", 0) + load.get("normalized_match_count", 0),
+            "wrong_count": load.get("wrong_value_count", 0),
+            "missing_count": load.get("missing_count", 0),
+            "precision": load.get("precision", 0.0),
+            "recall": load.get("recall", 0.0),
+            "high_confidence_wrong_count": load.get("high_confidence_but_wrong_count", 0),
+            "selected_table_neighbor_wrong_cell": (
+                (load_errors.get("wrong_reason_counts", {}) or {}).get(
+                    "selected_table_neighbor_wrong_cell",
+                    0,
+                )
+            ),
+        },
+        "load_candidate_recall": {
+            "gold_load_in_any_candidate": recall.get("gold_load_in_any_candidate", 0),
+            "gold_load_not_in_candidates": recall.get("gold_load_not_in_candidates", 0),
+            "gold_load_visible_in_text_but_not_candidate": recall.get(
+                "gold_load_visible_in_text_but_not_candidate",
+                0,
+            ),
+            "gold_load_requires_ocr_or_vision": recall.get("gold_load_requires_ocr_or_vision", 0),
+        },
+        "load_table_neighbor_error_summary": {
+            "wrong_table_neighbor_count": table_errors.get("wrong_table_neighbor_count", 0),
+            "reason_counts": table_errors.get("reason_counts", {}) or {},
+            "by_table_neighbor_safety": table_errors.get("by_table_neighbor_safety", {}) or {},
+        },
+        "total_carrier_rate": {
+            "correct_count": rate.get("exact_match_count", 0) + rate.get("normalized_match_count", 0),
+            "wrong_count": rate.get("wrong_value_count", 0),
+            "missing_count": rate.get("missing_count", 0),
+            "precision": rate.get("precision", 0.0),
+            "recall": rate.get("recall", 0.0),
+            "high_confidence_wrong_count": rate.get("high_confidence_but_wrong_count", 0),
+            "wrong_reason_counts": rate_errors.get("wrong_reason_counts", {}) or {},
+        },
+        "stop_component_comparability": {
+            "pickup_stops": _stop_serialization(summary, "pickup_stops"),
+            "delivery_stops": _stop_serialization(summary, "delivery_stops"),
+        },
+        "ocr_vision_backlog_summary": {
+            key: value
+            for key, value in (summary.get("ocr_vision_backlog_summary", {}) or {}).items()
+            if key != "documents"
+        },
+    }
+
+
+def compare_profiles(profile_summaries):
+    profiles = {
+        label: _profile_shadow_metrics(summary)
+        for label, summary in profile_summaries.items()
+    }
+    labels = list(profile_summaries.keys())
+    deltas_from_first = {}
+    if labels:
+        baseline = profile_summaries[labels[0]]
+        for label in labels[1:]:
+            experiment = profile_summaries[label]
+            deltas_from_first[label] = {
+                "load_number": _field_delta(baseline, experiment, FIELD_LOAD_NUMBER).get("delta", {}),
+                "total_carrier_rate": _field_delta(
+                    baseline,
+                    experiment,
+                    FIELD_TOTAL_CARRIER_RATE,
+                ).get("delta", {}),
+                "load_candidate_recall": _recall_summary_delta(baseline, experiment).get("delta", {}),
+                "rate_profile_safety_summary": _rate_profile_safety_summary(
+                    baseline,
+                    experiment,
+                ),
+            }
+    return {
+        "schema_version": "ratecon_gold_evaluation_profile_comparison_v1",
+        "profile_order": labels,
+        "profiles": profiles,
+        "deltas_from_first_profile": deltas_from_first,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _stop_serialization(summary, field_name):
     metric = _metric(summary, field_name)
     return {
@@ -212,6 +304,9 @@ def _markdown_report(comparison):
     lines.append(json.dumps(comparison.get("load_candidate_recall_delta", {}) or {}, sort_keys=True))
     lines.extend(["", "## Rate Profile Safety", ""])
     lines.append(json.dumps(comparison.get("rate_profile_safety_summary", {}) or {}, sort_keys=True))
+    if comparison.get("profile_comparison"):
+        lines.extend(["", "## Profile Comparison", ""])
+        lines.append(json.dumps(comparison.get("profile_comparison", {}) or {}, sort_keys=True))
     return "\n".join(lines) + "\n"
 
 
@@ -219,6 +314,15 @@ def build_parser():
     parser = argparse.ArgumentParser(description="Compare local RateCon gold evaluation summaries.")
     parser.add_argument("--baseline-summary", default=str(DEFAULT_BASELINE))
     parser.add_argument("--experiment-summary", default=str(DEFAULT_EXPERIMENT))
+    parser.add_argument(
+        "--profile-summary",
+        action="append",
+        default=[],
+        help=(
+            "Optional LABEL=PATH summary for multi-profile comparison. "
+            "When supplied, all entries are included in profile_comparison."
+        ),
+    )
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--allow-custom-output-dir", action="store_true")
     return parser
@@ -233,6 +337,14 @@ def main(argv=None):
         allow_custom_output_dir=args.allow_custom_output_dir,
     )
     comparison = compare_summaries(baseline, experiment)
+    if args.profile_summary:
+        profile_summaries = {}
+        for item in args.profile_summary:
+            if "=" not in item:
+                raise ValueError("--profile-summary must be LABEL=PATH")
+            label, path = item.split("=", 1)
+            profile_summaries[label] = _load_json(path)
+        comparison["profile_comparison"] = compare_profiles(profile_summaries)
     summary_path = output_dir / "ratecon_gold_evaluation_comparison_summary.json"
     report_path = output_dir / "ratecon_gold_evaluation_comparison_report.md"
     write_json(summary_path, comparison)

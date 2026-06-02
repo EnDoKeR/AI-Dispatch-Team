@@ -1,6 +1,12 @@
 import unittest
 
 from app.document_ai.ratecon_candidate_context_features import enrich_candidate_context
+from app.document_ai.ratecon_load_table_safety import (
+    TABLE_NEIGHBOR_RISKY,
+    TABLE_NEIGHBOR_SAFE,
+    TABLE_NEIGHBOR_UNSAFE,
+    apply_table_safety_profile,
+)
 
 
 class RateconCandidateContextFeatureTests(unittest.TestCase):
@@ -87,6 +93,98 @@ class RateconCandidateContextFeatureTests(unittest.TestCase):
         self.assertTrue(total["metadata"]["is_total_pay_candidate"])
         self.assertEqual(accessorial["metadata"]["money_context"], "quickpay")
         self.assertTrue(accessorial["metadata"]["is_deduction_or_penalty"])
+
+    def test_safe_header_table_load_candidate_is_marked_safe(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Load #",
+                "evidence_text": "Load # table value present",
+                "confidence": 0.86,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "load_id_row",
+                    "id_type_hint": "load",
+                    "label_strength": "strong",
+                },
+            }
+        )
+
+        self.assertEqual(candidate["metadata"]["table_neighbor_safety"], TABLE_NEIGHBOR_SAFE)
+        self.assertEqual(candidate["confidence"], 0.86)
+
+    def test_unsafe_stop_reference_table_candidate_is_demoted_by_profile(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Pickup #",
+                "evidence_text": "Pickup # table value present",
+                "confidence": 0.86,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "stop_table",
+                    "table_row_role": "pickup_delivery_ref_row",
+                    "id_type_hint": "pickup_ref",
+                },
+            }
+        )
+        adjusted = apply_table_safety_profile(candidate)
+
+        self.assertEqual(adjusted["metadata"]["table_neighbor_safety"], TABLE_NEIGHBOR_UNSAFE)
+        self.assertEqual(adjusted["field"], "reference_numbers")
+        self.assertLessEqual(adjusted["confidence"], 0.35)
+        self.assertTrue(adjusted["metadata"]["table_neighbor_demoted_from_load_number"])
+
+    def test_risky_multi_value_table_candidate_stays_diagnostic_low_confidence(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Order #",
+                "evidence_text": "Order # table value present",
+                "confidence": 0.74,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "unknown",
+                    "table_row_role": "unknown",
+                    "table_row_identifier_like_cell_count": 3,
+                    "id_type_hint": "order",
+                    "label_strength": "medium",
+                },
+            }
+        )
+        adjusted = apply_table_safety_profile(candidate)
+
+        self.assertEqual(adjusted["metadata"]["table_neighbor_safety"], TABLE_NEIGHBOR_RISKY)
+        self.assertEqual(adjusted["field"], "load_number")
+        self.assertLessEqual(adjusted["confidence"], 0.55)
+
+    def test_rate_and_contact_table_candidates_are_unsafe(self):
+        for role, penalty in [
+            ("rate_table", "rate_or_money_table"),
+            ("carrier_contact_table", "carrier_contact_table"),
+            ("signature_footer", "signature_footer_table"),
+        ]:
+            with self.subTest(role=role):
+                candidate = enrich_candidate_context(
+                    {
+                        "field": "load_number",
+                        "label": "Load #",
+                        "evidence_text": "Load # table value present",
+                        "confidence": 0.86,
+                        "metadata": {
+                            "table_cell_candidate": True,
+                            "pairing_method": "table_key_value_row",
+                            "table_context_role": role,
+                            "id_type_hint": "load",
+                        },
+                    }
+                )
+                self.assertEqual(candidate["metadata"]["table_neighbor_safety"], TABLE_NEIGHBOR_UNSAFE)
+                self.assertEqual(candidate["metadata"]["table_neighbor_penalty_reason"], penalty)
 
 
 if __name__ == "__main__":

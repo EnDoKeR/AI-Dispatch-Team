@@ -167,6 +167,10 @@ def _error_case_rows(evaluation):
                 "document_region": row.get("document_region", ""),
                 "id_type_hint": row.get("id_type_hint", ""),
                 "money_context": row.get("money_context", ""),
+                "table_context_role": row.get("table_context_role", ""),
+                "table_row_role": row.get("table_row_role", ""),
+                "table_neighbor_safety": row.get("table_neighbor_safety", ""),
+                "table_neighbor_penalty_reason": row.get("table_neighbor_penalty_reason", ""),
                 "error_reason": row.get("error_reason", ""),
             }
         )
@@ -246,6 +250,10 @@ def _markdown_report(evaluation):
         + json.dumps(evaluation.get("load_number_error_analysis", {}) or {}, sort_keys=True)
     )
     lines.append(
+        "load_table_neighbor_error_summary: "
+        + json.dumps(evaluation.get("load_table_neighbor_error_summary", {}) or {}, sort_keys=True)
+    )
+    lines.append(
         "rate_error_analysis: "
         + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
     )
@@ -253,6 +261,10 @@ def _markdown_report(evaluation):
     recall = dict(evaluation.get("load_candidate_recall_summary", {}) or {})
     recall.pop("documents", None)
     lines.append("load_candidate_recall_summary: " + json.dumps(recall, sort_keys=True))
+    lines.extend(["", "## OCR/Vision Backlog", ""])
+    backlog = dict(evaluation.get("ocr_vision_backlog_summary", {}) or {})
+    backlog.pop("documents", None)
+    lines.append("ocr_vision_backlog_summary: " + json.dumps(backlog, sort_keys=True))
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:
@@ -363,6 +375,10 @@ def evaluate_and_write(
             "document_region",
             "id_type_hint",
             "money_context",
+            "table_context_role",
+            "table_row_role",
+            "table_neighbor_safety",
+            "table_neighbor_penalty_reason",
             "error_reason",
         ],
         _error_case_rows(evaluation),

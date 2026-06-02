@@ -4,6 +4,7 @@ from app.document_ai.field_candidate_generators import (
     GENERATOR_HEADER_LOAD_IDENTITY,
     LOAD_CANDIDATE_PROFILE_BASELINE,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
     _header_load_identity_generator,
     generate_field_candidates,
 )
@@ -25,6 +26,32 @@ def _artifact(lines):
             }
         ],
     }
+
+
+def _layout_artifact(lines, table_rows):
+    artifact = _artifact(lines)
+    artifact["layout_provider_summary"] = {
+        "status": "success",
+        "word_count": 10,
+        "table_count": 1,
+        "table_cell_count": sum(len(row) for row in table_rows),
+    }
+    artifact["pages"][0]["tables"] = [
+        {
+            "page": 1,
+            "rows": [
+                {
+                    "row_index": row_index,
+                    "cells": [
+                        {"text": text, "column_index": column_index}
+                        for column_index, text in enumerate(row)
+                    ],
+                }
+                for row_index, row in enumerate(table_rows)
+            ],
+        }
+    ]
+    return artifact
 
 
 class HeaderLoadIdentityCandidateGeneratorTests(unittest.TestCase):
@@ -104,6 +131,65 @@ class HeaderLoadIdentityCandidateGeneratorTests(unittest.TestCase):
                 for summary in experiment["generator_summaries"]
                 if summary["generator_name"] == GENERATOR_HEADER_LOAD_IDENTITY
             ]
+        )
+
+    def test_table_safety_profile_includes_header_recall_generator(self):
+        artifact = _artifact(["TQL RATE CONFIRMATION FOR PO# 36979531"])
+
+        experiment = generate_field_candidates(
+            artifact,
+            include_legacy_final_candidates=False,
+            load_candidate_profile=LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+        )
+
+        self.assertTrue(
+            [
+                summary
+                for summary in experiment["generator_summaries"]
+                if summary["generator_name"] == GENERATOR_HEADER_LOAD_IDENTITY
+            ]
+        )
+
+    def test_table_safety_profile_demotes_stop_table_neighbor_load_candidate(self):
+        artifact = _layout_artifact(
+            ["Load # GOOD123"],
+            [
+                ["Pickup", "Pickup #", "BAD123"],
+                ["Load #", "BAD123"],
+            ],
+        )
+
+        baseline = generate_field_candidates(
+            artifact,
+            include_legacy_final_candidates=False,
+            load_candidate_profile=LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
+        )
+        safety = generate_field_candidates(
+            artifact,
+            include_legacy_final_candidates=False,
+            load_candidate_profile=LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+        )
+
+        baseline_table_loads = [
+            candidate
+            for candidate in baseline["candidates"]
+            if candidate["field"] == "load_number"
+            and (candidate.get("metadata") or {}).get("table_cell_candidate")
+        ]
+        safety_table_loads = [
+            candidate
+            for candidate in safety["candidates"]
+            if candidate["field"] == "load_number"
+            and (candidate.get("metadata") or {}).get("table_cell_candidate")
+        ]
+
+        self.assertTrue(baseline_table_loads)
+        self.assertFalse(safety_table_loads)
+        self.assertTrue(
+            any(
+                (candidate.get("metadata") or {}).get("table_neighbor_demoted_from_load_number")
+                for candidate in safety["candidates"]
+            )
         )
 
 

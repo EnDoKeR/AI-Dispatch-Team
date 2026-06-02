@@ -45,6 +45,7 @@ from app.document_ai.ratecon_table_semantics import (
     safe_value_shape,
     table_semantic_summary,
 )
+from app.document_ai.ratecon_load_table_safety import safe_table_context_metadata
 
 
 GENERATOR_LAYOUT_LOAD_PAIRING = "layout_load_identity_pairing_generator"
@@ -289,6 +290,41 @@ def _cell_below(table, row_index, column_index):
     return None
 
 
+def _role_counts_for_row(row):
+    counts = Counter()
+    for cell in row_cells(row):
+        role = classify_cell_semantic_role(cell.get("text"))
+        if role != ROLE_UNKNOWN:
+            counts[role] += 1
+    return dict(counts)
+
+
+def _safe_table_candidate_metadata(table, row, semantics):
+    header_row_index = _safe_int(semantics.get("header_row_index"))
+    row_index = _safe_int((row or {}).get("row_index"))
+    return safe_table_context_metadata(
+        table_kind=semantics.get("recognized_kind", ""),
+        row_text=" ".join(_text(cell.get("text")) for cell in row_cells(row or {})),
+        row_role_counts=_role_counts_for_row(row or {}),
+        header_row=bool(semantics.get("header_row_index") != "" and row_index == header_row_index),
+    )
+
+
+def _apply_table_candidate_metadata(candidate, table_index, row, label_cell, value_cell, semantics):
+    metadata = dict(candidate.get("metadata") or {})
+    metadata.update(
+        {
+            "table_index": table_index,
+            "row_index": (row or {}).get("row_index", ""),
+            "label_cell_index": (label_cell or {}).get("column_index", ""),
+            "value_cell_index": (value_cell or {}).get("column_index", ""),
+        }
+    )
+    metadata.update(_safe_table_candidate_metadata(None, row or {}, semantics or {}))
+    candidate["metadata"] = metadata
+    return candidate
+
+
 def _table_load_candidates(page, table_index, table, diagnostics):
     candidates = []
     semantics = classify_table_semantics(table, table_index=table_index, page=page)
@@ -321,17 +357,16 @@ def _table_load_candidates(page, table_index, table, diagnostics):
                     diagnostics,
                 )
                 if candidate:
-                    metadata = dict(candidate.get("metadata") or {})
-                    metadata.update(
-                        {
-                            "table_index": table_index,
-                            "row_index": row.get("row_index", ""),
-                            "label_cell_index": cell.get("column_index", ""),
-                            "value_cell_index": cell.get("column_index", ""),
-                        }
+                    candidates.append(
+                        _apply_table_candidate_metadata(
+                            candidate,
+                            table_index,
+                            row,
+                            cell,
+                            cell,
+                            semantics,
+                        )
                     )
-                    candidate["metadata"] = metadata
-                    candidates.append(candidate)
                     continue
 
             value_cell = _nearest_non_empty_cell(cells, cell_index)
@@ -347,17 +382,16 @@ def _table_load_candidates(page, table_index, table, diagnostics):
                     diagnostics,
                 )
                 if candidate:
-                    metadata = dict(candidate.get("metadata") or {})
-                    metadata.update(
-                        {
-                            "table_index": table_index,
-                            "row_index": row.get("row_index", ""),
-                            "label_cell_index": cell.get("column_index", ""),
-                            "value_cell_index": value_cell.get("column_index", ""),
-                        }
+                    candidates.append(
+                        _apply_table_candidate_metadata(
+                            candidate,
+                            table_index,
+                            row,
+                            cell,
+                            value_cell,
+                            semantics,
+                        )
                     )
-                    candidate["metadata"] = metadata
-                    candidates.append(candidate)
                     continue
                 else:
                     diagnostics["layout_rejection_reason_counts"]["TABLE_LOAD_VALUE_SHAPE_REJECTED"] += 1
@@ -375,17 +409,16 @@ def _table_load_candidates(page, table_index, table, diagnostics):
                     diagnostics,
                 )
                 if candidate:
-                    metadata = dict(candidate.get("metadata") or {})
-                    metadata.update(
-                        {
-                            "table_index": table_index,
-                            "row_index": row.get("row_index", ""),
-                            "label_cell_index": cell.get("column_index", ""),
-                            "value_cell_index": below_cell.get("column_index", ""),
-                        }
+                    candidates.append(
+                        _apply_table_candidate_metadata(
+                            candidate,
+                            table_index,
+                            row,
+                            cell,
+                            below_cell,
+                            semantics,
+                        )
                     )
-                    candidate["metadata"] = metadata
-                    candidates.append(candidate)
                     continue
 
             diagnostics["layout_rejection_reason_counts"]["TABLE_LOAD_LABEL_FOUND_VALUE_MISSING"] += 1
@@ -414,16 +447,16 @@ def _table_load_candidates(page, table_index, table, diagnostics):
                 )
                 if candidate:
                     metadata = dict(candidate.get("metadata") or {})
-                    metadata.update(
-                        {
-                            "table_index": table_index,
-                            "row_index": row.get("row_index", ""),
-                            "label_cell_index": str(col),
-                            "value_cell_index": cell.get("column_index", ""),
-                            "header_row_index": semantics.get("header_row_index", ""),
-                        }
-                    )
+                    metadata["header_row_index"] = semantics.get("header_row_index", "")
                     candidate["metadata"] = metadata
+                    _apply_table_candidate_metadata(
+                        candidate,
+                        table_index,
+                        row,
+                        {"column_index": str(col)},
+                        cell,
+                        semantics,
+                    )
                     candidates.append(candidate)
                 else:
                     diagnostics["layout_rejection_reason_counts"]["TABLE_LOAD_VALUE_SHAPE_REJECTED"] += 1

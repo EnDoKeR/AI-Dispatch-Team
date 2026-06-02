@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import re
 
+from app.document_ai.ratecon_load_table_safety import enrich_table_neighbor_safety
+
 
 FIELD_LOAD_NUMBER = "load_number"
 FIELD_TOTAL_CARRIER_RATE = "total_carrier_rate"
@@ -302,6 +304,9 @@ def enrich_candidate_context(candidate):
     field = _lower(item.get("field"))
     if field in {FIELD_LOAD_NUMBER, FIELD_REFERENCE_NUMBERS}:
         _enrich_identifier_candidate(item, metadata, context)
+        item["metadata"] = metadata
+        item = enrich_table_neighbor_safety(item)
+        metadata = _metadata(item)
     if field == FIELD_TOTAL_CARRIER_RATE:
         _enrich_money_candidate(item, metadata, context)
     if metadata:
