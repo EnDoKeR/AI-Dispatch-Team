@@ -3598,6 +3598,23 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         else:
             rejected.append(item)
     rejection_reasons = Counter(_ocr_stop_not_selected_reason(item) for item in rejected)
+    alignment_status_counts = Counter()
+    alignment_warning_counts = Counter()
+    alignment_policy_counts = Counter()
+    for item in ocr_items:
+        metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+        status = _text(metadata.get("stop_alignment_status"))
+        if status:
+            alignment_status_counts[status] += 1
+        policy = _text(metadata.get("stop_selection_policy"))
+        if policy:
+            alignment_policy_counts[policy] += 1
+        warnings = metadata.get("stop_alignment_warnings") or []
+        if isinstance(warnings, str):
+            warnings = [warnings] if warnings else []
+        for warning in warnings if isinstance(warnings, list) else []:
+            if _text(warning):
+                alignment_warning_counts[_text(warning)] += 1
     return {
         "ocr_docs": len(docs_with_ocr),
         "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),
@@ -3610,6 +3627,9 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         "ocr_stop_candidates_selected": len(selected_rows),
         "ocr_stop_candidates_rejected": max(0, len(ocr_items) - len(selected_rows)),
         "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "alignment_status_counts": dict(alignment_status_counts.most_common()),
+        "alignment_warning_counts": dict(alignment_warning_counts.most_common()),
+        "alignment_policy_counts": dict(alignment_policy_counts.most_common()),
         "candidate_field_counts": dict(candidates_by_field.most_common()),
         "private_values_printed": False,
         "raw_text_printed": False,

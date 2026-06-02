@@ -35,10 +35,12 @@ from app.document_ai.ratecon_ocr_candidate_policy import (
     apply_ocr_candidate_policy_to_candidates,
 )
 from app.document_ai.ratecon_stop_component_policy import (
+    STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
     STOP_RANKING_PROFILE_BASELINE,
     STOP_RANKING_PROFILE_COMPONENT_STRICT_V1,
     STOP_RANKING_PROFILES as STOP_PROFILE_CHOICES,
     STOP_SELECTION_ABSTAIN,
+    apply_stop_alignment_strict_profile_to_candidates,
     apply_stop_component_strict_profile_to_candidates,
 )
 
@@ -354,6 +356,12 @@ def _metadata_summary(candidate):
         "role_confidence",
         "component_completeness",
         "stop_profile_adjustments",
+        "stop_alignment_score",
+        "stop_alignment_status",
+        "stop_alignment_warnings",
+        "component_line_offsets",
+        "line_span",
+        "block_type",
         "generator_name",
         "document_region",
         "is_document_title_or_header_id",
@@ -650,6 +658,8 @@ def _apply_field_scoped_candidate_profiles(
         )
     if stop_ranking_profile == STOP_RANKING_PROFILE_COMPONENT_STRICT_V1:
         adjusted = apply_stop_component_strict_profile_to_candidates(adjusted)
+    elif stop_ranking_profile == STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1:
+        adjusted = apply_stop_alignment_strict_profile_to_candidates(adjusted)
     return adjusted
 
 

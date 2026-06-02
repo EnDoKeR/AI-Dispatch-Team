@@ -12,7 +12,16 @@ from app.document_ai.ocr_stop_block_assembler import (
     candidates_from_stop_evidence_blocks,
     detect_stop_evidence_blocks_from_artifact,
 )
+from app.document_ai.field_candidate_resolver import resolve_candidates
 from app.document_ai.ratecon_gold_labels import evaluate_ratecon_against_gold
+from app.document_ai.ratecon_stop_component_policy import (
+    STOP_ALIGNMENT_MEDIUM,
+    STOP_ALIGNMENT_STRONG,
+    STOP_ALIGNMENT_UNSAFE,
+    STOP_ALIGNMENT_WEAK,
+    STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
+    apply_stop_alignment_strict_profile_to_candidates,
+)
 from scripts.run_private_ratecon_measurement import main as measurement_main
 
 
@@ -160,6 +169,8 @@ class RateConOcrStopAssemblyTests(unittest.TestCase):
         self.assertEqual(pickup["parser_name"], GENERATOR_OCR_STOP_BLOCK_ASSEMBLER)
         self.assertTrue(pickup["metadata"]["structured_stop_candidate"])
         self.assertEqual(diagnostics["structured_stop_candidates"], 1)
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_STRONG)
+        self.assertEqual(pickup["metadata"]["component_line_offsets"]["date"], 1)
 
     def test_partial_block_does_not_invent_missing_components(self):
         artifact = _artifact(["PU 1", "Name: North Warehouse"])
@@ -171,6 +182,141 @@ class RateConOcrStopAssemblyTests(unittest.TestCase):
         self.assertEqual(stop["facility"], "North Warehouse")
         self.assertIsNone(stop["date"])
         self.assertTrue(pickup["metadata"]["partial_stop_candidate"])
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_MEDIUM)
+
+    def test_alignment_forensics_warns_for_far_date(self):
+        artifact = _artifact(
+            [
+                "PU 1",
+                "Name: North Warehouse",
+                "123 Main St",
+                "Dallas TX 75001",
+                "Contact dispatch",
+                "Reference 123",
+                "Hours noted below",
+                "Date: 06/05/2026",
+            ]
+        )
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+
+        self.assertIn("date_far_from_role", pickup["metadata"]["stop_alignment_warnings"])
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_MEDIUM)
+
+    def test_alignment_scoring_marks_role_only_weak(self):
+        artifact = _artifact(["PU 1"])
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_WEAK)
+
+    def test_alignment_scoring_marks_mixed_role_block_unsafe(self):
+        block = {
+            "role": "pickup",
+            "stop_index": 1,
+            "source": "ocr",
+            "page": 1,
+            "start_line_index": 0,
+            "end_line_index": 3,
+            "line_count": 4,
+            "lines": [
+                "PU 1",
+                "Name: North Warehouse",
+                "SO 2",
+                "Date: 06/06/2026",
+            ],
+            "provenance": {"block_type": "PU"},
+        }
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks([block])
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_UNSAFE)
+        self.assertIn("pickup_delivery_overlap", pickup["metadata"]["stop_alignment_warnings"])
+
+    def test_alignment_forensics_flags_instruction_component_leakage(self):
+        block = {
+            "role": "pickup",
+            "stop_index": 1,
+            "source": "ocr",
+            "page": 1,
+            "start_line_index": 0,
+            "end_line_index": 2,
+            "line_count": 3,
+            "lines": [
+                "PU 1",
+                "Name: North Warehouse",
+                "Special Instructions Date: 06/05/2026",
+            ],
+            "provenance": {"block_type": "PU"},
+        }
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks([block])
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+
+        self.assertEqual(pickup["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_UNSAFE)
+        self.assertIn("component_from_instructions", pickup["metadata"]["stop_alignment_warnings"])
+
+    def test_alignment_forensics_flags_multiple_dates(self):
+        artifact = _artifact(
+            [
+                "PU 1",
+                "Name: North Warehouse",
+                "Date: 06/05/2026",
+                "Expected Date: 06/06/2026",
+            ]
+        )
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+
+        self.assertIn("multiple_dates_unpaired", pickup["metadata"]["stop_alignment_warnings"])
+
+    def test_stop_alignment_strict_abstains_weak_ocr_stop(self):
+        artifact = _artifact(["PU 1"])
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        adjusted = apply_stop_alignment_strict_profile_to_candidates(candidates)
+        pickup = next(candidate for candidate in adjusted if candidate["field"] == "pickup_stops")
+
+        self.assertTrue(pickup["metadata"]["stop_abstained"])
+        self.assertEqual(pickup["metadata"]["stop_selection_policy"], "abstain")
+
+        resolved = resolve_candidates(
+            adjusted,
+            field_names=["pickup_stops"],
+            stop_ranking_profile=STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
+        )
+        self.assertEqual(resolved["resolved_fields"]["pickup_stops"]["value"], "")
+
+    def test_stop_alignment_strict_allows_strong_ocr_delivery(self):
+        artifact = _artifact(
+            [
+                "SO 2",
+                "Name: South DC",
+                "Date: 06/06/2026",
+                "Time: 14:00",
+                "456 Oak Rd",
+                "Houston TX 77001",
+            ]
+        )
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        adjusted = apply_stop_alignment_strict_profile_to_candidates(candidates)
+        delivery = next(candidate for candidate in adjusted if candidate["field"] == "delivery_stops")
+
+        self.assertFalse(delivery["metadata"]["stop_abstained"])
+        self.assertEqual(delivery["metadata"]["stop_alignment_status"], STOP_ALIGNMENT_STRONG)
+
+    def test_stop_alignment_strict_keeps_medium_as_partial_review(self):
+        artifact = _artifact(["SO 2", "Name: South DC", "456 Oak Rd", "Houston TX 77001"])
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        adjusted = apply_stop_alignment_strict_profile_to_candidates(candidates)
+        delivery = next(candidate for candidate in adjusted if candidate["field"] == "delivery_stops")
+
+        self.assertFalse(delivery["metadata"]["stop_abstained"])
+        self.assertEqual(delivery["metadata"]["stop_selection_policy"], "partial_review")
 
     def test_stop_candidate_profile_is_opt_in(self):
         artifact = _artifact(["PU 1", "Name: North Warehouse", "Date: 06/05/2026"])
@@ -255,8 +401,35 @@ class RateConOcrStopAssemblyTests(unittest.TestCase):
 
         self.assertGreater(summary["ocr_structured_stop_candidates"], 0)
         self.assertEqual(summary["ocr_stop_candidates_selected"], 1)
+        self.assertGreater(summary["alignment_status_counts"]["strong"], 0)
         self.assertFalse(summary["raw_text_printed"])
         self.assertNotIn("North Warehouse", json.dumps(summary))
+
+    def test_delivery_date_time_parsing_v2_uses_delivery_block(self):
+        artifact = _artifact(["SO 2 Date: 06/06/2026 0800", "Name: South DC"])
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+        delivery = next(candidate for candidate in candidates if candidate["field"] == "delivery_stops")
+        stop = delivery["value"][0]
+
+        self.assertEqual(stop["date"], "06/06/2026")
+        self.assertEqual(stop["time"], "0800")
+
+    def test_drop_and_consignee_delivery_dates_emit_delivery_date(self):
+        artifact = _artifact(
+            [
+                "Drop 2 Location",
+                "Expected Date: 06/06/2026",
+                "Consignee Delivery (Stop 2)",
+                "Shipping/Receiving Hours: 0800-1600",
+            ]
+        )
+        blocks = detect_stop_evidence_blocks_from_artifact(artifact)
+        candidates, _diagnostics = candidates_from_stop_evidence_blocks(blocks)
+
+        fields = [candidate["field"] for candidate in candidates]
+        self.assertIn("delivery_date", fields)
+        self.assertIn("delivery_time", fields)
 
     def test_cli_parses_stop_candidate_profile(self):
         buffer = StringIO()
@@ -266,6 +439,7 @@ class RateConOcrStopAssemblyTests(unittest.TestCase):
         self.assertEqual(raised.exception.code, 0)
         self.assertIn("--ratecon-shadow-stop-candidate-profile", buffer.getvalue())
         self.assertIn(STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1, buffer.getvalue())
+        self.assertIn(STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1, buffer.getvalue())
 
 
 if __name__ == "__main__":

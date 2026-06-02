@@ -44,6 +44,12 @@ SECTION_INSTRUCTIONS = "instructions"
 SECTION_FOOTER = "footer"
 SECTION_UNKNOWN = "unknown"
 
+ALIGNMENT_STRONG = "strong"
+ALIGNMENT_MEDIUM = "medium"
+ALIGNMENT_WEAK = "weak"
+ALIGNMENT_UNSAFE = "unsafe"
+ALIGNMENT_UNKNOWN = "unknown"
+
 _PICKUP_ROLE_RE = re.compile(
     r"(^|\b)(?:p\s*/?\s*u|pu\s*\d+|pick[-\s]?up|pickup|load\s+at|shipper|"
     r"origin|pickup\s+location|shipper\s+pickup|stop\s*#?\s*\d+\s*pickup)\b",
@@ -90,7 +96,8 @@ _ADDRESS_RE = re.compile(
     re.IGNORECASE,
 )
 _LABEL_VALUE_RE = re.compile(
-    r"\b(?P<label>name|facility|address|date|expected\s+date|earliest|latest|"
+    r"\b(?P<label>name|facility|address|location|date|expected\s+date|"
+    r"delivery\s+date|pickup\s+date|earliest|latest|"
     r"target\s+window|appt|appointment|time|shipping/receiving\s+hours)"
     r"\s*[:#-]\s*(?P<value>.+)$",
     re.IGNORECASE,
@@ -186,6 +193,33 @@ def _role_from_line(text):
     return ROLE_UNKNOWN
 
 
+def _block_type_from_line(text, role):
+    value = _lower(text)
+    if role == ROLE_PICKUP:
+        if re.search(r"\bp\s*/?\s*u\b|\bpu\s*\d+\b", value):
+            return "PU"
+        if "shipper" in value:
+            return "Shipper"
+        if "origin" in value:
+            return "Origin"
+        if "load at" in value:
+            return "Load At"
+        if "pickup" in value or "pick-up" in value:
+            return "Pickup"
+    if role == ROLE_DELIVERY:
+        if re.search(r"\bs\s*/?\s*o\b|\bso\s*\d+\b", value):
+            return "SO"
+        if "drop" in value:
+            return "Drop"
+        if "consignee" in value:
+            return "Consignee"
+        if "destination" in value:
+            return "Destination"
+        if "deliver" in value or "delivery" in value:
+            return "Delivery"
+    return "unknown"
+
+
 def _stop_index_from_line(text, default=1):
     match = re.search(r"\b(?:stop|pu|so|drop)\s*#?\s*(\d+)\b", _text(text), re.IGNORECASE)
     if match:
@@ -234,6 +268,17 @@ def _line_has_location(text):
     if label_match and _lower(label_match.group("label")) in {"name", "facility", "address"}:
         return bool(_text(label_match.group("value")))
     return False
+
+
+def _line_section_warning(text):
+    context = _section_context(text)
+    if context == SECTION_INSTRUCTIONS:
+        return "component_from_instructions"
+    if context == SECTION_PAYMENT:
+        return "component_from_payment_section"
+    if context == SECTION_FOOTER:
+        return "component_from_footer"
+    return ""
 
 
 def detect_stop_evidence_blocks_from_artifact(
@@ -292,6 +337,7 @@ def detect_stop_evidence_blocks_from_artifact(
                         "page": page,
                         "start_line_index": row["line_index"],
                         "end_line_index": collected[-1]["line_index"],
+                        "block_type": _block_type_from_line(row["text"], role),
                     },
                 ).to_dict()
             )
@@ -316,56 +362,145 @@ def _extract_labeled_values(lines):
     return values
 
 
+def _extract_labeled_values_with_offsets(lines):
+    values = {}
+    offsets = {}
+    for offset, line in enumerate(lines or []):
+        match = _LABEL_VALUE_RE.search(_text(line))
+        if not match:
+            continue
+        label = re.sub(r"\s+", "_", _lower(match.group("label")))
+        value = _clean_value(match.group("value"))
+        if value and label not in values:
+            values[label] = value
+            offsets[label] = offset
+    return values, offsets
+
+
 def _extract_date(lines):
-    labeled = _extract_labeled_values(lines)
+    value, _offset = _extract_date_with_offset(lines)
+    return value
+
+
+def _extract_date_with_offset(lines):
+    labeled, offsets = _extract_labeled_values_with_offsets(lines)
     for key in ["date", "expected_date", "earliest", "latest"]:
         if key in labeled:
             match = _DATE_RE.search(labeled[key])
             if match:
-                return match.group(0)
-            return labeled[key]
-    for line in lines:
+                return match.group(0), offsets.get(key)
+            return labeled[key], offsets.get(key)
+    for key in ["delivery_date", "pickup_date", "target_window"]:
+        if key in labeled:
+            match = _DATE_RE.search(labeled[key])
+            if match:
+                return match.group(0), offsets.get(key)
+            return labeled[key], offsets.get(key)
+    for offset, line in enumerate(lines or []):
         match = _DATE_RE.search(_text(line))
         if match:
-            return match.group(0)
-    return ""
+            return match.group(0), offset
+    return "", None
 
 
 def _extract_time(lines):
-    labeled = _extract_labeled_values(lines)
-    for key in ["time", "appt", "appointment", "target_window", "shipping/receiving_hours"]:
+    value, _offset = _extract_time_with_offset(lines)
+    return value
+
+
+def _extract_time_with_offset(lines):
+    labeled, offsets = _extract_labeled_values_with_offsets(lines)
+    for key in [
+        "time",
+        "appt",
+        "appointment",
+        "target_window",
+        "shipping/receiving_hours",
+    ]:
         if key in labeled:
-            return labeled[key]
-    for line in lines:
+            return labeled[key], offsets.get(key)
+    for offset, line in enumerate(lines or []):
         value = _text(line)
-        if _has_date(value) and not any(token in _lower(value) for token in ["time", "appt", "window", "hours"]):
-            continue
-        match = _TIME_RE.search(value)
+        search_value = value
+        date_match = _DATE_RE.search(value)
+        if date_match:
+            if not any(
+                token in _lower(value)
+                for token in [
+                    "time",
+                    "appt",
+                    "window",
+                    "hours",
+                    "date",
+                    "delivery",
+                    "drop",
+                    "so",
+                    "pickup",
+                    "pu",
+                ]
+            ):
+                continue
+            search_value = value[date_match.end() :]
+        match = _TIME_RE.search(search_value)
         if match:
-            return match.group(0)
-    return ""
+            return match.group(0), offset
+    return "", None
 
 
 def _extract_location(lines):
-    labeled = _extract_labeled_values(lines)
+    stop, _offsets = _extract_location_with_offsets(lines)
+    return (
+        stop.get("facility", ""),
+        stop.get("address", ""),
+        stop.get("city", ""),
+        stop.get("state", ""),
+        stop.get("zip", ""),
+    )
+
+
+def _extract_location_with_offsets(lines):
+    labeled, labeled_offsets = _extract_labeled_values_with_offsets(lines)
     facility = labeled.get("name") or labeled.get("facility") or ""
     address = labeled.get("address") or ""
+    facility_offset = (
+        labeled_offsets.get("name")
+        if "name" in labeled_offsets
+        else labeled_offsets.get("facility")
+    )
+    address_offset = labeled_offsets.get("address")
     city = state = zip_code = ""
-    for line in lines:
+    city_state_zip_offset = None
+    for offset, line in enumerate(lines or []):
         value = _text(line)
         if not address and _has_address(value):
             address = value
+            address_offset = offset
             continue
         match = _CITY_STATE_ZIP_RE.search(value)
         if match:
             city = _clean_value(match.group("city"))
             state = _clean_value(match.group("state"))
             zip_code = _clean_value(match.group("zip"))
+            city_state_zip_offset = offset
             continue
         if not facility and not _role_from_line(value) and not _has_date(value) and not _has_time(value):
             if not any(token in _lower(value) for token in ["ref", "bol", "po", "phone", "contact"]):
                 facility = value
-    return facility, address, city, state, zip_code
+                facility_offset = offset
+    return (
+        {
+            "facility": facility,
+            "address": address,
+            "city": city,
+            "state": state,
+            "zip": zip_code,
+        },
+        {
+            "facility": facility_offset,
+            "address": address_offset,
+            "city_state_zip": city_state_zip_offset,
+        },
+    )
 
 
 def _location_string(stop):
@@ -380,6 +515,82 @@ def _component_completeness(has_location, has_date, has_time):
     return round((int(has_location) + int(has_date) + int(has_time)) / 3.0, 3)
 
 
+def _alignment_metadata(block, stop, offsets):
+    lines = list(block.get("lines") or [])
+    warnings = []
+    role = block.get("role") or ROLE_UNKNOWN
+    other_role = ROLE_DELIVERY if role == ROLE_PICKUP else ROLE_PICKUP
+    if any(_role_from_line(line) == other_role for line in lines[1:]):
+        warnings.append("pickup_delivery_overlap")
+    for key, offset in (offsets or {}).items():
+        if offset is None:
+            continue
+        line = lines[offset] if 0 <= offset < len(lines) else ""
+        section_warning = _line_section_warning(line)
+        if section_warning:
+            warnings.append(section_warning)
+        if key in {"date", "time"} and offset > 6:
+            warnings.append("date_far_from_role")
+        if key in {"facility", "address", "city_state_zip"} and offset > 5:
+            warnings.append("location_far_from_role")
+    date_offsets = [
+        index for index, line in enumerate(lines) if _has_date(line)
+    ]
+    location_offsets = [
+        index for index, line in enumerate(lines) if _line_has_location(line)
+    ]
+    if len(date_offsets) > 1:
+        warnings.append("multiple_dates_unpaired")
+    if len(location_offsets) > 3:
+        warnings.append("multiple_locations_unpaired")
+    if block.get("line_count", 0) >= 8 and not any(_role_from_line(line) for line in lines[1:]):
+        warnings.append("no_clear_block_end")
+    if role == ROLE_DELIVERY and not _text(stop.get("date")):
+        warnings.append("delivery_date_missing")
+
+    has_location = bool(_location_string(stop))
+    has_date = bool(_text(stop.get("date")))
+    has_time = bool(_text(stop.get("time") or stop.get("appointment_window")))
+    unsafe_warnings = {
+        "component_from_instructions",
+        "component_from_payment_section",
+        "component_from_footer",
+        "pickup_delivery_overlap",
+    }
+    if any(warning in unsafe_warnings for warning in warnings):
+        status = ALIGNMENT_UNSAFE
+        score = 0.18
+    elif role not in {ROLE_PICKUP, ROLE_DELIVERY}:
+        status = ALIGNMENT_UNKNOWN
+        score = 0.0
+    elif has_location and (has_date or has_time) and not warnings:
+        status = ALIGNMENT_STRONG
+        score = 0.9
+    elif has_location and (has_date or has_time):
+        status = ALIGNMENT_MEDIUM
+        score = 0.68
+    elif has_location or has_date or has_time:
+        status = ALIGNMENT_MEDIUM
+        score = 0.58
+    else:
+        status = ALIGNMENT_WEAK
+        score = 0.32
+    return {
+        "stop_alignment_score": round(score, 3),
+        "stop_alignment_status": status,
+        "stop_alignment_warnings": sorted(set(warnings)),
+        "component_line_offsets": {
+            key: offset for key, offset in (offsets or {}).items() if offset is not None
+        },
+        "block_type": _text((block.get("provenance") or {}).get("block_type")) or "unknown",
+        "line_span": {
+            "start": block.get("start_line_index"),
+            "end": block.get("end_line_index"),
+            "line_count": block.get("line_count"),
+        },
+    }
+
+
 def _confidence(has_location, has_date, has_time):
     if has_location and has_date and has_time:
         return 0.76
@@ -392,13 +603,18 @@ def _confidence(has_location, has_date, has_time):
 
 def _structured_stop_from_block(block):
     lines = list(block.get("lines") or [])
-    facility, address, city, state, zip_code = _extract_location(lines)
-    date = _extract_date(lines)
-    time = _extract_time(lines)
+    location, location_offsets = _extract_location_with_offsets(lines)
+    facility = location.get("facility")
+    address = location.get("address")
+    city = location.get("city")
+    state = location.get("state")
+    zip_code = location.get("zip")
+    date, date_offset = _extract_date_with_offset(lines)
+    time, time_offset = _extract_time_with_offset(lines)
     appointment_window = time if any(token in _lower(time) for token in ["-", "to", "window"]) else ""
     if appointment_window:
         time = ""
-    return {
+    stop = {
         "role": block.get("role") or ROLE_UNKNOWN,
         "stop_index": block.get("stop_index") or 1,
         "facility": facility or None,
@@ -419,6 +635,12 @@ def _structured_stop_from_block(block):
             "line_span": [block.get("start_line_index"), block.get("end_line_index")],
         },
     }
+    offsets = {
+        **location_offsets,
+        "date": date_offset,
+        "time": time_offset,
+    }
+    return stop, _alignment_metadata(block, stop, offsets)
 
 
 def _base_metadata(block, stop):
@@ -502,8 +724,9 @@ def candidates_from_stop_evidence_blocks(blocks):
         role = block.get("role") or ROLE_UNKNOWN
         if role not in {ROLE_PICKUP, ROLE_DELIVERY}:
             continue
-        stop = _structured_stop_from_block(block)
+        stop, alignment = _structured_stop_from_block(block)
         metadata = _base_metadata(block, stop)
+        metadata.update(alignment)
         has_location = metadata["has_location"]
         has_date = metadata["has_date"]
         has_time = metadata["has_time"]

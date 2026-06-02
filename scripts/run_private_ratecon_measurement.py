@@ -745,7 +745,9 @@ def main(argv=None):
         help=(
             "Shadow-only pickup/delivery stop selection profile. "
             "stop_component_strict_v1 conservatively abstains from ambiguous "
-            "or weakly role-scoped structured stop candidates."
+            "or weakly role-scoped structured stop candidates; "
+            "stop_alignment_strict_v1 additionally gates OCR stop block "
+            "candidates by component alignment."
         ),
     )
     parser.add_argument(
