@@ -1365,6 +1365,176 @@ def _candidate_group_has_correct(comparison_index, document_id, field_name):
     return False
 
 
+def _gold_load_values(gold_field):
+    values = []
+    primary = _gold_scalar_value(gold_field)
+    if _text(primary):
+        values.append(primary)
+    if isinstance(gold_field, dict):
+        values.extend(
+            value
+            for value in gold_field.get("alternate_acceptable_values", []) or []
+            if _text(value)
+        )
+    return values
+
+
+def _load_value_matches(candidate_value, gold_values):
+    candidate_normalized = normalize_load_number(candidate_value)
+    return bool(
+        candidate_normalized
+        and any(candidate_normalized == normalize_load_number(value) for value in gold_values)
+    )
+
+
+def _load_value_hashes(gold_values):
+    import hashlib
+
+    hashes = set()
+    for value in gold_values or []:
+        normalized = normalize_load_number(value)
+        if normalized:
+            hashes.add(hashlib.sha256(normalized.encode("utf-8")).hexdigest())
+    return hashes
+
+
+def _load_inventory(record):
+    payload = _private_eval_values(record)
+    inventory = payload.get("load_identity_candidate_inventory", [])
+    return inventory if isinstance(inventory, list) else []
+
+
+def _load_visibility_probe(record):
+    payload = _private_eval_values(record)
+    probe = payload.get("load_visibility_probe", {})
+    return probe if isinstance(probe, dict) else {}
+
+
+def _hash_set(probe, key):
+    return set(_text(value) for value in (probe.get(key, []) or []) if _text(value))
+
+
+def _load_visibility_status(record, gold_hashes):
+    probe = _load_visibility_probe(record)
+    if not probe:
+        return {
+            "visible_in_full_text": False,
+            "visible_in_lines": False,
+            "visible_in_layout_words": False,
+            "visible_in_layout_tables": False,
+            "visibility_available": False,
+        }
+    return {
+        "visible_in_full_text": bool(gold_hashes & _hash_set(probe, "full_text_token_hashes")),
+        "visible_in_lines": bool(gold_hashes & _hash_set(probe, "line_token_hashes")),
+        "visible_in_layout_words": bool(gold_hashes & _hash_set(probe, "layout_word_token_hashes")),
+        "visible_in_layout_tables": bool(gold_hashes & _hash_set(probe, "layout_table_token_hashes")),
+        "visibility_available": True,
+    }
+
+
+def _build_load_candidate_recall_summary(gold_labels, audit_index):
+    summary = {
+        "evaluated_docs": 0,
+        "gold_load_in_any_candidate": 0,
+        "gold_load_in_independent_candidate": 0,
+        "gold_load_in_layout_candidate": 0,
+        "gold_load_in_header_candidate": 0,
+        "gold_load_in_table_candidate": 0,
+        "gold_load_in_legacy_fallback_candidate": 0,
+        "gold_load_not_in_candidates": 0,
+        "gold_load_visible_in_text_but_not_candidate": 0,
+        "gold_load_visible_in_layout_but_not_candidate": 0,
+        "gold_load_requires_ocr_or_vision": 0,
+        "candidate_missing_reason_counts": {},
+        "documents": [],
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    missing_reasons = Counter()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        gold = label.get("gold", {}) or {}
+        gold_field = gold.get(FIELD_LOAD_NUMBER, {})
+        gold_values = _gold_load_values(gold_field)
+        if not gold_values:
+            continue
+        summary["evaluated_docs"] += 1
+        record = _find_record(label, audit_index)
+        inventory = _load_inventory(record)
+        matching = [
+            candidate
+            for candidate in inventory
+            if isinstance(candidate, dict)
+            and _load_value_matches(candidate.get("value"), gold_values)
+        ]
+        flags = {
+            "any": bool(matching),
+            "independent": any(candidate.get("independent") for candidate in matching),
+            "layout": any(candidate.get("layout_based") for candidate in matching),
+            "header": any(candidate.get("header_candidate") for candidate in matching),
+            "table": any(candidate.get("table_based") for candidate in matching),
+            "legacy_fallback": any(candidate.get("legacy_fallback") for candidate in matching),
+        }
+        if flags["any"]:
+            summary["gold_load_in_any_candidate"] += 1
+        if flags["independent"]:
+            summary["gold_load_in_independent_candidate"] += 1
+        if flags["layout"]:
+            summary["gold_load_in_layout_candidate"] += 1
+        if flags["header"]:
+            summary["gold_load_in_header_candidate"] += 1
+        if flags["table"]:
+            summary["gold_load_in_table_candidate"] += 1
+        if flags["legacy_fallback"]:
+            summary["gold_load_in_legacy_fallback_candidate"] += 1
+        visibility = _load_visibility_status(record, _load_value_hashes(gold_values))
+        visible_text = visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+        visible_layout = visibility["visible_in_layout_words"] or visibility["visible_in_layout_tables"]
+        if not flags["any"]:
+            summary["gold_load_not_in_candidates"] += 1
+            triage = record.get("triage", {}) if isinstance(record, dict) else {}
+            artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+            if visible_text:
+                missing_reason = "gold_load_visible_in_text_but_not_candidate"
+                summary["gold_load_visible_in_text_but_not_candidate"] += 1
+            elif visible_layout:
+                missing_reason = "gold_load_visible_in_layout_but_not_candidate"
+                summary["gold_load_visible_in_layout_but_not_candidate"] += 1
+            elif triage.get("ocr_required") or not artifact.get("full_text_present"):
+                missing_reason = "gold_load_requires_ocr_or_vision"
+                summary["gold_load_requires_ocr_or_vision"] += 1
+            elif inventory:
+                missing_reason = "gold_load_not_visible_in_current_artifact"
+            elif not visibility["visibility_available"]:
+                missing_reason = "private_visibility_probe_not_available"
+            else:
+                missing_reason = "candidate_inventory_empty"
+            missing_reasons[missing_reason] += 1
+        else:
+            missing_reason = ""
+        summary["documents"].append(
+            {
+                "document_id": _text(label.get("document_id")),
+                "file_hash_prefix_present": bool(_text(label.get("file_hash"))),
+                "gold_load_in_any_candidate": flags["any"],
+                "gold_load_in_independent_candidate": flags["independent"],
+                "gold_load_in_layout_candidate": flags["layout"],
+                "gold_load_in_header_candidate": flags["header"],
+                "gold_load_in_table_candidate": flags["table"],
+                "gold_load_in_legacy_fallback_candidate": flags["legacy_fallback"],
+                "visible_in_text": visible_text,
+                "visible_in_layout": visible_layout,
+                "missing_reason": missing_reason,
+                "raw_value_printed": False,
+            }
+        )
+    summary["candidate_missing_reason_counts"] = dict(missing_reasons.most_common())
+    return summary
+
+
 def _build_load_number_error_analysis(comparison_rows):
     index = {
         (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
@@ -1610,6 +1780,10 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "error_case_breakdown": error_case_breakdown,
         "load_number_error_analysis": _build_load_number_error_analysis(comparison_rows),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
+        "load_candidate_recall_summary": _build_load_candidate_recall_summary(
+            gold_labels,
+            indexed,
+        ),
         "document_metrics": document_rows,
         "comparison_rows": comparison_rows,
         "private_values_printed": False,

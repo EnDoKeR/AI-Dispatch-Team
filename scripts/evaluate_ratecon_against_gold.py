@@ -249,6 +249,10 @@ def _markdown_report(evaluation):
         "rate_error_analysis: "
         + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
     )
+    lines.extend(["", "## Load Candidate Recall", ""])
+    recall = dict(evaluation.get("load_candidate_recall_summary", {}) or {})
+    recall.pop("documents", None)
+    lines.append("load_candidate_recall_summary: " + json.dumps(recall, sort_keys=True))
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:

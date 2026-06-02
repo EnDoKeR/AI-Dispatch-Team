@@ -290,6 +290,28 @@ class RateConShadowAuditTests(unittest.TestCase):
                         },
                     }
                 },
+                "private_eval_artifact": {
+                    "full_text": "Load # FAKE-LOAD-1",
+                    "pages": [
+                        {
+                            "page_number": 1,
+                            "lines": [{"text": "Load # FAKE-LOAD-1"}],
+                            "words": [{"text": "FAKE-LOAD-1"}],
+                            "tables": [
+                                {
+                                    "rows": [
+                                        {
+                                            "cells": [
+                                                {"text": "Load #"},
+                                                {"text": "FAKE-LOAD-1"},
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ],
+                        }
+                    ],
+                },
             },
         }
         legacy = build_legacy_summary_from_resolution(
@@ -322,6 +344,16 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertEqual(
             record["private_eval_values"]["shadow_candidate_best"]["load_number"]["value"],
             "FAKE-LOAD-1",
+        )
+        self.assertEqual(
+            record["private_eval_values"]["load_identity_candidate_inventory"][0]["value"],
+            "FAKE-LOAD-1",
+        )
+        self.assertTrue(
+            record["private_eval_values"]["load_visibility_probe"]["full_text_token_hashes"]
+        )
+        self.assertFalse(
+            record["private_eval_values"]["load_visibility_probe"]["raw_text_included"]
         )
         self.assertFalse(record["private_eval_values"]["raw_text_included"])
 

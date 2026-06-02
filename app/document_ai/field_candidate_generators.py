@@ -11,6 +11,7 @@ import re
 
 from app.document_ai.field_candidate_provenance import (
     SOURCE_LEGACY_PARSER,
+    SOURCE_NATIVE_LAYOUT,
     SOURCE_NATIVE_TEXT,
     build_field_candidate,
     adapt_candidate_result_to_field_candidates,
@@ -74,8 +75,16 @@ GENERATOR_LEGACY_RESOLUTION_CANDIDATES = "legacy_resolution_candidate_adapter"
 GENERATOR_LEGACY_STOP_SET = "legacy_stop_set_adapter"
 GENERATOR_LEGACY_FINAL_OUTPUT = "legacy_final_output_adapter"
 GENERATOR_LAYOUT_CANDIDATE_RESULT = "layout_candidate_result_adapter"
+GENERATOR_HEADER_LOAD_IDENTITY = "header_load_identity_candidate_generator"
 
 SOURCE_LEGACY_FINAL_OUTPUT = "legacy_final_output"
+
+LOAD_CANDIDATE_PROFILE_BASELINE = "baseline"
+LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1 = "header_recall_v1"
+LOAD_CANDIDATE_PROFILES = {
+    LOAD_CANDIDATE_PROFILE_BASELINE,
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
+}
 
 _IDENTIFIER_LABEL_CORE = (
     r"rate\s+confirmation|load|shipment|order|tender|confirmation|trip|dispatch|"
@@ -95,6 +104,47 @@ LOAD_IDENTIFIER_LABEL_ONLY_PATTERN = re.compile(
     + r")(?:\s*(?:#|no\.?|number|id))?)\s*[:#-]?\s*$",
     re.IGNORECASE,
 )
+HEADER_LOAD_IDENTITY_PATTERN = re.compile(
+    r"(?P<label>"
+    r"carrier\s+rate\s+and\s+load\s+confirmation\s+load\s+number|"
+    r"carrier\s+load\s+tender\s+load\s*#?|"
+    r"long\s+haul\s+load\s*#?|"
+    r"rate\s+confirmation\s*#?|"
+    r"confirmation\s*#?|"
+    r"load\s*(?:#|number|no\.?|id)|"
+    r"order(?:\(s\))?\s*(?:#|number|no\.?)|"
+    r"shipment\s*(?:id|#|number)|"
+    r"freight\s+bill\s*#?|"
+    r"pro\s*#?|"
+    r"(?:p\.?\s*o\.?|po)\s*#?"
+    r")\s*(?:[:#-]|\s)\s*"
+    r"(?P<value>[A-Za-z0-9][A-Za-z0-9_./-]{2,})",
+    re.IGNORECASE,
+)
+HEADER_STOP_REFERENCE_PATTERN = re.compile(
+    r"(?P<label>"
+    r"pu\s*#?|pickup\s*#?|pickup\s+number|delivery\s*#?|del\s*#?|"
+    r"bol\s*#?|b\.o\.l\.?\s*#?|customer\s+ref(?:erence)?|reference\s*#?|ref\s*#?|"
+    r"driver\s*#?|truck\s*#?|tractor\s*#?|trailer\s*#?"
+    r")\s*(?:[:#-]|\s)\s*"
+    r"(?P<value>[A-Za-z0-9][A-Za-z0-9_./-]{2,})",
+    re.IGNORECASE,
+)
+HEADER_TITLE_TERMS = (
+    "rate confirmation",
+    "load confirmation",
+    "carrier load tender",
+    "carrier rate and load confirmation",
+    "truck order not used",
+)
+HEADER_LOAD_INFO_TERMS = (
+    "load information",
+    "shipment information",
+    "carrier load tender",
+    "carrier rate and load confirmation",
+)
+HEADER_FOOTER_TERMS = ("signature", "signed by", "driver signature", "carrier signature")
+
 
 
 @dataclass(frozen=True)
@@ -513,6 +563,286 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
     return candidates, [], diagnostics
 
 
+def _header_line_rows(artifact):
+    rows = []
+    for page in (artifact or {}).get("pages", []) or []:
+        try:
+            page_number = int(page.get("page_number") or len(rows) + 1)
+        except (TypeError, ValueError):
+            page_number = len(rows) + 1
+        page_height = page.get("height") or 0
+        line_items = page.get("lines", []) or []
+        if not line_items:
+            line_items = [
+                {"text": line.strip(), "line_index": index}
+                for index, line in enumerate(str(page.get("text") or "").splitlines())
+                if line.strip()
+            ]
+        context = "unknown"
+        for index, item in enumerate(line_items):
+            if not isinstance(item, dict):
+                item = {"text": item, "line_index": index}
+            text = _text(item.get("text"))
+            if not text:
+                continue
+            context = _header_section_context(text, context)
+            bbox = item.get("bbox") if isinstance(item.get("bbox"), list) else None
+            y0 = bbox[1] if bbox and len(bbox) >= 2 else None
+            rows.append(
+                {
+                    "page": page_number,
+                    "line_index": int(item.get("line_index", index) or 0),
+                    "text": text,
+                    "bbox": bbox,
+                    "page_height": page_height,
+                    "section_context": context,
+                    "source": _text(item.get("source")) or SOURCE_NATIVE_TEXT,
+                    "top_region": (
+                        page_number == 1
+                        and (
+                            int(item.get("line_index", index) or 0) <= 14
+                            or (
+                                isinstance(y0, (int, float))
+                                and float(page_height or 0) > 0
+                                and y0 <= float(page_height) * 0.28
+                            )
+                        )
+                    ),
+                }
+            )
+    if not rows and _text((artifact or {}).get("full_text")):
+        context = "unknown"
+        for index, line in enumerate(str((artifact or {}).get("full_text") or "").splitlines()):
+            text = _text(line)
+            if not text:
+                continue
+            context = _header_section_context(text, context)
+            rows.append(
+                {
+                    "page": 1,
+                    "line_index": index,
+                    "text": text,
+                    "bbox": None,
+                    "page_height": 0,
+                    "section_context": context,
+                    "source": SOURCE_NATIVE_TEXT,
+                    "top_region": index <= 14,
+                }
+            )
+    return rows
+
+
+def _header_section_context(text, previous_context="unknown"):
+    lower = _text(text).lower()
+    if any(term in lower for term in HEADER_FOOTER_TERMS):
+        return "footer_signature"
+    if any(term in lower for term in ["pickup", "pick up", "delivery", "shipper", "consignee", "stop"]):
+        return "stop_section"
+    if any(term in lower for term in HEADER_LOAD_INFO_TERMS):
+        return "load_info"
+    if any(term in lower for term in ["reference", "customer ref", "bol", "pu#", "pu #"]):
+        return "reference_section"
+    if any(term in lower for term in ["instructions", "terms", "notes"]):
+        return "instructions"
+    if any(term in lower for term in ["rate", "charges", "carrier pay"]) and "confirmation" not in lower:
+        return "payment"
+    return previous_context or "unknown"
+
+
+def _header_document_region(row, label):
+    text = _text(row.get("text")).lower()
+    section = _text(row.get("section_context"))
+    if section in {"stop_section", "reference_section", "instructions", "footer_signature"}:
+        return section
+    if row.get("top_region") and any(term in text for term in HEADER_TITLE_TERMS):
+        return "document_title"
+    if section == "load_info":
+        return "load_info"
+    if row.get("top_region"):
+        return "header"
+    return "unknown"
+
+
+def _header_id_hint(label):
+    lower = _text(label).lower().replace(".", "")
+    if "freight bill" in lower:
+        return "freight_bill"
+    if "pro" in lower:
+        return "pro"
+    if "po" in lower:
+        return "po"
+    if "order" in lower:
+        return "order"
+    if "shipment" in lower:
+        return "shipment"
+    if "confirmation" in lower:
+        return "confirmation"
+    if "load" in lower:
+        return "load"
+    if "pickup" in lower or lower.startswith("pu"):
+        return "pickup_ref"
+    if "delivery" in lower or lower.startswith("del"):
+        return "delivery_ref"
+    if "bol" in lower:
+        return "bol"
+    if "driver" in lower or "truck" in lower or "tractor" in lower or "trailer" in lower:
+        return "vehicle_noise"
+    if "ref" in lower:
+        return "reference"
+    return "unknown"
+
+
+def _header_label_strength(id_hint, document_region, text):
+    token_count = len(_text(text).split())
+    if document_region in {"stop_section", "reference_section", "footer_signature", "instructions"}:
+        return "weak"
+    if id_hint in {"load", "order", "shipment", "confirmation"}:
+        return "strong"
+    if id_hint in {"po"} and document_region in {"document_title", "header", "load_info"} and any(
+        term in text.lower() for term in ["rate confirmation", "load confirmation", "load information"]
+    ):
+        return "strong"
+    if id_hint == "po" and document_region in {"header", "document_title", "load_info"} and token_count <= 4:
+        return "medium"
+    if id_hint in {"freight_bill", "pro"} and document_region in {"document_title", "header", "load_info"}:
+        return "medium"
+    return "weak"
+
+
+def _header_candidate_confidence(label_strength, method, id_hint):
+    if label_strength == "strong":
+        return 0.84 if id_hint in {"load", "order", "shipment", "po"} else 0.78
+    if label_strength == "medium":
+        return 0.72 if method in {"title_line", "header_key_value", "load_info_key_value"} else 0.66
+    return 0.45
+
+
+def _header_context_penalty(id_hint, document_region):
+    if id_hint == "vehicle_noise":
+        return "driver_truck_trailer_noise"
+    if id_hint in {"pickup_ref", "delivery_ref"}:
+        return "pickup_delivery_reference"
+    if document_region == "stop_section":
+        return "stop_level_reference"
+    if document_region == "reference_section" and id_hint in {"bol", "reference"}:
+        return "reference_section_id"
+    if document_region == "footer_signature":
+        return "footer_signature_id"
+    if id_hint == "bol":
+        return "bol_reference"
+    return None
+
+
+def _header_load_candidate(row, label, value, method, diagnostics):
+    diagnostics["candidate_attempt_count"] += 1
+    skip_reason = _identifier_value_skip_reason(value)
+    if skip_reason:
+        diagnostics["rejection_reason_counts"][skip_reason] += 1
+        return None
+    document_region = _header_document_region(row, label)
+    id_hint = _header_id_hint(label)
+    penalty = _header_context_penalty(id_hint, document_region)
+    if penalty == "driver_truck_trailer_noise":
+        diagnostics["rejection_reason_counts"][penalty] += 1
+        return None
+    label_strength = _header_label_strength(id_hint, document_region, row.get("text", ""))
+    primary = bool(
+        label_strength in {"strong", "medium"}
+        and document_region in {"document_title", "header", "load_info"}
+        and id_hint not in {"bol", "reference", "pickup_ref", "delivery_ref", "vehicle_noise"}
+    )
+    confidence = _header_candidate_confidence(label_strength, method, id_hint)
+    if not primary:
+        confidence = min(confidence, 0.50)
+    diagnostics["candidate_emitted_count"] += 1
+    diagnostics["emitted_by_method"][method] += 1
+    diagnostics["emitted_by_id_type"][id_hint] += 1
+    diagnostics["emitted_by_region"][document_region] += 1
+    source = SOURCE_NATIVE_LAYOUT if row.get("bbox") else SOURCE_NATIVE_TEXT
+    return _annotate(
+        build_field_candidate(
+            field=FIELD_LOAD_NUMBER if primary else "reference_numbers",
+            value=value,
+            normalized_value=value,
+            label=label,
+            evidence_text=f"{label} [{method}-header-value-present]",
+            page=row.get("page"),
+            bbox=row.get("bbox"),
+            source=source,
+            parser_name=GENERATOR_HEADER_LOAD_IDENTITY,
+            confidence=confidence,
+            metadata={
+                "generator_name": GENERATOR_HEADER_LOAD_IDENTITY,
+                "document_region": document_region,
+                "section_context": row.get("section_context", "unknown"),
+                "id_type_hint": id_hint,
+                "is_primary_identifier_candidate": primary,
+                "is_document_title_or_header_id": document_region in {"document_title", "header", "load_info"},
+                "label_strength": label_strength,
+                "value_extraction_method": method,
+                "pairing_method": method,
+                "context_penalty_reason": penalty or "",
+                "candidate_value_shape": candidate_value_shape(value),
+                "gold_recall_debug": False,
+                "header_load_identity_candidate": True,
+            },
+        ),
+        GENERATOR_HEADER_LOAD_IDENTITY,
+        independent=True,
+    )
+
+
+def _header_load_identity_generator(artifact, triage=None, legacy_context=None):
+    candidates = []
+    diagnostics = {
+        "rows_scanned_count": 0,
+        "label_hits_count": 0,
+        "candidate_attempt_count": 0,
+        "candidate_emitted_count": 0,
+        "rejection_reason_counts": Counter(),
+        "emitted_by_method": Counter(),
+        "emitted_by_region": Counter(),
+        "emitted_by_id_type": Counter(),
+    }
+    for row in _header_line_rows(artifact):
+        diagnostics["rows_scanned_count"] += 1
+        row_text = _text(row.get("text"))
+        region = _header_document_region(row, "")
+        if region not in {"document_title", "header", "load_info", "stop_section", "reference_section", "footer_signature"}:
+            continue
+        for pattern, stop_reference in [
+            (HEADER_LOAD_IDENTITY_PATTERN, False),
+            (HEADER_STOP_REFERENCE_PATTERN, True),
+        ]:
+            for match in pattern.finditer(row_text):
+                diagnostics["label_hits_count"] += 1
+                label = match.group("label")
+                value = match.group("value")
+                method = (
+                    "title_line"
+                    if region == "document_title"
+                    else "load_info_key_value"
+                    if region == "load_info"
+                    else "same_line"
+                    if stop_reference
+                    else "header_key_value"
+                )
+                candidate = _header_load_candidate(
+                    row,
+                    label,
+                    value,
+                    method,
+                    diagnostics,
+                )
+                if candidate:
+                    candidates.append(candidate)
+    diagnostics = {
+        key: dict(value.most_common()) if isinstance(value, Counter) else value
+        for key, value in diagnostics.items()
+    }
+    return candidates, [], {"header_load_identity_summary": diagnostics}
+
+
 def _context_candidate_result(legacy_context):
     context = legacy_context or {}
     result = {}
@@ -819,8 +1149,18 @@ def generate_field_candidates(
     include_legacy_final_candidates=True,
     strict=False,
     generators=None,
+    load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
 ):
     active_generators = list(generators or DEFAULT_GENERATORS)
+    if generators is None and load_candidate_profile == LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1:
+        active_generators.insert(
+            2,
+            FieldCandidateGenerator(
+                GENERATOR_HEADER_LOAD_IDENTITY,
+                "native_text_layout_header",
+                _header_load_identity_generator,
+            ),
+        )
 
     candidates = []
     summaries = []

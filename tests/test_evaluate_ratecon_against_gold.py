@@ -1,6 +1,7 @@
 import json
 import tempfile
 from pathlib import Path
+import hashlib
 import unittest
 
 from app.document_ai.ratecon_gold_labels import (
@@ -243,6 +244,80 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
             1,
         )
 
+    def test_load_candidate_recall_counts_gold_in_candidate_inventory(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "load_identity_candidate_inventory": [
+                {
+                    "field": "load_number",
+                    "value": "LOAD-123",
+                    "independent": True,
+                    "layout_based": True,
+                    "header_candidate": True,
+                    "table_based": False,
+                    "legacy_fallback": False,
+                }
+            ],
+            "load_visibility_probe": {},
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        recall = result["load_candidate_recall_summary"]
+
+        self.assertEqual(recall["evaluated_docs"], 1)
+        self.assertEqual(recall["gold_load_in_any_candidate"], 1)
+        self.assertEqual(recall["gold_load_in_independent_candidate"], 1)
+        self.assertEqual(recall["gold_load_in_layout_candidate"], 1)
+        self.assertEqual(recall["gold_load_in_header_candidate"], 1)
+        self.assertEqual(recall["gold_load_not_in_candidates"], 0)
+
+    def test_load_candidate_recall_counts_gold_visible_in_text_but_not_candidate(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        digest = hashlib.sha256("load123".encode("utf-8")).hexdigest()
+        record["private_eval_values"] = {
+            "load_identity_candidate_inventory": [],
+            "load_visibility_probe": {
+                "full_text_token_hashes": [digest],
+                "line_token_hashes": [],
+                "layout_word_token_hashes": [],
+                "layout_table_token_hashes": [],
+            },
+        }
+        record["artifact_summary"] = {"full_text_present": True}
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        recall = result["load_candidate_recall_summary"]
+
+        self.assertEqual(recall["gold_load_not_in_candidates"], 1)
+        self.assertEqual(recall["gold_load_visible_in_text_but_not_candidate"], 1)
+        self.assertEqual(
+            recall["candidate_missing_reason_counts"]["gold_load_visible_in_text_but_not_candidate"],
+            1,
+        )
+        self.assertFalse(recall["documents"][0]["raw_value_printed"])
+
+    def test_load_candidate_recall_counts_ocr_visibility_gap(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "load_identity_candidate_inventory": [],
+            "load_visibility_probe": {
+                "full_text_token_hashes": [],
+                "line_token_hashes": [],
+                "layout_word_token_hashes": [],
+                "layout_table_token_hashes": [],
+            },
+        }
+        record["triage"] = {"ocr_required": True}
+        record["artifact_summary"] = {"full_text_present": False}
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        recall = result["load_candidate_recall_summary"]
+
+        self.assertEqual(recall["gold_load_requires_ocr_or_vision"], 1)
+
     def test_serialized_stop_presence_without_components_is_not_missing(self):
         label = self._gold_label()
         record = self._audit_record()
@@ -449,12 +524,39 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                         "precision": 0.0,
                         "recall": 0.0,
                         "high_confidence_but_wrong_count": 0,
+                    },
+                    FIELD_TOTAL_CARRIER_RATE: {
+                        "exact_match_count": 0,
+                        "normalized_match_count": 1,
+                        "missing_count": 0,
+                        "wrong_value_count": 1,
+                        "precision": 0.5,
+                        "recall": 0.5,
+                        "high_confidence_but_wrong_count": 1,
                     }
                 }
             },
             "load_number_error_analysis": {
                 "wrong_selected_count": 0,
                 "missing_count": 1,
+            },
+            "rate_error_analysis": {
+                "wrong_selected_count": 1,
+                "missing_count": 0,
+                "gold_total_in_candidates_not_selected": 1,
+            },
+            "load_candidate_recall_summary": {
+                "evaluated_docs": 1,
+                "gold_load_in_any_candidate": 0,
+                "gold_load_in_independent_candidate": 0,
+                "gold_load_in_layout_candidate": 0,
+                "gold_load_in_header_candidate": 0,
+                "gold_load_in_table_candidate": 0,
+                "gold_load_in_legacy_fallback_candidate": 0,
+                "gold_load_not_in_candidates": 1,
+                "gold_load_visible_in_text_but_not_candidate": 1,
+                "gold_load_visible_in_layout_but_not_candidate": 0,
+                "gold_load_requires_ocr_or_vision": 0,
             },
         }
         experiment = {
@@ -469,12 +571,39 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                         "precision": 1.0,
                         "recall": 1.0,
                         "high_confidence_but_wrong_count": 0,
+                    },
+                    FIELD_TOTAL_CARRIER_RATE: {
+                        "exact_match_count": 0,
+                        "normalized_match_count": 2,
+                        "missing_count": 0,
+                        "wrong_value_count": 0,
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "high_confidence_but_wrong_count": 0,
                     }
                 }
             },
             "load_number_error_analysis": {
                 "wrong_selected_count": 0,
                 "missing_count": 0,
+            },
+            "rate_error_analysis": {
+                "wrong_selected_count": 0,
+                "missing_count": 0,
+                "gold_total_in_candidates_not_selected": 0,
+            },
+            "load_candidate_recall_summary": {
+                "evaluated_docs": 1,
+                "gold_load_in_any_candidate": 1,
+                "gold_load_in_independent_candidate": 1,
+                "gold_load_in_layout_candidate": 1,
+                "gold_load_in_header_candidate": 1,
+                "gold_load_in_table_candidate": 0,
+                "gold_load_in_legacy_fallback_candidate": 0,
+                "gold_load_not_in_candidates": 0,
+                "gold_load_visible_in_text_but_not_candidate": 0,
+                "gold_load_visible_in_layout_but_not_candidate": 0,
+                "gold_load_requires_ocr_or_vision": 0,
             },
         }
 
@@ -486,6 +615,18 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         )
         self.assertEqual(
             comparison["load_number_error_analysis_delta"]["delta"]["missing_count"],
+            -1,
+        )
+        self.assertEqual(
+            comparison["load_candidate_recall_delta"]["delta"]["gold_load_in_any_candidate"],
+            1,
+        )
+        self.assertEqual(
+            comparison["rate_profile_safety_summary"]["correct_delta"],
+            1,
+        )
+        self.assertEqual(
+            comparison["rate_profile_safety_summary"]["wrong_delta"],
             -1,
         )
 

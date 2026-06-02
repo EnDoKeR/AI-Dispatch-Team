@@ -7,8 +7,10 @@ the legacy extraction result.
 
 from collections import Counter, defaultdict
 from decimal import Decimal, InvalidOperation
+import hashlib
 import json
 from pathlib import Path
+import re
 
 from app.document_ai.private_measurement_outputs import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
@@ -1461,6 +1463,9 @@ def _metadata_eval_summary(metadata):
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
+        "header_load_identity_candidate",
+        "value_extraction_method",
+        "gold_recall_debug",
     ]
     return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
 
@@ -1769,7 +1774,121 @@ def _legacy_eval_predictions(legacy_summary=None, private_eval_context=None):
     return payload
 
 
-def build_private_eval_values(raw_resolved=None, candidates=None, legacy_summary=None, private_eval_context=None):
+def _normalize_load_probe_value(value):
+    text = _text(value).lower()
+    text = re.sub(r"\s+", "", text)
+    text = re.sub(r"[-_/]+", "", text)
+    return text
+
+
+def _load_probe_hash(value):
+    normalized = _normalize_load_probe_value(value)
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
+def _identifier_like_tokens(text):
+    tokens = set()
+    for raw in re.findall(r"[A-Za-z0-9][A-Za-z0-9_./-]{2,}", _text(text)):
+        normalized = _normalize_load_probe_value(raw)
+        if 3 <= len(normalized) <= 40 and any(char.isdigit() for char in normalized):
+            tokens.add(normalized)
+    return tokens
+
+
+def _token_hashes_from_texts(texts):
+    hashes = set()
+    for text in texts or []:
+        for token in _identifier_like_tokens(text):
+            digest = _load_probe_hash(token)
+            if digest:
+                hashes.add(digest)
+    return sorted(hashes)
+
+
+def _load_visibility_probe(artifact):
+    artifact = artifact if isinstance(artifact, dict) else {}
+    pages = artifact.get("pages", []) or []
+    full_texts = [artifact.get("full_text", "")]
+    line_texts = []
+    word_texts = []
+    table_texts = []
+    for page in pages:
+        if not isinstance(page, dict):
+            continue
+        line_texts.extend(
+            _text(line.get("text") if isinstance(line, dict) else line)
+            for line in page.get("lines", []) or []
+        )
+        word_texts.extend(
+            _text(word.get("text") if isinstance(word, dict) else word)
+            for word in page.get("words", []) or []
+        )
+        for table in page.get("tables", []) or []:
+            if not isinstance(table, dict):
+                continue
+            for row in table.get("rows", []) or []:
+                if not isinstance(row, dict):
+                    continue
+                table_texts.extend(
+                    _text(cell.get("text") if isinstance(cell, dict) else cell)
+                    for cell in row.get("cells", []) or []
+                )
+    return {
+        "schema_version": "ratecon_load_visibility_probe_v1",
+        "full_text_token_hashes": _token_hashes_from_texts(full_texts),
+        "line_token_hashes": _token_hashes_from_texts(line_texts),
+        "layout_word_token_hashes": _token_hashes_from_texts(word_texts),
+        "layout_table_token_hashes": _token_hashes_from_texts(table_texts),
+        "has_full_text": bool(_text(artifact.get("full_text"))),
+        "has_lines": bool(line_texts),
+        "has_layout_words": bool(word_texts),
+        "has_layout_tables": bool(table_texts),
+        "raw_text_included": False,
+    }
+
+
+def _load_identity_candidate_inventory(candidates):
+    inventory = []
+    for candidate in candidates or []:
+        if _candidate_field(candidate) not in {FIELD_LOAD_NUMBER, "reference_numbers"}:
+            continue
+        metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+        value = candidate.get("normalized_value") or candidate.get("value")
+        inventory.append(
+            {
+                "field": _candidate_field(candidate),
+                "value": _json_safe(value),
+                "value_hash": _load_probe_hash(value),
+                "confidence": round(float(candidate.get("confidence") or 0.0), 3),
+                "source": _text(candidate.get("source")),
+                "parser_name": _text(candidate.get("parser_name")),
+                "metadata_summary": _metadata_eval_summary(metadata),
+                "independent": not _candidate_is_fallback(candidate),
+                "layout_based": _candidate_is_layout(candidate),
+                "header_candidate": bool(
+                    metadata.get("header_load_identity_candidate")
+                    or metadata.get("is_document_title_or_header_id")
+                    or metadata.get("document_region") in {"header", "document_title", "load_info"}
+                ),
+                "table_based": bool(
+                    metadata.get("table_cell_candidate")
+                    or _text(metadata.get("pairing_method")).startswith("table_")
+                ),
+                "legacy_fallback": _candidate_is_fallback(candidate),
+            }
+        )
+    return inventory
+
+
+def build_private_eval_values(
+    raw_resolved=None,
+    candidates=None,
+    legacy_summary=None,
+    private_eval_context=None,
+    private_eval_artifact=None,
+):
     raw_resolved = raw_resolved if isinstance(raw_resolved, dict) else {}
     candidates = [candidate for candidate in candidates or [] if isinstance(candidate, dict)]
     payload = {
@@ -1783,6 +1902,8 @@ def build_private_eval_values(raw_resolved=None, candidates=None, legacy_summary
         "shadow_best_independent_candidate": {},
         "shadow_best_layout_candidate": {},
         "legacy_fallback_candidate": {},
+        "load_identity_candidate_inventory": [],
+        "load_visibility_probe": _load_visibility_probe(private_eval_artifact),
         "raw_text_included": False,
         "evidence_text_included": False,
     }
@@ -1802,6 +1923,7 @@ def build_private_eval_values(raw_resolved=None, candidates=None, legacy_summary
             candidate = _best_candidate(candidates, field_name, predicate=predicate)
             if candidate:
                 payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+    payload["load_identity_candidate_inventory"] = _load_identity_candidate_inventory(candidates)
     return payload
 
 
@@ -2488,6 +2610,7 @@ def build_ratecon_shadow_audit_record(
             "resolver_decision_traces": resolver_traces,
             "review_gate_trace": review_gate_trace,
             "ranking_profile": _text(debug.get("ranking_profile")),
+            "load_candidate_profile": _text(debug.get("load_candidate_profile")),
         },
         "triage": triage,
         "artifact_summary": artifact,
@@ -2506,6 +2629,7 @@ def build_ratecon_shadow_audit_record(
             candidates=candidates,
             legacy_summary=legacy_summary,
             private_eval_context=private_eval_context,
+            private_eval_artifact=debug.get("private_eval_artifact"),
         )
     return record
 

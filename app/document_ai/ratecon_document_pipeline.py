@@ -10,7 +10,10 @@ from app.document_ai.document_extraction_artifact import (
     artifact_summary,
     extract_document_artifact_from_pdf,
 )
-from app.document_ai.field_candidate_generators import generate_field_candidates
+from app.document_ai.field_candidate_generators import (
+    LOAD_CANDIDATE_PROFILE_BASELINE,
+    generate_field_candidates,
+)
 from app.document_ai.field_candidate_resolver import (
     FIELD_BROKER_NAME,
     FIELD_CARRIER_NAME,
@@ -76,6 +79,8 @@ def extract_ratecon_document(
     shadow_table_profile="default",
     strict_layout_provider=False,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
+    shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
+    include_private_eval_artifact=False,
 ):
     triage = triage_document(file_path, document_id=document_id)
     artifact = extract_document_artifact_from_pdf(
@@ -92,6 +97,7 @@ def extract_ratecon_document(
         legacy_context=legacy_context or {},
         include_legacy_final_candidates=include_legacy_final_candidates,
         strict=strict_candidate_generators,
+        load_candidate_profile=shadow_load_candidate_profile,
     )
     candidates = generation_result.get("candidates", [])
 
@@ -127,6 +133,7 @@ def extract_ratecon_document(
             "resolver_decision_traces": resolved.get("resolver_decision_traces", {}),
             "review_gate_trace": resolved.get("review_gate_trace", {}),
             "ranking_profile": resolved.get("ranking_profile", shadow_ranking_profile),
+            "load_candidate_profile": shadow_load_candidate_profile,
             "needs_review": resolved.get("needs_review", True),
             "review_reasons": resolved.get("review_reasons", []),
             "candidate_warnings": [
@@ -136,4 +143,6 @@ def extract_ratecon_document(
             ],
             "missing_candidate_fields": [],
         }
+        if include_private_eval_artifact:
+            result["debug"]["private_eval_artifact"] = artifact
     return result

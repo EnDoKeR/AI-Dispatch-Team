@@ -97,6 +97,47 @@ def _analysis_delta(baseline, experiment, key):
     return payload
 
 
+def _recall_summary_delta(baseline, experiment):
+    base = baseline.get("load_candidate_recall_summary", {}) or {}
+    exp = experiment.get("load_candidate_recall_summary", {}) or {}
+    keys = [
+        "evaluated_docs",
+        "gold_load_in_any_candidate",
+        "gold_load_in_independent_candidate",
+        "gold_load_in_layout_candidate",
+        "gold_load_in_header_candidate",
+        "gold_load_in_table_candidate",
+        "gold_load_in_legacy_fallback_candidate",
+        "gold_load_not_in_candidates",
+        "gold_load_visible_in_text_but_not_candidate",
+        "gold_load_visible_in_layout_but_not_candidate",
+        "gold_load_requires_ocr_or_vision",
+    ]
+    return {
+        "baseline": {key: base.get(key, 0) for key in keys},
+        "experiment": {key: exp.get(key, 0) for key in keys},
+        "delta": {key: int(exp.get(key, 0)) - int(base.get(key, 0)) for key in keys},
+        "baseline_missing_reasons": base.get("candidate_missing_reason_counts", {}) or {},
+        "experiment_missing_reasons": exp.get("candidate_missing_reason_counts", {}) or {},
+    }
+
+
+def _rate_profile_safety_summary(baseline, experiment):
+    rate_delta = _field_delta(baseline, experiment, FIELD_TOTAL_CARRIER_RATE).get("delta", {})
+    error_delta = _analysis_delta(baseline, experiment, "rate_error_analysis").get("delta", {})
+    return {
+        "correct_delta": rate_delta.get("correct_count", 0),
+        "wrong_delta": rate_delta.get("wrong_value_count", 0),
+        "missing_delta": rate_delta.get("missing_count", 0),
+        "high_confidence_wrong_delta": rate_delta.get("high_confidence_but_wrong_count", 0),
+        "gold_total_in_candidates_not_selected_delta": error_delta.get(
+            "gold_total_in_candidates_not_selected",
+            0,
+        ),
+        "wrong_money_context_delta": error_delta.get("wrong_selected_count", 0),
+    }
+
+
 def _stop_serialization(summary, field_name):
     metric = _metric(summary, field_name)
     return {
@@ -138,6 +179,8 @@ def compare_summaries(baseline, experiment):
             experiment,
             "rate_error_analysis",
         ),
+        "load_candidate_recall_delta": _recall_summary_delta(baseline, experiment),
+        "rate_profile_safety_summary": _rate_profile_safety_summary(baseline, experiment),
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -165,6 +208,10 @@ def _markdown_report(comparison):
         "total_carrier_rate: "
         + json.dumps(comparison.get("rate_error_analysis_delta", {}) or {}, sort_keys=True)
     )
+    lines.extend(["", "## Load Candidate Recall Delta", ""])
+    lines.append(json.dumps(comparison.get("load_candidate_recall_delta", {}) or {}, sort_keys=True))
+    lines.extend(["", "## Rate Profile Safety", ""])
+    lines.append(json.dumps(comparison.get("rate_profile_safety_summary", {}) or {}, sort_keys=True))
     return "\n".join(lines) + "\n"
 
 
