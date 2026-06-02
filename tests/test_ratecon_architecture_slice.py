@@ -14,6 +14,7 @@ from app.document_ai.field_candidate_resolver import (
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
     LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    LOAD_RANKING_PROFILES,
     RATE_RANKING_PROFILES,
     RANKING_PROFILE_BASELINE,
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
@@ -376,6 +377,7 @@ class RateConArchitectureSliceTests(unittest.TestCase):
             RANKING_PROFILE_BASELINE,
         )
         self.assertIn(RANKING_PROFILE_GOLD_DIAGNOSTIC_V1, RATE_RANKING_PROFILES)
+        self.assertIn("header_recall_table_abstain_v1", LOAD_RANKING_PROFILES)
 
     def test_gold_diagnostic_profile_keeps_conflicting_totals_review_required(self):
         candidates = [

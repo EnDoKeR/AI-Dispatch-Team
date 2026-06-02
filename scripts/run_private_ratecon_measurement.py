@@ -645,7 +645,9 @@ def main(argv=None):
             "preserves current candidate generation; header_recall_v1 enables "
             "a local gold-recall experiment for generic document header/title "
             "load identifiers; header_recall_table_safety_v1 also applies "
-            "generic table-neighbor safety metadata/penalties."
+            "generic table-neighbor safety metadata/penalties; "
+            "header_recall_table_abstain_v1 conservatively abstains from "
+            "ambiguous table-neighbor load selections."
         ),
     )
     parser.add_argument(
@@ -654,10 +656,10 @@ def main(argv=None):
         choices=sorted(LOAD_RANKING_PROFILES),
         help=(
             "Shadow-only field-scoped load_number ranking/candidate profile. "
-            "When set to header_recall_v1 or header_recall_table_safety_v1, "
-            "it also drives the corresponding load candidate generation "
-            "profile. If omitted, the legacy broad --ratecon-shadow-ranking-profile "
-            "behavior is preserved."
+            "When set to a header_recall* profile, it also drives the "
+            "corresponding load candidate generation profile. If omitted, "
+            "the legacy broad --ratecon-shadow-ranking-profile behavior is "
+            "preserved."
         ),
     )
     parser.add_argument(

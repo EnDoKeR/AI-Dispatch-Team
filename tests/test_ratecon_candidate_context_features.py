@@ -2,6 +2,9 @@ import unittest
 
 from app.document_ai.ratecon_candidate_context_features import enrich_candidate_context
 from app.document_ai.ratecon_load_table_safety import (
+    TABLE_NEIGHBOR_SELECTION_ABSTAIN,
+    TABLE_NEIGHBOR_SELECTION_ALLOWED,
+    apply_table_abstention_profile_to_candidates,
     TABLE_NEIGHBOR_RISKY,
     TABLE_NEIGHBOR_SAFE,
     TABLE_NEIGHBOR_UNSAFE,
@@ -185,6 +188,182 @@ class RateconCandidateContextFeatureTests(unittest.TestCase):
                 )
                 self.assertEqual(candidate["metadata"]["table_neighbor_safety"], TABLE_NEIGHBOR_UNSAFE)
                 self.assertEqual(candidate["metadata"]["table_neighbor_penalty_reason"], penalty)
+
+    def test_table_abstention_allows_clear_load_info_key_value_row(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Load #",
+                "evidence_text": "Load # table value present",
+                "confidence": 0.84,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "load_id_row",
+                    "id_type_hint": "load",
+                    "label_strength": "strong",
+                    "id_like_cell_count_in_row": 1,
+                    "load_label_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([candidate])[0]
+
+        self.assertEqual(adjusted["field"], "load_number")
+        self.assertEqual(adjusted["metadata"]["selection_policy"], TABLE_NEIGHBOR_SELECTION_ALLOWED)
+        self.assertFalse(adjusted["metadata"]["table_neighbor_abstained"])
+
+    def test_table_abstention_demotes_mixed_reference_row(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Order #",
+                "evidence_text": "Order # Ref # table value present",
+                "confidence": 0.84,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "load_id_row",
+                    "id_type_hint": "order",
+                    "label_strength": "medium",
+                    "id_like_cell_count_in_row": 2,
+                    "load_label_cell_count_in_row": 1,
+                    "reference_label_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([candidate])[0]
+
+        self.assertEqual(adjusted["field"], "reference_numbers")
+        self.assertEqual(adjusted["metadata"]["selection_policy"], TABLE_NEIGHBOR_SELECTION_ABSTAIN)
+        self.assertTrue(adjusted["metadata"]["table_neighbor_abstained"])
+        self.assertEqual(
+            adjusted["metadata"]["table_neighbor_abstention_reason"],
+            "table_neighbor_mixed_stop_reference_load_row",
+        )
+
+    def test_strong_header_candidate_causes_ambiguous_table_neighbor_to_abstain(self):
+        header = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Load #",
+                "evidence_text": "Load # header value present",
+                "confidence": 0.86,
+                "metadata": {
+                    "document_region": "header",
+                    "id_type_hint": "load",
+                    "is_document_title_or_header_id": True,
+                },
+            }
+        )
+        table = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Order #",
+                "evidence_text": "Order # table value present",
+                "confidence": 0.82,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "load_id_row",
+                    "id_type_hint": "order",
+                    "label_strength": "medium",
+                    "id_like_cell_count_in_row": 2,
+                    "load_label_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([header, table])
+        table_adjusted = adjusted[1]
+
+        self.assertEqual(table_adjusted["field"], "reference_numbers")
+        self.assertEqual(
+            table_adjusted["metadata"]["table_neighbor_abstention_reason"],
+            "table_neighbor_strong_header_candidate_elsewhere",
+        )
+
+    def test_table_abstention_keeps_weak_only_candidate_low_confidence(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Shipment #",
+                "evidence_text": "Shipment # table value present",
+                "confidence": 0.80,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "load_id_row",
+                    "id_type_hint": "shipment",
+                    "label_strength": "medium",
+                    "id_like_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([candidate])[0]
+
+        self.assertEqual(adjusted["field"], "load_number")
+        self.assertEqual(adjusted["metadata"]["selection_policy"], "weak_only")
+        self.assertLessEqual(adjusted["confidence"], 0.55)
+
+    def test_header_row_table_key_value_candidate_abstains(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Load #",
+                "evidence_text": "Load # table header neighbor present",
+                "confidence": 0.88,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_key_value_row",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "header",
+                    "id_type_hint": "load",
+                    "label_strength": "strong",
+                    "id_like_cell_count_in_row": 1,
+                    "load_label_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([candidate])[0]
+
+        self.assertEqual(adjusted["field"], "reference_numbers")
+        self.assertEqual(
+            adjusted["metadata"]["table_neighbor_abstention_reason"],
+            "table_neighbor_header_row_key_value_unclear",
+        )
+
+    def test_header_value_column_candidate_remains_allowed(self):
+        candidate = enrich_candidate_context(
+            {
+                "field": "load_number",
+                "label": "Load #",
+                "evidence_text": "Load # header value below present",
+                "confidence": 0.80,
+                "metadata": {
+                    "table_cell_candidate": True,
+                    "pairing_method": "table_header_value_column",
+                    "table_context_role": "header_load_info",
+                    "table_row_role": "unknown",
+                    "id_type_hint": "load",
+                    "label_strength": "strong",
+                    "id_like_cell_count_in_row": 1,
+                },
+            }
+        )
+
+        adjusted = apply_table_abstention_profile_to_candidates([candidate])[0]
+
+        self.assertEqual(adjusted["field"], "load_number")
+        self.assertEqual(adjusted["metadata"]["selection_policy"], TABLE_NEIGHBOR_SELECTION_ALLOWED)
 
 
 if __name__ == "__main__":

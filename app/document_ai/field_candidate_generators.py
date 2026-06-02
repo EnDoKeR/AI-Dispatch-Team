@@ -36,7 +36,9 @@ from app.document_ai.layout_shadow_candidates import (
 )
 from app.document_ai.ratecon_candidate_context_features import enrich_candidates_context
 from app.document_ai.ratecon_load_table_safety import (
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    apply_table_abstention_profile_to_candidates,
     apply_table_safety_profile_to_candidates,
 )
 from app.document_ai.load_identity_forensics import (
@@ -89,6 +91,7 @@ LOAD_CANDIDATE_PROFILES = {
     LOAD_CANDIDATE_PROFILE_BASELINE,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
 }
 
 _IDENTIFIER_LABEL_CORE = (
@@ -1160,6 +1163,7 @@ def generate_field_candidates(
     if generators is None and load_candidate_profile in {
         LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
         LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+        LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
     }:
         active_generators.insert(
             2,
@@ -1284,4 +1288,6 @@ def generate_field_candidates(
     candidates = enrich_candidates_context(candidates)
     if load_candidate_profile == LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1:
         candidates = apply_table_safety_profile_to_candidates(candidates)
+    elif load_candidate_profile == LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1:
+        candidates = apply_table_abstention_profile_to_candidates(candidates)
     return _build_result(candidates=candidates, summaries=summaries, errors=errors)

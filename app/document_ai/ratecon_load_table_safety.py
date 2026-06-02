@@ -11,6 +11,7 @@ import re
 
 
 LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1 = "header_recall_table_safety_v1"
+LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1 = "header_recall_table_abstain_v1"
 
 TABLE_CONTEXT_HEADER_LOAD_INFO = "header_load_info"
 TABLE_CONTEXT_RATE = "rate_table"
@@ -33,6 +34,10 @@ TABLE_NEIGHBOR_SAFE = "safe"
 TABLE_NEIGHBOR_RISKY = "risky"
 TABLE_NEIGHBOR_UNSAFE = "unsafe"
 TABLE_NEIGHBOR_UNKNOWN = "unknown"
+
+TABLE_NEIGHBOR_SELECTION_ALLOWED = "allowed"
+TABLE_NEIGHBOR_SELECTION_WEAK_ONLY = "weak_only"
+TABLE_NEIGHBOR_SELECTION_ABSTAIN = "abstain"
 
 TABLE_METHOD_PREFIX = "table_"
 
@@ -81,6 +86,13 @@ def _has_any(text: str, terms) -> bool:
 def _metadata(candidate) -> dict:
     metadata = (candidate or {}).get("metadata")
     return dict(metadata) if isinstance(metadata, dict) else {}
+
+
+def _safe_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
 
 
 def is_table_load_candidate(candidate) -> bool:
@@ -149,10 +161,12 @@ def safe_table_context_metadata(
     row_text="",
     row_role_counts=None,
     header_row=False,
+    cell_count=0,
 ) -> dict:
     """Return safe metadata derived from table/row semantics."""
 
     row_role_counts = row_role_counts if isinstance(row_role_counts, dict) else {}
+    identifier_like_count = _identifier_like_count(row_text)
     row_role = row_role_from_safe_context(
         row_text=row_text,
         row_role_counts=row_role_counts,
@@ -172,7 +186,13 @@ def safe_table_context_metadata(
             for key, value in (row_role_counts or {}).items()
             if _text(key) and int(value or 0) > 0
         },
-        "table_row_identifier_like_cell_count": _identifier_like_count(row_text),
+        "table_row_identifier_like_cell_count": identifier_like_count,
+        "neighbor_cell_count": _safe_int(cell_count),
+        "id_like_cell_count_in_row": identifier_like_count,
+        "load_label_cell_count_in_row": _safe_int(row_role_counts.get("load_identity")),
+        "reference_label_cell_count_in_row": _safe_int(row_role_counts.get("reference")),
+        "stop_label_cell_count_in_row": _safe_int(row_role_counts.get("stop_role")),
+        "money_like_cell_count_in_row": _safe_int(row_role_counts.get("rate")),
     }
 
 
@@ -328,3 +348,186 @@ def apply_table_safety_profile(candidate):
 
 def apply_table_safety_profile_to_candidates(candidates):
     return [apply_table_safety_profile(candidate) for candidate in candidates or []]
+
+
+def _is_strong_header_load_candidate(candidate) -> bool:
+    metadata = _metadata(candidate)
+    if _text((candidate or {}).get("field")) != "load_number":
+        return False
+    if is_table_load_candidate(candidate):
+        return False
+    if metadata.get("is_stop_level_reference") or metadata.get("is_driver_truck_trailer_noise"):
+        return False
+    if float((candidate or {}).get("confidence") or 0.0) < 0.75:
+        return False
+    region = _text(metadata.get("document_region"))
+    if region not in {"header", "document_title", "load_info"} and not metadata.get(
+        "is_document_title_or_header_id"
+    ):
+        return False
+    return _lower(metadata.get("id_type_hint")) in {
+        "load",
+        "order",
+        "shipment",
+        "tender",
+        "confirmation",
+        "freight_bill",
+        "pro",
+        "po",
+    }
+
+
+def table_neighbor_abstention_decision(
+    candidate,
+    *,
+    strong_header_candidate_available=False,
+) -> dict:
+    """Return selection-policy metadata for table-neighbor load candidates.
+
+    This policy is intentionally conservative: unclear table-neighbor values
+    remain visible in diagnostics, but are not allowed to become final
+    load_number selections unless row-level load/value alignment is explicit.
+    """
+
+    metadata = _metadata(candidate)
+    if not is_table_load_candidate(candidate):
+        return {}
+
+    safety = _text(metadata.get("table_neighbor_safety")) or TABLE_NEIGHBOR_UNKNOWN
+    context_role = _text(metadata.get("table_context_role")) or TABLE_CONTEXT_UNKNOWN
+    row_role = _text(metadata.get("table_row_role")) or TABLE_ROW_UNKNOWN
+    id_hint = _lower(metadata.get("id_type_hint"))
+    label_strength = _lower(metadata.get("label_strength"))
+    pairing_method = _lower(metadata.get("pairing_method"))
+    id_like_count = _safe_int(
+        metadata.get("id_like_cell_count_in_row")
+        or metadata.get("table_row_identifier_like_cell_count")
+    )
+    load_labels = _safe_int(metadata.get("load_label_cell_count_in_row"))
+    reference_labels = _safe_int(metadata.get("reference_label_cell_count_in_row"))
+    stop_labels = _safe_int(metadata.get("stop_label_cell_count_in_row"))
+    money_labels = _safe_int(metadata.get("money_like_cell_count_in_row"))
+    strongish_label = label_strength in {"strong", "medium"} or float(
+        metadata.get("id_role_confidence") or 0.0
+    ) >= 0.65
+    aligned_load_label_present = load_labels >= 1 or pairing_method == "table_header_value_column"
+    strong_load_alignment = (
+        context_role == TABLE_CONTEXT_HEADER_LOAD_INFO
+        and row_role in {TABLE_ROW_HEADER, TABLE_ROW_LOAD_ID, TABLE_ROW_UNKNOWN}
+        and strongish_label
+        and id_hint in {"load", "order", "shipment", "tender", "confirmation", "freight_bill", "pro", "po"}
+        and (
+            pairing_method
+            in {
+            "table_same_cell",
+            "table_header_value_column",
+            "table_key_value_row",
+            "table_nearest_cell",
+            }
+        )
+        and aligned_load_label_present
+        and reference_labels == 0
+        and stop_labels == 0
+        and money_labels == 0
+        and id_like_count <= 1
+    )
+
+    reason = ""
+    policy = TABLE_NEIGHBOR_SELECTION_ALLOWED
+    if strong_header_candidate_available and not strong_load_alignment:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_strong_header_candidate_elsewhere"
+    elif row_role == TABLE_ROW_HEADER and pairing_method == "table_key_value_row":
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_header_row_key_value_unclear"
+    elif strong_load_alignment:
+        policy = TABLE_NEIGHBOR_SELECTION_ALLOWED
+    elif safety in {TABLE_NEIGHBOR_UNSAFE, TABLE_NEIGHBOR_RISKY, TABLE_NEIGHBOR_UNKNOWN}:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = metadata.get("table_neighbor_penalty_reason") or "table_neighbor_context_not_safe"
+    elif stop_labels or row_role in {TABLE_ROW_STOP_REFERENCE, TABLE_ROW_PICKUP_DELIVERY_REF}:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_stop_reference_labels_in_row"
+    elif reference_labels and load_labels:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_mixed_stop_reference_load_row"
+    elif reference_labels:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_reference_row"
+    elif money_labels or context_role == TABLE_CONTEXT_RATE or row_role == TABLE_ROW_RATE:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_rate_or_money_row"
+    elif id_like_count >= 2 and not strong_load_alignment:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_multi_id_unclear_alignment"
+    elif context_role == TABLE_CONTEXT_HEADER_LOAD_INFO and row_role in {TABLE_ROW_HEADER, TABLE_ROW_LOAD_ID}:
+        if strong_load_alignment:
+            policy = TABLE_NEIGHBOR_SELECTION_ALLOWED
+        else:
+            policy = TABLE_NEIGHBOR_SELECTION_WEAK_ONLY
+            reason = "table_neighbor_unclear_label_value_boundary"
+    else:
+        policy = TABLE_NEIGHBOR_SELECTION_ABSTAIN
+        reason = "table_neighbor_no_strong_load_label"
+
+    return {
+        "table_neighbor_abstained": policy == TABLE_NEIGHBOR_SELECTION_ABSTAIN,
+        "table_neighbor_abstention_reason": reason,
+        "selection_policy": policy,
+        "review_required": policy != TABLE_NEIGHBOR_SELECTION_ALLOWED,
+    }
+
+
+def _apply_table_abstention_decision(candidate, decision):
+    item = dict(candidate or {})
+    metadata = _metadata(item)
+    metadata.update(decision)
+    original_confidence = float(item.get("confidence") or 0.0)
+    adjustments = list(metadata.get("load_candidate_profile_adjustments") or [])
+    policy = _text(decision.get("selection_policy"))
+    reason = _text(decision.get("table_neighbor_abstention_reason"))
+    if policy == TABLE_NEIGHBOR_SELECTION_ABSTAIN:
+        capped = min(original_confidence, 0.35)
+        item["confidence"] = capped
+        metadata["label_strength"] = "weak"
+        if _text(item.get("field")) == "load_number":
+            item["field"] = "reference_numbers"
+            metadata["table_neighbor_demoted_from_load_number"] = True
+        adjustments.append(
+            {
+                "reason": reason or "table_neighbor_abstained",
+                "amount": round(capped - original_confidence, 3),
+            }
+        )
+    elif policy == TABLE_NEIGHBOR_SELECTION_WEAK_ONLY:
+        capped = min(original_confidence, 0.55)
+        item["confidence"] = capped
+        metadata["label_strength"] = "weak"
+        adjustments.append(
+            {
+                "reason": reason or "table_neighbor_weak_only",
+                "amount": round(capped - original_confidence, 3),
+            }
+        )
+    metadata["load_candidate_profile"] = LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1
+    metadata["load_candidate_profile_adjustments"] = adjustments
+    item["metadata"] = metadata
+    return item
+
+
+def apply_table_abstention_profile_to_candidates(candidates):
+    prepared = [apply_table_safety_profile(candidate) for candidate in candidates or []]
+    strong_header_candidate_available = any(
+        _is_strong_header_load_candidate(candidate) for candidate in prepared
+    )
+    adjusted = []
+    for candidate in prepared:
+        if not is_table_load_candidate(candidate):
+            adjusted.append(candidate)
+            continue
+        decision = table_neighbor_abstention_decision(
+            candidate,
+            strong_header_candidate_available=strong_header_candidate_available,
+        )
+        adjusted.append(_apply_table_abstention_decision(candidate, decision) if decision else candidate)
+    return adjusted

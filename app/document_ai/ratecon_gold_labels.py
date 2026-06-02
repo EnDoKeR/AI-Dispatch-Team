@@ -1365,6 +1365,21 @@ def _candidate_group_has_correct(comparison_index, document_id, field_name):
     return False
 
 
+def _candidate_group_correct_with_metadata(comparison_index, document_id, field_name, predicate):
+    for system_name in [
+        SYSTEM_SHADOW_CANDIDATE_BEST,
+        SYSTEM_SHADOW_BEST_INDEPENDENT,
+        SYSTEM_SHADOW_BEST_LAYOUT,
+        SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+    ]:
+        row = comparison_index.get((document_id, field_name, system_name), {}) or {}
+        if not (_status_correct(row.get("status")) or _status_partial(row.get("status"))):
+            continue
+        if predicate(row):
+            return True
+    return False
+
+
 def _gold_load_values(gold_field):
     values = []
     primary = _gold_scalar_value(gold_field)
@@ -1743,6 +1758,154 @@ def _classify_remaining_table_neighbor_wrong(row, comparison_index):
     return "unknown"
 
 
+def _quality_band_from_confidence(confidence):
+    value = _safe_float(confidence)
+    if value is None:
+        return "unknown"
+    if value >= 0.80:
+        return "high"
+    if value >= 0.60:
+        return "medium"
+    return "weak"
+
+
+def _row_value_shape_summary(row):
+    return {
+        "neighbor_cell_count": _safe_int(row.get("neighbor_cell_count")),
+        "id_like_cell_count_in_row": _safe_int(row.get("id_like_cell_count_in_row")),
+        "load_label_cell_count_in_row": _safe_int(row.get("load_label_cell_count_in_row")),
+        "reference_label_cell_count_in_row": _safe_int(
+            row.get("reference_label_cell_count_in_row")
+        ),
+        "stop_label_cell_count_in_row": _safe_int(row.get("stop_label_cell_count_in_row")),
+        "money_like_cell_count_in_row": _safe_int(row.get("money_like_cell_count_in_row")),
+    }
+
+
+def _classify_table_neighbor_value_cell_diagnosis(row, comparison_index):
+    document_id = _text(row.get("document_id"))
+    if _candidate_group_has_correct(comparison_index, document_id, FIELD_LOAD_NUMBER):
+        return "gold_value_elsewhere_in_text_candidate"
+    summary = _row_value_shape_summary(row)
+    reference_labels = summary["reference_label_cell_count_in_row"]
+    stop_labels = summary["stop_label_cell_count_in_row"]
+    load_labels = summary["load_label_cell_count_in_row"]
+    id_like = summary["id_like_cell_count_in_row"]
+    penalty = _text(row.get("table_neighbor_penalty_reason"))
+    pairing_method = _text(row.get("pairing_method"))
+    table_row = _text(row.get("table_row_role"))
+    if row.get("status") in EXTRACTOR_MISSING_STATUSES:
+        return "no_gold_candidate"
+    if table_row == "header" and pairing_method == "table_key_value_row":
+        return "label_value_alignment_unclear"
+    if reference_labels or stop_labels:
+        return "ambiguous_multi_id_row" if load_labels else "wrong_value_cell"
+    if id_like >= 2:
+        return "ambiguous_multi_id_row"
+    if penalty in {"table_neighbor_missing_header_context", "multi_value_row"}:
+        return "label_value_alignment_unclear"
+    if _text(row.get("table_context_role")) == "unknown":
+        return "table_fragmentation"
+    return "wrong_value_cell"
+
+
+def _build_load_table_neighbor_value_cell_forensics(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+        and row.get("error_reason") == "selected_table_neighbor_wrong_cell"
+    ]
+    diagnoses = Counter()
+    cases = []
+    for row in rows:
+        document_id = _text(row.get("document_id"))
+        diagnosis = _classify_table_neighbor_value_cell_diagnosis(row, index)
+        diagnoses[diagnosis] += 1
+        same_table = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_LOAD_NUMBER,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and bool(_text(row.get("table_index"))),
+        )
+        same_row = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_LOAD_NUMBER,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and _text(candidate_row.get("row_index")) == _text(row.get("row_index"))
+            and bool(_text(row.get("row_index"))),
+        )
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "field": FIELD_LOAD_NUMBER,
+                "selected_candidate": {
+                    "source": _text(row.get("source")),
+                    "parser_name": _text(row.get("parser_name")),
+                    "pairing_method": _text(row.get("pairing_method")),
+                    "confidence": _safe_float(row.get("confidence")),
+                    "quality_band": _quality_band_from_confidence(row.get("confidence")),
+                    "value_shape": dict(row.get("value_shape") or {}),
+                    "table_context_role": _text(row.get("table_context_role")),
+                    "table_row_role": _text(row.get("table_row_role")),
+                    "table_neighbor_safety": _text(row.get("table_neighbor_safety")),
+                    "row_value_shape_summary": _row_value_shape_summary(row),
+                    "neighbor_cell_count": _safe_int(row.get("neighbor_cell_count")),
+                    "id_like_cell_count_in_row": _safe_int(row.get("id_like_cell_count_in_row")),
+                    "load_label_cell_count_in_row": _safe_int(
+                        row.get("load_label_cell_count_in_row")
+                    ),
+                    "reference_label_cell_count_in_row": _safe_int(
+                        row.get("reference_label_cell_count_in_row")
+                    ),
+                    "stop_label_cell_count_in_row": _safe_int(
+                        row.get("stop_label_cell_count_in_row")
+                    ),
+                    "money_like_cell_count_in_row": _safe_int(
+                        row.get("money_like_cell_count_in_row")
+                    ),
+                },
+                "gold_candidate_visibility": {
+                    "gold_in_any_candidate": _candidate_group_has_correct(
+                        index,
+                        document_id,
+                        FIELD_LOAD_NUMBER,
+                    ),
+                    "gold_in_same_table": same_table,
+                    "gold_in_same_row": same_row,
+                    "gold_in_same_page": _candidate_group_correct_with_metadata(
+                        index,
+                        document_id,
+                        FIELD_LOAD_NUMBER,
+                        lambda candidate_row: _text(candidate_row.get("page"))
+                        == _text(row.get("page"))
+                        and bool(_text(row.get("page"))),
+                    ),
+                    "gold_requires_ocr": False,
+                },
+                "diagnosis": diagnosis,
+            }
+        )
+    return {
+        "wrong_table_neighbor_count": len(rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _build_remaining_table_neighbor_wrong_summary(comparison_rows):
     index = {
         (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
@@ -1783,6 +1946,88 @@ def _build_remaining_table_neighbor_wrong_summary(comparison_rows):
             "table_neighbor_should_be_reference_not_load",
             0,
         ),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _unique_audit_records(indexed):
+    seen = set()
+    records = []
+    for record in (indexed or {}).values():
+        marker = id(record)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        records.append(record)
+    return records
+
+
+def _load_inventory_abstention_rows(audit_records):
+    rows = []
+    for record in audit_records or []:
+        payload = _private_eval_values(record)
+        inventory = (
+            payload.get("load_identity_candidate_inventory", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        for item in inventory or []:
+            if not isinstance(item, dict):
+                continue
+            metadata = (
+                item.get("metadata_summary", {})
+                if isinstance(item.get("metadata_summary"), dict)
+                else {}
+            )
+            abstained = bool(metadata.get("table_neighbor_abstained"))
+            demoted = bool(metadata.get("table_neighbor_demoted_from_load_number"))
+            if not (abstained or demoted):
+                continue
+            rows.append(
+                {
+                    "system": "load_identity_candidate_inventory",
+                    "field": _text(item.get("field")),
+                    "table_neighbor_abstained": abstained,
+                    "table_neighbor_demoted_from_load_number": demoted,
+                    "table_neighbor_abstention_reason": _text(
+                        metadata.get("table_neighbor_abstention_reason")
+                        or metadata.get("table_neighbor_penalty_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                }
+            )
+    return rows
+
+
+def _build_table_neighbor_abstention_summary(comparison_rows, audit_records=None):
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("table_neighbor_abstained")
+        and row.get("system")
+        in {
+            SYSTEM_SHADOW,
+            SYSTEM_SHADOW_CANDIDATE_BEST,
+            SYSTEM_SHADOW_BEST_INDEPENDENT,
+            SYSTEM_SHADOW_BEST_LAYOUT,
+        }
+    ]
+    inventory_rows = _load_inventory_abstention_rows(audit_records)
+    rows = rows + inventory_rows
+    return {
+        "abstained_candidate_count": len(rows),
+        "demoted_from_load_number_count": sum(
+            1 for row in rows if row.get("table_neighbor_demoted_from_load_number")
+        ),
+        "reason_counts": dict(
+            Counter(row.get("table_neighbor_abstention_reason") or "unknown" for row in rows).most_common()
+        ),
+        "selection_policy_counts": dict(
+            Counter(row.get("selection_policy") or "unknown" for row in rows).most_common()
+        ),
+        "by_system": dict(Counter(row.get("system") or "unknown" for row in rows).most_common()),
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -1946,6 +2191,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                 metadata = _prediction_metadata(prediction)
                 row = {
                     "document_id": _text(label.get("document_id")),
+                    "file_name": _text(label.get("file_name")),
                     "file_hash": _text(label.get("file_hash")),
                     "system": system_name,
                     "field": field_name,
@@ -1955,6 +2201,15 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "predicted": comparison.get("predicted", False),
                     "source_status": source_status,
                     "source": _prediction_source_name(prediction),
+                    "parser_name": _text((prediction or {}).get("parser_name"))
+                    if isinstance(prediction, dict)
+                    else "",
+                    "page": _text((prediction or {}).get("page"))
+                    if isinstance(prediction, dict)
+                    else "",
+                    "value_shape": dict((prediction or {}).get("value_shape") or {})
+                    if isinstance(prediction, dict)
+                    else safe_value_shape(_prediction_value(prediction)),
                     "pairing_method": _text(metadata.get("pairing_method")),
                     "section_context": _text(metadata.get("section_context")),
                     "document_region": _text(metadata.get("document_region")),
@@ -1965,6 +2220,34 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "table_neighbor_safety": _text(metadata.get("table_neighbor_safety")),
                     "table_neighbor_penalty_reason": _text(
                         metadata.get("table_neighbor_penalty_reason")
+                    ),
+                    "table_neighbor_abstained": bool(
+                        metadata.get("table_neighbor_abstained")
+                    ),
+                    "table_neighbor_abstention_reason": _text(
+                        metadata.get("table_neighbor_abstention_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                    "table_index": _text(metadata.get("table_index")),
+                    "row_index": _text(metadata.get("row_index")),
+                    "label_cell_index": _text(metadata.get("label_cell_index")),
+                    "value_cell_index": _text(metadata.get("value_cell_index")),
+                    "neighbor_cell_count": _safe_int(metadata.get("neighbor_cell_count")),
+                    "id_like_cell_count_in_row": _safe_int(
+                        metadata.get("id_like_cell_count_in_row")
+                        or metadata.get("table_row_identifier_like_cell_count")
+                    ),
+                    "load_label_cell_count_in_row": _safe_int(
+                        metadata.get("load_label_cell_count_in_row")
+                    ),
+                    "reference_label_cell_count_in_row": _safe_int(
+                        metadata.get("reference_label_cell_count_in_row")
+                    ),
+                    "stop_label_cell_count_in_row": _safe_int(
+                        metadata.get("stop_label_cell_count_in_row")
+                    ),
+                    "money_like_cell_count_in_row": _safe_int(
+                        metadata.get("money_like_cell_count_in_row")
                     ),
                     "error_reason": _classify_error_reason(
                         field_name,
@@ -2054,8 +2337,15 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "load_table_neighbor_error_summary": _build_load_table_neighbor_error_summary(
             comparison_rows,
         ),
+        "load_table_neighbor_value_cell_forensics": (
+            _build_load_table_neighbor_value_cell_forensics(comparison_rows)
+        ),
         "remaining_table_neighbor_wrong_summary": _build_remaining_table_neighbor_wrong_summary(
             comparison_rows,
+        ),
+        "table_neighbor_abstention_summary": _build_table_neighbor_abstention_summary(
+            comparison_rows,
+            _unique_audit_records(indexed),
         ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
         "load_candidate_recall_summary": _build_load_candidate_recall_summary(

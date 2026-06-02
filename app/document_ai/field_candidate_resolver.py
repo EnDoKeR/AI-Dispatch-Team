@@ -103,10 +103,12 @@ RANKING_PROFILES = {
 }
 LOAD_RANKING_PROFILE_HEADER_RECALL_V1 = "header_recall_v1"
 LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1 = "header_recall_table_safety_v1"
+LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1 = "header_recall_table_abstain_v1"
 LOAD_RANKING_PROFILES = {
     RANKING_PROFILE_BASELINE,
     LOAD_RANKING_PROFILE_HEADER_RECALL_V1,
     LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
 }
 RATE_RANKING_PROFILES = {
     RANKING_PROFILE_BASELINE,
@@ -303,8 +305,18 @@ def _metadata_summary(candidate):
         "table_neighbor_safety",
         "table_neighbor_penalty_reason",
         "table_neighbor_demoted_from_load_number",
+        "table_neighbor_abstained",
+        "table_neighbor_abstention_reason",
+        "selection_policy",
+        "review_required",
         "table_semantic_kind",
         "table_row_identifier_like_cell_count",
+        "neighbor_cell_count",
+        "id_like_cell_count_in_row",
+        "load_label_cell_count_in_row",
+        "reference_label_cell_count_in_row",
+        "stop_label_cell_count_in_row",
+        "money_like_cell_count_in_row",
         "has_location",
         "has_date",
         "has_time",

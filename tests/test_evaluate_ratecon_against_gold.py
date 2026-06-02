@@ -479,6 +479,97 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
             1,
         )
 
+    def test_table_neighbor_value_cell_forensics_uses_safe_counts(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "WRONG-TABLE-ID",
+                    "confidence": 0.88,
+                    "source": "native_layout",
+                    "parser_name": "layout_load_pairing",
+                    "page": 1,
+                    "value_shape": {
+                        "length": 14,
+                        "has_digits": False,
+                        "has_letters": True,
+                        "looks_like_date": False,
+                        "looks_like_money": False,
+                        "looks_like_phone": False,
+                        "looks_like_address": False,
+                    },
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_context_role": "header_load_info",
+                        "table_row_role": "load_id_row",
+                        "table_neighbor_safety": "safe",
+                        "id_type_hint": "load",
+                        "table_index": 1,
+                        "row_index": 2,
+                        "neighbor_cell_count": 4,
+                        "id_like_cell_count_in_row": 2,
+                        "load_label_cell_count_in_row": 1,
+                        "reference_label_cell_count_in_row": 1,
+                    },
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["load_table_neighbor_value_cell_forensics"]
+
+        self.assertEqual(summary["wrong_table_neighbor_count"], 1)
+        self.assertEqual(summary["diagnosis_counts"]["ambiguous_multi_id_row"], 1)
+        case = summary["cases"][0]
+        self.assertEqual(case["selected_candidate"]["neighbor_cell_count"], 4)
+        self.assertEqual(case["selected_candidate"]["id_like_cell_count_in_row"], 2)
+        self.assertNotIn("WRONG-TABLE-ID", json.dumps(summary))
+        self.assertFalse(summary["private_values_printed"])
+
+    def test_table_neighbor_abstention_summary_counts_private_eval_candidates(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "load_identity_candidate_inventory": [
+                {
+                    "field": "reference_numbers",
+                    "value": "ABSTAINED-ID",
+                    "confidence": 0.35,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_neighbor_abstained": True,
+                        "table_neighbor_demoted_from_load_number": True,
+                        "table_neighbor_abstention_reason": (
+                            "table_neighbor_multi_id_unclear_alignment"
+                        ),
+                        "selection_policy": "abstain",
+                    },
+                },
+            ],
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["table_neighbor_abstention_summary"]
+
+        self.assertEqual(summary["abstained_candidate_count"], 1)
+        self.assertEqual(summary["demoted_from_load_number_count"], 1)
+        self.assertEqual(
+            summary["reason_counts"]["table_neighbor_multi_id_unclear_alignment"],
+            1,
+        )
+        self.assertEqual(summary["selection_policy_counts"]["abstain"], 1)
+        self.assertEqual(summary["by_system"]["load_identity_candidate_inventory"], 1)
+        self.assertNotIn("ABSTAINED-ID", json.dumps(summary))
+
     def test_ocr_vision_backlog_counts_low_text_without_running_ocr(self):
         label = self._gold_label()
         record = self._audit_record()
@@ -798,6 +889,10 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                     "wrong_table_neighbor_count": table_wrong,
                     "reason_counts": {"table_neighbor_from_stop_reference_row": table_wrong},
                 },
+                "table_neighbor_abstention_summary": {
+                    "abstained_candidate_count": table_wrong,
+                    "reason_counts": {"table_neighbor_multi_id_unclear_alignment": table_wrong},
+                },
                 "rate_error_analysis": {"wrong_reason_counts": {}},
             }
 
@@ -822,6 +917,12 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "correct_count"
             ],
             2,
+        )
+        self.assertEqual(
+            comparison["deltas_from_first_profile"]["combined"][
+                "table_neighbor_abstention"
+            ]["abstained_candidate_count"],
+            -2,
         )
 
 

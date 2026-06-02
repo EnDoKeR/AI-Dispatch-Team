@@ -171,6 +171,12 @@ def _error_case_rows(evaluation):
                 "table_row_role": row.get("table_row_role", ""),
                 "table_neighbor_safety": row.get("table_neighbor_safety", ""),
                 "table_neighbor_penalty_reason": row.get("table_neighbor_penalty_reason", ""),
+                "table_neighbor_abstained": row.get("table_neighbor_abstained", ""),
+                "table_neighbor_abstention_reason": row.get(
+                    "table_neighbor_abstention_reason",
+                    "",
+                ),
+                "selection_policy": row.get("selection_policy", ""),
                 "error_reason": row.get("error_reason", ""),
             }
         )
@@ -254,9 +260,23 @@ def _markdown_report(evaluation):
         + json.dumps(evaluation.get("load_table_neighbor_error_summary", {}) or {}, sort_keys=True)
     )
     lines.append(
+        "load_table_neighbor_value_cell_forensics: "
+        + json.dumps(
+            evaluation.get("load_table_neighbor_value_cell_forensics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "remaining_table_neighbor_wrong_summary: "
         + json.dumps(
             evaluation.get("remaining_table_neighbor_wrong_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "table_neighbor_abstention_summary: "
+        + json.dumps(
+            evaluation.get("table_neighbor_abstention_summary", {}) or {},
             sort_keys=True,
         )
     )
@@ -386,6 +406,9 @@ def evaluate_and_write(
             "table_row_role",
             "table_neighbor_safety",
             "table_neighbor_penalty_reason",
+            "table_neighbor_abstained",
+            "table_neighbor_abstention_reason",
+            "selection_policy",
             "error_reason",
         ],
         _error_case_rows(evaluation),
