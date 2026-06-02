@@ -1710,6 +1710,84 @@ def _build_load_table_neighbor_error_summary(comparison_rows):
     }
 
 
+def _classify_remaining_table_neighbor_wrong(row, comparison_index):
+    safety = _text(row.get("table_neighbor_safety"))
+    table_context = _text(row.get("table_context_role"))
+    table_row = _text(row.get("table_row_role"))
+    penalty = _text(row.get("table_neighbor_penalty_reason"))
+    document_id = _text(row.get("document_id"))
+    if _candidate_group_has_correct(comparison_index, document_id, FIELD_LOAD_NUMBER):
+        return "table_neighbor_safe_but_gold_elsewhere"
+    if row.get("status") in EXTRACTOR_MISSING_STATUSES:
+        return "table_neighbor_gold_not_in_candidates"
+    if safety == "unknown":
+        return "table_neighbor_unknown_context_selected"
+    if table_row in {"stop_reference_row", "pickup_delivery_ref_row"} or penalty in {
+        "stop_reference_row",
+        "pickup_delivery_reference_row",
+        "reference_label",
+        "reference_table",
+        "po_outside_header_load_info",
+    }:
+        return "table_neighbor_should_be_reference_not_load"
+    if penalty == "multi_value_row":
+        return "table_neighbor_needs_row_geometry"
+    if penalty == "table_neighbor_missing_header_context" or table_context == "unknown":
+        return "table_neighbor_needs_column_header_geometry"
+    if table_context in {"rate_table", "carrier_contact_table", "signature_footer"}:
+        return "table_neighbor_needs_table_boundary_refinement"
+    if safety == "safe":
+        if table_context and table_context not in {"header_load_info", "unknown"}:
+            return "table_neighbor_safe_but_wrong_header_context"
+        return "table_neighbor_safe_but_wrong_value_cell"
+    return "unknown"
+
+
+def _build_remaining_table_neighbor_wrong_summary(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+        and row.get("error_reason") == "selected_table_neighbor_wrong_cell"
+    ]
+    reasons = Counter()
+    safety_counts = Counter()
+    for row in rows:
+        reasons[_classify_remaining_table_neighbor_wrong(row, index)] += 1
+        safety_counts[_text(row.get("table_neighbor_safety")) or "unknown"] += 1
+    needs_geometry = sum(
+        count
+        for reason, count in reasons.items()
+        if reason
+        in {
+            "table_neighbor_needs_row_geometry",
+            "table_neighbor_needs_column_header_geometry",
+            "table_neighbor_needs_table_boundary_refinement",
+        }
+    )
+    return {
+        "count": len(rows),
+        "reason_counts": dict(reasons.most_common()),
+        "safe_count": safety_counts.get("safe", 0),
+        "risky_count": safety_counts.get("risky", 0),
+        "unknown_count": safety_counts.get("unknown", 0),
+        "gold_elsewhere_count": reasons.get("table_neighbor_safe_but_gold_elsewhere", 0),
+        "needs_geometry_count": needs_geometry,
+        "should_be_reference_count": reasons.get(
+            "table_neighbor_should_be_reference_not_load",
+            0,
+        ),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _ocr_backlog_doc_type(triage, artifact):
     if triage.get("ocr_required"):
         return "scanned"
@@ -1726,7 +1804,7 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
     docs = []
     for label in gold_labels or []:
         status = _text(label.get("label_status")) or LABEL_UNLABELED
-        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+        if status == LABEL_UNLABELED:
             continue
         record = _find_record(label, audit_index)
         if not isinstance(record, dict):
@@ -1738,15 +1816,27 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
             and _safe_int(artifact.get("word_count")) <= 0
         )
         gold = label.get("gold", {}) or {}
+        skipped_non_rc = status == LABEL_SKIPPED
         gold_load_known = bool(_gold_load_values(gold.get(FIELD_LOAD_NUMBER, {})))
         gold_rate_known = bool(_gold_scalar_value(gold.get(FIELD_TOTAL_CARRIER_RATE, {})))
-        if not text_blocked and not triage.get("ocr_required"):
+        gold_stop_known = bool(gold.get(FIELD_PICKUP_STOPS)) or bool(
+            gold.get(FIELD_DELIVERY_STOPS)
+        )
+        if not skipped_non_rc and not text_blocked and not triage.get("ocr_required"):
             continue
         fields = []
         if gold_load_known:
             fields.append(FIELD_LOAD_NUMBER)
         if gold_rate_known:
             fields.append(FIELD_TOTAL_CARRIER_RATE)
+        if gold_stop_known:
+            fields.append("stops")
+        if skipped_non_rc:
+            route = "document_classification"
+        elif triage.get("ocr_required"):
+            route = "ocr"
+        else:
+            route = "manual_review"
         docs.append(
             {
                 "document_id": _text(label.get("document_id")),
@@ -1759,17 +1849,44 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
                 ),
                 "gold_load_known": gold_load_known,
                 "gold_rate_known": gold_rate_known,
+                "gold_stop_known": gold_stop_known,
+                "evaluated_rate_confirmation": not skipped_non_rc,
+                "skipped_non_rate_confirmation": skipped_non_rc,
                 "fields_missing_due_to_text_extraction": fields,
-                "recommended_route": "ocr" if triage.get("ocr_required") else "manual_review",
+                "recommended_route": route,
                 "raw_value_printed": False,
             }
         )
+    route_counts = dict(Counter(doc["recommended_route"] for doc in docs).most_common())
     return {
+        "overall_docs": len(docs),
+        "evaluated_rc_docs": sum(1 for doc in docs if doc.get("evaluated_rate_confirmation")),
+        "skipped_non_rc_docs": sum(1 for doc in docs if doc.get("skipped_non_rate_confirmation")),
+        "load_blocked_docs": sum(
+            1
+            for doc in docs
+            if FIELD_LOAD_NUMBER in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "rate_blocked_docs": sum(
+            1
+            for doc in docs
+            if FIELD_TOTAL_CARRIER_RATE
+            in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "stop_blocked_docs": sum(
+            1
+            for doc in docs
+            if "stops" in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "recommended_next_route_counts": {
+            "ocr": route_counts.get("ocr", 0),
+            "vision_model": route_counts.get("vision_model", 0),
+            "manual_review": route_counts.get("manual_review", 0),
+            "document_classification": route_counts.get("document_classification", 0),
+        },
         "ocr_or_vision_required_doc_count": len(docs),
         "pdf_type_counts": dict(Counter(doc["pdf_type"] for doc in docs).most_common()),
-        "recommended_route_counts": dict(
-            Counter(doc["recommended_route"] for doc in docs).most_common()
-        ),
+        "recommended_route_counts": route_counts,
         "documents": docs,
         "ocr_run": False,
         "ai_cloud_used": False,
@@ -1935,6 +2052,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "error_case_breakdown": error_case_breakdown,
         "load_number_error_analysis": _build_load_number_error_analysis(comparison_rows),
         "load_table_neighbor_error_summary": _build_load_table_neighbor_error_summary(
+            comparison_rows,
+        ),
+        "remaining_table_neighbor_wrong_summary": _build_remaining_table_neighbor_wrong_summary(
             comparison_rows,
         ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),

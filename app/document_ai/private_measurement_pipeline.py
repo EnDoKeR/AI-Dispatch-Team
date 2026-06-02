@@ -1252,6 +1252,8 @@ def _with_shadow_document_pipeline(
     shadow_table_profile="default",
     shadow_ranking_profile="baseline",
     shadow_load_candidate_profile="baseline",
+    shadow_load_ranking_profile=None,
+    shadow_rate_ranking_profile=None,
     include_private_eval_values=False,
 ):
     """Attach shadow diagnostics after legacy row construction.
@@ -1286,6 +1288,8 @@ def _with_shadow_document_pipeline(
             shadow_table_profile=shadow_table_profile,
             shadow_ranking_profile=shadow_ranking_profile,
             shadow_load_candidate_profile=shadow_load_candidate_profile,
+            shadow_load_ranking_profile=shadow_load_ranking_profile,
+            shadow_rate_ranking_profile=shadow_rate_ranking_profile,
             strict_layout_provider=strict,
             include_private_eval_artifact=include_private_eval_values,
         )
@@ -1469,6 +1473,8 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_table_profile="default",
     ratecon_shadow_ranking_profile="baseline",
     ratecon_shadow_load_candidate_profile="baseline",
+    ratecon_shadow_load_ranking_profile=None,
+    ratecon_shadow_rate_ranking_profile=None,
     include_private_eval_values=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
@@ -1501,6 +1507,8 @@ def measure_private_ratecon_pdf(
             shadow_table_profile=ratecon_shadow_table_profile,
             shadow_ranking_profile=ratecon_shadow_ranking_profile,
             shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+            shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+            shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
 
@@ -1534,6 +1542,8 @@ def measure_private_ratecon_pdf(
             shadow_table_profile=ratecon_shadow_table_profile,
             shadow_ranking_profile=ratecon_shadow_ranking_profile,
             shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+            shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+            shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
 
@@ -1614,6 +1624,8 @@ def measure_private_ratecon_pdf(
             shadow_table_profile=ratecon_shadow_table_profile,
             shadow_ranking_profile=ratecon_shadow_ranking_profile,
             shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+            shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+            shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
 
@@ -2040,5 +2052,7 @@ def measure_private_ratecon_pdf(
         shadow_table_profile=ratecon_shadow_table_profile,
         shadow_ranking_profile=ratecon_shadow_ranking_profile,
         shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+        shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+        shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
         include_private_eval_values=include_private_eval_values,
     )

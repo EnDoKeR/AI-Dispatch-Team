@@ -80,6 +80,8 @@ def extract_ratecon_document(
     strict_layout_provider=False,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
     shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
+    shadow_load_ranking_profile=None,
+    shadow_rate_ranking_profile=None,
     include_private_eval_artifact=False,
 ):
     triage = triage_document(file_path, document_id=document_id)
@@ -91,13 +93,17 @@ def extract_ratecon_document(
         table_settings_profile=shadow_table_profile,
         strict_layout_provider=strict_layout_provider,
     )
+    effective_load_candidate_profile = shadow_load_candidate_profile
+    if shadow_load_ranking_profile and shadow_load_ranking_profile != RANKING_PROFILE_BASELINE:
+        effective_load_candidate_profile = shadow_load_ranking_profile
+
     generation_result = generate_field_candidates(
         artifact,
         triage=triage,
         legacy_context=legacy_context or {},
         include_legacy_final_candidates=include_legacy_final_candidates,
         strict=strict_candidate_generators,
-        load_candidate_profile=shadow_load_candidate_profile,
+        load_candidate_profile=effective_load_candidate_profile,
     )
     candidates = generation_result.get("candidates", [])
 
@@ -106,6 +112,8 @@ def extract_ratecon_document(
         artifact=artifact,
         triage=triage,
         ranking_profile=shadow_ranking_profile,
+        load_ranking_profile=shadow_load_ranking_profile,
+        rate_ranking_profile=shadow_rate_ranking_profile,
     )
     final_output = _legacy_output_from_resolution(
         resolved,
@@ -133,7 +141,21 @@ def extract_ratecon_document(
             "resolver_decision_traces": resolved.get("resolver_decision_traces", {}),
             "review_gate_trace": resolved.get("review_gate_trace", {}),
             "ranking_profile": resolved.get("ranking_profile", shadow_ranking_profile),
-            "load_candidate_profile": shadow_load_candidate_profile,
+            "load_candidate_profile": effective_load_candidate_profile,
+            "requested_load_candidate_profile": shadow_load_candidate_profile,
+            "load_ranking_profile": resolved.get(
+                "load_ranking_profile",
+                shadow_load_ranking_profile or RANKING_PROFILE_BASELINE,
+            ),
+            "rate_ranking_profile": resolved.get(
+                "rate_ranking_profile",
+                shadow_rate_ranking_profile or RANKING_PROFILE_BASELINE,
+            ),
+            "field_ranking_profiles": resolved.get("field_ranking_profiles", {}),
+            "field_scoped_ranking_enabled": resolved.get(
+                "field_scoped_ranking_enabled",
+                False,
+            ),
             "needs_review": resolved.get("needs_review", True),
             "review_reasons": resolved.get("review_reasons", []),
             "candidate_warnings": [

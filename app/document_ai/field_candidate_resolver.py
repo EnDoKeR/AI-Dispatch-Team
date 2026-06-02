@@ -101,6 +101,17 @@ RANKING_PROFILES = {
     RANKING_PROFILE_BASELINE,
     RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
 }
+LOAD_RANKING_PROFILE_HEADER_RECALL_V1 = "header_recall_v1"
+LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1 = "header_recall_table_safety_v1"
+LOAD_RANKING_PROFILES = {
+    RANKING_PROFILE_BASELINE,
+    LOAD_RANKING_PROFILE_HEADER_RECALL_V1,
+    LOAD_RANKING_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+}
+RATE_RANKING_PROFILES = {
+    RANKING_PROFILE_BASELINE,
+    RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+}
 
 SOURCE_RANK = {
     "native_layout": 0.12,
@@ -490,6 +501,53 @@ def _profile_adjustments(field_name, candidate, ranking_profile):
     return adjustments
 
 
+def _effective_ranking_profile(
+    field_name,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
+):
+    if field_name == FIELD_LOAD_NUMBER and load_ranking_profile is not None:
+        return load_ranking_profile
+    if field_name == FIELD_TOTAL_CARRIER_RATE and rate_ranking_profile is not None:
+        return rate_ranking_profile
+    return ranking_profile
+
+
+def _effective_field_ranking_profiles(
+    ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
+):
+    return {
+        FIELD_LOAD_NUMBER: _effective_ranking_profile(
+            FIELD_LOAD_NUMBER,
+            ranking_profile=ranking_profile,
+            load_ranking_profile=load_ranking_profile,
+            rate_ranking_profile=rate_ranking_profile,
+        ),
+        FIELD_TOTAL_CARRIER_RATE: _effective_ranking_profile(
+            FIELD_TOTAL_CARRIER_RATE,
+            ranking_profile=ranking_profile,
+            load_ranking_profile=load_ranking_profile,
+            rate_ranking_profile=rate_ranking_profile,
+        ),
+    }
+
+
+def _validate_ranking_profiles(
+    ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
+):
+    if ranking_profile not in RANKING_PROFILES:
+        raise ValueError(f"unknown ranking profile: {ranking_profile}")
+    if load_ranking_profile is not None and load_ranking_profile not in LOAD_RANKING_PROFILES:
+        raise ValueError(f"unknown load ranking profile: {load_ranking_profile}")
+    if rate_ranking_profile is not None and rate_ranking_profile not in RATE_RANKING_PROFILES:
+        raise ValueError(f"unknown rate ranking profile: {rate_ranking_profile}")
+
+
 def _apply_score_trace(candidate, ranking_profile, adjustments):
     if ranking_profile == RANKING_PROFILE_BASELINE:
         return
@@ -681,15 +739,23 @@ def build_resolver_decision_traces(
     triage=None,
     field_names=None,
     ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
 ):
     resolved_fields = resolved_fields if isinstance(resolved_fields, dict) else {}
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     traces = {}
     for field_name in target_fields:
+        field_ranking_profile = _effective_ranking_profile(
+            field_name,
+            ranking_profile=ranking_profile,
+            load_ranking_profile=load_ranking_profile,
+            rate_ranking_profile=rate_ranking_profile,
+        )
         field_candidates = _field_candidates(
             candidates,
             field_name,
-            ranking_profile=ranking_profile,
+            ranking_profile=field_ranking_profile,
         )
         resolution = resolved_fields.get(field_name, {}) or {}
         selected_identity = _selected_candidate_identity(resolution)
@@ -719,7 +785,7 @@ def build_resolver_decision_traces(
                     field_name,
                     candidate,
                     triage or {},
-                    ranking_profile=ranking_profile,
+                    ranking_profile=field_ranking_profile,
                 )
                 if eligibility["eligible"]
                 else None
@@ -762,6 +828,7 @@ def build_resolver_decision_traces(
 
         traces[field_name] = {
             "field": field_name,
+            "ranking_profile": field_ranking_profile,
             "selected_candidate": selected_candidate or {},
             "candidate_count_seen": len(field_candidates),
             "candidate_count_eligible": eligible_count,
@@ -1195,18 +1262,28 @@ def resolve_candidates(
     triage=None,
     field_names=None,
     ranking_profile=RANKING_PROFILE_BASELINE,
+    load_ranking_profile=None,
+    rate_ranking_profile=None,
 ):
     artifact = artifact or {}
     triage = triage if isinstance(triage, dict) else artifact.get("triage", {})
-    if ranking_profile not in RANKING_PROFILES:
-        raise ValueError(f"unknown ranking profile: {ranking_profile}")
+    _validate_ranking_profiles(
+        ranking_profile=ranking_profile,
+        load_ranking_profile=load_ranking_profile,
+        rate_ranking_profile=rate_ranking_profile,
+    )
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     resolved_fields = {
         field_name: _resolve_one_field(
             field_name,
             candidates,
             triage,
-            ranking_profile=ranking_profile,
+            ranking_profile=_effective_ranking_profile(
+                field_name,
+                ranking_profile=ranking_profile,
+                load_ranking_profile=load_ranking_profile,
+                rate_ranking_profile=rate_ranking_profile,
+            ),
         )
         for field_name in target_fields
     }
@@ -1237,7 +1314,12 @@ def resolve_candidates(
                             _field_candidates(
                                 candidates,
                                 field_name,
-                                ranking_profile=ranking_profile,
+                                ranking_profile=_effective_ranking_profile(
+                                    field_name,
+                                    ranking_profile=ranking_profile,
+                                    load_ranking_profile=load_ranking_profile,
+                                    rate_ranking_profile=rate_ranking_profile,
+                                ),
                             )
                         )
                         for field_name in target_fields
@@ -1247,6 +1329,16 @@ def resolve_candidates(
         ),
         "resolver_version": "field_candidate_resolver_v1",
         "ranking_profile": ranking_profile,
+        "load_ranking_profile": load_ranking_profile or RANKING_PROFILE_BASELINE,
+        "rate_ranking_profile": rate_ranking_profile or RANKING_PROFILE_BASELINE,
+        "field_ranking_profiles": _effective_field_ranking_profiles(
+            ranking_profile=ranking_profile,
+            load_ranking_profile=load_ranking_profile,
+            rate_ranking_profile=rate_ranking_profile,
+        ),
+        "field_scoped_ranking_enabled": bool(
+            load_ranking_profile is not None or rate_ranking_profile is not None
+        ),
     }
     result["resolver_decision_traces"] = build_resolver_decision_traces(
         candidates,
@@ -1254,6 +1346,8 @@ def resolve_candidates(
         triage=triage,
         field_names=target_fields,
         ranking_profile=ranking_profile,
+        load_ranking_profile=load_ranking_profile,
+        rate_ranking_profile=rate_ranking_profile,
     )
     result["review_gate_trace"] = build_review_gate_trace(
         resolved_fields=resolved_fields,

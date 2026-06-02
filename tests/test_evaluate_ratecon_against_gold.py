@@ -15,6 +15,7 @@ from app.document_ai.ratecon_gold_labels import (
     FIELD_LOAD_NUMBER,
     FIELD_TOTAL_CARRIER_RATE,
     LABEL_LABELED,
+    LABEL_SKIPPED,
     SYSTEM_LEGACY,
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_INDEPENDENT,
@@ -446,6 +447,38 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(summary["by_table_neighbor_safety"]["unsafe"], 1)
         self.assertFalse(summary["private_values_printed"])
 
+    def test_remaining_table_neighbor_wrong_summary_classifies_geometry_and_reference(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "WRONG-STOP-REF",
+                    "confidence": 0.88,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_context_role": "stop_table",
+                        "table_row_role": "pickup_delivery_ref_row",
+                        "table_neighbor_safety": "unsafe",
+                        "table_neighbor_penalty_reason": "pickup_delivery_reference_row",
+                        "id_type_hint": "load",
+                    },
+                },
+            }
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["remaining_table_neighbor_wrong_summary"]
+
+        self.assertEqual(summary["count"], 1)
+        self.assertEqual(summary["unknown_count"], 0)
+        self.assertEqual(summary["should_be_reference_count"], 1)
+        self.assertEqual(
+            summary["reason_counts"]["table_neighbor_should_be_reference_not_load"],
+            1,
+        )
+
     def test_ocr_vision_backlog_counts_low_text_without_running_ocr(self):
         label = self._gold_label()
         record = self._audit_record()
@@ -466,9 +499,49 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         backlog = result["ocr_vision_backlog_summary"]
 
         self.assertEqual(backlog["ocr_or_vision_required_doc_count"], 1)
+        self.assertEqual(backlog["overall_docs"], 1)
+        self.assertEqual(backlog["evaluated_rc_docs"], 1)
+        self.assertEqual(backlog["skipped_non_rc_docs"], 0)
+        self.assertEqual(backlog["load_blocked_docs"], 1)
+        self.assertEqual(backlog["rate_blocked_docs"], 1)
+        self.assertEqual(backlog["stop_blocked_docs"], 1)
+        self.assertEqual(backlog["recommended_next_route_counts"]["ocr"], 1)
         self.assertEqual(backlog["pdf_type_counts"]["scanned"], 1)
         self.assertFalse(backlog["ocr_run"])
         self.assertFalse(backlog["ai_cloud_used"])
+
+    def test_ocr_vision_backlog_separates_skipped_non_ratecon(self):
+        skipped = self._gold_label()
+        skipped["document_id"] = "DOC-29"
+        skipped["file_name"] = "LoadConfirmation29.pdf"
+        skipped["label_status"] = LABEL_SKIPPED
+        skipped["skip_reason"] = "not_rate_confirmation"
+        record = self._audit_record()
+        record["document_id"] = "RATECON_029"
+        record["file_name"] = "LoadConfirmation29.pdf"
+        record["triage"] = {
+            "ocr_required": False,
+            "pdf_type": "low_text",
+            "page_count": 1,
+            "native_text_token_count": 2,
+        }
+        record["artifact_summary"] = {
+            "full_text_present": False,
+            "word_count": 0,
+            "table_count": 0,
+            "layout_provider_summary": {"status": "partial"},
+        }
+
+        result = evaluate_ratecon_against_gold([skipped], [record])
+        backlog = result["ocr_vision_backlog_summary"]
+
+        self.assertEqual(backlog["overall_docs"], 1)
+        self.assertEqual(backlog["evaluated_rc_docs"], 0)
+        self.assertEqual(backlog["skipped_non_rc_docs"], 1)
+        self.assertEqual(
+            backlog["recommended_next_route_counts"]["document_classification"],
+            1,
+        )
 
     def test_confidence_calibration_counts_low_confidence_correct(self):
         result = evaluate_ratecon_against_gold([self._gold_label()], [self._audit_record()])

@@ -61,7 +61,11 @@ from app.document_ai.ratecon_shadow_audit import (
     write_ratecon_shadow_audit_artifacts,
 )
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
-from app.document_ai.field_candidate_resolver import RANKING_PROFILES
+from app.document_ai.field_candidate_resolver import (
+    LOAD_RANKING_PROFILES,
+    RANKING_PROFILES,
+    RATE_RANKING_PROFILES,
+)
 from app.document_ai.field_candidate_generators import LOAD_CANDIDATE_PROFILES
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
@@ -165,6 +169,8 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_table_profile="default",
     ratecon_shadow_ranking_profile="baseline",
     ratecon_shadow_load_candidate_profile="baseline",
+    ratecon_shadow_load_ranking_profile=None,
+    ratecon_shadow_rate_ranking_profile=None,
     include_private_eval_values=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
@@ -203,6 +209,8 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_table_profile=ratecon_shadow_table_profile,
             ratecon_shadow_ranking_profile=ratecon_shadow_ranking_profile,
             ratecon_shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+            ratecon_shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+            ratecon_shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
         for path in pdfs
@@ -641,6 +649,28 @@ def main(argv=None):
         ),
     )
     parser.add_argument(
+        "--ratecon-shadow-load-ranking-profile",
+        default=None,
+        choices=sorted(LOAD_RANKING_PROFILES),
+        help=(
+            "Shadow-only field-scoped load_number ranking/candidate profile. "
+            "When set to header_recall_v1 or header_recall_table_safety_v1, "
+            "it also drives the corresponding load candidate generation "
+            "profile. If omitted, the legacy broad --ratecon-shadow-ranking-profile "
+            "behavior is preserved."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-rate-ranking-profile",
+        default=None,
+        choices=sorted(RATE_RANKING_PROFILES),
+        help=(
+            "Shadow-only field-scoped total_carrier_rate ranking profile. "
+            "If omitted, the legacy broad --ratecon-shadow-ranking-profile "
+            "behavior is preserved."
+        ),
+    )
+    parser.add_argument(
         "--ratecon-shadow-use-legacy-final-candidates",
         action="store_true",
         help=(
@@ -850,6 +880,8 @@ def main(argv=None):
             ratecon_shadow_table_profile=args.ratecon_shadow_table_profile,
             ratecon_shadow_ranking_profile=args.ratecon_shadow_ranking_profile,
             ratecon_shadow_load_candidate_profile=args.ratecon_shadow_load_candidate_profile,
+            ratecon_shadow_load_ranking_profile=args.ratecon_shadow_load_ranking_profile,
+            ratecon_shadow_rate_ranking_profile=args.ratecon_shadow_rate_ranking_profile,
             include_private_eval_values=args.include_private_eval_values,
         )
 

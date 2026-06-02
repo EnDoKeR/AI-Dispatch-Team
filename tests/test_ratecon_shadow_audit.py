@@ -249,6 +249,48 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertFalse(record["private_eval_values_included"])
         self.assertNotIn("private_eval_values", record)
 
+    def test_build_shadow_audit_record_includes_field_scoped_profile_names(self):
+        shadow_result = {
+            "final_output": {},
+            "needs_review": True,
+            "review_reasons": [],
+            "debug": {
+                "triage": {"pdf_type": "born_digital", "page_count": 1},
+                "artifact_summary": {"page_count": 1, "full_text_present": True},
+                "candidates": [],
+                "resolved_fields": {},
+                "ranking_profile": "baseline",
+                "load_candidate_profile": "header_recall_table_safety_v1",
+                "requested_load_candidate_profile": "baseline",
+                "load_ranking_profile": "header_recall_table_safety_v1",
+                "rate_ranking_profile": "gold_diagnostic_v1",
+                "field_ranking_profiles": {
+                    "load_number": "header_recall_table_safety_v1",
+                    "total_carrier_rate": "gold_diagnostic_v1",
+                },
+                "field_scoped_ranking_enabled": True,
+            },
+        }
+
+        record = build_ratecon_shadow_audit_record(
+            "RATECON_001",
+            "fake.pdf",
+            shadow_result,
+            legacy_summary={},
+            include_values=False,
+        )
+
+        self.assertEqual(
+            record["shadow"]["load_ranking_profile"],
+            "header_recall_table_safety_v1",
+        )
+        self.assertEqual(record["shadow"]["rate_ranking_profile"], "gold_diagnostic_v1")
+        self.assertTrue(record["shadow"]["field_scoped_ranking_enabled"])
+        self.assertEqual(
+            record["shadow"]["field_ranking_profiles"]["total_carrier_rate"],
+            "gold_diagnostic_v1",
+        )
+
     def test_build_shadow_audit_record_includes_private_eval_values_only_when_requested(self):
         shadow_result = {
             "final_output": {"load_number": "FAKE-LOAD-1"},

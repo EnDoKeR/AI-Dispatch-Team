@@ -144,6 +144,7 @@ def _profile_shadow_metrics(summary):
     recall = summary.get("load_candidate_recall_summary", {}) or {}
     load_errors = summary.get("load_number_error_analysis", {}) or {}
     table_errors = summary.get("load_table_neighbor_error_summary", {}) or {}
+    remaining_table_errors = summary.get("remaining_table_neighbor_wrong_summary", {}) or {}
     rate_errors = summary.get("rate_error_analysis", {}) or {}
     return {
         "labels_evaluated": summary.get("labels_evaluated", 0),
@@ -174,6 +175,19 @@ def _profile_shadow_metrics(summary):
             "wrong_table_neighbor_count": table_errors.get("wrong_table_neighbor_count", 0),
             "reason_counts": table_errors.get("reason_counts", {}) or {},
             "by_table_neighbor_safety": table_errors.get("by_table_neighbor_safety", {}) or {},
+        },
+        "remaining_table_neighbor_wrong_summary": {
+            "count": remaining_table_errors.get("count", 0),
+            "reason_counts": remaining_table_errors.get("reason_counts", {}) or {},
+            "safe_count": remaining_table_errors.get("safe_count", 0),
+            "risky_count": remaining_table_errors.get("risky_count", 0),
+            "unknown_count": remaining_table_errors.get("unknown_count", 0),
+            "gold_elsewhere_count": remaining_table_errors.get("gold_elsewhere_count", 0),
+            "needs_geometry_count": remaining_table_errors.get("needs_geometry_count", 0),
+            "should_be_reference_count": remaining_table_errors.get(
+                "should_be_reference_count",
+                0,
+            ),
         },
         "total_carrier_rate": {
             "correct_count": rate.get("exact_match_count", 0) + rate.get("normalized_match_count", 0),

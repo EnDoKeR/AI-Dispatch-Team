@@ -254,6 +254,13 @@ def _markdown_report(evaluation):
         + json.dumps(evaluation.get("load_table_neighbor_error_summary", {}) or {}, sort_keys=True)
     )
     lines.append(
+        "remaining_table_neighbor_wrong_summary: "
+        + json.dumps(
+            evaluation.get("remaining_table_neighbor_wrong_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "rate_error_analysis: "
         + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
     )

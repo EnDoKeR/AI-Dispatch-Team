@@ -2620,6 +2620,15 @@ def build_ratecon_shadow_audit_record(
             "review_gate_trace": review_gate_trace,
             "ranking_profile": _text(debug.get("ranking_profile")),
             "load_candidate_profile": _text(debug.get("load_candidate_profile")),
+            "requested_load_candidate_profile": _text(
+                debug.get("requested_load_candidate_profile")
+            ),
+            "load_ranking_profile": _text(debug.get("load_ranking_profile")),
+            "rate_ranking_profile": _text(debug.get("rate_ranking_profile")),
+            "field_ranking_profiles": dict(debug.get("field_ranking_profiles") or {}),
+            "field_scoped_ranking_enabled": bool(
+                debug.get("field_scoped_ranking_enabled")
+            ),
         },
         "triage": triage,
         "artifact_summary": artifact,
