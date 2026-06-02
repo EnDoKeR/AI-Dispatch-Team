@@ -37,11 +37,13 @@ from app.document_ai.ratecon_ocr_candidate_policy import (
 from app.document_ai.ratecon_stop_component_policy import (
     STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
     STOP_RANKING_PROFILE_BASELINE,
+    STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
     STOP_RANKING_PROFILE_COMPONENT_STRICT_V1,
     STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1,
     STOP_RANKING_PROFILES as STOP_PROFILE_CHOICES,
     STOP_SELECTION_ABSTAIN,
     apply_stop_alignment_strict_profile_to_candidates,
+    apply_stop_column_strict_profile_to_candidates,
     apply_stop_component_strict_profile_to_candidates,
     apply_stop_geometry_strict_profile_to_candidates,
 )
@@ -364,6 +366,13 @@ def _metadata_summary(candidate):
         "stop_geometry_score",
         "stop_geometry_status",
         "stop_geometry_warnings",
+        "stop_column_score",
+        "stop_column_status",
+        "stop_column_warnings",
+        "assembled_from_column_geometry",
+        "row_boundary_confidence",
+        "column_alignment_confidence",
+        "dispatch_usable",
         "geometry_available",
         "component_bboxes_available",
         "block_boundary_confidence",
@@ -676,6 +685,8 @@ def _apply_field_scoped_candidate_profiles(
         adjusted = apply_stop_alignment_strict_profile_to_candidates(adjusted)
     elif stop_ranking_profile == STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1:
         adjusted = apply_stop_geometry_strict_profile_to_candidates(adjusted)
+    elif stop_ranking_profile == STOP_RANKING_PROFILE_COLUMN_STRICT_V1:
+        adjusted = apply_stop_column_strict_profile_to_candidates(adjusted)
     return adjusted
 
 

@@ -71,12 +71,17 @@ from app.document_ai.ocr_stop_block_assembler import (
     STOP_CANDIDATE_PROFILE_BASELINE,
     STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1,
     STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1,
+    STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1,
     STOP_CANDIDATE_PROFILES,
     generate_ocr_stop_block_candidates,
 )
 from app.document_ai.ocr_stop_geometry_assembler import (
     GENERATOR_OCR_STOP_GEOMETRY_ASSEMBLER,
     generate_ocr_stop_geometry_candidates,
+)
+from app.document_ai.ocr_stop_table_reconstructor import (
+    GENERATOR_OCR_STOP_TABLE_RECONSTRUCTOR,
+    generate_ocr_stop_column_candidates,
 )
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.document_ai.stop_evidence_assembler import (
@@ -1312,19 +1317,23 @@ def generate_field_candidates(
         if stop_candidate_profile in {
             STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1,
             STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1,
+            STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1,
         }:
-            generator_name = (
-                GENERATOR_OCR_STOP_GEOMETRY_ASSEMBLER
-                if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1
-                else GENERATOR_OCR_STOP_BLOCK_ASSEMBLER
-            )
-            source_type = (
-                "shadow_ocr_stop_geometry_assembly"
-                if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1
-                else "shadow_ocr_stop_block_assembly"
-            )
+            if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1:
+                generator_name = GENERATOR_OCR_STOP_TABLE_RECONSTRUCTOR
+                source_type = "shadow_ocr_stop_column_reconstruction"
+            elif stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1:
+                generator_name = GENERATOR_OCR_STOP_GEOMETRY_ASSEMBLER
+                source_type = "shadow_ocr_stop_geometry_assembly"
+            else:
+                generator_name = GENERATOR_OCR_STOP_BLOCK_ASSEMBLER
+                source_type = "shadow_ocr_stop_block_assembly"
             try:
-                if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1:
+                if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1:
+                    generated, diagnostics = generate_ocr_stop_column_candidates(
+                        artifact,
+                    )
+                elif stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1:
                     generated, diagnostics = generate_ocr_stop_geometry_candidates(
                         artifact,
                     )

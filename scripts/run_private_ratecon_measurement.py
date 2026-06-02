@@ -736,7 +736,8 @@ def main(argv=None):
             "Shadow-only pickup/delivery stop candidate assembly profile. "
             "ocr_block_assembly_v1 emits structured OCR stop block candidates "
             "without changing default behavior; ocr_geometry_block_v1 uses "
-            "optional OCR TSV geometry when available."
+            "optional OCR TSV geometry when available; ocr_geometry_column_v1 "
+            "uses TSV row/column bands for stop table reconstruction."
         ),
     )
     parser.add_argument(
@@ -749,7 +750,9 @@ def main(argv=None):
             "or weakly role-scoped structured stop candidates; "
             "stop_alignment_strict_v1 additionally gates OCR stop block "
             "candidates by component alignment; stop_geometry_strict_v1 "
-            "requires geometry role/boundary evidence for OCR geometry stops."
+            "requires geometry role/boundary evidence for OCR geometry stops; "
+            "stop_column_strict_v1 requires row/column evidence for OCR "
+            "column-reconstructed stops."
         ),
     )
     parser.add_argument(

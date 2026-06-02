@@ -12,11 +12,13 @@ STOP_RANKING_PROFILE_BASELINE = "baseline"
 STOP_RANKING_PROFILE_COMPONENT_STRICT_V1 = "stop_component_strict_v1"
 STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1 = "stop_alignment_strict_v1"
 STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1 = "stop_geometry_strict_v1"
+STOP_RANKING_PROFILE_COLUMN_STRICT_V1 = "stop_column_strict_v1"
 STOP_RANKING_PROFILES = {
     STOP_RANKING_PROFILE_BASELINE,
     STOP_RANKING_PROFILE_COMPONENT_STRICT_V1,
     STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
     STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1,
+    STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
 }
 
 FIELD_PICKUP_STOPS = "pickup_stops"
@@ -40,6 +42,7 @@ STOP_GEOMETRY_UNKNOWN = STOP_ALIGNMENT_UNKNOWN
 
 SOURCE_OCR = "ocr"
 PAIRING_METHOD_OCR_GEOMETRY_BLOCK = "ocr_geometry_block"
+PAIRING_METHOD_OCR_GEOMETRY_COLUMN_ROW = "ocr_geometry_column_row"
 ROLE_PICKUP = "pickup"
 ROLE_DELIVERY = "delivery"
 ROLE_UNKNOWN = "unknown"
@@ -433,6 +436,115 @@ def classify_stop_geometry_policy(candidate) -> dict:
     }
 
 
+def classify_stop_column_policy(candidate) -> dict:
+    """Return strict row/column-aware OCR stop policy metadata."""
+
+    base = classify_stop_geometry_policy(candidate)
+    if not isinstance(candidate, dict) or not _is_stop_candidate(candidate):
+        return base
+
+    metadata = _metadata(candidate)
+    if not _is_ocr_candidate(candidate, metadata):
+        return base
+    if _lower(metadata.get("pairing_method")) != PAIRING_METHOD_OCR_GEOMETRY_COLUMN_ROW:
+        return base
+
+    warnings = set(_alignment_warnings(metadata))
+    for key in ["stop_geometry_warnings", "stop_column_warnings"]:
+        values = metadata.get(key) or []
+        if isinstance(values, str):
+            values = [values] if values else []
+        warnings.update(_text(value) for value in values if _text(value))
+
+    has_location = _has_location(metadata)
+    has_date = _has_date(metadata)
+    has_time = _has_time(metadata)
+    expected_role = _expected_role(_field(candidate))
+    role = _candidate_role(candidate, metadata)
+    row_confidence = float(metadata.get("row_boundary_confidence") or 0.0)
+    column_confidence = float(metadata.get("column_alignment_confidence") or 0.0)
+    status = _lower(
+        metadata.get("stop_column_status")
+        or metadata.get("stop_geometry_status")
+        or STOP_GEOMETRY_UNKNOWN
+    )
+    unsafe_warnings = {
+        "payment_overlap",
+        "instructions_overlap",
+        "footer_overlap",
+        "date_time_outside_row",
+        "location_outside_row",
+        "component_from_instructions",
+        "component_from_payment_section",
+        "component_from_footer",
+        "component_from_neighbor_block",
+        "pickup_delivery_overlap",
+        "row_boundary_unclear",
+    }
+    reason = ""
+    if role in {"", ROLE_UNKNOWN} or role != expected_role:
+        status = STOP_GEOMETRY_UNSAFE
+        reason = "column_role_anchor_missing"
+    elif warnings.intersection(unsafe_warnings):
+        status = STOP_GEOMETRY_UNSAFE
+        reason = sorted(warnings.intersection(unsafe_warnings))[0]
+    elif row_confidence < 0.55 or column_confidence < 0.55:
+        status = STOP_GEOMETRY_WEAK
+        reason = "column_boundary_confidence_low"
+    elif not has_location and not (has_date or has_time):
+        status = STOP_GEOMETRY_WEAK
+        reason = "column_no_usable_components"
+
+    complete = bool(has_location and has_date and has_time)
+    useful_partial = bool(has_location or has_date or has_time)
+    policy = STOP_SELECTION_ALLOWED
+    if status == STOP_GEOMETRY_STRONG and complete:
+        policy = STOP_SELECTION_ALLOWED
+    elif status in {STOP_GEOMETRY_STRONG, STOP_GEOMETRY_MEDIUM} and useful_partial:
+        policy = STOP_SELECTION_PARTIAL_REVIEW
+        reason = reason or "column_dispatch_or_partial_review"
+    else:
+        policy = STOP_SELECTION_ABSTAIN
+        reason = reason or f"{status}_column_stop"
+
+    if base.get("stop_abstained") and _lower(base.get("stop_abstention_reason")) not in {
+        "geometry_partial_review",
+        "alignment_partial_review",
+    }:
+        policy = STOP_SELECTION_ABSTAIN
+        reason = base.get("stop_abstention_reason") or reason
+
+    adjustments = list(base.get("stop_profile_adjustments") or [])
+    if reason:
+        adjustments.append(
+            {
+                "reason": reason,
+                "amount": -0.50 if policy == STOP_SELECTION_ABSTAIN else -0.16,
+            }
+        )
+    score_by_status = {
+        STOP_GEOMETRY_STRONG: 0.92,
+        STOP_GEOMETRY_MEDIUM: 0.66,
+        STOP_GEOMETRY_WEAK: 0.28,
+        STOP_GEOMETRY_UNSAFE: 0.1,
+        STOP_GEOMETRY_UNKNOWN: 0.0,
+    }
+    return {
+        **base,
+        "stop_column_score": round(
+            float(metadata.get("stop_column_score") or score_by_status.get(status, 0.0)),
+            3,
+        ),
+        "stop_column_status": status,
+        "stop_column_warnings": sorted(warnings),
+        "stop_selection_policy": policy,
+        "stop_abstained": policy == STOP_SELECTION_ABSTAIN,
+        "stop_abstention_reason": reason,
+        "review_required": policy in {STOP_SELECTION_ABSTAIN, STOP_SELECTION_PARTIAL_REVIEW},
+        "stop_profile_adjustments": adjustments,
+    }
+
+
 def apply_stop_component_strict_profile_to_candidates(candidates):
     """Return candidate copies annotated by the strict stop component profile."""
 
@@ -450,6 +562,28 @@ def apply_stop_component_strict_profile_to_candidates(candidates):
                     item["confidence"] = round(min(float(item.get("confidence") or 0.0), 0.34), 3)
                 elif policy_metadata.get("stop_selection_policy") == STOP_SELECTION_PARTIAL_REVIEW:
                     item["confidence"] = round(min(float(item.get("confidence") or 0.0), 0.69), 3)
+                item["metadata"] = metadata
+        adjusted.append(item)
+    return adjusted
+
+
+def apply_stop_column_strict_profile_to_candidates(candidates):
+    """Return candidate copies annotated by strict OCR column policy."""
+
+    adjusted = []
+    for candidate in candidates or []:
+        if not isinstance(candidate, dict):
+            continue
+        item = _copy_candidate(candidate)
+        if _is_stop_candidate(item):
+            metadata = _metadata(item)
+            policy_metadata = classify_stop_column_policy(item)
+            if policy_metadata:
+                metadata.update(policy_metadata)
+                if policy_metadata.get("stop_abstained"):
+                    item["confidence"] = round(min(float(item.get("confidence") or 0.0), 0.28), 3)
+                elif policy_metadata.get("stop_selection_policy") == STOP_SELECTION_PARTIAL_REVIEW:
+                    item["confidence"] = round(min(float(item.get("confidence") or 0.0), 0.60), 3)
                 item["metadata"] = metadata
         adjusted.append(item)
     return adjusted

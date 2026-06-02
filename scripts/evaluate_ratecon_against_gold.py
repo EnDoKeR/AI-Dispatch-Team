@@ -367,6 +367,20 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "stop_usability_summary: "
+        + json.dumps(
+            evaluation.get("stop_usability_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_gold_consistency_audit: "
+        + json.dumps(
+            evaluation.get("stop_gold_consistency_audit", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "ocr_stop_evidence_gap_summary: "
         + json.dumps(
             evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},

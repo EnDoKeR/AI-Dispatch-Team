@@ -566,9 +566,57 @@ def normalize_date(value) -> str:
 
 
 def normalize_time(value) -> str:
-    text = _lower(value)
-    text = re.sub(r"\s+", "", text)
-    return text
+    original = _lower(value)
+    if not original:
+        return ""
+    text = original.replace("–", "-").replace("—", "-")
+    text = re.sub(
+        r"\b(?:appt|appointment|fcfs|time|window|hours|shipping/receiving|shipping|receiving)\b",
+        " ",
+        text,
+    )
+    tokens = re.findall(
+        r"\b\d{1,2}:\d{2}\s*(?:am|pm)?\b|\b\d{3,4}\s*(?:am|pm)?\b",
+        text,
+    )
+    normalized = [_normalize_time_token(token) for token in tokens]
+    normalized = [token for token in normalized if token]
+    if len(normalized) >= 2:
+        return f"{normalized[0]}-{normalized[1]}"
+    if len(normalized) == 1:
+        return normalized[0]
+    if "fcfs" in original:
+        return "fcfs"
+    return re.sub(r"\s+", "", original)
+
+
+def _normalize_time_token(value) -> str:
+    text = re.sub(r"\s+", "", _lower(value))
+    ampm = ""
+    match_ampm = re.search(r"(am|pm)$", text)
+    if match_ampm:
+        ampm = match_ampm.group(1)
+        text = text[: -len(ampm)]
+    digits = re.sub(r"\D+", "", text)
+    if ":" in text:
+        parts = text.split(":", 1)
+        hour = _safe_int(parts[0])
+        minute = _safe_int(re.sub(r"\D+", "", parts[1])[:2])
+    elif len(digits) in {3, 4}:
+        hour = _safe_int(digits[:-2])
+        minute = _safe_int(digits[-2:])
+    elif len(digits) in {1, 2}:
+        hour = _safe_int(digits)
+        minute = 0
+    else:
+        return ""
+    if ampm == "pm" and hour < 12:
+        hour += 12
+    elif ampm == "am" and hour == 12:
+        hour = 0
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return ""
+    return f"{hour:02d}:{minute:02d}"
 
 
 def normalize_location_component(value) -> str:
@@ -3533,6 +3581,179 @@ def _build_stop_component_forensics_summary(comparison_rows, audit_index=None):
     return summary
 
 
+def _empty_stop_usability():
+    return {
+        "exact_complete": 0,
+        "dispatch_usable": 0,
+        "useful_partial": 0,
+        "unsafe_wrong": 0,
+        "missing_review_required": 0,
+        "serialized_gap": 0,
+    }
+
+
+def _component_status_map(comparison_rows):
+    by_doc_field = {}
+    for row in comparison_rows or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        field = row.get("field")
+        if field not in STOP_COMPONENT_FIELDS:
+            continue
+        by_doc_field[(row.get("document_id"), row.get("file_hash"), field)] = row
+    return by_doc_field
+
+
+def _component_row_status(component_rows, row, component_field):
+    component = component_rows.get(
+        (row.get("document_id"), row.get("file_hash"), component_field),
+        {},
+    )
+    return _text(component.get("status"))
+
+
+def _component_correct(status):
+    return status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}
+
+
+def _component_available(status):
+    return _component_correct(status) or status == STATUS_PARTIAL_MATCH
+
+
+def _stop_component_fields_for_role(stop_field):
+    if stop_field == FIELD_PICKUP_STOPS:
+        return {
+            "location": FIELD_PICKUP_LOCATION,
+            "date": FIELD_PICKUP_DATE,
+            "time": FIELD_PICKUP_TIME,
+        }
+    return {
+        "location": FIELD_DELIVERY_LOCATION,
+        "date": FIELD_DELIVERY_DATE,
+        "time": FIELD_DELIVERY_TIME,
+    }
+
+
+def _stop_usability_tier(row, component_rows):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}:
+        return "exact_complete"
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "serialized_gap"
+    if status in EXTRACTOR_MISSING_STATUSES or status in SOURCE_AVAILABILITY_STATUSES:
+        return "missing_review_required"
+    fields = _stop_component_fields_for_role(row.get("field"))
+    location_status = _component_row_status(component_rows, row, fields["location"])
+    date_status = _component_row_status(component_rows, row, fields["date"])
+    time_status = _component_row_status(component_rows, row, fields["time"])
+    issues = set(row.get("issues") or [])
+    wrong_location = any(
+        issue in issues
+        for issue in [
+            "wrong_facility",
+            "wrong_address",
+            "wrong_city",
+            "wrong_state",
+            "wrong_zip",
+            "wrong_location",
+        ]
+    )
+    wrong_date = "wrong_date" in issues
+    wrong_role = "wrong_role" in issues or _stop_wrong_reason(row) == "pickup_delivery_swapped"
+    if wrong_location or wrong_date or wrong_role:
+        return "unsafe_wrong"
+    if row.get("dispatch_usable"):
+        return "dispatch_usable"
+    if _component_correct(location_status) and _component_correct(date_status):
+        return "dispatch_usable"
+    if any(_component_available(value) for value in [location_status, date_status, time_status]):
+        return "useful_partial"
+    if status == STATUS_PARTIAL_MATCH:
+        return "useful_partial"
+    return "unsafe_wrong"
+
+
+def _build_stop_usability_summary(comparison_rows):
+    component_rows = _component_status_map(comparison_rows)
+    summary = {
+        "pickup": _empty_stop_usability(),
+        "delivery": _empty_stop_usability(),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    for row in comparison_rows or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        field = row.get("field")
+        if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+            continue
+        role = "pickup" if field == FIELD_PICKUP_STOPS else "delivery"
+        tier = _stop_usability_tier(row, component_rows)
+        summary[role][tier] += 1
+    return summary
+
+
+def _build_stop_gold_consistency_audit(comparison_rows):
+    component_rows = _component_status_map(comparison_rows)
+    reasons = Counter()
+    cases_checked = 0
+    suspect_count = 0
+    normalization_issue_count = 0
+    gold_incomplete_count = 0
+    manual_review_needed = 0
+    for row in comparison_rows or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        field = row.get("field")
+        if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        status = row.get("status")
+        if status in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+            continue
+        if status not in {STATUS_PARTIAL_MATCH, STATUS_WRONG_VALUE}:
+            continue
+        cases_checked += 1
+        tier = _stop_usability_tier(row, component_rows)
+        issues = set(row.get("issues") or [])
+        if tier == "dispatch_usable":
+            reasons["selected_contains_correct_dispatch_components"] += 1
+            suspect_count += 1
+            manual_review_needed += 1
+            if any(issue in issues for issue in ["missing_facility", "missing_address"]):
+                reasons["facility_optional_mismatch" if "missing_facility" in issues else "address_optional_mismatch"] += 1
+                gold_incomplete_count += 1
+            if "missing_zip" in issues:
+                reasons["zip_missing_but_city_state_correct"] += 1
+                gold_incomplete_count += 1
+        elif tier == "useful_partial":
+            reasons["gold_incomplete"] += 1
+            gold_incomplete_count += 1
+            manual_review_needed += 1
+        elif "wrong_date" in issues:
+            reasons["true_wrong_date"] += 1
+        elif any(issue in issues for issue in ["wrong_city", "wrong_state", "wrong_zip", "wrong_address", "wrong_facility"]):
+            reasons["true_wrong_location"] += 1
+        elif "wrong_role" in issues or _stop_wrong_reason(row) == "pickup_delivery_swapped":
+            reasons["true_wrong_role"] += 1
+        else:
+            reasons["unknown"] += 1
+            manual_review_needed += 1
+
+    return {
+        "cases_checked": cases_checked,
+        "suspect_count": suspect_count,
+        "normalization_issue_count": normalization_issue_count,
+        "gold_incomplete_count": gold_incomplete_count,
+        "manual_review_needed": manual_review_needed,
+        "reason_counts": dict(reasons.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _stop_inventory(record):
     payload = _private_eval_values(record)
     return (
@@ -3604,7 +3825,11 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
     geometry_status_counts = Counter()
     geometry_warning_counts = Counter()
     geometry_available_counts = Counter()
+    column_status_counts = Counter()
+    column_warning_counts = Counter()
     geometry_structured = 0
+    column_structured = 0
+    column_dispatch_usable = 0
     for item in ocr_items:
         metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
         status = _text(metadata.get("stop_alignment_status"))
@@ -3635,6 +3860,23 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
             and _text(metadata.get("pairing_method")) == "ocr_geometry_block"
         ):
             geometry_structured += 1
+        column_status = _text(metadata.get("stop_column_status"))
+        if column_status:
+            column_status_counts[column_status] += 1
+        column_warnings = metadata.get("stop_column_warnings") or []
+        if isinstance(column_warnings, str):
+            column_warnings = [column_warnings] if column_warnings else []
+        for warning in column_warnings if isinstance(column_warnings, list) else []:
+            if _text(warning):
+                column_warning_counts[_text(warning)] += 1
+        if (
+            metadata.get("structured_stop_candidate")
+            and metadata.get("assembled_from_column_geometry")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+        ):
+            column_structured += 1
+            if metadata.get("dispatch_usable"):
+                column_dispatch_usable += 1
     return {
         "ocr_docs": len(docs_with_ocr),
         "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),
@@ -3654,6 +3896,10 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         "geometry_status_counts": dict(geometry_status_counts.most_common()),
         "geometry_warning_counts": dict(geometry_warning_counts.most_common()),
         "ocr_geometry_structured_stop_candidates": geometry_structured,
+        "column_status_counts": dict(column_status_counts.most_common()),
+        "column_warning_counts": dict(column_warning_counts.most_common()),
+        "ocr_geometry_column_structured_stop_candidates": column_structured,
+        "ocr_geometry_column_dispatch_usable_candidates": column_dispatch_usable,
         "candidate_field_counts": dict(candidates_by_field.most_common()),
         "private_values_printed": False,
         "raw_text_printed": False,
@@ -3755,6 +4001,34 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "stop_selection_policy": _text(metadata.get("stop_selection_policy")),
                     "stop_abstained": bool(metadata.get("stop_abstained")),
                     "stop_abstention_reason": _text(metadata.get("stop_abstention_reason")),
+                    "stop_alignment_status": _text(metadata.get("stop_alignment_status")),
+                    "stop_geometry_status": _text(metadata.get("stop_geometry_status")),
+                    "stop_column_status": _text(metadata.get("stop_column_status")),
+                    "stop_alignment_warnings": list(
+                        metadata.get("stop_alignment_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_alignment_warnings"), list)
+                    else [],
+                    "stop_geometry_warnings": list(
+                        metadata.get("stop_geometry_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_geometry_warnings"), list)
+                    else [],
+                    "stop_column_warnings": list(
+                        metadata.get("stop_column_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_column_warnings"), list)
+                    else [],
+                    "assembled_from_column_geometry": bool(
+                        metadata.get("assembled_from_column_geometry")
+                    ),
+                    "row_boundary_confidence": _safe_float(
+                        metadata.get("row_boundary_confidence")
+                    ),
+                    "column_alignment_confidence": _safe_float(
+                        metadata.get("column_alignment_confidence")
+                    ),
+                    "dispatch_usable": bool(metadata.get("dispatch_usable")),
                     "role_confidence": _safe_float(metadata.get("role_confidence")),
                     "component_completeness": _safe_float(
                         metadata.get("component_completeness")
@@ -3950,6 +4224,10 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "stop_component_forensics_summary": _build_stop_component_forensics_summary(
             comparison_rows,
             indexed,
+        ),
+        "stop_usability_summary": _build_stop_usability_summary(comparison_rows),
+        "stop_gold_consistency_audit": _build_stop_gold_consistency_audit(
+            comparison_rows,
         ),
         "ocr_stop_evidence_gap_summary": _build_ocr_stop_evidence_gap_summary(
             indexed,
