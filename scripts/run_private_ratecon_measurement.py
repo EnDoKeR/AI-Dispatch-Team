@@ -61,6 +61,7 @@ from app.document_ai.ratecon_shadow_audit import (
     write_ratecon_shadow_audit_artifacts,
 )
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
+from app.document_ai.field_candidate_resolver import RANKING_PROFILES
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
@@ -161,6 +162,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_use_legacy_final_candidates=True,
     ratecon_shadow_layout_provider="native_text",
     ratecon_shadow_table_profile="default",
+    ratecon_shadow_ranking_profile="baseline",
     include_private_eval_values=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
@@ -197,6 +199,7 @@ def build_private_ratecon_measurement_report(
             ),
             ratecon_shadow_layout_provider=ratecon_shadow_layout_provider,
             ratecon_shadow_table_profile=ratecon_shadow_table_profile,
+            ratecon_shadow_ranking_profile=ratecon_shadow_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
         for path in pdfs
@@ -613,6 +616,16 @@ def main(argv=None):
         help="Shadow-only pdfplumber table profile when coordinate layout is requested.",
     )
     parser.add_argument(
+        "--ratecon-shadow-ranking-profile",
+        default="baseline",
+        choices=sorted(RANKING_PROFILES),
+        help=(
+            "Shadow-only resolver ranking profile. Default baseline preserves "
+            "current behavior; gold_diagnostic_v1 is an explicit local "
+            "gold-evaluation experiment."
+        ),
+    )
+    parser.add_argument(
         "--ratecon-shadow-use-legacy-final-candidates",
         action="store_true",
         help=(
@@ -820,6 +833,7 @@ def main(argv=None):
             ),
             ratecon_shadow_layout_provider=args.ratecon_shadow_layout_provider,
             ratecon_shadow_table_profile=args.ratecon_shadow_table_profile,
+            ratecon_shadow_ranking_profile=args.ratecon_shadow_ranking_profile,
             include_private_eval_values=args.include_private_eval_values,
         )
 

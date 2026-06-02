@@ -1294,33 +1294,169 @@ def _classify_error_reason(field_name, system_name, prediction, comparisons):
     if field_name == FIELD_LOAD_NUMBER:
         if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
             return "gold_primary_id_in_candidates_not_selected"
+        if metadata.get("is_pickup_delivery_reference"):
+            return "selected_pickup_number_instead_of_primary_load"
+        if metadata.get("is_stop_level_reference"):
+            hint = _text(metadata.get("id_type_hint")).lower()
+            if hint == "bol":
+                return "selected_bol_instead_of_primary_load"
+            if hint == "po":
+                return "selected_po_reference_instead_of_primary_load"
+            return "selected_stop_reference_instead_of_primary_load"
+        if metadata.get("is_driver_truck_trailer_noise"):
+            return "selected_driver_truck_trailer_noise"
         hint = _text(metadata.get("id_type_hint")).lower()
         if hint == "po":
-            return "selected_po_instead_of_load"
+            return "selected_po_reference_instead_of_primary_load"
         if hint == "bol":
-            return "selected_bol_instead_of_load"
+            return "selected_bol_instead_of_primary_load"
         if hint in {"reference", "customer_ref", "pickup_ref", "delivery_ref"}:
-            return "selected_reference_instead_of_load"
+            if hint == "customer_ref":
+                return "selected_customer_reference_instead_of_primary_load"
+            if hint == "pickup_ref":
+                return "selected_pickup_number_instead_of_primary_load"
+            if hint == "delivery_ref":
+                return "selected_delivery_number_instead_of_primary_load"
+            return "selected_customer_reference_instead_of_primary_load"
         method = _text(metadata.get("pairing_method"))
         if method.startswith("table_"):
-            return "table_pairing_wrong"
+            return "selected_table_neighbor_wrong_cell"
         if "layout" in _prediction_source_name(prediction).lower() or method:
-            return "layout_pairing_wrong"
+            if method == "same_row_right":
+                return "selected_layout_same_row_wrong_pair"
+            if method == "nearby_row":
+                return "selected_nearby_row_wrong_pair"
+            return "selected_layout_same_row_wrong_pair"
         return "unknown"
     if field_name == FIELD_TOTAL_CARRIER_RATE:
         if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
             return "gold_total_in_candidates_not_selected"
         context = _text(metadata.get("money_context")).lower()
-        if context == "linehaul":
+        if context in {"linehaul", "linehaul_total", "line_item_rate"}:
             return "selected_linehaul_instead_of_total"
-        if context in {"accessorial", "fuel"}:
+        if context == "accessorial":
             return "selected_accessorial_instead_of_total"
         if context in {"deduction", "fee"}:
             return "selected_deduction_or_fee"
+        if context == "quickpay":
+            return "selected_quickpay_fee"
+        if context in {"fuel_advance"}:
+            return "selected_fuel_advance_or_comcheck"
+        if context == "penalty":
+            return "selected_tracking_hold_or_penalty"
+        if context == "payment_terms_amount":
+            return "selected_payment_terms_amount"
         if context and context != "total_rate" and context != "carrier_pay":
             return "selected_wrong_money_context"
         return "unknown"
     return ""
+
+
+def _candidate_group_has_correct(comparison_index, document_id, field_name):
+    for system_name in [
+        SYSTEM_SHADOW_CANDIDATE_BEST,
+        SYSTEM_SHADOW_BEST_INDEPENDENT,
+        SYSTEM_SHADOW_BEST_LAYOUT,
+        SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+    ]:
+        row = comparison_index.get((document_id, field_name, system_name), {}) or {}
+        if _status_correct(row.get("status")) or _status_partial(row.get("status")):
+            return True
+    return False
+
+
+def _build_load_number_error_analysis(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    missing_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") in EXTRACTOR_MISSING_STATUSES
+    ]
+    gold_in_candidates = sum(
+        1
+        for row in wrong_rows + missing_rows
+        if _candidate_group_has_correct(index, row.get("document_id", ""), FIELD_LOAD_NUMBER)
+    )
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "missing_count": len(missing_rows),
+        "gold_in_candidates_not_selected": gold_in_candidates,
+        "gold_not_in_candidates": len(wrong_rows) + len(missing_rows) - gold_in_candidates,
+        "wrong_reason_counts": dict(
+            Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_candidate_source": dict(
+            Counter(row.get("source") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_id_type_hint": dict(
+            Counter(row.get("id_type_hint") or "unknown" for row in wrong_rows).most_common()
+        ),
+    }
+
+
+def _build_rate_error_analysis(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    missing_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") in EXTRACTOR_MISSING_STATUSES
+    ]
+    gold_in_candidates = sum(
+        1
+        for row in wrong_rows + missing_rows
+        if _candidate_group_has_correct(index, row.get("document_id", ""), FIELD_TOTAL_CARRIER_RATE)
+    )
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "missing_count": len(missing_rows),
+        "gold_total_in_candidates_not_selected": gold_in_candidates,
+        "gold_total_not_in_candidates": len(wrong_rows) + len(missing_rows) - gold_in_candidates,
+        "wrong_reason_counts": dict(
+            Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_candidate_source": dict(
+            Counter(row.get("source") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_money_context": dict(
+            Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+    }
 
 
 def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
@@ -1371,6 +1507,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                 comparison = comparisons[system_name]
                 _update_metric(metrics[system_name][field_name], comparison)
                 source_status = _prediction_source_status(prediction)
+                metadata = _prediction_metadata(prediction)
                 row = {
                     "document_id": _text(label.get("document_id")),
                     "file_hash": _text(label.get("file_hash")),
@@ -1382,6 +1519,11 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "predicted": comparison.get("predicted", False),
                     "source_status": source_status,
                     "source": _prediction_source_name(prediction),
+                    "pairing_method": _text(metadata.get("pairing_method")),
+                    "section_context": _text(metadata.get("section_context")),
+                    "document_region": _text(metadata.get("document_region")),
+                    "id_type_hint": _text(metadata.get("id_type_hint")),
+                    "money_context": _text(metadata.get("money_context")),
                     "error_reason": _classify_error_reason(
                         field_name,
                         system_name,
@@ -1466,6 +1608,8 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             "rows": adjudication,
         },
         "error_case_breakdown": error_case_breakdown,
+        "load_number_error_analysis": _build_load_number_error_analysis(comparison_rows),
+        "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
         "document_metrics": document_rows,
         "comparison_rows": comparison_rows,
         "private_values_printed": False,

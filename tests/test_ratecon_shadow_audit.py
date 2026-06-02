@@ -325,6 +325,95 @@ class RateConShadowAuditTests(unittest.TestCase):
         )
         self.assertFalse(record["private_eval_values"]["raw_text_included"])
 
+    def test_private_eval_values_use_selected_layout_stop_components_only_when_requested(self):
+        shadow_result = {
+            "final_output": {"pickup_stops": ["pickup_stop_complete"]},
+            "needs_review": True,
+            "review_reasons": [],
+            "debug": {
+                "triage": {"pdf_type": "born_digital", "page_count": 1},
+                "artifact_summary": {
+                    "source": "native",
+                    "page_count": 1,
+                    "line_count": 1,
+                    "table_count": 1,
+                    "full_text_length": 80,
+                    "full_text_present": True,
+                },
+                "candidates": [
+                    {
+                        "field": "pickup_stops",
+                        "value": "pickup_layout_stop_present",
+                        "normalized_value": "pickup_layout_stop_present",
+                        "source": "native_layout",
+                        "parser_name": "layout_stop_table_candidate_generator",
+                        "confidence": 0.78,
+                        "metadata": {
+                            "structured_stop_candidate": True,
+                            "stop_role": "pickup",
+                            "has_location": True,
+                            "has_date": True,
+                            "pairing_method": "table_row_semantic",
+                        },
+                        "_private_eval_stop_components": [
+                            {
+                                "role": "pickup",
+                                "stop_index": 1,
+                                "city": "Fake City, ST",
+                                "date": "06/10/2026",
+                            }
+                        ],
+                    }
+                ],
+                "resolved_fields": {
+                    "pickup_stops": {
+                        "value": "pickup_stop_complete",
+                        "confidence": 0.78,
+                        "selected_candidate": {
+                            "value": "pickup_layout_stop_present",
+                            "normalized_value": "pickup_layout_stop_present",
+                            "source": "native_layout",
+                            "parser_name": "layout_stop_table_candidate_generator",
+                            "confidence": 0.78,
+                            "metadata": {
+                                "structured_stop_candidate": True,
+                                "stop_role": "pickup",
+                                "pairing_method": "table_row_semantic",
+                            },
+                        },
+                        "structured_stop_summary": {
+                            "has_location": True,
+                            "has_date": True,
+                            "structure_status": "complete",
+                        },
+                    }
+                },
+            },
+        }
+
+        safe_record = build_ratecon_shadow_audit_record(
+            "RATECON_001",
+            "fake.pdf",
+            shadow_result,
+            include_values=False,
+        )
+        private_record = build_ratecon_shadow_audit_record(
+            "RATECON_001",
+            "fake.pdf",
+            shadow_result,
+            include_values=False,
+            include_private_eval_values=True,
+        )
+
+        self.assertNotIn("Fake City", json.dumps(safe_record))
+        self.assertNotIn("private_eval_values", safe_record)
+        self.assertEqual(
+            private_record["private_eval_values"]["shadow_selected"]["pickup_stops"][
+                "value"
+            ][0]["date"],
+            "06/10/2026",
+        )
+
     def test_candidate_summary_counts_fields_and_sources(self):
         summary = build_candidate_summary(
             [

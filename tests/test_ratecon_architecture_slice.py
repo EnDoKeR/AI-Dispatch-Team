@@ -13,6 +13,7 @@ from app.document_ai.field_candidate_resolver import (
     FIELD_LOAD_NUMBER,
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
+    RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
     REVIEW_CONFLICTING_CANDIDATES,
     REVIEW_LOW_CONFIDENCE_CRITICAL_FIELD,
     REVIEW_MISSING_CRITICAL_FIELD,
@@ -133,6 +134,178 @@ class RateConArchitectureSliceTests(unittest.TestCase):
             result["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]["value"],
             "2500.00",
         )
+
+    def test_gold_diagnostic_profile_is_not_default_for_header_reference_ids(self):
+        candidates = [
+            {
+                "field": "reference_numbers",
+                "value": "PO-PRIMARY",
+                "normalized_value": "PO-PRIMARY",
+                "label": "PO #",
+                "evidence_text": "rate confirmation header id present",
+                "source": "native_layout",
+                "parser_name": "layout_load_identity_pairing_generator",
+                "confidence": 0.82,
+                "metadata": {
+                    "id_type_hint": "po",
+                    "document_region": "load_info",
+                    "is_document_title_or_header_id": True,
+                    "context_feature_load_identity_candidate": True,
+                    "pairing_method": "same_row_right",
+                },
+            }
+        ]
+
+        baseline = resolve_candidates(candidates, field_names=[FIELD_LOAD_NUMBER])
+        experiment = resolve_candidates(
+            candidates,
+            field_names=[FIELD_LOAD_NUMBER],
+            ranking_profile=RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        )
+
+        self.assertEqual(baseline["resolved_fields"][FIELD_LOAD_NUMBER]["value"], "")
+        self.assertEqual(
+            experiment["resolved_fields"][FIELD_LOAD_NUMBER]["value"],
+            "PO-PRIMARY",
+        )
+
+    def test_gold_diagnostic_profile_penalizes_stop_level_load_reference(self):
+        candidates = [
+            {
+                "field": "load_number",
+                "value": "PU-REF-1",
+                "normalized_value": "PU-REF-1",
+                "label": "Pickup #",
+                "evidence_text": "pickup section reference present",
+                "source": "native_layout",
+                "parser_name": "layout_load_identity_pairing_generator",
+                "confidence": 0.92,
+                "metadata": {
+                    "id_type_hint": "pickup_ref",
+                    "document_region": "stop_section",
+                    "is_pickup_delivery_reference": True,
+                    "is_stop_level_reference": True,
+                    "pairing_method": "table_key_value_row",
+                },
+            },
+            {
+                "field": "reference_numbers",
+                "value": "PO-PRIMARY",
+                "normalized_value": "PO-PRIMARY",
+                "label": "PO #",
+                "evidence_text": "rate confirmation header id present",
+                "source": "native_layout",
+                "parser_name": "layout_load_identity_pairing_generator",
+                "confidence": 0.76,
+                "metadata": {
+                    "id_type_hint": "po",
+                    "document_region": "load_info",
+                    "is_document_title_or_header_id": True,
+                    "context_feature_load_identity_candidate": True,
+                    "pairing_method": "same_row_right",
+                },
+            },
+        ]
+
+        baseline = resolve_candidates(candidates, field_names=[FIELD_LOAD_NUMBER])
+        experiment = resolve_candidates(
+            candidates,
+            field_names=[FIELD_LOAD_NUMBER],
+            ranking_profile=RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        )
+
+        self.assertEqual(baseline["resolved_fields"][FIELD_LOAD_NUMBER]["value"], "PU-REF-1")
+        self.assertEqual(
+            experiment["resolved_fields"][FIELD_LOAD_NUMBER]["value"],
+            "PO-PRIMARY",
+        )
+        selected = experiment["resolved_fields"][FIELD_LOAD_NUMBER]["selected_candidate"]
+        self.assertEqual(
+            selected["metadata"]["ranking_profile"],
+            RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        )
+
+    def test_gold_diagnostic_profile_penalizes_line_item_rate_against_total_cost(self):
+        candidates = [
+            {
+                "field": "total_carrier_rate",
+                "value": "1500.00",
+                "normalized_value": "1500.00",
+                "label": "Linehaul",
+                "evidence_text": "Linehaul 1500.00",
+                "source": "native_layout",
+                "parser_name": "layout_rate_candidate_generator",
+                "confidence": 0.86,
+                "metadata": {
+                    "money_context": "line_item_rate",
+                    "is_line_item_only": True,
+                },
+            },
+            {
+                "field": "total_carrier_rate",
+                "value": "1800.00",
+                "normalized_value": "1800.00",
+                "label": "Total Cost",
+                "evidence_text": "Total Cost 1800.00",
+                "source": "native_layout",
+                "parser_name": "layout_rate_candidate_generator",
+                "confidence": 0.65,
+                "metadata": {
+                    "money_context": "total_rate",
+                    "is_total_pay_candidate": True,
+                },
+            },
+        ]
+
+        baseline = resolve_candidates(candidates, field_names=[FIELD_TOTAL_CARRIER_RATE])
+        experiment = resolve_candidates(
+            candidates,
+            field_names=[FIELD_TOTAL_CARRIER_RATE],
+            ranking_profile=RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        )
+
+        self.assertEqual(
+            baseline["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]["value"],
+            "1500.00",
+        )
+        self.assertEqual(
+            experiment["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]["value"],
+            "1800.00",
+        )
+
+    def test_gold_diagnostic_profile_keeps_conflicting_totals_review_required(self):
+        candidates = [
+            {
+                "field": "total_carrier_rate",
+                "value": "1800.00",
+                "normalized_value": "1800.00",
+                "label": "Total Carrier Pay",
+                "evidence_text": "Total Carrier Pay 1800.00",
+                "source": "native_layout",
+                "confidence": 0.86,
+                "metadata": {"money_context": "total_carrier_pay"},
+            },
+            {
+                "field": "total_carrier_rate",
+                "value": "1900.00",
+                "normalized_value": "1900.00",
+                "label": "Agreed Rate Total",
+                "evidence_text": "Agreed Rate Total 1900.00",
+                "source": "native_layout",
+                "confidence": 0.86,
+                "metadata": {"money_context": "total_rate"},
+            },
+        ]
+
+        result = resolve_candidates(
+            candidates,
+            field_names=[FIELD_TOTAL_CARRIER_RATE],
+            ranking_profile=RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+        )
+
+        rate = result["resolved_fields"][FIELD_TOTAL_CARRIER_RATE]
+        self.assertTrue(rate["needs_review"])
+        self.assertEqual(rate["value"], "")
 
     def test_resolver_routes_conflicting_strong_rates_to_review(self):
         candidates = [

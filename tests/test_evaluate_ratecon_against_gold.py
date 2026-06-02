@@ -23,6 +23,7 @@ from app.document_ai.ratecon_gold_labels import (
     evaluate_ratecon_against_gold,
 )
 from scripts.evaluate_ratecon_against_gold import evaluate_and_write
+from scripts.compare_ratecon_gold_evaluations import compare_summaries
 
 
 class EvaluateRateconAgainstGoldTests(unittest.TestCase):
@@ -319,7 +320,7 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
 
         self.assertEqual(
             result["error_case_breakdown"][FIELD_LOAD_NUMBER][
-                "selected_po_instead_of_load"
+                "selected_po_reference_instead_of_primary_load"
             ],
             1,
         )
@@ -327,6 +328,14 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
             result["error_case_breakdown"][FIELD_TOTAL_CARRIER_RATE][
                 "selected_accessorial_instead_of_total"
             ],
+            1,
+        )
+        self.assertEqual(
+            result["load_number_error_analysis"]["wrong_by_id_type_hint"]["po"],
+            1,
+        )
+        self.assertEqual(
+            result["rate_error_analysis"]["wrong_by_money_context"]["accessorial"],
             1,
         )
 
@@ -426,6 +435,59 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 ],
                 1,
             )
+
+    def test_compare_gold_evaluation_summaries_reports_deltas(self):
+        baseline = {
+            "labels_evaluated": 1,
+            "field_metrics": {
+                SYSTEM_SHADOW: {
+                    FIELD_LOAD_NUMBER: {
+                        "exact_match_count": 0,
+                        "normalized_match_count": 0,
+                        "missing_count": 1,
+                        "wrong_value_count": 0,
+                        "precision": 0.0,
+                        "recall": 0.0,
+                        "high_confidence_but_wrong_count": 0,
+                    }
+                }
+            },
+            "load_number_error_analysis": {
+                "wrong_selected_count": 0,
+                "missing_count": 1,
+            },
+        }
+        experiment = {
+            "labels_evaluated": 1,
+            "field_metrics": {
+                SYSTEM_SHADOW: {
+                    FIELD_LOAD_NUMBER: {
+                        "exact_match_count": 1,
+                        "normalized_match_count": 0,
+                        "missing_count": 0,
+                        "wrong_value_count": 0,
+                        "precision": 1.0,
+                        "recall": 1.0,
+                        "high_confidence_but_wrong_count": 0,
+                    }
+                }
+            },
+            "load_number_error_analysis": {
+                "wrong_selected_count": 0,
+                "missing_count": 0,
+            },
+        }
+
+        comparison = compare_summaries(baseline, experiment)
+
+        self.assertEqual(
+            comparison["shadow_field_deltas"][FIELD_LOAD_NUMBER]["delta"]["correct_count"],
+            1,
+        )
+        self.assertEqual(
+            comparison["load_number_error_analysis_delta"]["delta"]["missing_count"],
+            -1,
+        )
 
 
 if __name__ == "__main__":

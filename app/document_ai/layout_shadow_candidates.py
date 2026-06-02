@@ -570,6 +570,7 @@ def _row_stop_cells_from_headers(row, header_roles):
                 "kind": kind,
                 "column_index": cell.get("column_index", ""),
                 "bbox": _bbox(cell.get("bbox")),
+                "text": _text(cell.get("text")),
             }
         )
     return cells
@@ -616,6 +617,7 @@ def _split_pickup_delivery_candidates(page, table_index, table, semantics):
                                 "kind": kind,
                                 "column_index": cell.get("column_index", ""),
                                 "bbox": _bbox(cell.get("bbox")),
+                                "text": _text(cell.get("text")),
                             }
                         )
             if row_cells_payload:
@@ -643,6 +645,58 @@ def _is_semantic_header_row(row, semantics):
     return bool(semantics.get("header_roles"))
 
 
+def _private_stop_components_from_cells(role, cells, confidence, source):
+    if role not in {ROLE_PICKUP, ROLE_DELIVERY}:
+        return {}
+    stop = {
+        "role": role,
+        "stop_index": 1,
+        "facility": "",
+        "address": "",
+        "city": "",
+        "state": "",
+        "zip": "",
+        "date": "",
+        "time": "",
+        "appointment_window": "",
+        "confidence": round(float(confidence or 0.0), 3),
+        "source": source,
+        "structure_status": "",
+    }
+    for cell in cells or []:
+        value = _text(cell.get("text"))
+        if not value:
+            continue
+        kind = cell.get("kind")
+        if kind == EVIDENCE_FACILITY and not stop["facility"]:
+            stop["facility"] = value
+        elif kind == EVIDENCE_ADDRESS and not stop["address"]:
+            stop["address"] = value
+        elif kind == EVIDENCE_CITY_STATE_ZIP and not stop["city"]:
+            stop["city"] = value
+        elif kind == EVIDENCE_DATE and not stop["date"]:
+            stop["date"] = value
+        elif kind == EVIDENCE_TIME and not stop["time"]:
+            stop["time"] = value
+        elif kind == EVIDENCE_APPOINTMENT_WINDOW and not stop["appointment_window"]:
+            stop["appointment_window"] = value
+    if any(
+        _text(stop.get(key))
+        for key in [
+            "facility",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "date",
+            "time",
+            "appointment_window",
+        ]
+    ):
+        return stop
+    return {}
+
+
 def _stop_candidate(role, row_cells, page, table_index, row_index, method, confidence_reason):
     location_types = {EVIDENCE_ADDRESS, EVIDENCE_CITY_STATE_ZIP, EVIDENCE_FACILITY}
     has_location = any(cell["kind"] in location_types for cell in row_cells)
@@ -650,7 +704,7 @@ def _stop_candidate(role, row_cells, page, table_index, row_index, method, confi
     has_time = any(cell["kind"] in {EVIDENCE_TIME, EVIDENCE_APPOINTMENT_WINDOW} for cell in row_cells)
     confidence = 0.78 if has_location and has_date else 0.55 if has_location or has_date else 0.4
     field = FIELD_PICKUP_STOPS if role == ROLE_PICKUP else FIELD_DELIVERY_STOPS
-    return build_field_candidate(
+    candidate = build_field_candidate(
         field=field,
         value=f"{role}_layout_stop_present",
         normalized_value=f"{role}_layout_stop_present",
@@ -683,6 +737,10 @@ def _stop_candidate(role, row_cells, page, table_index, row_index, method, confi
             "independent_candidate": True,
         },
     )
+    private_stop = _private_stop_components_from_cells(role, row_cells, confidence, SOURCE_NATIVE_LAYOUT)
+    if private_stop:
+        candidate["_private_eval_stop_components"] = [private_stop]
+    return candidate
 
 
 def generate_layout_stop_table_candidates(artifact):
@@ -743,6 +801,7 @@ def generate_layout_stop_table_candidates(artifact):
                             "kind": kind,
                             "column_index": cell.get("column_index", ""),
                             "bbox": _bbox(cell.get("bbox")),
+                            "text": _text(cell.get("text")),
                         }
                     )
             diagnostics["layout_stop_evidence_count"] += len(semantic_cells)

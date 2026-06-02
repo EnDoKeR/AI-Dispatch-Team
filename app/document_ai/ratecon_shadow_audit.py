@@ -1445,6 +1445,22 @@ def _metadata_eval_summary(metadata):
         "has_address",
         "structure_status",
         "stop_structure_status",
+        "document_region",
+        "is_document_title_or_header_id",
+        "is_stop_level_reference",
+        "is_pickup_delivery_reference",
+        "is_bol_or_po_or_customer_ref",
+        "is_driver_truck_trailer_noise",
+        "id_role_confidence",
+        "context_penalty_reason",
+        "context_feature_load_identity_candidate",
+        "is_total_pay_candidate",
+        "is_line_item_only",
+        "is_deduction_or_penalty",
+        "is_payment_terms_amount",
+        "ranking_profile",
+        "ranking_adjustment_total",
+        "ranking_adjustments",
     ]
     return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
 
@@ -1503,6 +1519,9 @@ def _candidate_eval_prediction(candidate, field_name):
     parser_name = _text(candidate.get("parser_name"))
     value = candidate.get("value")
     if field_name in PRIVATE_EVAL_STOP_FIELDS:
+        private_components = candidate.get("_private_eval_stop_components")
+        if private_components:
+            value = private_components
         return _private_stop_prediction(
             value,
             field_name,
@@ -1523,7 +1542,40 @@ def _candidate_eval_prediction(candidate, field_name):
     }
 
 
-def _resolved_eval_prediction(resolution, field_name):
+def _candidate_matches_selected(candidate, selected, field_name):
+    if not isinstance(candidate, dict) or not isinstance(selected, dict):
+        return False
+    if _candidate_field(candidate) != field_name:
+        return False
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    selected_metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    if _text(candidate.get("parser_name")) != _text(selected.get("parser_name")):
+        return False
+    if _text(candidate.get("source")) != _text(selected.get("source")):
+        return False
+    candidate_value = _text(candidate.get("normalized_value") or candidate.get("value"))
+    selected_value = _text(selected.get("normalized_value") or selected.get("value"))
+    if candidate_value and selected_value and candidate_value != selected_value:
+        return False
+    for key in ["pairing_method", "table_index", "row_index", "stop_role"]:
+        left = _text(metadata.get(key))
+        right = _text(selected_metadata.get(key))
+        if left and right and left != right:
+            return False
+    return True
+
+
+def _private_selected_candidate(resolution, field_name, candidates):
+    selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
+    if not selected:
+        return {}
+    for candidate in candidates or []:
+        if _candidate_matches_selected(candidate, selected, field_name):
+            return candidate
+    return {}
+
+
+def _resolved_eval_prediction(resolution, field_name, candidates=None):
     resolution = resolution if isinstance(resolution, dict) else {}
     selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
     metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
@@ -1531,7 +1583,25 @@ def _resolved_eval_prediction(resolution, field_name):
     source = _text(selected.get("source") or resolution.get("source"))
     parser_name = _text(selected.get("parser_name"))
     if field_name in PRIVATE_EVAL_STOP_FIELDS:
-        value = selected.get("value") if selected else resolution.get("value")
+        private_candidate = _private_selected_candidate(
+            resolution,
+            field_name,
+            candidates or [],
+        )
+        if private_candidate.get("_private_eval_stop_components"):
+            selected = private_candidate
+            metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else metadata
+            source = _text(selected.get("source") or source)
+            parser_name = _text(selected.get("parser_name") or parser_name)
+            value = selected.get("_private_eval_stop_components")
+        elif isinstance(private_candidate.get("value"), (list, dict)):
+            selected = private_candidate
+            metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else metadata
+            source = _text(selected.get("source") or source)
+            parser_name = _text(selected.get("parser_name") or parser_name)
+            value = selected.get("value")
+        else:
+            value = selected.get("value") if selected else resolution.get("value")
         return _private_stop_prediction(
             value,
             field_name,
@@ -1721,6 +1791,7 @@ def build_private_eval_values(raw_resolved=None, candidates=None, legacy_summary
             payload["shadow_selected"][field_name] = _resolved_eval_prediction(
                 raw_resolved.get(field_name, {}),
                 field_name,
+                candidates=candidates,
             )
         for group_name, predicate in [
             ("shadow_candidate_best", None),
@@ -2416,6 +2487,7 @@ def build_ratecon_shadow_audit_record(
             "resolved_fields": resolved_fields,
             "resolver_decision_traces": resolver_traces,
             "review_gate_trace": review_gate_trace,
+            "ranking_profile": _text(debug.get("ranking_profile")),
         },
         "triage": triage,
         "artifact_summary": artifact,

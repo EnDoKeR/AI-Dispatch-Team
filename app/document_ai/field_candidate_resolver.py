@@ -95,6 +95,13 @@ FIELD_THRESHOLDS = {
     FIELD_CARRIER_NAME: 0.70,
 }
 
+RANKING_PROFILE_BASELINE = "baseline"
+RANKING_PROFILE_GOLD_DIAGNOSTIC_V1 = "gold_diagnostic_v1"
+RANKING_PROFILES = {
+    RANKING_PROFILE_BASELINE,
+    RANKING_PROFILE_GOLD_DIAGNOSTIC_V1,
+}
+
 SOURCE_RANK = {
     "native_layout": 0.12,
     "native_text": 0.08,
@@ -290,6 +297,22 @@ def _metadata_summary(candidate):
         "stop_selected_status",
         "stop_conflict_type",
         "generator_name",
+        "document_region",
+        "is_document_title_or_header_id",
+        "is_stop_level_reference",
+        "is_pickup_delivery_reference",
+        "is_bol_or_po_or_customer_ref",
+        "is_driver_truck_trailer_noise",
+        "id_role_confidence",
+        "context_penalty_reason",
+        "context_feature_load_identity_candidate",
+        "is_total_pay_candidate",
+        "is_line_item_only",
+        "is_deduction_or_penalty",
+        "is_payment_terms_amount",
+        "ranking_profile",
+        "ranking_adjustment_total",
+        "ranking_adjustments",
     ]
     return {key: metadata.get(key) for key in safe_keys if key in metadata}
 
@@ -411,10 +434,79 @@ def _label_adjustment(field_name, candidate):
     return 0.0
 
 
-def _score(field_name, candidate, triage):
+def _profile_adjustments(field_name, candidate, ranking_profile):
+    if ranking_profile != RANKING_PROFILE_GOLD_DIAGNOSTIC_V1:
+        return []
+    metadata = _metadata(candidate)
+    adjustments = []
+    if field_name == FIELD_LOAD_NUMBER:
+        if metadata.get("is_document_title_or_header_id") and float(metadata.get("id_role_confidence") or 0.0) >= 0.65:
+            adjustments.append(("document_title_or_header_id", 0.10))
+        elif _text(metadata.get("document_region")) == "load_info":
+            adjustments.append(("load_info_section_id", 0.05))
+        if _text(metadata.get("pairing_method")) in {"same_row_right", "table_key_value_row", "table_same_cell"} and not metadata.get("is_stop_level_reference"):
+            adjustments.append(("strong_layout_pairing_context", 0.03))
+        if metadata.get("is_pickup_delivery_reference"):
+            adjustments.append(("pickup_delivery_reference_penalty", -0.45))
+        if metadata.get("is_stop_level_reference"):
+            adjustments.append(("stop_level_reference_penalty", -0.38))
+        if metadata.get("is_driver_truck_trailer_noise"):
+            adjustments.append(("driver_truck_trailer_noise_penalty", -0.60))
+        if metadata.get("is_bol_or_po_or_customer_ref") and not metadata.get("context_feature_load_identity_candidate"):
+            adjustments.append(("bol_po_customer_reference_penalty", -0.30))
+        if _text(metadata.get("document_region")) in {"instructions", "footer_signature"}:
+            adjustments.append(("instructions_or_footer_id_penalty", -0.35))
+        if _text(metadata.get("document_region")) == "reference_section" and not metadata.get("context_feature_load_identity_candidate"):
+            adjustments.append(("reference_section_id_penalty", -0.25))
+    elif field_name == FIELD_TOTAL_CARRIER_RATE:
+        money_context = _text(metadata.get("money_context"))
+        if money_context == "total_carrier_pay":
+            adjustments.append(("total_carrier_pay_context", 0.08))
+        elif money_context == "total_rate":
+            adjustments.append(("total_rate_context", 0.06))
+        elif money_context == "carrier_freight_pay":
+            adjustments.append(("carrier_freight_pay_context", 0.04))
+        elif money_context == "linehaul_total":
+            adjustments.append(("linehaul_total_context", 0.02))
+        if metadata.get("is_line_item_only"):
+            adjustments.append(("line_item_only_penalty", -0.25))
+        if metadata.get("is_deduction_or_penalty"):
+            adjustments.append(("deduction_fee_penalty_context", -0.45))
+        if metadata.get("is_payment_terms_amount"):
+            adjustments.append(("payment_terms_amount_penalty", -0.40))
+        if money_context in {"accessorial", "quickpay", "fuel_advance", "penalty", "fee", "deduction"}:
+            adjustments.append((f"{money_context}_money_context_penalty", -0.42))
+        if _text(metadata.get("document_region")) in {"instructions", "footer_signature"}:
+            adjustments.append(("instructions_or_footer_money_penalty", -0.25))
+    return adjustments
+
+
+def _apply_score_trace(candidate, ranking_profile, adjustments):
+    if ranking_profile == RANKING_PROFILE_BASELINE:
+        return
+    metadata = dict((candidate or {}).get("metadata") or {})
+    total = round(sum(amount for _reason, amount in adjustments), 3)
+    metadata["ranking_profile"] = ranking_profile
+    metadata["ranking_adjustment_total"] = total
+    metadata["ranking_adjustments"] = [
+        {"reason": reason, "amount": round(float(amount), 3)}
+        for reason, amount in adjustments
+    ]
+    candidate["metadata"] = metadata
+
+
+def _score(field_name, candidate, triage, ranking_profile=RANKING_PROFILE_BASELINE):
     base = float(candidate.get("confidence") or 0.0)
     source_boost = SOURCE_RANK.get(_text(candidate.get("source")), 0.0)
-    score = base + source_boost + _label_adjustment(field_name, candidate) - _triage_penalty(triage)
+    profile_adjustments = _profile_adjustments(field_name, candidate, ranking_profile)
+    _apply_score_trace(candidate, ranking_profile, profile_adjustments)
+    score = (
+        base
+        + source_boost
+        + _label_adjustment(field_name, candidate)
+        + sum(amount for _reason, amount in profile_adjustments)
+        - _triage_penalty(triage)
+    )
     return max(0.0, min(round(score, 3), 1.0))
 
 
@@ -433,14 +525,23 @@ def _public_candidate(candidate, score):
     }
 
 
-def _field_candidates(candidates, field_name):
+def _field_candidates(candidates, field_name, ranking_profile=RANKING_PROFILE_BASELINE):
     direct = []
     for candidate in candidates or []:
         if not isinstance(candidate, dict):
             continue
-        if _canonical_field(candidate.get("field")) == field_name:
+        candidate_field = _canonical_field(candidate.get("field"))
+        metadata = _metadata(candidate)
+        if candidate_field == field_name:
             direct.append(candidate)
         elif field_name == FIELD_TOTAL_CARRIER_RATE and _canonical_field(candidate.get("field")) == "total_carrier_rate":
+            direct.append(candidate)
+        elif (
+            ranking_profile == RANKING_PROFILE_GOLD_DIAGNOSTIC_V1
+            and field_name == FIELD_LOAD_NUMBER
+            and candidate_field == "reference_numbers"
+            and metadata.get("context_feature_load_identity_candidate")
+        ):
             direct.append(candidate)
     return direct
 
@@ -456,7 +557,13 @@ def classify_candidate_eligibility(candidate, field_name, index=0):
     mapping_strength = _text(metadata.get("canonical_mapping_strength"))
     reason = ELIGIBLE_CANONICAL_FIELD_MATCH
     eligible = True
-    if candidate_field != field_name:
+    if (
+        field_name == FIELD_LOAD_NUMBER
+        and candidate_field == "reference_numbers"
+        and metadata.get("context_feature_load_identity_candidate")
+    ):
+        reason = ELIGIBLE_WEAK_ALIAS
+    elif candidate_field != field_name:
         eligible = False
         reason = INELIGIBLE_WRONG_FIELD
     elif _is_stop_field(field_name):
@@ -559,12 +666,22 @@ def _not_selected_reason(field_name, candidate, selected_score=None, candidate_s
     return REJECT_UNKNOWN
 
 
-def build_resolver_decision_traces(candidates, resolved_fields=None, triage=None, field_names=None):
+def build_resolver_decision_traces(
+    candidates,
+    resolved_fields=None,
+    triage=None,
+    field_names=None,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+):
     resolved_fields = resolved_fields if isinstance(resolved_fields, dict) else {}
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     traces = {}
     for field_name in target_fields:
-        field_candidates = _field_candidates(candidates, field_name)
+        field_candidates = _field_candidates(
+            candidates,
+            field_name,
+            ranking_profile=ranking_profile,
+        )
         resolution = resolved_fields.get(field_name, {}) or {}
         selected_identity = _selected_candidate_identity(resolution)
         selected_score = None
@@ -588,7 +705,16 @@ def build_resolver_decision_traces(candidates, resolved_fields=None, triage=None
                 eligible_count += 1
             else:
                 ineligible_count += 1
-            score = _score(field_name, candidate, triage or {}) if eligibility["eligible"] else None
+            score = (
+                _score(
+                    field_name,
+                    candidate,
+                    triage or {},
+                    ranking_profile=ranking_profile,
+                )
+                if eligibility["eligible"]
+                else None
+            )
             if selected_identity and _candidate_identity(candidate) == selected_identity:
                 selected_candidate = _safe_candidate_trace(candidate, field_name, index, score=score)
                 continue
@@ -742,9 +868,9 @@ def build_review_gate_trace(resolved_fields=None, review_reasons=None, triage=No
     }
 
 
-def _stop_row(field_name, candidate, triage):
+def _stop_row(field_name, candidate, triage, ranking_profile=RANKING_PROFILE_BASELINE):
     normalized = _stop_normalization(candidate, field_name)
-    score = _score(field_name, candidate, triage)
+    score = _score(field_name, candidate, triage, ranking_profile=ranking_profile)
     # Keep thresholds unchanged; completeness is only a stop-specific
     # tie-breaker so richer structured candidates sort ahead of thin evidence.
     rank_score = min(1.0, round(score + (0.03 * float(normalized.get("completeness_score") or 0.0)), 3))
@@ -823,8 +949,17 @@ def _stop_resolution_empty(field_name, field_candidates, reason):
     }
 
 
-def _resolve_stop_field(field_name, candidates, triage):
-    field_candidates = _field_candidates(candidates, field_name)
+def _resolve_stop_field(
+    field_name,
+    candidates,
+    triage,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+):
+    field_candidates = _field_candidates(
+        candidates,
+        field_name,
+        ranking_profile=ranking_profile,
+    )
     threshold = FIELD_THRESHOLDS.get(field_name, 0.70)
     if not field_candidates:
         return _stop_resolution_empty(
@@ -833,7 +968,15 @@ def _resolve_stop_field(field_name, candidates, triage):
             REVIEW_MISSING_CRITICAL_FIELD,
         )
 
-    rows = [_stop_row(field_name, candidate, triage) for candidate in field_candidates]
+    rows = [
+        _stop_row(
+            field_name,
+            candidate,
+            triage,
+            ranking_profile=ranking_profile,
+        )
+        for candidate in field_candidates
+    ]
     unsupported = [row for row in rows if row["status"] == STOP_STATUS_UNSUPPORTED]
     nonempty = [row for row in rows if row["status"] != STOP_STATUS_EMPTY]
     selectable = [row for row in rows if _stop_is_selectable(row["normalized"])]
@@ -942,10 +1085,24 @@ def _resolve_stop_field(field_name, candidates, triage):
     }
 
 
-def _resolve_one_field(field_name, candidates, triage):
+def _resolve_one_field(
+    field_name,
+    candidates,
+    triage,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+):
     if _is_stop_field(field_name):
-        return _resolve_stop_field(field_name, candidates, triage)
-    field_candidates = _field_candidates(candidates, field_name)
+        return _resolve_stop_field(
+            field_name,
+            candidates,
+            triage,
+            ranking_profile=ranking_profile,
+        )
+    field_candidates = _field_candidates(
+        candidates,
+        field_name,
+        ranking_profile=ranking_profile,
+    )
     threshold = FIELD_THRESHOLDS.get(field_name, 0.65)
     if not field_candidates:
         return {
@@ -962,7 +1119,15 @@ def _resolve_one_field(field_name, candidates, triage):
 
     scored = sorted(
         [
-            (_score(field_name, candidate, triage), candidate)
+            (
+                _score(
+                    field_name,
+                    candidate,
+                    triage,
+                    ranking_profile=ranking_profile,
+                ),
+                candidate,
+            )
             for candidate in field_candidates
             if _value(candidate)
         ],
@@ -1015,12 +1180,25 @@ def _resolve_one_field(field_name, candidates, triage):
     }
 
 
-def resolve_candidates(candidates, artifact=None, triage=None, field_names=None):
+def resolve_candidates(
+    candidates,
+    artifact=None,
+    triage=None,
+    field_names=None,
+    ranking_profile=RANKING_PROFILE_BASELINE,
+):
     artifact = artifact or {}
     triage = triage if isinstance(triage, dict) else artifact.get("triage", {})
+    if ranking_profile not in RANKING_PROFILES:
+        raise ValueError(f"unknown ranking profile: {ranking_profile}")
     target_fields = tuple(field_names or FIELD_THRESHOLDS.keys())
     resolved_fields = {
-        field_name: _resolve_one_field(field_name, candidates, triage)
+        field_name: _resolve_one_field(
+            field_name,
+            candidates,
+            triage,
+            ranking_profile=ranking_profile,
+        )
         for field_name in target_fields
     }
     review_reasons = []
@@ -1046,19 +1224,27 @@ def resolve_candidates(candidates, artifact=None, triage=None, field_names=None)
                 defaultdict(
                     int,
                     {
-                        field_name: len(_field_candidates(candidates, field_name))
+                        field_name: len(
+                            _field_candidates(
+                                candidates,
+                                field_name,
+                                ranking_profile=ranking_profile,
+                            )
+                        )
                         for field_name in target_fields
                     },
                 ).items()
             )
         ),
         "resolver_version": "field_candidate_resolver_v1",
+        "ranking_profile": ranking_profile,
     }
     result["resolver_decision_traces"] = build_resolver_decision_traces(
         candidates,
         resolved_fields=resolved_fields,
         triage=triage,
         field_names=target_fields,
+        ranking_profile=ranking_profile,
     )
     result["review_gate_trace"] = build_review_gate_trace(
         resolved_fields=resolved_fields,

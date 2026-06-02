@@ -325,6 +325,12 @@ class LayoutShadowCandidateTests(unittest.TestCase):
         fields = {candidate["field"] for candidate in candidates}
         self.assertIn("pickup_stops", fields)
         self.assertIn("delivery_stops", fields)
+        pickup = next(candidate for candidate in candidates if candidate["field"] == "pickup_stops")
+        self.assertIn("_private_eval_stop_components", pickup)
+        self.assertEqual(
+            pickup["_private_eval_stop_components"][0]["date"],
+            "06/10/2026",
+        )
         self.assertEqual(diagnostics["layout_structured_stop_candidates"], 2)
         self.assertEqual(diagnostics["table_row_stop_candidates"], 2)
 

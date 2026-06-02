@@ -33,6 +33,7 @@ from app.document_ai.layout_shadow_candidates import (
     generate_layout_stop_table_candidates,
     summarize_tables_for_shadow,
 )
+from app.document_ai.ratecon_candidate_context_features import enrich_candidates_context
 from app.document_ai.load_identity_forensics import (
     analyze_load_identity_label_hits,
     candidate_value_shape,
@@ -932,4 +933,5 @@ def generate_field_candidates(
             )
         )
 
+    candidates = enrich_candidates_context(candidates)
     return _build_result(candidates=candidates, summaries=summaries, errors=errors)

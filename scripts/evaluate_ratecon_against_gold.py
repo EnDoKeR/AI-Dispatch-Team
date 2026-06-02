@@ -162,6 +162,11 @@ def _error_case_rows(evaluation):
                 "confidence": row.get("confidence", ""),
                 "source_status": row.get("source_status", ""),
                 "source": row.get("source", ""),
+                "pairing_method": row.get("pairing_method", ""),
+                "section_context": row.get("section_context", ""),
+                "document_region": row.get("document_region", ""),
+                "id_type_hint": row.get("id_type_hint", ""),
+                "money_context": row.get("money_context", ""),
                 "error_reason": row.get("error_reason", ""),
             }
         )
@@ -234,6 +239,15 @@ def _markdown_report(evaluation):
             (evaluation.get("error_case_breakdown", {}) or {}).get("total_carrier_rate", {}),
             sort_keys=True,
         )
+    )
+    lines.extend(["", "## Error Analysis", ""])
+    lines.append(
+        "load_number_error_analysis: "
+        + json.dumps(evaluation.get("load_number_error_analysis", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "rate_error_analysis: "
+        + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
     )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
@@ -340,6 +354,11 @@ def evaluate_and_write(
             "confidence",
             "source_status",
             "source",
+            "pairing_method",
+            "section_context",
+            "document_region",
+            "id_type_hint",
+            "money_context",
             "error_reason",
         ],
         _error_case_rows(evaluation),

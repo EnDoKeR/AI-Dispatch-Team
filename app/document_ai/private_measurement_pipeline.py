@@ -1250,6 +1250,7 @@ def _with_shadow_document_pipeline(
     use_legacy_final_candidates=True,
     shadow_layout_provider="native_text",
     shadow_table_profile="default",
+    shadow_ranking_profile="baseline",
     include_private_eval_values=False,
 ):
     """Attach shadow diagnostics after legacy row construction.
@@ -1282,6 +1283,7 @@ def _with_shadow_document_pipeline(
             strict_candidate_generators=strict,
             shadow_layout_provider=shadow_layout_provider,
             shadow_table_profile=shadow_table_profile,
+            shadow_ranking_profile=shadow_ranking_profile,
             strict_layout_provider=strict,
         )
         record = build_ratecon_shadow_audit_record(
@@ -1462,6 +1464,7 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_use_legacy_final_candidates=True,
     ratecon_shadow_layout_provider="native_text",
     ratecon_shadow_table_profile="default",
+    ratecon_shadow_ranking_profile="baseline",
     include_private_eval_values=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
@@ -1492,6 +1495,7 @@ def measure_private_ratecon_pdf(
             use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
             shadow_layout_provider=ratecon_shadow_layout_provider,
             shadow_table_profile=ratecon_shadow_table_profile,
+            shadow_ranking_profile=ratecon_shadow_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
 
@@ -1523,6 +1527,7 @@ def measure_private_ratecon_pdf(
             use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
             shadow_layout_provider=ratecon_shadow_layout_provider,
             shadow_table_profile=ratecon_shadow_table_profile,
+            shadow_ranking_profile=ratecon_shadow_ranking_profile,
             include_private_eval_values=include_private_eval_values,
         )
 
@@ -1601,6 +1606,8 @@ def measure_private_ratecon_pdf(
             use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
             shadow_layout_provider=ratecon_shadow_layout_provider,
             shadow_table_profile=ratecon_shadow_table_profile,
+            shadow_ranking_profile=ratecon_shadow_ranking_profile,
+            include_private_eval_values=include_private_eval_values,
         )
 
     selected_pages = _selected_candidate_pages(classification_result, artifact)
@@ -2024,5 +2031,6 @@ def measure_private_ratecon_pdf(
         use_legacy_final_candidates=ratecon_shadow_use_legacy_final_candidates,
         shadow_layout_provider=ratecon_shadow_layout_provider,
         shadow_table_profile=ratecon_shadow_table_profile,
+        shadow_ranking_profile=ratecon_shadow_ranking_profile,
         include_private_eval_values=include_private_eval_values,
     )

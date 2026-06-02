@@ -18,6 +18,7 @@ from app.document_ai.field_candidate_resolver import (
     FIELD_LOAD_NUMBER,
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
+    RANKING_PROFILE_BASELINE,
     resolve_candidates,
 )
 from app.document_ai.pdf_triage import triage_document
@@ -74,6 +75,7 @@ def extract_ratecon_document(
     shadow_layout_provider="native_text",
     shadow_table_profile="default",
     strict_layout_provider=False,
+    shadow_ranking_profile=RANKING_PROFILE_BASELINE,
 ):
     triage = triage_document(file_path, document_id=document_id)
     artifact = extract_document_artifact_from_pdf(
@@ -93,7 +95,12 @@ def extract_ratecon_document(
     )
     candidates = generation_result.get("candidates", [])
 
-    resolved = resolve_candidates(candidates, artifact=artifact, triage=triage)
+    resolved = resolve_candidates(
+        candidates,
+        artifact=artifact,
+        triage=triage,
+        ranking_profile=shadow_ranking_profile,
+    )
     final_output = _legacy_output_from_resolution(
         resolved,
         document_id=triage.get("document_id", document_id),
@@ -119,6 +126,7 @@ def extract_ratecon_document(
             "resolved_fields": resolved.get("resolved_fields", {}),
             "resolver_decision_traces": resolved.get("resolver_decision_traces", {}),
             "review_gate_trace": resolved.get("review_gate_trace", {}),
+            "ranking_profile": resolved.get("ranking_profile", shadow_ranking_profile),
             "needs_review": resolved.get("needs_review", True),
             "review_reasons": resolved.get("review_reasons", []),
             "candidate_warnings": [
