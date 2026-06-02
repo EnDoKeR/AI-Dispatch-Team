@@ -168,19 +168,161 @@ def _render_pages(pdf_path, page_numbers, dpi):
     return []
 
 
+def _safe_float(value, default=-1.0):
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return default
+
+
+def _safe_int(value, default=0):
+    try:
+        return int(float(value))
+    except (TypeError, ValueError):
+        return default
+
+
+def _bbox(left, top, width, height):
+    left = _safe_int(left)
+    top = _safe_int(top)
+    width = _safe_int(width)
+    height = _safe_int(height)
+    return {
+        "x0": left,
+        "y0": top,
+        "x1": left + max(width, 0),
+        "y1": top + max(height, 0),
+        "left": left,
+        "top": top,
+        "right": left + max(width, 0),
+        "bottom": top + max(height, 0),
+        "width": max(width, 0),
+        "height": max(height, 0),
+    }
+
+
+def _ocr_boxes_from_tsv(data, page_number):
+    words = []
+    line_groups = {}
+    text_items = data.get("text", []) or []
+    def column_value(name, index, default=""):
+        values = data.get(name, []) or []
+        return values[index] if index < len(values) else default
+
+    for index, text in enumerate(text_items):
+        token = _text(text)
+        if not token:
+            continue
+        confidence = _safe_float(column_value("conf", index), default=-1.0)
+        left = _safe_int(column_value("left", index))
+        top = _safe_int(column_value("top", index))
+        width = _safe_int(column_value("width", index))
+        height = _safe_int(column_value("height", index))
+        block_num = _safe_int(column_value("block_num", index))
+        par_num = _safe_int(column_value("par_num", index))
+        line_num = _safe_int(column_value("line_num", index))
+        word_num = _safe_int(column_value("word_num", index))
+        line_key = (page_number, block_num, par_num, line_num)
+        word = {
+            "page": page_number,
+            "text": token,
+            "confidence": confidence if confidence >= 0 else None,
+            "left": left,
+            "top": top,
+            "width": width,
+            "height": height,
+            "block_num": block_num,
+            "par_num": par_num,
+            "line_num": line_num,
+            "word_num": word_num,
+            "line_index": len(line_groups) if line_key not in line_groups else line_groups[line_key]["line_index"],
+            "word_id": f"ocr-p{page_number}-b{block_num}-p{par_num}-l{line_num}-w{word_num}",
+            "line_id": f"ocr-p{page_number}-b{block_num}-p{par_num}-l{line_num}",
+            "source": "ocr",
+            "bbox": _bbox(left, top, width, height),
+        }
+        words.append(word)
+        group = line_groups.setdefault(
+            line_key,
+            {
+                "page": page_number,
+                "block_num": block_num,
+                "par_num": par_num,
+                "line_num": line_num,
+                "line_index": len(line_groups),
+                "words": [],
+            },
+        )
+        group["words"].append(word)
+
+    line_boxes = []
+    for group in line_groups.values():
+        line_words = sorted(group["words"], key=lambda item: item.get("word_num", 0))
+        if not line_words:
+            continue
+        left = min(word["bbox"]["x0"] for word in line_words)
+        top = min(word["bbox"]["y0"] for word in line_words)
+        right = max(word["bbox"]["x1"] for word in line_words)
+        bottom = max(word["bbox"]["y1"] for word in line_words)
+        confidences = [
+            word.get("confidence")
+            for word in line_words
+            if isinstance(word.get("confidence"), (int, float))
+        ]
+        mean = round(sum(confidences) / len(confidences), 2) if confidences else None
+        line_boxes.append(
+            {
+                "page": page_number,
+                "text": " ".join(word["text"] for word in line_words),
+                "confidence": mean,
+                "left": left,
+                "top": top,
+                "width": right - left,
+                "height": bottom - top,
+                "block_num": group["block_num"],
+                "par_num": group["par_num"],
+                "line_num": group["line_num"],
+                "line_index": group["line_index"],
+                "line_id": f"ocr-p{page_number}-b{group['block_num']}-p{group['par_num']}-l{group['line_num']}",
+                "source": "ocr",
+                "bbox": {
+                    "x0": left,
+                    "y0": top,
+                    "x1": right,
+                    "y1": bottom,
+                    "left": left,
+                    "top": top,
+                    "right": right,
+                    "bottom": bottom,
+                    "width": right - left,
+                    "height": bottom - top,
+                },
+                "words": [
+                    {
+                        "text": word["text"],
+                        "confidence": word.get("confidence"),
+                        "bbox": word["bbox"],
+                        "word_num": word.get("word_num"),
+                    }
+                    for word in line_words
+                ],
+            }
+        )
+    line_boxes.sort(key=lambda item: (item.get("top", 0), item.get("left", 0)))
+    for index, line in enumerate(line_boxes):
+        line["line_index"] = index
+    return words, line_boxes
+
+
 def _ocr_image(ocr_module, image, page_number, dpi):
     try:
         data = ocr_module.image_to_data(image, output_type=ocr_module.Output.DICT)
+        word_boxes, line_boxes = _ocr_boxes_from_tsv(data, page_number)
         words = []
         confidences = []
-        for text, confidence in zip(data.get("text", []) or [], data.get("conf", []) or []):
-            token = _text(text)
-            if token:
-                words.append(token)
-            try:
-                parsed = float(confidence)
-            except (TypeError, ValueError):
-                parsed = -1.0
+        for word in word_boxes:
+            words.append(word["text"])
+            parsed = _safe_float(word.get("confidence"), default=-1.0)
             if parsed >= 0:
                 confidences.append(parsed)
         text = " ".join(words)
@@ -191,7 +333,15 @@ def _ocr_image(ocr_module, image, page_number, dpi):
             mean_confidence=mean,
             source_image_dpi=dpi,
             status=OCR_STATUS_SUCCESS if text.strip() else OCR_STATUS_FAILED,
-            diagnostics={"ocr_engine": "tesseract", "ocr_method": "image_to_data"},
+            word_boxes=word_boxes,
+            line_boxes=line_boxes,
+            diagnostics={
+                "ocr_engine": "tesseract",
+                "ocr_method": "image_to_data",
+                "ocr_geometry_available": bool(word_boxes or line_boxes),
+                "ocr_word_box_count": len(word_boxes),
+                "ocr_line_box_count": len(line_boxes),
+            },
         )
     except Exception:
         text = ocr_module.image_to_string(image) or ""

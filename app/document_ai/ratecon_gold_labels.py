@@ -3601,6 +3601,10 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
     alignment_status_counts = Counter()
     alignment_warning_counts = Counter()
     alignment_policy_counts = Counter()
+    geometry_status_counts = Counter()
+    geometry_warning_counts = Counter()
+    geometry_available_counts = Counter()
+    geometry_structured = 0
     for item in ocr_items:
         metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
         status = _text(metadata.get("stop_alignment_status"))
@@ -3615,6 +3619,22 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         for warning in warnings if isinstance(warnings, list) else []:
             if _text(warning):
                 alignment_warning_counts[_text(warning)] += 1
+        geometry_available_counts[str(bool(metadata.get("geometry_available"))).lower()] += 1
+        geometry_status = _text(metadata.get("stop_geometry_status"))
+        if geometry_status:
+            geometry_status_counts[geometry_status] += 1
+        geometry_warnings = metadata.get("stop_geometry_warnings") or []
+        if isinstance(geometry_warnings, str):
+            geometry_warnings = [geometry_warnings] if geometry_warnings else []
+        for warning in geometry_warnings if isinstance(geometry_warnings, list) else []:
+            if _text(warning):
+                geometry_warning_counts[_text(warning)] += 1
+        if (
+            metadata.get("structured_stop_candidate")
+            and metadata.get("geometry_available")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_block"
+        ):
+            geometry_structured += 1
     return {
         "ocr_docs": len(docs_with_ocr),
         "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),
@@ -3630,6 +3650,10 @@ def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
         "alignment_status_counts": dict(alignment_status_counts.most_common()),
         "alignment_warning_counts": dict(alignment_warning_counts.most_common()),
         "alignment_policy_counts": dict(alignment_policy_counts.most_common()),
+        "geometry_available_counts": dict(geometry_available_counts.most_common()),
+        "geometry_status_counts": dict(geometry_status_counts.most_common()),
+        "geometry_warning_counts": dict(geometry_warning_counts.most_common()),
+        "ocr_geometry_structured_stop_candidates": geometry_structured,
         "candidate_field_counts": dict(candidates_by_field.most_common()),
         "private_values_printed": False,
         "raw_text_printed": False,

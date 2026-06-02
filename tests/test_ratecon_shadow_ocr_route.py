@@ -164,6 +164,10 @@ class RateConShadowOcrRouteTests(unittest.TestCase):
                             "pages_attempted": 1,
                             "pages_ocr_success": 1,
                             "ocr_text_page_count": 1,
+                            "ocr_geometry_available": True,
+                            "ocr_geometry_page_count": 1,
+                            "ocr_word_box_count": 4,
+                            "ocr_line_box_count": 1,
                             "warnings": [],
                             "errors": [],
                         },
@@ -180,6 +184,9 @@ class RateConShadowOcrRouteTests(unittest.TestCase):
         )
 
         self.assertEqual(summary["ocr_provider_summary"]["docs_ocr_success"], 1)
+        self.assertEqual(summary["ocr_provider_summary"]["ocr_geometry_doc_count"], 1)
+        self.assertEqual(summary["ocr_provider_summary"]["ocr_word_box_count"], 4)
+        self.assertEqual(summary["ocr_provider_summary"]["ocr_line_box_count"], 1)
         self.assertEqual(summary["ocr_candidate_summary"]["ocr_candidates_total"], 1)
         self.assertEqual(
             summary["ocr_candidate_summary"]["ocr_candidates_by_field"]["load_number"],

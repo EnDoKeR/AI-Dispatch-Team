@@ -78,6 +78,8 @@ class OcrPageResult:
     mean_confidence: float | None = None
     source_image_dpi: int = 200
     status: str = OCR_STATUS_SKIPPED
+    word_boxes: list[dict] = field(default_factory=list)
+    line_boxes: list[dict] = field(default_factory=list)
     warnings: list[str] = field(default_factory=list)
     diagnostics: dict = field(default_factory=dict)
 
@@ -90,6 +92,16 @@ class OcrPageResult:
         payload["mean_confidence"] = _safe_float_or_none(payload.get("mean_confidence"))
         payload["source_image_dpi"] = _safe_int(payload.get("source_image_dpi")) or 200
         payload["status"] = _text(payload.get("status")) or OCR_STATUS_SKIPPED
+        payload["word_boxes"] = [
+            dict(item or {})
+            for item in payload.get("word_boxes", []) or []
+            if isinstance(item, dict) and _text(item.get("text"))
+        ]
+        payload["line_boxes"] = [
+            dict(item or {})
+            for item in payload.get("line_boxes", []) or []
+            if isinstance(item, dict) and _text(item.get("text"))
+        ]
         payload["warnings"] = [_text(item) for item in payload.get("warnings", []) if _text(item)]
         payload["diagnostics"] = (
             dict(payload.get("diagnostics") or {})
@@ -135,6 +147,8 @@ def build_ocr_page_result(
     mean_confidence=None,
     source_image_dpi=200,
     status="",
+    word_boxes=None,
+    line_boxes=None,
     warnings=None,
     diagnostics=None,
 ):
@@ -152,6 +166,8 @@ def build_ocr_page_result(
         mean_confidence=_safe_float_or_none(mean_confidence),
         source_image_dpi=normalize_ocr_dpi(source_image_dpi),
         status=resolved_status,
+        word_boxes=list(word_boxes or []),
+        line_boxes=list(line_boxes or []),
         warnings=list(warnings or []),
         diagnostics=dict(diagnostics or {}),
     ).to_dict()
@@ -199,6 +215,8 @@ def safe_ocr_provider_summary(result):
     for page in pages:
         status = _text(page.get("status")) or OCR_STATUS_SKIPPED
         page_status_counts[status] = page_status_counts.get(status, 0) + 1
+    word_box_count = sum(len(page.get("word_boxes", []) or []) for page in pages)
+    line_box_count = sum(len(page.get("line_boxes", []) or []) for page in pages)
     return {
         "provider_requested": _text(result.get("provider_requested")),
         "provider_used": _text(result.get("provider_name")),
@@ -211,6 +229,14 @@ def safe_ocr_provider_summary(result):
         "ocr_text_page_count": sum(1 for page in pages if _text(page.get("text"))),
         "ocr_word_count": sum(_safe_int(page.get("word_count")) for page in pages),
         "ocr_line_count": sum(_safe_int(page.get("line_count")) for page in pages),
+        "ocr_geometry_available": bool(word_box_count or line_box_count),
+        "ocr_geometry_page_count": sum(
+            1
+            for page in pages
+            if page.get("word_boxes") or page.get("line_boxes")
+        ),
+        "ocr_word_box_count": word_box_count,
+        "ocr_line_box_count": line_box_count,
         "page_status_counts": dict(sorted(page_status_counts.items())),
         "warnings": sorted({_text(item) for item in warnings if _text(item)}),
         "errors": sorted({_text(item) for item in errors if _text(item)}),

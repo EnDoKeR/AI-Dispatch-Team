@@ -38,8 +38,10 @@ from app.document_ai.ratecon_stop_component_policy import (
     STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1,
     STOP_RANKING_PROFILE_BASELINE,
     STOP_RANKING_PROFILE_COMPONENT_STRICT_V1,
+    STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1,
     apply_stop_alignment_strict_profile_to_candidates,
     apply_stop_component_strict_profile_to_candidates,
+    apply_stop_geometry_strict_profile_to_candidates,
 )
 from app.document_ai.section_context import section_context_summary
 
@@ -145,6 +147,8 @@ def extract_ratecon_document(
         candidates = apply_stop_component_strict_profile_to_candidates(candidates)
     elif shadow_stop_ranking_profile == STOP_RANKING_PROFILE_ALIGNMENT_STRICT_V1:
         candidates = apply_stop_alignment_strict_profile_to_candidates(candidates)
+    elif shadow_stop_ranking_profile == STOP_RANKING_PROFILE_GEOMETRY_STRICT_V1:
+        candidates = apply_stop_geometry_strict_profile_to_candidates(candidates)
 
     resolved = resolve_candidates(
         candidates,

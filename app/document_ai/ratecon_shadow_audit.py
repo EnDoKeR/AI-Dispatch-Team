@@ -1530,6 +1530,18 @@ def _metadata_eval_summary(metadata):
         "stop_alignment_score",
         "stop_alignment_status",
         "stop_alignment_warnings",
+        "stop_geometry_score",
+        "stop_geometry_status",
+        "stop_geometry_warnings",
+        "geometry_available",
+        "component_bboxes_available",
+        "block_boundary_confidence",
+        "has_clear_horizontal_boundary",
+        "has_clear_role_anchor",
+        "has_date_time_column",
+        "has_location_column",
+        "component_alignment",
+        "geometry_block_type",
         "component_line_offsets",
         "line_span",
         "block_type",
@@ -3352,12 +3364,17 @@ def summarize_ratecon_shadow_audit_records(records):
                 ocr_provider_totals["docs_ocr_unavailable"] += 1
             if _safe_int(ocr_summary.get("ocr_text_page_count")) > 0:
                 ocr_provider_totals["ocr_text_doc_count"] += 1
+            if ocr_summary.get("ocr_geometry_available"):
+                ocr_provider_totals["ocr_geometry_doc_count"] += 1
             for key in [
                 "pages_attempted",
                 "pages_ocr_success",
                 "ocr_text_page_count",
                 "ocr_word_count",
                 "ocr_line_count",
+                "ocr_geometry_page_count",
+                "ocr_word_box_count",
+                "ocr_line_box_count",
             ]:
                 ocr_provider_totals[key] += _safe_int(ocr_summary.get(key))
             for warning in _safe_list(ocr_summary.get("warnings")):
@@ -3593,6 +3610,10 @@ def summarize_ratecon_shadow_audit_records(records):
             "ocr_text_page_count": ocr_provider_totals.get("ocr_text_page_count", 0),
             "ocr_word_count": ocr_provider_totals.get("ocr_word_count", 0),
             "ocr_line_count": ocr_provider_totals.get("ocr_line_count", 0),
+            "ocr_geometry_doc_count": ocr_provider_totals.get("ocr_geometry_doc_count", 0),
+            "ocr_geometry_page_count": ocr_provider_totals.get("ocr_geometry_page_count", 0),
+            "ocr_word_box_count": ocr_provider_totals.get("ocr_word_box_count", 0),
+            "ocr_line_box_count": ocr_provider_totals.get("ocr_line_box_count", 0),
             "warnings": dict(ocr_warning_counts.most_common()),
             "errors": dict(ocr_error_counts.most_common()),
             "raw_text_printed": False,
