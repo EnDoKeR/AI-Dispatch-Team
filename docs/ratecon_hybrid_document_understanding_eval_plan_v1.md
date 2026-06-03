@@ -298,6 +298,96 @@ Stop the hybrid evaluation path if:
 6. Add human-review draft UI/packet integration.
 7. Decide whether any field can progress beyond review-only.
 
+## Local Benchmark Runner Workflow
+
+Use the benchmark runner after a human or future local/model process has filled
+hybrid result JSON files:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_results ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_benchmark ^
+  --confirm-private-local-run
+```
+
+The runner:
+
+- validates each hybrid JSON result against the contract;
+- compares load, rate, pickup stops, and delivery stops against local gold;
+- writes aggregate reports under `.local_outputs`;
+- counts evidence and review-policy violations;
+- optionally writes a review packet with `--write-review-packets`;
+- does not call AI, cloud services, OCR, local models, or PDF processing.
+
+Default outputs:
+
+- `hybrid_benchmark_summary.json`;
+- `hybrid_benchmark_report.md`;
+- `hybrid_field_metrics.csv`;
+- `hybrid_document_metrics.csv`;
+- `hybrid_error_cases.csv`;
+- `hybrid_schema_errors.csv`.
+
+These outputs are private/local and must not be committed.
+
+## Manual Template Workflow
+
+Create blank hybrid result templates with:
+
+```powershell
+python scripts/create_ratecon_hybrid_result_templates.py ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_result_templates ^
+  --confirm-private-local-run
+```
+
+The template generator:
+
+- creates one blank `*.hybrid_result.json` file per audit document when an audit
+  is supplied;
+- creates one generic template when no audit is supplied;
+- leaves private field values blank by default;
+- sets all stop drafts to `requires_human_review=true`;
+- sets all stop drafts to `auto_accept=false`;
+- writes an index CSV and README under `.local_outputs`.
+
+A human or future local/model pipeline may fill the templates. Filled templates
+should then be submitted to `scripts/run_ratecon_hybrid_benchmark.py` for
+validation and aggregate scoring.
+
+## Future Output Submission Rules
+
+Future local/model outputs must:
+
+- use `ratecon_hybrid_extraction_result_v1`;
+- remain under ignored local-only paths;
+- include `private_local_only=true`;
+- include auditable evidence for non-empty extracted fields;
+- keep all stops review-required in phase 1;
+- never set stop `auto_accept=true`;
+- avoid raw private values in committed artifacts.
+
+## Benchmark Success / Failure
+
+A benchmark run is successful only if:
+
+- contract validation errors are explainable and low;
+- stop drafts have evidence;
+- all stops remain review-required;
+- unsafe wrong stop drafts stay at or below the agreed threshold;
+- load/rate do not regress against deterministic baseline;
+- no private data leaves ignored local-only output paths.
+
+A benchmark run fails if:
+
+- the runner needs AI/cloud/model/PDF processing to operate;
+- outputs contain raw private values without explicit local/private flags;
+- stop auto-accept appears;
+- evidence is missing for proposed fields;
+- non-RC/BOL/POD documents pollute RateCon denominators.
+
 ## Non-Goals
 
 - No AI/cloud integration in this branch.

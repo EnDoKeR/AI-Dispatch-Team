@@ -231,3 +231,62 @@ include:
 
 This allows the benchmark harness to test contracts before any model is
 integrated.
+
+## Local Validator Module
+
+The executable contract is implemented in:
+
+```text
+app/document_ai/ratecon_hybrid_contract.py
+```
+
+It validates:
+
+- required top-level fields;
+- allowed document types;
+- allowed provider names;
+- `private_local_only=true` for private benchmarks;
+- load/rate field object shape;
+- pickup/delivery stop object shape;
+- evidence objects;
+- stop `requires_human_review=true`;
+- stop `auto_accept=false`;
+- evidence presence when fields or stops contain values.
+
+Strict validation should be used for benchmark scoring. Template generation may
+use blank values without evidence because the template is not a filled result.
+
+## Benchmark Runner Use
+
+Filled hybrid result JSON files are evaluated with:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_results ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_benchmark ^
+  --confirm-private-local-run ^
+  --strict-schema
+```
+
+The runner reports schema errors separately from extraction quality. A result
+with stop values but no evidence is invalid under strict schema mode.
+
+## Review Packet Policy
+
+If `--write-review-packets` is passed, the runner writes:
+
+- `hybrid_review_packet.md`;
+- `hybrid_review_items.csv`;
+- `hybrid_review_items.json`.
+
+Review packet actions are review-draft actions only:
+
+- `accept_for_review_draft`;
+- `reject_wrong`;
+- `needs_human_review`;
+- `missing_evidence`;
+- `schema_error`;
+- `document_type_mismatch`.
+
+The packet must not recommend production auto-accept.

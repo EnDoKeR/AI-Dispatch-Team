@@ -306,9 +306,53 @@ The benchmark should report:
 - private output path only;
 - zero committed private data.
 
-## Next Benchmark Artifact
+## Implemented Benchmark Artifact
 
-The next implementation branch should add a local-only benchmark runner that can
-load hybrid result JSON files, validate the contract, compare draft groups
-against gold/eval summaries, and produce aggregate metrics under
-`.local_outputs/`.
+The local-only benchmark runner is:
+
+```text
+scripts/run_ratecon_hybrid_benchmark.py
+```
+
+It loads hybrid result JSON files, validates the contract, matches local gold by
+document ID, filename, or hash when available, compares draft fields against
+gold, and writes aggregate reports under `.local_outputs/`.
+
+It does not:
+
+- call AI/cloud/local models;
+- process PDFs;
+- run OCR;
+- change selected stop output;
+- change production or legacy output.
+
+## Template Artifact
+
+Blank templates can be generated with:
+
+```text
+scripts/create_ratecon_hybrid_result_templates.py
+```
+
+The template generator writes local-only `*.hybrid_result.json` files that a
+human or future local/model pipeline can fill. Templates keep private values
+blank by default and require every stop draft to remain review-required with
+`auto_accept=false`.
+
+## Benchmark Output Interpretation
+
+The benchmark separates:
+
+- schema errors;
+- document classification status;
+- load/rate metrics;
+- stop usability tiers;
+- evidence gaps;
+- review-policy violations;
+- confidence buckets;
+- review packet items.
+
+The key success signal is not production accuracy. The key signal is whether
+review-only hybrid stop drafts are safer and more complete than the current
+deterministic selected stop baseline while preserving evidence and review
+requirements.

@@ -14,10 +14,19 @@ from pathlib import Path
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from app.document_ai.ratecon_hybrid_contract import (  # noqa: E402
+    HybridContractError,
+    build_hybrid_result_template,
+    build_stop_template,
+    require_valid_hybrid_result,
+    validate_hybrid_result,
+    validate_stop,
+)
 
 DEFAULT_OUTPUT_DIR = Path(".local_outputs/private_ratecon_hybrid_eval_stub")
-HYBRID_SCHEMA_VERSION = "ratecon_hybrid_extraction_result_v1"
-STOP_SCHEMA_VERSION = "ratecon_hybrid_stop_v1"
 SAFE_EVAL_SUMMARY_KEYS = {
     "load_number_summary",
     "total_carrier_rate_summary",
@@ -25,17 +34,8 @@ SAFE_EVAL_SUMMARY_KEYS = {
     "stop_usability_summary",
     "stop_candidate_group_metrics",
 }
-ALLOWED_DOCUMENT_TYPES = {"rate_confirmation", "bol_pod", "unknown"}
-ALLOWED_MODEL_PROVIDERS = {
-    "local_stub",
-    "local_vlm",
-    "commercial_doc_ai",
-    "manual",
-}
-ALLOWED_STOP_ROLES = {"pickup", "delivery"}
 
-
-class HybridEvalStubError(ValueError):
+class HybridEvalStubError(HybridContractError):
     """Raised when the local-only scaffold would be unsafe or invalid."""
 
 
@@ -103,113 +103,16 @@ def _safe_eval_summary(eval_dir: Path | None) -> dict:
     return safe
 
 
-def build_stop_template(role: str = "pickup", stop_index: int = 1) -> dict:
-    return {
-        "schema_version": STOP_SCHEMA_VERSION,
-        "role": role,
-        "stop_index": stop_index,
-        "facility": None,
-        "address": None,
-        "city": None,
-        "state": None,
-        "zip": None,
-        "date": None,
-        "time": None,
-        "appointment_window": None,
-        "raw_text_local_only": None,
-        "evidence_page": None,
-        "evidence_bbox": None,
-        "confidence": 0.0,
-        "requires_human_review": True,
-        "auto_accept": False,
-        "evidence_ids": [],
-    }
-
-
-def build_hybrid_result_template() -> dict:
-    return {
-        "schema_version": HYBRID_SCHEMA_VERSION,
-        "document_id": "RATECON_001",
-        "document_type": "rate_confirmation",
-        "model_provider": "local_stub",
-        "model_name": "no_model_stub",
-        "private_local_only": True,
-        "fields": {
-            "load_number": {
-                "value": None,
-                "confidence": 0.0,
-                "requires_human_review": True,
-                "evidence_ids": [],
-            },
-            "total_carrier_rate": {
-                "value": None,
-                "currency": "USD",
-                "confidence": 0.0,
-                "requires_human_review": True,
-                "evidence_ids": [],
-            },
-            "pickup_stops": [build_stop_template("pickup", 1)],
-            "delivery_stops": [build_stop_template("delivery", 1)],
-        },
-        "evidence": [],
-        "confidence": {
-            "overall": 0.0,
-            "load_number": 0.0,
-            "total_carrier_rate": 0.0,
-            "pickup_stops": 0.0,
-            "delivery_stops": 0.0,
-        },
-        "requires_human_review": True,
-        "review_reasons": ["phase_1_no_auto_accept", "local_stub_no_model_output"],
-        "validator_results": {
-            "document_classification_gate": {"status": "not_evaluated"},
-            "critical_field_gate": {"status": "not_evaluated"},
-            "stop_consistency_gate": {"status": "review_required"},
-            "evidence_gate": {"status": "not_evaluated"},
-            "confidence_review_gate": {"status": "review_required"},
-            "no_auto_accept_gate": {"status": "passed"},
-        },
-    }
-
-
 def validate_stop_contract(stop: dict) -> None:
-    if not isinstance(stop, dict):
-        raise HybridEvalStubError("Stop must be an object.")
-    role = stop.get("role")
-    if role not in ALLOWED_STOP_ROLES:
-        raise HybridEvalStubError("Stop role must be pickup or delivery.")
-    stop_index = stop.get("stop_index")
-    if not isinstance(stop_index, int) or stop_index < 1:
-        raise HybridEvalStubError("Stop stop_index must be a positive integer.")
-    if stop.get("requires_human_review") is not True:
-        raise HybridEvalStubError("Hybrid stops must require human review.")
-    if stop.get("auto_accept") is True:
-        raise HybridEvalStubError("Hybrid stops must not auto-accept in phase 1.")
+    errors = validate_stop(stop, require_evidence_for_values=False)
+    if errors:
+        raise HybridEvalStubError("; ".join(errors))
 
 
 def validate_hybrid_result_contract(result: dict) -> None:
-    if not isinstance(result, dict):
-        raise HybridEvalStubError("Hybrid result must be an object.")
-    if result.get("schema_version") != HYBRID_SCHEMA_VERSION:
-        raise HybridEvalStubError("Unexpected hybrid schema version.")
-    if result.get("document_type") not in ALLOWED_DOCUMENT_TYPES:
-        raise HybridEvalStubError("Invalid document_type.")
-    if result.get("model_provider") not in ALLOWED_MODEL_PROVIDERS:
-        raise HybridEvalStubError("Invalid model_provider.")
-    if result.get("private_local_only") is not True:
-        raise HybridEvalStubError("Hybrid eval results must be private local only.")
-    if result.get("requires_human_review") is not True:
-        raise HybridEvalStubError("Hybrid result must require human review.")
-    fields = result.get("fields")
-    if not isinstance(fields, dict):
-        raise HybridEvalStubError("Hybrid result fields must be an object.")
-    for key in ("load_number", "total_carrier_rate", "pickup_stops", "delivery_stops"):
-        if key not in fields:
-            raise HybridEvalStubError(f"Missing required field group: {key}.")
-    for stop in fields.get("pickup_stops") or []:
-        validate_stop_contract(stop)
-    for stop in fields.get("delivery_stops") or []:
-        validate_stop_contract(stop)
+    validation = validate_hybrid_result(result, strict=False)
+    if not validation.valid:
+        raise HybridEvalStubError("; ".join(validation.errors))
 
 
 def build_plan_summary(
@@ -266,7 +169,7 @@ def write_stub_outputs(
     resolved_output_dir.mkdir(parents=True, exist_ok=True)
 
     template = build_hybrid_result_template()
-    validate_hybrid_result_contract(template)
+    require_valid_hybrid_result(template, strict=False)
     summary = build_plan_summary(
         gold_dir=gold_dir,
         audit=audit,
