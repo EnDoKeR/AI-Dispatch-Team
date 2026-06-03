@@ -94,6 +94,24 @@ def _has_field_evidence(field: dict[str, Any]) -> bool:
     return _has_evidence_ids(field)
 
 
+def _is_unfilled_manual_template(result: dict[str, Any]) -> bool:
+    if result.get("model_provider") != "manual" or result.get("model_name") != "manual_pilot_v1":
+        return False
+    fields = result.get("fields") or {}
+    if _field_has_value(fields.get(FIELD_LOAD_NUMBER)) or _field_has_value(fields.get(FIELD_TOTAL_CARRIER_RATE)):
+        return False
+    for field_name in (FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS):
+        stops = fields.get(field_name) or []
+        if not isinstance(stops, list):
+            continue
+        for stop in stops:
+            if not isinstance(stop, dict):
+                continue
+            if any(_text(stop.get(key)) for key in ("facility", "address", "city", "state", "zip", "date", "time", "appointment_window")):
+                return False
+    return True
+
+
 def _confidence(value: Any) -> float | None:
     if isinstance(value, dict):
         value = value.get("confidence")
@@ -293,6 +311,7 @@ def run_hybrid_benchmark(
     include_private_values_local_only: bool = False,
     strict_schema: bool = False,
     allow_missing_hybrid_results: bool = False,
+    allow_unfilled_manual_templates: bool = False,
     write_review_packets: bool = False,
 ) -> dict[str, Any]:
     if not is_under_local_outputs(output_dir, REPO_ROOT):
@@ -314,11 +333,14 @@ def run_hybrid_benchmark(
     review_policy = Counter()
     evidence_metrics = Counter()
     confidence_buckets = Counter()
+    unfilled_manual_template_count = 0
 
     for path, result in hybrid_results:
+        if _is_unfilled_manual_template(result):
+            unfilled_manual_template_count += 1
         validation = validate_hybrid_result(
             result,
-            strict=strict_schema,
+            strict=False if allow_unfilled_manual_templates else strict_schema,
             include_private_values_local_only=include_private_values_local_only,
         )
         if not validation.valid:
@@ -461,6 +483,8 @@ def run_hybrid_benchmark(
         "gold_label_count": len(labels),
         "audit_path_supplied": bool(audit),
         "schema_error_count": len(schema_errors),
+        "allow_unfilled_manual_templates": bool(allow_unfilled_manual_templates),
+        "unfilled_manual_template_count": unfilled_manual_template_count,
         "document_classification": {
             "rate_confirmation_correct": doc_type_counts.get("correct", 0),
             "wrong": doc_type_counts.get("wrong", 0),
@@ -485,6 +509,7 @@ def run_hybrid_benchmark(
     summary["one_screen_summary"] = {
         "results": len(hybrid_results),
         "schema_errors": len(schema_errors),
+        "unfilled_manual_templates": unfilled_manual_template_count,
         "error_cases": len(error_rows),
         "stop_auto_accept_violations": review_policy.get("stop_auto_accept_violation", 0),
         "missing_evidence": evidence_metrics.get("missing_evidence", 0)
@@ -602,6 +627,7 @@ def _write_outputs(
         "",
         f"- hybrid results: {one_screen.get('results', 0)}",
         f"- schema errors: {one_screen.get('schema_errors', 0)}",
+        f"- unfilled manual templates: {one_screen.get('unfilled_manual_templates', 0)}",
         f"- error cases: {one_screen.get('error_cases', 0)}",
         f"- missing evidence: {one_screen.get('missing_evidence', 0)}",
         f"- stop auto-accept violations: {one_screen.get('stop_auto_accept_violations', 0)}",
@@ -732,6 +758,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--include-private-values-local-only", action="store_true")
     parser.add_argument("--strict-schema", action="store_true")
     parser.add_argument("--allow-missing-hybrid-results", action="store_true")
+    parser.add_argument("--allow-unfilled-manual-templates", action="store_true")
     parser.add_argument("--write-review-packets", action="store_true")
     return parser
 
@@ -749,11 +776,13 @@ def main(argv: list[str] | None = None) -> int:
         include_private_values_local_only=args.include_private_values_local_only,
         strict_schema=args.strict_schema,
         allow_missing_hybrid_results=args.allow_missing_hybrid_results,
+        allow_unfilled_manual_templates=args.allow_unfilled_manual_templates,
         write_review_packets=args.write_review_packets,
     )
     print("RateCon hybrid benchmark summary")
     print(f"hybrid_result_count: {summary['hybrid_result_count']}")
     print(f"schema_error_count: {summary['schema_error_count']}")
+    print(f"unfilled_manual_template_count: {summary['unfilled_manual_template_count']}")
     print("external_api_calls_attempted: False")
     print("pdf_processing_attempted: False")
     print("ai_model_invocation_attempted: False")
