@@ -183,6 +183,18 @@ def _error_case_rows(evaluation):
                 "stop_abstained": row.get("stop_abstained", ""),
                 "stop_abstention_reason": row.get("stop_abstention_reason", ""),
                 "stop_usability_tier": row.get("stop_usability_tier", ""),
+                "dispatch_usability_tier": row.get("dispatch_usability_tier", ""),
+                "candidate_has_dispatch_components": row.get(
+                    "candidate_has_dispatch_components",
+                    "",
+                ),
+                "gold_dispatch_usable_match": row.get("gold_dispatch_usable_match", ""),
+                "candidate_review_tier": row.get("candidate_review_tier", ""),
+                "dispatch_usability_note": row.get("dispatch_usability_note", ""),
+                "serialization_gap_classification": row.get(
+                    "serialization_gap_classification",
+                    "",
+                ),
                 "role_confidence": row.get("role_confidence", ""),
                 "component_completeness": row.get("component_completeness", ""),
                 "table_context_role": row.get("table_context_role", ""),
@@ -389,6 +401,13 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "stop_serialization_gap_summary: "
+        + json.dumps(
+            evaluation.get("stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "dispatch_usable_handoff_summary: "
         + json.dumps(
             {
@@ -545,6 +564,12 @@ def evaluate_and_write(
             "stop_abstained",
             "stop_abstention_reason",
             "stop_usability_tier",
+            "dispatch_usability_tier",
+            "candidate_has_dispatch_components",
+            "gold_dispatch_usable_match",
+            "candidate_review_tier",
+            "dispatch_usability_note",
+            "serialization_gap_classification",
             "role_confidence",
             "component_completeness",
             "table_context_role",

@@ -3827,10 +3827,38 @@ def _annotate_stop_usability_tiers(comparison_rows):
                 continue
             if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
                 row["stop_usability_tier"] = "not_compared"
+                row["dispatch_usability_tier"] = "not_compared"
+                row["gold_dispatch_usable_match"] = None
             else:
-                row["stop_usability_tier"] = _stop_usability_tier(
+                tier = _stop_usability_tier(
                     row,
                     component_rows,
+                )
+                row["stop_usability_tier"] = tier
+                row["dispatch_usability_tier"] = tier
+                if tier in {"exact_complete", "dispatch_usable"}:
+                    row["gold_dispatch_usable_match"] = True
+                elif tier in {"useful_partial", "unsafe_wrong"}:
+                    row["gold_dispatch_usable_match"] = False
+                else:
+                    row["gold_dispatch_usable_match"] = None
+            row["candidate_has_dispatch_components"] = bool(
+                row.get("candidate_has_dispatch_components") or row.get("dispatch_usable")
+            )
+            if not row.get("candidate_review_tier"):
+                if row.get("candidate_has_dispatch_components"):
+                    row["candidate_review_tier"] = "complete_candidate"
+                elif row.get("has_location") or row.get("has_date") or row.get("has_time"):
+                    row["candidate_review_tier"] = "useful_partial_candidate"
+                else:
+                    row["candidate_review_tier"] = "unknown"
+            if (
+                row.get("candidate_has_dispatch_components")
+                and row.get("dispatch_usability_tier") == "unsafe_wrong"
+            ):
+                row["dispatch_usability_note"] = (
+                    "candidate_has_dispatch_components is structural only; "
+                    "gold_dispatch_usable_match is false for this row."
                 )
     return comparison_rows
 
@@ -3924,6 +3952,53 @@ def _build_stop_candidate_group_metrics(comparison_rows):
 
 def _build_stop_draft_profile_metrics(comparison_rows):
     return _build_stop_group_usability_metrics(comparison_rows, STOP_DRAFT_SYSTEMS)
+
+
+def _serialization_gap_classification(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED and source_status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return ""
+    if row.get("system") == SYSTEM_SHADOW and (
+        row.get("has_location") or row.get("has_date") or row.get("has_time")
+    ):
+        return "selected_structured_value_not_serialized"
+    if row.get("assembled_from_column_geometry"):
+        return "OCR_column_candidate_components_available_but_not_selected_output"
+    if row.get("candidate_has_dispatch_components") or row.get("dispatch_usable"):
+        return "selected_candidate_components_missing_from_private_eval"
+    if row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "selected_candidate_serialized_as_placeholder"
+    return "unknown"
+
+
+def _build_stop_serialization_gap_summary(comparison_rows):
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and (
+            row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    system_counts = Counter()
+    for row in rows:
+        classification = _serialization_gap_classification(row)
+        reason_counts[classification or "unknown"] += 1
+        field_counts[_text(row.get("field")) or "unknown"] += 1
+        system_counts[_text(row.get("system")) or "unknown"] += 1
+        row["serialization_gap_classification"] = classification
+    return {
+        "serialized_gap_count": len(rows),
+        "classification_counts": dict(reason_counts.most_common()),
+        "field_counts": dict(field_counts.most_common()),
+        "system_counts": dict(system_counts.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
 
 
 def _stop_inventory(record):
@@ -4357,6 +4432,13 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                         metadata.get("column_alignment_confidence")
                     ),
                     "dispatch_usable": bool(metadata.get("dispatch_usable")),
+                    "candidate_has_dispatch_components": bool(
+                        metadata.get("candidate_has_dispatch_components")
+                        or metadata.get("dispatch_usable")
+                    ),
+                    "candidate_review_tier": _text(
+                        metadata.get("candidate_review_tier")
+                    ),
                     "role_confidence": _safe_float(metadata.get("role_confidence")),
                     "component_completeness": _safe_float(
                         metadata.get("component_completeness")
@@ -4560,6 +4642,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         ),
         "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
             gold_labels,
+        ),
+        "stop_serialization_gap_summary": _build_stop_serialization_gap_summary(
+            comparison_rows,
         ),
         "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(
             comparison_rows,

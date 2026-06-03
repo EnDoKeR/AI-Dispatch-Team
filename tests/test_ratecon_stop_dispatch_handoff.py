@@ -22,6 +22,7 @@ from app.document_ai.ratecon_stop_draft_profile import (
     STOP_DRAFT_PROFILE_NONE,
 )
 from scripts.create_ratecon_stop_gold_review_packets import (
+    build_patch_template,
     build_stop_gold_review_packet,
     write_packet,
 )
@@ -86,6 +87,19 @@ def _gold_label():
     }
 
 
+def _incomplete_gold_label():
+    label = _gold_label()
+    label["gold"] = {
+        "pickup_stops": [
+            {
+                "date": "2026-06-05",
+                "appointment_window": "07:00-15:00",
+            }
+        ]
+    }
+    return label
+
+
 def _audit_record(candidates, resolved, stop_draft_profile=STOP_DRAFT_PROFILE_NONE):
     return {
         "document_id": "DOC-HANDOFF",
@@ -128,6 +142,7 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertEqual(handoff["resolver_eligible"], 1)
         self.assertEqual(handoff["serialized_for_eval"], 1)
         self.assertIn("evaluator_usability_tier_counts", handoff)
+        self.assertEqual(handoff["serialized_gap_count"], 0)
         self.assertGreater(
             groups[SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP]["pickup"]["dispatch_usable"]
             + groups[SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP]["pickup"]["exact_complete"],
@@ -167,6 +182,25 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertIn(FIELD_PICKUP_STOPS, explicit_payload["shadow_stop_review_draft"])
         self.assertTrue(explicit_payload["shadow_stop_review_draft"][FIELD_PICKUP_STOPS]["review_required"])
 
+    def test_selected_structured_stop_components_serialize_in_private_eval(self):
+        candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
+        resolved = resolve_candidates(
+            candidates,
+            field_names=[FIELD_PICKUP_STOPS],
+            stop_ranking_profile=STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
+        )
+        payload = build_private_eval_values(
+            raw_resolved=resolved.get("resolved_fields", {}),
+            candidates=candidates,
+            stop_draft_profile=STOP_DRAFT_PROFILE_NONE,
+        )
+        selected = payload["shadow_selected_stop"][FIELD_PICKUP_STOPS]
+
+        self.assertTrue(selected["component_values_serialized"])
+        self.assertIsInstance(selected["value"], list)
+        self.assertEqual(selected["value"][0]["city"], "Dallas")
+        self.assertNotEqual(selected.get("source_status"), "shadow_component_not_serialized")
+
     def test_stop_gold_review_packet_is_local_only_and_does_not_modify_gold(self):
         candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
         resolved = resolve_candidates(
@@ -181,17 +215,75 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         )
         gold = [_gold_label()]
 
-        packet = build_stop_gold_review_packet(gold, [audit])
+        packet = build_stop_gold_review_packet(
+            gold,
+            [audit],
+            include_private_values_local_only=True,
+        )
 
         self.assertFalse(packet["gold_labels_modified"])
         self.assertTrue(packet["local_only"])
+        self.assertTrue(packet["private_values_printed"])
         self.assertIn("stop_gold_completeness_summary", packet)
         with tempfile.TemporaryDirectory() as tmpdir:
             paths = write_packet(packet, Path(tmpdir))
             self.assertTrue(Path(paths["items_json"]).exists())
             self.assertTrue(Path(paths["summary_md"]).exists())
             self.assertTrue(Path(paths["items_csv"]).exists())
+            self.assertTrue(Path(paths["code_issues_csv"]).exists())
+            self.assertTrue(Path(paths["manual_review_items_csv"]).exists())
             self.assertTrue(Path(paths["patch_template_json"]).exists())
+
+    def test_patch_template_only_includes_true_gold_review_rows(self):
+        candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
+        resolved = resolve_candidates(
+            candidates,
+            field_names=[FIELD_PICKUP_STOPS],
+            stop_ranking_profile=STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
+        )
+        audit = _audit_record(
+            candidates,
+            resolved,
+            stop_draft_profile=STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
+        )
+
+        complete_packet = build_stop_gold_review_packet([_gold_label()], [audit])
+        incomplete_packet = build_stop_gold_review_packet([_incomplete_gold_label()], [audit])
+
+        self.assertEqual(build_patch_template(complete_packet)["patches"], [])
+        self.assertEqual(len(build_patch_template(incomplete_packet)["patches"]), 1)
+        proposed = build_patch_template(incomplete_packet)["patches"][0]["proposed_gold"]
+        self.assertTrue(all(value is None for value in proposed.values()))
+
+    def test_candidate_has_dispatch_components_can_be_unsafe_against_gold(self):
+        candidate = _dispatch_candidate()
+        candidate["value"][0]["city"] = "Houston"
+        candidate["value"][0]["facility"] = "Wrong Facility"
+        candidates = apply_stop_column_strict_profile_to_candidates([candidate])
+        resolved = resolve_candidates(
+            candidates,
+            field_names=[FIELD_PICKUP_STOPS],
+            stop_ranking_profile=STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
+        )
+        audit = _audit_record(
+            candidates,
+            resolved,
+            stop_draft_profile=STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
+        )
+
+        evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
+        rows = [
+            row
+            for row in evaluation["comparison_rows"]
+            if row["system"] == SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP
+            and row["field"] == FIELD_PICKUP_STOPS
+            and row.get("predicted")
+        ]
+
+        self.assertEqual(rows[0]["candidate_has_dispatch_components"], True)
+        self.assertEqual(rows[0]["dispatch_usability_tier"], "unsafe_wrong")
+        self.assertEqual(rows[0]["gold_dispatch_usable_match"], False)
+        self.assertIn("structural only", rows[0]["dispatch_usability_note"])
 
     def test_stop_gold_completeness_counts_components(self):
         summary = build_stop_gold_completeness_summary([_gold_label()])

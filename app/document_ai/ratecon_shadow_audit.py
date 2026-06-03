@@ -1598,7 +1598,19 @@ def _metadata_eval_summary(metadata):
         "ocr_candidate",
         "ocr_provider",
     ]
-    return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
+    payload = {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
+    if "dispatch_usable" in metadata and "candidate_has_dispatch_components" not in payload:
+        payload["candidate_has_dispatch_components"] = bool(metadata.get("dispatch_usable"))
+    if "candidate_review_tier" not in payload:
+        if metadata.get("stop_abstained") or _text(metadata.get("stop_selection_policy")) == "abstain":
+            payload["candidate_review_tier"] = "unsafe_candidate"
+        elif metadata.get("dispatch_usable"):
+            payload["candidate_review_tier"] = "complete_candidate"
+        elif metadata.get("has_location") or metadata.get("has_date") or metadata.get("has_time"):
+            payload["candidate_review_tier"] = "useful_partial_candidate"
+        elif metadata.get("structured_stop_candidate"):
+            payload["candidate_review_tier"] = "weak_candidate"
+    return payload
 
 
 def _has_real_stop_component(stop):
@@ -1686,13 +1698,28 @@ def _candidate_matches_selected(candidate, selected, field_name):
         return False
     metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
     selected_metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    candidate_id = _text(metadata.get("candidate_id"))
+    selected_candidate_id = _text(selected_metadata.get("candidate_id"))
+    if candidate_id and selected_candidate_id and candidate_id == selected_candidate_id:
+        return True
     if _text(candidate.get("parser_name")) != _text(selected.get("parser_name")):
         return False
     if _text(candidate.get("source")) != _text(selected.get("source")):
         return False
     candidate_value = _text(candidate.get("normalized_value") or candidate.get("value"))
     selected_value = _text(selected.get("normalized_value") or selected.get("value"))
-    if candidate_value and selected_value and candidate_value != selected_value:
+    if (
+        candidate_value
+        and selected_value
+        and candidate_value != selected_value
+        and not (
+            field_name in PRIVATE_EVAL_STOP_FIELDS
+            and (
+                metadata.get("structured_stop_candidate")
+                or selected_metadata.get("structured_stop_candidate")
+            )
+        )
+    ):
         return False
     for key in ["pairing_method", "table_index", "row_index", "stop_role"]:
         left = _text(metadata.get(key))
