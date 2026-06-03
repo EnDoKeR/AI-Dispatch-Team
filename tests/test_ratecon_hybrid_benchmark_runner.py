@@ -1,3 +1,4 @@
+import csv
 import io
 import json
 import shutil
@@ -11,6 +12,7 @@ from app.document_ai.ratecon_gold_labels import (
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
     LABEL_LABELED,
+    LABEL_PARTIAL,
     build_gold_label_template,
 )
 from app.document_ai.ratecon_hybrid_contract import build_hybrid_result_template
@@ -156,6 +158,12 @@ class RateConHybridBenchmarkRunnerTests(unittest.TestCase):
             encoding="utf-8",
         )
 
+    def _write_label(self, label):
+        (self.gold_dir / "doc1.gold.json").write_text(
+            json.dumps(label),
+            encoding="utf-8",
+        )
+
     def test_refuses_without_confirm_private_local_run(self):
         with redirect_stderr(io.StringIO()):
             with self.assertRaises(SystemExit) as context:
@@ -235,6 +243,108 @@ class RateConHybridBenchmarkRunnerTests(unittest.TestCase):
         self.assertTrue((self.output_dir / "hybrid_review_packet.json").exists())
         self.assertTrue((self.output_dir / "hybrid_review_items.csv").exists())
         self.assertTrue((self.output_dir / "hybrid_review_packet.md").exists())
+
+    def test_non_rc_blank_ratecon_fields_are_not_applicable_not_missing_evidence(self):
+        label = build_gold_label_template(document_id="DOC-NON-RC", file_hash="hash-nonrc")
+        label["label_status"] = LABEL_PARTIAL
+        label["gold"]["document_type"] = "bol_pod"
+        label["gold"][FIELD_PICKUP_STOPS] = []
+        label["gold"][FIELD_DELIVERY_STOPS] = []
+        self._write_label(label)
+
+        result = build_hybrid_result_template("DOC-NON-RC")
+        result["file_hash"] = "hash-nonrc"
+        result["document_type"] = "bol_pod"
+        result["model_provider"] = "manual"
+        result["model_name"] = "manual_next_batch_v1"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = None
+        result["fields"][FIELD_TOTAL_CARRIER_RATE]["value"] = None
+        result["fields"][FIELD_PICKUP_STOPS] = []
+        result["fields"][FIELD_DELIVERY_STOPS] = []
+        result["evidence"] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            allow_unfilled_manual_templates=True,
+            write_review_packets=True,
+        )
+
+        self.assertEqual(summary["non_rc_handling"]["non_rc_filtered_correct"], 1)
+        self.assertEqual(summary["non_rc_handling"]["non_rc_not_applicable_fields"], 4)
+        self.assertEqual(summary["one_screen_summary"]["missing_evidence"], 0)
+        self.assertEqual(summary["unfilled_manual_template_count"], 0)
+        self.assertEqual(summary["stop_metrics"][FIELD_PICKUP_STOPS]["not_applicable"], 1)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["not_applicable"], 1)
+        with (self.output_dir / "hybrid_field_metrics.csv").open(newline="", encoding="utf-8") as handle:
+            field_rows = list(csv.DictReader(handle))
+        self.assertTrue(
+            all(
+                row["status"] == "not_applicable_non_rc"
+                for row in field_rows
+                if row["field"] in {FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE}
+            )
+        )
+        with (self.output_dir / "hybrid_review_items.csv").open(newline="", encoding="utf-8") as handle:
+            review_rows = list(csv.DictReader(handle))
+        self.assertTrue(
+            all(
+                row["missing_evidence"] == "False" and row["recommended_action"] == "no_action_non_rc"
+                for row in review_rows
+            )
+        )
+
+    def test_non_rc_with_filled_ratecon_values_is_flagged_without_missing_evidence(self):
+        label = build_gold_label_template(document_id="DOC-NON-RC", file_hash="hash-nonrc")
+        label["label_status"] = LABEL_PARTIAL
+        label["gold"]["document_type"] = "bol_pod"
+        self._write_label(label)
+
+        result = build_hybrid_result_template("DOC-NON-RC")
+        result["file_hash"] = "hash-nonrc"
+        result["document_type"] = "bol_pod"
+        result["model_provider"] = "manual"
+        result["model_name"] = "manual_next_batch_v1"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = "SHOULD-NOT-BE-SCORED"
+        result["fields"][FIELD_PICKUP_STOPS][0]["city"] = "Example City"
+        result["evidence"] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            allow_unfilled_manual_templates=True,
+        )
+
+        self.assertEqual(summary["non_rc_handling"]["non_rc_has_ratecon_fields"], 1)
+        self.assertEqual(summary["one_screen_summary"]["missing_evidence"], 0)
+        with (self.output_dir / "hybrid_error_cases.csv").open(newline="", encoding="utf-8") as handle:
+            error_rows = list(csv.DictReader(handle))
+        self.assertTrue(any(row["issue"] == "non_rc_has_ratecon_fields" for row in error_rows))
+
+    def test_gold_rate_confirmation_but_hybrid_non_rc_is_document_type_mismatch(self):
+        self._write_gold()
+        result = self._valid_result()
+        result["document_type"] = "bol_pod"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = None
+        result["fields"][FIELD_TOTAL_CARRIER_RATE]["value"] = None
+        result["fields"][FIELD_PICKUP_STOPS] = []
+        result["fields"][FIELD_DELIVERY_STOPS] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+        )
+
+        self.assertEqual(summary["document_classification"]["document_type_mismatch"], 1)
+        with (self.output_dir / "hybrid_error_cases.csv").open(newline="", encoding="utf-8") as handle:
+            error_rows = list(csv.DictReader(handle))
+        self.assertTrue(any(row["recommended_action"] == "review_document_type" for row in error_rows))
 
     def test_no_external_api_calls_in_summary(self):
         self._write_gold()

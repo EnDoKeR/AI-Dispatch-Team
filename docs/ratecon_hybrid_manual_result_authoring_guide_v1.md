@@ -39,7 +39,9 @@ The template generator:
 
 For each template, fill:
 
-- `document_type`: `rate_confirmation`, `bol_pod`, or `unknown`;
+- `document_type`: `rate_confirmation`, `bol_pod`,
+  `non_rate_confirmation`, `bill_of_lading_or_delivery_receipt`, or
+  `unknown`;
 - `fields.load_number.value`;
 - `fields.total_carrier_rate.value`;
 - `fields.pickup_stops`;
@@ -51,6 +53,23 @@ For each template, fill:
 
 Use `null` for missing components. Do not use placeholders such as `"unknown"`
 or `"n/a"` as extracted values.
+
+## Fill Non-RC / BOL-POD Templates
+
+When the document is a BOL, POD, delivery receipt, or otherwise not a rate
+confirmation, set `document_type` to `bol_pod`, `non_rate_confirmation`, or
+`bill_of_lading_or_delivery_receipt` as appropriate. Leave rate-con fields
+blank:
+
+- `fields.load_number.value = null`;
+- `fields.total_carrier_rate.value = null`;
+- `fields.pickup_stops = []`;
+- `fields.delivery_stops = []`.
+
+Blank rate-con fields on confirmed non-RC documents are classification
+successes, not extraction failures. No load/rate/stop evidence is required for
+those blank fields. If the document type is unclear, use `unknown`, keep
+`requires_human_review=true`, and do not guess.
 
 ## Required Stop Fields
 

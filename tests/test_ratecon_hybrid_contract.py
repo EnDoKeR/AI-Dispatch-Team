@@ -70,6 +70,15 @@ class RateConHybridContractTests(unittest.TestCase):
         self.assertFalse(validation.valid)
         self.assertTrue(any("document_type" in error for error in validation.errors))
 
+    def test_non_rate_confirmation_document_types_pass(self):
+        for document_type in ("non_rate_confirmation", "bill_of_lading_or_delivery_receipt"):
+            result = build_hybrid_result_template("DOC-1")
+            result["document_type"] = document_type
+
+            validation = validate_hybrid_result(result)
+
+            self.assertTrue(validation.valid)
+
     def test_private_raw_text_requires_private_flag(self):
         result = build_hybrid_result_template("DOC-1")
         stop = result["fields"]["pickup_stops"][0]

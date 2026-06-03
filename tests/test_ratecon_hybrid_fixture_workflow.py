@@ -125,6 +125,17 @@ class RateConHybridFixtureWorkflowTests(unittest.TestCase):
 
     def test_non_rc_fixture_is_classified_separately(self):
         self.assertEqual(self.summary["document_classification"]["non_rc_bol_pod_filtered"], 1)
+        self.assertEqual(self.summary["non_rc_handling"]["non_rc_filtered_correct"], 1)
+        self.assertEqual(self.summary["non_rc_handling"]["non_rc_not_applicable_fields"], 4)
+        non_rc_rows = [row for row in self.field_rows if row["document_id"] == "DOC_FIXTURE_NON_RC"]
+        self.assertTrue(all(row["status"] == "not_applicable_non_rc" for row in non_rc_rows))
+        self.assertFalse(
+            any(
+                row["document_id"] == "DOC_FIXTURE_NON_RC"
+                and row["issue"] == "missing_evidence"
+                for row in self.error_rows
+            )
+        )
 
     def test_no_external_calls(self):
         self.assertFalse(self.summary["external_api_calls_attempted"])

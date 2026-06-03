@@ -52,9 +52,16 @@ STOP_TIERS = (
     "matches_uncertain_gold_review_required",
     "partial_match_uncertain_gold_review_required",
     "gold_uncertain_review_required",
+    "not_applicable",
     "unsafe_wrong",
     "missing_review_required",
 )
+NON_RC_DOCUMENT_TYPES = {
+    "bol_pod",
+    "non_rate_confirmation",
+    "bill_of_lading_or_delivery_receipt",
+}
+NOT_APPLICABLE_NON_RC_STATUS = "not_applicable_non_rc"
 UNCERTAIN_GOLD_REVIEW_TIERS = {
     "matches_uncertain_gold_review_required",
     "partial_match_uncertain_gold_review_required",
@@ -113,6 +120,52 @@ def _has_field_evidence(field: dict[str, Any]) -> bool:
     return _has_evidence_ids(field)
 
 
+def _read_audit_records(path: Path | None) -> list[dict[str, Any]]:
+    if not path:
+        return []
+    resolved = _repo_relative(path)
+    if not resolved.exists():
+        return []
+    records: list[dict[str, Any]] = []
+    with resolved.open("r", encoding="utf-8") as handle:
+        for line in handle:
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            if isinstance(payload, dict):
+                records.append(payload)
+    return records
+
+
+def _audit_indexes(records: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
+    indexes = {"document_id": {}, "file_name": {}, "file_hash": {}, "file_hash_prefix": {}}
+    for record in records:
+        for key in indexes:
+            value = _text(record.get(key))
+            if value and value not in indexes[key]:
+                indexes[key][value] = record
+    return indexes
+
+
+def _match_audit(result: dict[str, Any], indexes: dict[str, dict[str, dict[str, Any]]]) -> dict[str, Any] | None:
+    for key in ("document_id", "file_name", "file_hash"):
+        value = _text(result.get(key))
+        if value and value in indexes[key]:
+            return indexes[key][value]
+    file_hash_prefix = _text(result.get("file_hash_prefix"))
+    if file_hash_prefix:
+        for key, record in indexes["file_hash"].items():
+            if key.startswith(file_hash_prefix):
+                return record
+        for key, record in indexes["file_hash_prefix"].items():
+            if key.startswith(file_hash_prefix) or file_hash_prefix.startswith(key):
+                return record
+    return None
+
+
 def _is_unfilled_manual_template(result: dict[str, Any]) -> bool:
     if result.get("model_provider") != "manual" or result.get("model_name") not in {
         "manual_pilot_v1",
@@ -165,6 +218,113 @@ def _is_correct_status(status: str) -> bool:
 
 def _is_missing_status(status: str) -> bool:
     return status in {STATUS_MISSING, STATUS_UNLABELED}
+
+
+def _gold_document_type(gold: dict[str, Any] | None) -> str:
+    if not gold:
+        return ""
+    return _text((gold.get("gold") or {}).get("document_type"))
+
+
+def _audit_document_type(record: dict[str, Any] | None) -> str:
+    if not record:
+        return ""
+    direct = _text(record.get("document_type"))
+    if direct:
+        return direct
+    classification = record.get("document_classification")
+    if isinstance(classification, dict):
+        return _text(classification.get("document_type") or classification.get("classification"))
+    validator_results = record.get("validator_results")
+    if isinstance(validator_results, dict):
+        gate = validator_results.get("document_classification_gate")
+        if isinstance(gate, dict):
+            return _text(gate.get("document_type") or gate.get("status"))
+    return ""
+
+
+def _is_non_rc_document_type(document_type: str) -> bool:
+    return _text(document_type) in NON_RC_DOCUMENT_TYPES
+
+
+def _is_confirmed_non_rc(
+    result: dict[str, Any],
+    gold: dict[str, Any] | None,
+    audit_record: dict[str, Any] | None,
+) -> bool:
+    if not _is_non_rc_document_type(_text(result.get("document_type"))):
+        return False
+    gold_type = _gold_document_type(gold)
+    audit_type = _audit_document_type(audit_record)
+    return _is_non_rc_document_type(gold_type) or _is_non_rc_document_type(audit_type)
+
+
+def _is_document_type_mismatch(
+    result: dict[str, Any],
+    gold: dict[str, Any] | None,
+    audit_record: dict[str, Any] | None,
+) -> bool:
+    if not _is_non_rc_document_type(_text(result.get("document_type"))):
+        return False
+    if _is_confirmed_non_rc(result, gold, audit_record):
+        return False
+    gold_type = _gold_document_type(gold) or "rate_confirmation"
+    return gold_type == "rate_confirmation"
+
+
+def _stop_has_ratecon_values(stop: Any) -> bool:
+    if not isinstance(stop, dict):
+        return False
+    return any(
+        _text(stop.get(key))
+        for key in ("facility", "address", "city", "state", "zip", "date", "time", "appointment_window", "raw_text_local_only")
+    )
+
+
+def _non_rc_ratecon_fields_with_values(result: dict[str, Any]) -> list[str]:
+    fields = result.get("fields") or {}
+    flagged: list[str] = []
+    for field_name in (FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE):
+        if _field_has_value(fields.get(field_name)):
+            flagged.append(field_name)
+    for field_name in (FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS):
+        stops = fields.get(field_name) or []
+        if isinstance(stops, list) and any(_stop_has_ratecon_values(stop) for stop in stops):
+            flagged.append(field_name)
+    return flagged
+
+
+def _non_rc_scalar_row(document_id: str, field_name: str) -> dict[str, Any]:
+    return {
+        "document_id": document_id,
+        "field": field_name,
+        "status": NOT_APPLICABLE_NON_RC_STATUS,
+        "issues": ["non_rc_filtered"],
+        "confidence": None,
+        "confidence_bucket": "not_applicable",
+        "has_evidence": False,
+        "tier": "",
+        "requires_human_review": True,
+        "auto_accept": False,
+        "gold_uncertain_status": "",
+    }
+
+
+def _non_rc_stop_row(document_id: str, field_name: str) -> dict[str, Any]:
+    return {
+        "document_id": document_id,
+        "field": field_name,
+        "stop_index": "",
+        "status": NOT_APPLICABLE_NON_RC_STATUS,
+        "tier": "not_applicable",
+        "issues": ["non_rc_filtered"],
+        "confidence": None,
+        "confidence_bucket": "not_applicable",
+        "has_evidence": False,
+        "requires_human_review": True,
+        "auto_accept": False,
+        "gold_uncertain_status": "",
+    }
 
 
 def _normalize_stop_component(stop: dict[str, Any], key: str) -> str:
@@ -503,6 +663,8 @@ def run_hybrid_benchmark(
     labels = load_gold_labels(_repo_relative(gold_dir))
     indexes = _gold_indexes(labels)
     hybrid_results = _load_hybrid_results(hybrid_results_dir, allow_missing=allow_missing_hybrid_results)
+    audit_records = _read_audit_records(audit)
+    audit_by_key = _audit_indexes(audit_records)
 
     schema_errors: list[dict[str, Any]] = []
     document_rows: list[dict[str, Any]] = []
@@ -518,10 +680,9 @@ def run_hybrid_benchmark(
     gold_uncertain_metrics = Counter()
     confidence_buckets = Counter()
     unfilled_manual_template_count = 0
+    non_rc_handling = Counter()
 
     for path, result in hybrid_results:
-        if _is_unfilled_manual_template(result):
-            unfilled_manual_template_count += 1
         validation = validate_hybrid_result(
             result,
             strict=False if allow_unfilled_manual_templates else strict_schema,
@@ -538,7 +699,16 @@ def run_hybrid_benchmark(
             if strict_schema:
                 continue
         gold = _match_gold(result, indexes)
+        audit_record = _match_audit(result, audit_by_key)
+        confirmed_non_rc = _is_confirmed_non_rc(result, gold, audit_record)
+        document_type_mismatch = _is_document_type_mismatch(result, gold, audit_record)
+        if _is_unfilled_manual_template(result) and not confirmed_non_rc:
+            unfilled_manual_template_count += 1
         doc_status = _document_type_status(result, gold)
+        if confirmed_non_rc:
+            doc_status = "non_rc_filtered_correct"
+        elif document_type_mismatch:
+            doc_status = "document_type_mismatch"
         doc_type_counts[doc_status] += 1
         document_id = _text(result.get("document_id")) or path.stem
         file_name_or_label = _file_name_or_label(result, path.stem)
@@ -554,7 +724,7 @@ def run_hybrid_benchmark(
             "private_local_only": result.get("private_local_only") is True,
         }
         document_rows.append(doc_row)
-        if not gold:
+        if not gold and not confirmed_non_rc:
             error_rows.append(
                 {
                     "document_id": document_id,
@@ -564,6 +734,57 @@ def run_hybrid_benchmark(
                     "recommended_action": "needs_human_review",
                 }
             )
+            continue
+        if document_type_mismatch:
+            non_rc_handling["document_type_mismatch"] += 1
+            error_rows.append(
+                {
+                    "document_id": document_id,
+                    "field": "document_type",
+                    "status": "document_type_mismatch",
+                    "issue": "hybrid_non_rc_but_gold_rate_confirmation",
+                    "recommended_action": "review_document_type",
+                }
+            )
+        if confirmed_non_rc:
+            non_rc_handling["non_rc_filtered_correct"] += 1
+            flagged_fields = _non_rc_ratecon_fields_with_values(result)
+            if flagged_fields:
+                non_rc_handling["non_rc_has_ratecon_fields"] += 1
+                error_rows.append(
+                    {
+                        "document_id": document_id,
+                        "field": ",".join(flagged_fields),
+                        "status": "non_rc_has_ratecon_fields",
+                        "issue": "non_rc_has_ratecon_fields",
+                        "recommended_action": "review_document_type_or_clear_fields",
+                    }
+                )
+            for field_name in (FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE):
+                field_rows.append(_non_rc_scalar_row(document_id, field_name))
+                non_rc_handling["non_rc_not_applicable_fields"] += 1
+            for field_name in (FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS):
+                field_rows.append(_non_rc_stop_row(document_id, field_name))
+                stop_metrics[field_name]["not_applicable"] += 1
+                non_rc_handling["non_rc_not_applicable_fields"] += 1
+                if write_review_packets:
+                    review_rows.append(
+                        {
+                            "document_id": document_id,
+                            "file_name_or_label": file_name_or_label,
+                            "document_type": document_type,
+                            "field": field_name,
+                            "stop_role": _stop_role(field_name),
+                            "stop_index": "",
+                            "status": "not_applicable",
+                            "review_reason": "non_rc_filtered",
+                            "evidence_status": "not_applicable",
+                            "confidence": "",
+                            "auto_accept_violation": False,
+                            "missing_evidence": False,
+                            "recommended_action": "no_action_non_rc",
+                        }
+                    )
             continue
         for field_name in (FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE):
             row = _compare_scalar_field(result, gold, field_name)
@@ -688,11 +909,15 @@ def run_hybrid_benchmark(
             "wrong": doc_type_counts.get("wrong", 0),
             "missing": doc_type_counts.get("missing", 0),
             "missing_gold": doc_type_counts.get("missing_gold", 0),
-            "non_rc_bol_pod_filtered": sum(
-                1
-                for _, result in hybrid_results
-                if result.get("document_type") == "bol_pod"
-            ),
+            "non_rc_bol_pod_filtered": non_rc_handling.get("non_rc_filtered_correct", 0),
+            "non_rc_filtered_correct": non_rc_handling.get("non_rc_filtered_correct", 0),
+            "document_type_mismatch": non_rc_handling.get("document_type_mismatch", 0),
+        },
+        "non_rc_handling": {
+            "non_rc_filtered_correct": non_rc_handling.get("non_rc_filtered_correct", 0),
+            "non_rc_not_applicable_fields": non_rc_handling.get("non_rc_not_applicable_fields", 0),
+            "non_rc_has_ratecon_fields": non_rc_handling.get("non_rc_has_ratecon_fields", 0),
+            "document_type_mismatch": non_rc_handling.get("document_type_mismatch", 0),
         },
         "field_metrics": field_metrics,
         "stop_metrics": stop_metrics,
@@ -717,11 +942,11 @@ def run_hybrid_benchmark(
         "unsafe_wrong_stops": sum(metrics.get("unsafe_wrong", 0) for metrics in stop_metrics.values()),
         "gold_uncertain_review_required": gold_uncertain_metrics.get("review_required", 0),
         "matches_uncertain_gold": gold_uncertain_metrics.get("matches_uncertain_gold", 0),
-        "non_rc_bol_pod_filtered": sum(
-            1
-            for _, result in hybrid_results
-            if result.get("document_type") == "bol_pod"
-        ),
+        "non_rc_bol_pod_filtered": non_rc_handling.get("non_rc_filtered_correct", 0),
+        "non_rc_filtered_correct": non_rc_handling.get("non_rc_filtered_correct", 0),
+        "non_rc_not_applicable_fields": non_rc_handling.get("non_rc_not_applicable_fields", 0),
+        "non_rc_has_ratecon_fields": non_rc_handling.get("non_rc_has_ratecon_fields", 0),
+        "document_type_mismatch": non_rc_handling.get("document_type_mismatch", 0),
         "next_action": None,
     }
     summary["safety"] = {
@@ -844,7 +1069,10 @@ def _write_outputs(
         f"- unsafe wrong stops: {one_screen.get('unsafe_wrong_stops', 0)}",
         f"- gold uncertain review required: {one_screen.get('gold_uncertain_review_required', 0)}",
         f"- matches uncertain gold: {one_screen.get('matches_uncertain_gold', 0)}",
-        f"- non-RC BOL/POD filtered: {one_screen.get('non_rc_bol_pod_filtered', 0)}",
+        f"- non-RC/BOL-POD filtered correctly: {one_screen.get('non_rc_filtered_correct', one_screen.get('non_rc_bol_pod_filtered', 0))}",
+        f"- non-RC not-applicable rate-con fields: {one_screen.get('non_rc_not_applicable_fields', 0)}",
+        f"- non-RC templates with rate-con fields: {one_screen.get('non_rc_has_ratecon_fields', 0)}",
+        f"- document type mismatches: {one_screen.get('document_type_mismatch', 0)}",
         f"- next action: {summary.get('next_action', 'review_hybrid_drafts')}",
         "",
         "## Safety",
@@ -884,6 +1112,14 @@ def _write_outputs(
         "",
         f"- wrong money diagnostic rows: {summary.get('money_diagnostic_count', 0)}",
         "- diagnostics file: hybrid_money_diagnostics.csv",
+        "",
+        "## Non-RC Handling",
+        "",
+        f"- filtered correctly: {summary.get('non_rc_handling', {}).get('non_rc_filtered_correct', 0)}",
+        f"- not-applicable rate-con field rows: {summary.get('non_rc_handling', {}).get('non_rc_not_applicable_fields', 0)}",
+        f"- non-RC templates with rate-con values: {summary.get('non_rc_handling', {}).get('non_rc_has_ratecon_fields', 0)}",
+        f"- document type mismatches: {summary.get('non_rc_handling', {}).get('document_type_mismatch', 0)}",
+        "- blank load/rate/stop fields on confirmed non-RC documents are not evidence failures.",
         "",
         "## Error Case Examples",
         "",

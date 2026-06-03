@@ -15,7 +15,13 @@ from typing import Any
 HYBRID_SCHEMA_VERSION = "ratecon_hybrid_extraction_result_v1"
 STOP_SCHEMA_VERSION = "ratecon_hybrid_stop_v1"
 
-ALLOWED_DOCUMENT_TYPES = {"rate_confirmation", "bol_pod", "unknown"}
+ALLOWED_DOCUMENT_TYPES = {
+    "rate_confirmation",
+    "bol_pod",
+    "non_rate_confirmation",
+    "bill_of_lading_or_delivery_receipt",
+    "unknown",
+}
 ALLOWED_MODEL_PROVIDERS = {
     "local_stub",
     "local_vlm",

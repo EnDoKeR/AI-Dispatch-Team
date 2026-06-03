@@ -52,7 +52,9 @@ fill only values visible in the document.
 
 Fill in this order:
 
-1. `document_type`: `rate_confirmation`, `bol_pod`, or `unknown`.
+1. `document_type`: `rate_confirmation`, `bol_pod`,
+   `non_rate_confirmation`, `bill_of_lading_or_delivery_receipt`, or
+   `unknown`.
 2. `fields.load_number.value`.
 3. `fields.total_carrier_rate.value`.
 4. `fields.pickup_stops`.
@@ -60,6 +62,22 @@ Fill in this order:
 6. `evidence`.
 
 Leave unavailable components as `null`.
+
+## Fill BOL/POD Or Non-RC Documents
+
+If a selected document is a BOL, POD, delivery receipt, or otherwise not a
+rate confirmation, set `document_type` to the closest non-RC type and leave
+rate-con fields blank:
+
+- `fields.load_number.value = null`;
+- `fields.total_carrier_rate.value = null`;
+- `fields.pickup_stops = []`;
+- `fields.delivery_stops = []`.
+
+Do not add stop evidence for blank non-RC rate-con fields. The benchmark marks
+confirmed non-RC blank fields as `not_applicable_non_rc` and reports them as
+filtered, not failed. If the classification is uncertain, use `unknown`, keep
+the template review-required, and flag it for human review.
 
 ## Required Stop Policy
 

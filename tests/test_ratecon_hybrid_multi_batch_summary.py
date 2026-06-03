@@ -340,7 +340,11 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
             write_review_packets=True,
         )
         self.assertEqual(benchmark_summary["schema_error_count"], 0)
-        self.assertEqual(benchmark_summary["unfilled_manual_template_count"], packet_summary["template_count"])
+        non_rc_count = benchmark_summary["non_rc_handling"]["non_rc_filtered_correct"]
+        self.assertEqual(
+            benchmark_summary["unfilled_manual_template_count"] + non_rc_count,
+            packet_summary["template_count"],
+        )
 
     def test_no_external_calls_or_pdf_processing(self):
         batch1, batch2 = self._clean_batches()
