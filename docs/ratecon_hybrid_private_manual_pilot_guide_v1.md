@@ -169,6 +169,78 @@ and leaves proposed values blank.
 Do not edit gold labels automatically. Do not change a manually filled template
 unless the source document evidence proves the template is wrong.
 
+## Summarize Pilot Results
+
+After benchmark and scalar review cleanup, create a concise pilot summary:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_manual_pilot.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot_summary ^
+  --confirm-private-local-run
+```
+
+The summary writes:
+
+- `manual_pilot_summary.md`;
+- `manual_pilot_summary.json`;
+- `manual_pilot_success_criteria.csv`;
+- `manual_pilot_next_actions.csv`.
+
+Pilot status meanings:
+
+- `pilot_passed`: no schema, safety, accuracy, or review-item blockers.
+- `pilot_passed_with_review_items`: no failures, but review-required items
+  remain, such as uncertain gold.
+- `pilot_failed_schema`: schema errors must be fixed first.
+- `pilot_failed_safety`: missing evidence or stop auto-accept violations exist.
+- `pilot_failed_accuracy`: unsafe wrong stops or unresolved scalar wrongs remain.
+- `pilot_inconclusive`: inputs were insufficient to classify.
+
+Uncertain gold is not a failure when the benchmark classifies it as
+review-required. Keep it in human review and do not convert it into
+auto-accept.
+
+## Plan The Next Batch
+
+If audit and gold metadata are available, add `--write-next-batch-plan`:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_manual_pilot.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot_summary ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-next-batch-plan
+```
+
+The planner writes `manual_pilot_next_batch_plan.csv` with suggested documents,
+patterns, difficulty, why each document was selected, and what fields to fill.
+Use it to expand the pilot to 5-10 more documents while preserving pattern
+diversity:
+
+- TQL compact rows;
+- Express pickup/drop blocks;
+- PU/SO scanned blocks;
+- SPI/Fello/Landstar structured blocks;
+- city-level-only/verbal agreement;
+- non-RC/BOL/POD.
+
+Stay in manual-pilot mode until multiple batches show stable safety:
+
+- no schema errors;
+- no missing evidence;
+- no stop auto-accept violations;
+- no unsafe wrong stops;
+- scalar mismatches are resolved by review packets;
+- uncertain-gold rows remain explicitly review-required.
+
+Consider model-assisted filling only after the manual workflow proves the
+contract, evidence rules, review policy, and benchmark reports are stable across
+diverse document patterns. Do not introduce model integration from a single
+successful 5-document pilot.
+
 ## Files That Must Never Be Committed
 
 Do not commit:
