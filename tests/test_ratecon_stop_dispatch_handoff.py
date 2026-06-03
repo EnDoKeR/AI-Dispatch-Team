@@ -144,6 +144,56 @@ def _incomplete_gold_label():
     return label
 
 
+def _known_absent_city_level_gold_label():
+    label = _gold_label()
+    label["gold"] = {
+        "pickup_stops": [
+            {
+                "city": "Dallas",
+                "state": "TX",
+                "date": "2026-06-05",
+                "time": None,
+                "appointment_window": None,
+                "uncertain": True,
+                "notes": "Only origin city/state shown; no shipper/address in document",
+            }
+        ]
+    }
+    label["labeler"] = {
+        "review_notes": "Only city-level stops visible in source document",
+    }
+    return label
+
+
+def _visible_time_missing_gold_label():
+    label = _known_absent_city_level_gold_label()
+    label["gold"]["pickup_stops"][0]["notes"] = (
+        "Appointment time visible in source but missing from gold"
+    )
+    label["labeler"] = {"review_notes": "Document shows time/window value"}
+    return label
+
+
+def _optional_location_missing_gold_label():
+    label = _gold_label()
+    label["gold"] = {
+        "pickup_stops": [
+            {
+                "facility": None,
+                "address": None,
+                "city": "Dallas",
+                "state": "TX",
+                "zip": None,
+                "date": "2026-06-05",
+                "appointment_window": "0700 to 1500",
+                "uncertain": True,
+                "notes": "Only origin city/state shown; no shipper/address in document",
+            }
+        ]
+    }
+    return label
+
+
 def _audit_record(candidates, resolved, stop_draft_profile=STOP_DRAFT_PROFILE_NONE):
     return {
         "document_id": "DOC-HANDOFF",
@@ -386,6 +436,52 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertEqual(len(build_patch_template(incomplete_packet)["patches"]), 1)
         proposed = build_patch_template(incomplete_packet)["patches"][0]["proposed_gold"]
         self.assertTrue(all(value is None for value in proposed.values()))
+
+    def test_known_absent_city_level_missing_time_is_no_action(self):
+        packet = build_stop_gold_review_packet(
+            [_known_absent_city_level_gold_label()],
+            [],
+        )
+
+        self.assertEqual(packet["category_counts"]["true_gold_review_needed"], 0)
+        self.assertEqual(packet["category_counts"]["no_action_needed"], 1)
+        self.assertEqual(packet["known_absent_summary"]["known_absent_items"], 1)
+        self.assertEqual(packet["items"][0]["suspect_reason"], "gold_time_window_not_visible_in_source")
+        self.assertEqual(build_patch_template(packet)["patches"], [])
+
+    def test_visible_missing_time_remains_true_gold_review(self):
+        packet = build_stop_gold_review_packet(
+            [_visible_time_missing_gold_label()],
+            [],
+        )
+
+        self.assertEqual(packet["category_counts"]["true_gold_review_needed"], 1)
+        self.assertEqual(packet["known_absent_summary"]["known_absent_items"], 0)
+        self.assertEqual(len(build_patch_template(packet)["patches"]), 1)
+
+    def test_missing_optional_location_details_do_not_trigger_gold_review(self):
+        packet = build_stop_gold_review_packet(
+            [_optional_location_missing_gold_label()],
+            [],
+        )
+
+        self.assertEqual(packet["category_counts"]["true_gold_review_needed"], 0)
+        self.assertEqual(build_patch_template(packet)["patches"], [])
+
+    def test_known_absent_csv_generated_and_manual_review_empty(self):
+        packet = build_stop_gold_review_packet(
+            [_known_absent_city_level_gold_label()],
+            [],
+            include_private_values_local_only=True,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = write_packet(packet, Path(tmpdir))
+            known_absent_path = Path(paths["known_absent_items_csv"])
+            manual_path = Path(paths["manual_review_items_csv"])
+
+            self.assertTrue(known_absent_path.exists())
+            self.assertIn("gold_time_window_not_visible_in_source", known_absent_path.read_text())
+            self.assertEqual(len(manual_path.read_text().strip().splitlines()), 1)
 
     def test_candidate_has_dispatch_components_can_be_unsafe_against_gold(self):
         candidate = _dispatch_candidate()

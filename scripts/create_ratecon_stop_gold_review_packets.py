@@ -43,6 +43,14 @@ LOCAL_ONLY_STOP_COMPONENTS = (
     "unparsed_location_text_local_only",
 )
 
+KNOWN_ABSENT_REASONS = {
+    "known_absent_in_document",
+    "gold_uncertain_city_level_only",
+    "gold_missing_optional_component_but_not_required",
+    "gold_time_window_not_visible_in_source",
+    "gold_component_absent_but_document_lacks_value",
+}
+
 
 def _text(value) -> str:
     return str(value or "").strip()
@@ -97,6 +105,8 @@ def _gold_stop_completeness(stop):
         "complete_for_exact": complete_exact,
         "complete_for_dispatch_usable": complete_dispatch,
         "incomplete_for_dispatch_usable": not complete_dispatch,
+        "uncertain": bool(stop.get("uncertain")),
+        "notes": _text(stop.get("notes")),
     }
 
 
@@ -112,6 +122,11 @@ def _gold_by_doc_field(gold_labels):
                 "file_name": _text(label.get("file_name")),
                 "stops": stops,
                 "completeness": [_gold_stop_completeness(stop) for stop in stops],
+                "label_review_notes": _text(
+                    (label.get("labeler") or {}).get("review_notes")
+                    if isinstance(label.get("labeler"), dict)
+                    else ""
+                ),
             }
     return lookup
 
@@ -321,6 +336,80 @@ def _missing_gold_components(gold_info):
     return sorted(missing)
 
 
+def _gold_notes_text(gold_info):
+    parts = [_text(gold_info.get("label_review_notes"))]
+    for stop in gold_info.get("stops", []) or []:
+        if isinstance(stop, dict):
+            parts.append(_text(stop.get("notes")))
+    return " ".join(part for part in parts if part).lower()
+
+
+def _gold_has_uncertain_city_level_stop(gold_info):
+    notes = _gold_notes_text(gold_info)
+    note_indicates_city_level = any(
+        marker in notes
+        for marker in [
+            "city-level",
+            "city/state",
+            "only origin",
+            "only destination",
+            "only city",
+            "no shipper/address",
+            "no consignee/address",
+            "no address",
+        ]
+    )
+    for stop in gold_info.get("stops", []) or []:
+        if not isinstance(stop, dict):
+            continue
+        has_city_state_date = bool(
+            _text(stop.get("city")) and _text(stop.get("state")) and _text(stop.get("date"))
+        )
+        if stop.get("uncertain") and has_city_state_date and note_indicates_city_level:
+            return True
+    return False
+
+
+def _notes_imply_missing_time_should_exist(gold_info):
+    notes = _gold_notes_text(gold_info)
+    return any(
+        marker in notes
+        for marker in [
+            "time visible",
+            "appointment visible",
+            "window visible",
+            "time/window visible",
+            "source shows time",
+            "document shows time",
+            "visible time",
+            "visible window",
+        ]
+    )
+
+
+def _known_absent_reason(gold_info):
+    missing = set(_missing_gold_components(gold_info))
+    if not missing:
+        return ""
+    city_level_uncertain = _gold_has_uncertain_city_level_stop(gold_info)
+    actionable_time_missing = (
+        {"time", "appointment_window"}.issubset(missing)
+        and _notes_imply_missing_time_should_exist(gold_info)
+    )
+    if city_level_uncertain and {"time", "appointment_window"}.issubset(missing):
+        if not _notes_imply_missing_time_should_exist(gold_info):
+            return "gold_time_window_not_visible_in_source"
+    optional_location_missing = missing.intersection({"facility", "address", "zip"})
+    required_dispatch_present = not missing.intersection({"city", "state", "date"})
+    if actionable_time_missing:
+        return ""
+    if optional_location_missing and required_dispatch_present and city_level_uncertain:
+        return "gold_uncertain_city_level_only"
+    if optional_location_missing and required_dispatch_present:
+        return "gold_missing_optional_component_but_not_required"
+    return ""
+
+
 def _reason_for_case(selected, dispatch, draft, gold_info):
     selected = selected if isinstance(selected, dict) else {}
     dispatch = dispatch if isinstance(dispatch, dict) else {}
@@ -342,6 +431,9 @@ def _reason_for_case(selected, dispatch, draft, gold_info):
         return "candidate_partial_match_but_unsafe_by_usability"
     if dispatch.get("predicted") and not dispatch.get("status"):
         return "candidate_not_compared"
+    known_absent = _known_absent_reason(gold_info)
+    if known_absent:
+        return known_absent
     if dispatch.get("predicted") and missing:
         return "selected_has_dispatch_components_but_gold_incomplete"
     if "date" in missing:
@@ -377,12 +469,18 @@ def _secondary_reasons_for_case(selected, dispatch, draft, gold_info):
         reasons.append("candidate_partial_match_but_unsafe_by_usability")
     if dispatch.get("predicted") and missing:
         reasons.append("dispatch_candidate_compared_against_incomplete_gold")
+    known_absent = _known_absent_reason(gold_info)
+    if known_absent:
+        reasons.append(known_absent)
+        reasons.append("known_absent_in_document")
     if draft.get("predicted"):
         reasons.append("candidate_is_review_draft_only")
     return sorted(set(reasons))
 
 
 def _true_gold_review_needed(gold_info):
+    if _known_absent_reason(gold_info):
+        return False
     for item in gold_info.get("completeness", []) or []:
         missing = set(item.get("missing_components", []) or [])
         if "date" in missing or "city" in missing or "state" in missing:
@@ -400,6 +498,8 @@ def _item_categories(selected, dispatch, draft, gold_info, primary_reason, secon
     draft = draft if isinstance(draft, dict) else {}
     reasons = {primary_reason, *(secondary_reasons or [])}
     categories = set()
+    if reasons.intersection(KNOWN_ABSENT_REASONS):
+        categories.add("no_action_needed")
     if any(
         reason in reasons
         for reason in {
@@ -459,6 +559,8 @@ def _recommendation_for_reason(reason):
         return "manually_review_gold"
     if reason == "candidate_partial_match_but_unsafe_by_usability":
         return "candidate_is_review_draft_only"
+    if reason in KNOWN_ABSENT_REASONS:
+        return "leave_as_is"
     return "manual_review_needed"
 
 
@@ -470,6 +572,42 @@ def _comparison_rows_by_doc_field(evaluation):
         key = (row.get("document_id"), row.get("file_hash"), row.get("field"))
         by_key.setdefault(key, {})[row.get("system")] = row
     return by_key
+
+
+def _known_absent_summary(review_items):
+    known_items = [
+        item
+        for item in review_items or []
+        if item.get("suspect_reason") in KNOWN_ABSENT_REASONS
+        or set(item.get("secondary_reasons", []) or []).intersection(KNOWN_ABSENT_REASONS)
+    ]
+    by_reason = {}
+    examples = []
+    for item in known_items:
+        reasons = [
+            reason
+            for reason in [item.get("suspect_reason"), *(item.get("secondary_reasons", []) or [])]
+            if reason in KNOWN_ABSENT_REASONS
+        ]
+        for reason in sorted(set(reasons)):
+            by_reason[reason] = by_reason.get(reason, 0) + 1
+        if len(examples) < 5:
+            examples.append(
+                {
+                    "document_id": item.get("document_id", ""),
+                    "file_name": item.get("file_name", ""),
+                    "field": item.get("field", ""),
+                    "reason": item.get("suspect_reason", ""),
+                }
+            )
+    return {
+        "known_absent_items": len(known_items),
+        "by_reason": by_reason,
+        "patch_rows_suppressed": len(known_items),
+        "examples": examples,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
 
 
 def build_stop_gold_review_packet(
@@ -527,6 +665,7 @@ def build_stop_gold_review_packet(
                 }
             )
             and not _true_gold_review_needed(gold_info)
+            and not _known_absent_reason(gold_info)
         ):
             continue
         reason = _reason_for_case(selected, dispatch, draft, gold_info)
@@ -608,7 +747,7 @@ def build_stop_gold_review_packet(
         for category in item.get("categories", []) or []:
             category_counts[category] = category_counts.get(category, 0) + 1
     return {
-        "schema_version": "ratecon_stop_gold_review_packet_v2",
+        "schema_version": "ratecon_stop_gold_review_packet_v3_known_absent",
         "review_item_count": len(review_items),
         "reason_counts": reason_counts,
         "secondary_reason_counts": secondary_reason_counts,
@@ -626,6 +765,7 @@ def build_stop_gold_review_packet(
         ),
         "selected_stop_side_by_side_items": selected_side_by_side,
         "items": review_items,
+        "known_absent_summary": _known_absent_summary(review_items),
         "gold_labels_modified": False,
         "private_values_printed": bool(include_private_values_local_only),
         "local_only": True,
@@ -673,6 +813,7 @@ def write_packet(packet, output_dir: Path):
     patch_template_path = output_dir / "stop_gold_patch_template.json"
     code_issues_path = output_dir / "stop_code_issues.csv"
     manual_review_path = output_dir / "stop_manual_review_items.csv"
+    known_absent_path = output_dir / "stop_known_absent_items.csv"
     selected_gaps_csv_path = output_dir / "selected_stop_serialization_gaps.csv"
     selected_gaps_json_path = output_dir / "selected_stop_serialization_gaps.json"
     selected_side_by_side_path = output_dir / "selected_stop_component_side_by_side.csv"
@@ -687,6 +828,7 @@ def write_packet(packet, output_dir: Path):
         f"Category counts: {json.dumps(packet.get('category_counts', {}), sort_keys=True)}",
         f"Reason counts: {json.dumps(packet.get('reason_counts', {}), sort_keys=True)}",
         f"Secondary reason counts: {json.dumps(packet.get('secondary_reason_counts', {}), sort_keys=True)}",
+        f"Known absent summary: {json.dumps(packet.get('known_absent_summary', {}), sort_keys=True)}",
         f"Patch template rows: {len(build_patch_template(packet).get('patches', []))}",
         "Selected stop serialization gap summary: "
         + json.dumps(
@@ -856,6 +998,15 @@ def write_packet(packet, output_dir: Path):
             if "true_gold_review_needed" in (item.get("categories", []) or [])
         ],
     )
+    write_rows(
+        known_absent_path,
+        [
+            item
+            for item in packet.get("items", []) or []
+            if item.get("suspect_reason") in KNOWN_ABSENT_REASONS
+            or set(item.get("secondary_reasons", []) or []).intersection(KNOWN_ABSENT_REASONS)
+        ],
+    )
     side_by_side_fieldnames = [
         "document_id",
         "file_hash",
@@ -946,6 +1097,7 @@ def write_packet(packet, output_dir: Path):
         "items_csv": str(items_csv_path),
         "code_issues_csv": str(code_issues_path),
         "manual_review_items_csv": str(manual_review_path),
+        "known_absent_items_csv": str(known_absent_path),
         "patch_template_json": str(patch_template_path),
         "selected_stop_serialization_gaps_csv": str(selected_gaps_csv_path),
         "selected_stop_serialization_gaps_json": str(selected_gaps_json_path),
@@ -986,6 +1138,7 @@ def main(argv=None):
                 "reason_counts": packet["reason_counts"],
                 "secondary_reason_counts": packet["secondary_reason_counts"],
                 "category_counts": packet["category_counts"],
+                "known_absent_summary": packet.get("known_absent_summary", {}),
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])
                 ),
