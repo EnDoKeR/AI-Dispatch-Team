@@ -93,7 +93,7 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
                     "file_name_or_label": doc.get("file_name_or_label", f"{doc['document_id']}.pdf"),
                     "document_type": doc.get("document_type", "rate_confirmation"),
                     "schema_valid": "true",
-                    "document_type_status": "correct",
+                    "document_type_status": doc.get("document_type_status", "correct"),
                     "gold_matched": "true",
                     "requires_human_review": "true",
                     "private_local_only": "true",
@@ -115,18 +115,19 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
         review_rows: list[dict[str, object]] = []
         for doc in docs:
             document_id = str(doc["document_id"])
+            non_rc = doc.get("document_type_status") == "non_rc_filtered_correct"
             for field_name in ("load_number", "total_carrier_rate"):
                 field_rows.append(
                     {
                         "document_id": document_id,
                         "field": field_name,
                         "stop_index": "",
-                        "status": doc.get(f"{field_name}_status", "exact"),
-                        "tier": "",
-                        "issues": "",
-                        "confidence": 0.99,
-                        "confidence_bucket": "gte_0_90",
-                        "has_evidence": "true",
+                        "status": doc.get(f"{field_name}_status", "not_applicable_non_rc" if non_rc else "exact"),
+                        "tier": "not_applicable" if non_rc else "",
+                        "issues": "non_rc_filtered" if non_rc else "",
+                        "confidence": "" if non_rc else 0.99,
+                        "confidence_bucket": "not_applicable" if non_rc else "gte_0_90",
+                        "has_evidence": "false" if non_rc else "true",
                         "requires_human_review": "true",
                         "auto_accept": "false",
                         "gold_uncertain_status": "",
@@ -136,18 +137,18 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
                 ("pickup_stops", "pickup_tier", "pickup"),
                 ("delivery_stops", "delivery_tier", "delivery"),
             ):
-                tier = str(doc.get(tier_key, "exact_complete"))
+                tier = str(doc.get(tier_key, "not_applicable" if non_rc else "exact_complete"))
                 field_rows.append(
                     {
                         "document_id": document_id,
                         "field": field_name,
-                        "stop_index": "1",
-                        "status": "gold_uncertain" if "uncertain" in tier else "exact",
+                        "stop_index": "" if non_rc else "1",
+                        "status": "not_applicable_non_rc" if non_rc else ("gold_uncertain" if "uncertain" in tier else "exact"),
                         "tier": tier,
-                        "issues": "gold_uncertain_review_required" if "uncertain" in tier else "",
-                        "confidence": 0.98,
-                        "confidence_bucket": "gte_0_90",
-                        "has_evidence": "true",
+                        "issues": "non_rc_filtered" if non_rc else ("gold_uncertain_review_required" if "uncertain" in tier else ""),
+                        "confidence": "" if non_rc else 0.98,
+                        "confidence_bucket": "not_applicable" if non_rc else "gte_0_90",
+                        "has_evidence": "false" if non_rc else "true",
                         "requires_human_review": "true",
                         "auto_accept": "false",
                         "gold_uncertain_status": tier if "uncertain" in tier else "",
@@ -160,14 +161,16 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
                         "document_type": doc.get("document_type", "rate_confirmation"),
                         "field": field_name,
                         "stop_role": role,
-                        "stop_index": "1",
+                        "stop_index": "" if non_rc else "1",
                         "status": tier,
-                        "review_reason": "gold_uncertain_review_required" if "uncertain" in tier else "",
-                        "evidence_status": "present",
-                        "confidence": 0.98,
+                        "review_reason": "non_rc_filtered" if non_rc else ("gold_uncertain_review_required" if "uncertain" in tier else ""),
+                        "evidence_status": "not_applicable" if non_rc else "present",
+                        "confidence": "" if non_rc else 0.98,
                         "auto_accept_violation": "false",
                         "missing_evidence": "false",
-                        "recommended_action": "needs_human_review" if "uncertain" in tier else "accept_for_review_draft",
+                        "recommended_action": "no_action_non_rc"
+                        if non_rc
+                        else ("needs_human_review" if "uncertain" in tier else "accept_for_review_draft"),
                     }
                 )
         _write_csv(
@@ -251,7 +254,10 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
         )
         self.assertEqual(summary["aggregate_document_count"], 4)
         self.assertEqual(summary["duplicate_document_count"], 1)
-        self.assertEqual(summary["field_metrics"]["load_number"], {"correct": 4, "wrong": 0, "missing": 0, "high_confidence_wrong": 0})
+        self.assertEqual(summary["field_metrics"]["load_number"]["correct"], 4)
+        self.assertEqual(summary["field_metrics"]["load_number"]["wrong"], 0)
+        self.assertEqual(summary["field_metrics"]["load_number"]["missing"], 0)
+        self.assertEqual(summary["field_metrics"]["load_number"]["not_applicable_non_rc"], 0)
         self.assertEqual(summary["field_metrics"]["total_carrier_rate"]["correct"], 4)
         self.assertEqual(summary["stop_metrics"]["pickup_stops"]["exact_complete"], 3)
         self.assertEqual(summary["stop_metrics"]["pickup_stops"]["matches_uncertain_gold_review_required"], 1)
@@ -291,6 +297,76 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
             unsafe_wrong=1,
         )
         summary = summarize_hybrid_batches(benchmark_dirs=[batch], output_dir=OUTPUT_ROOT / "summary")
+        self.assertEqual(summary["aggregate_status"], "manual_hybrid_failed_accuracy")
+
+    def test_non_rc_scalar_not_applicable_is_not_wrong_and_status_passes(self):
+        batch = self._benchmark_dir(
+            "batch_non_rc",
+            [
+                {"document_id": "DOC_FIXTURE_PERFECT"},
+                {
+                    "document_id": "DOC_FIXTURE_NON_RC",
+                    "document_type": "bol_pod",
+                    "document_type_status": "non_rc_filtered_correct",
+                },
+            ],
+        )
+
+        summary = summarize_hybrid_batches(benchmark_dirs=[batch], output_dir=OUTPUT_ROOT / "summary")
+
+        self.assertEqual(summary["aggregate_status"], "manual_hybrid_workflow_validated")
+        self.assertEqual(summary["rate_confirmation_document_count"], 1)
+        self.assertEqual(summary["non_rc_document_count"], 1)
+        self.assertEqual(summary["field_metrics"]["load_number"]["correct"], 1)
+        self.assertEqual(summary["field_metrics"]["load_number"]["wrong"], 0)
+        self.assertEqual(summary["field_metrics"]["load_number"]["missing"], 0)
+        self.assertEqual(summary["field_metrics"]["load_number"]["not_applicable_non_rc"], 1)
+        self.assertEqual(summary["field_metrics"]["total_carrier_rate"]["not_applicable_non_rc"], 1)
+        self.assertEqual(summary["non_rc_not_applicable_scalar_count"], 2)
+        self.assertEqual(summary["scalar_true_wrong_count"], 0)
+        self.assertEqual(summary["stop_metrics"]["pickup_stops"]["not_applicable"], 1)
+        self.assertEqual(summary["stop_metrics"]["delivery_stops"]["not_applicable"], 1)
+        rows = _read_csv(OUTPUT_ROOT / "summary" / "multi_batch_field_metrics.csv")
+        self.assertTrue(
+            any(
+                row["field"] == "load_number"
+                and row["metric"] == "not_applicable_non_rc"
+                and row["value"] == "1"
+                for row in rows
+            )
+        )
+        report = (OUTPUT_ROOT / "summary" / "multi_batch_summary.md").read_text(encoding="utf-8")
+        self.assertIn("non-RC/BOL-POD filtered: 1", report)
+        self.assertIn("1 non-RC not applicable", report)
+
+    def test_status_validated_with_review_items_for_uncertain_plus_non_rc_not_applicable(self):
+        batch = self._benchmark_dir(
+            "batch_uncertain_non_rc",
+            [
+                {"document_id": "DOC_FIXTURE_PERFECT", "delivery_tier": "matches_uncertain_gold_review_required"},
+                {
+                    "document_id": "DOC_FIXTURE_NON_RC",
+                    "document_type": "bol_pod",
+                    "document_type_status": "non_rc_filtered_correct",
+                },
+            ],
+        )
+
+        summary = summarize_hybrid_batches(benchmark_dirs=[batch], output_dir=OUTPUT_ROOT / "summary")
+
+        self.assertEqual(summary["aggregate_status"], "manual_hybrid_validated_with_review_items")
+        self.assertEqual(summary["field_metrics"]["load_number"]["wrong"], 0)
+        self.assertEqual(summary["field_metrics"]["total_carrier_rate"]["wrong"], 0)
+
+    def test_true_scalar_wrong_still_fails_accuracy(self):
+        batch = self._benchmark_dir(
+            "batch_scalar_wrong",
+            [{"document_id": "DOC_FIXTURE_PERFECT", "total_carrier_rate_status": "wrong"}],
+        )
+
+        summary = summarize_hybrid_batches(benchmark_dirs=[batch], output_dir=OUTPUT_ROOT / "summary")
+
+        self.assertEqual(summary["field_metrics"]["total_carrier_rate"]["wrong"], 1)
         self.assertEqual(summary["aggregate_status"], "manual_hybrid_failed_accuracy")
 
     def test_remaining_plan_excludes_completed_docs_and_has_columns(self):

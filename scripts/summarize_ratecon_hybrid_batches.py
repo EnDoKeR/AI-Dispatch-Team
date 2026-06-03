@@ -55,9 +55,11 @@ STOP_TIERS = (
     "matches_uncertain_gold_review_required",
     "partial_match_uncertain_gold_review_required",
     "gold_uncertain_review_required",
+    "not_applicable",
     "unsafe_wrong",
     "missing_review_required",
 )
+NOT_APPLICABLE_NON_RC_STATUS = "not_applicable_non_rc"
 SUCCESS_FIELDNAMES = ["criterion", "value", "passes", "failure_status", "notes"]
 COVERAGE_FIELDNAMES = [
     "batch_index",
@@ -184,6 +186,17 @@ def _is_missing_scalar_status(status: str) -> bool:
     return status in {STATUS_MISSING, STATUS_UNLABELED, "missing", "unlabeled"}
 
 
+def _is_non_rc_not_applicable_row(row: dict[str, Any]) -> bool:
+    status = _text(row.get("status"))
+    tier = _text(row.get("tier"))
+    issues = _text(row.get("issues")).lower()
+    return (
+        status in {NOT_APPLICABLE_NON_RC_STATUS, "not_applicable"}
+        or tier == "not_applicable"
+        or "non_rc_filtered" in issues
+    )
+
+
 def _boolish(value: Any) -> bool:
     if isinstance(value, bool):
         return value
@@ -192,8 +205,8 @@ def _boolish(value: Any) -> bool:
 
 def _empty_scalar_metrics() -> dict[str, dict[str, int]]:
     return {
-        FIELD_LOAD_NUMBER: {"correct": 0, "wrong": 0, "missing": 0, "high_confidence_wrong": 0},
-        FIELD_TOTAL_CARRIER_RATE: {"correct": 0, "wrong": 0, "missing": 0, "high_confidence_wrong": 0},
+        FIELD_LOAD_NUMBER: {"correct": 0, "wrong": 0, "missing": 0, "not_applicable_non_rc": 0, "high_confidence_wrong": 0},
+        FIELD_TOTAL_CARRIER_RATE: {"correct": 0, "wrong": 0, "missing": 0, "not_applicable_non_rc": 0, "high_confidence_wrong": 0},
     }
 
 
@@ -264,6 +277,32 @@ def _completed_documents(
     return coverage_rows, set(seen)
 
 
+def _document_type_counts(coverage_rows: list[dict[str, Any]]) -> dict[str, int]:
+    rate_confirmation_count = 0
+    non_rc_count = 0
+    unknown_count = 0
+    for row in coverage_rows:
+        if row.get("included_in_aggregate") != "true":
+            continue
+        document_type = _text(row.get("document_type"))
+        document_type_status = _text(row.get("document_type_status"))
+        if document_type_status == "non_rc_filtered_correct" or document_type in {
+            "bol_pod",
+            "non_rate_confirmation",
+            "bill_of_lading_or_delivery_receipt",
+        }:
+            non_rc_count += 1
+        elif document_type == "rate_confirmation":
+            rate_confirmation_count += 1
+        else:
+            unknown_count += 1
+    return {
+        "rate_confirmation_document_count": rate_confirmation_count,
+        "non_rc_document_count": non_rc_count,
+        "unknown_document_count": unknown_count,
+    }
+
+
 def _aggregate_metrics(
     batches: list[dict[str, Any]],
     completed_document_ids: set[str],
@@ -288,7 +327,9 @@ def _aggregate_metrics(
             output_field_rows.append({**row, "batch_index": batch["index"], "batch_name": batch["name"]})
             if field in scalar_metrics:
                 status = _text(row.get("status"))
-                if _is_correct_scalar_status(status):
+                if _is_non_rc_not_applicable_row(row):
+                    scalar_metrics[field]["not_applicable_non_rc"] += 1
+                elif _is_correct_scalar_status(status):
                     scalar_metrics[field]["correct"] += 1
                 elif _is_missing_scalar_status(status):
                     scalar_metrics[field]["missing"] += 1
@@ -403,7 +444,7 @@ def _success_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
             "load_or_rate_wrong",
             scalar_wrong,
             "manual_hybrid_failed_accuracy",
-            "Wrong scalar fields must be resolved by review.",
+            "Only true wrong scalar fields fail accuracy; non-RC not-applicable scalar rows are no-action.",
         ),
         (
             "uncertain_gold_review_required",
@@ -605,6 +646,7 @@ def summarize_hybrid_batches(
         include_private_values_local_only=include_private_values_local_only,
     )
     scalar_metrics, stop_metrics, field_rows, review_policy = _aggregate_metrics(batches, completed_document_ids)
+    document_type_counts = _document_type_counts(coverage_rows)
     summary_counts = _aggregate_summary_counts(batches)
     review_rows = _aggregate_review_items(
         batches,
@@ -630,6 +672,9 @@ def summarize_hybrid_batches(
         "schema_version": "ratecon_hybrid_multi_batch_summary_v1",
         "batch_count": len(batches),
         "aggregate_document_count": len(completed_document_ids),
+        "rate_confirmation_document_count": document_type_counts["rate_confirmation_document_count"],
+        "non_rc_document_count": document_type_counts["non_rc_document_count"],
+        "unknown_document_count": document_type_counts["unknown_document_count"],
         "duplicate_document_count": sum(1 for row in coverage_rows if row["included_in_aggregate"] == "false"),
         "completed_document_ids": sorted(completed_document_ids),
         "schema_error_count": summary_counts.get("schema_errors", 0),
@@ -639,6 +684,9 @@ def summarize_hybrid_batches(
         or review_policy.get("stop_auto_accept_violation", 0),
         "unsafe_wrong_stop_count": summary_counts.get("unsafe_wrong_stops", 0) or unsafe_wrong,
         "gold_uncertain_review_required_count": pickup_uncertain + delivery_uncertain,
+        "non_rc_not_applicable_scalar_count": scalar_metrics[FIELD_LOAD_NUMBER].get("not_applicable_non_rc", 0)
+        + scalar_metrics[FIELD_TOTAL_CARRIER_RATE].get("not_applicable_non_rc", 0),
+        "scalar_true_wrong_count": scalar_metrics[FIELD_LOAD_NUMBER].get("wrong", 0) + scalar_metrics[FIELD_TOTAL_CARRIER_RATE].get("wrong", 0),
         "field_metrics": scalar_metrics,
         "stop_metrics": stop_metrics,
         "remaining_plan_count": len(remaining_rows),
@@ -698,6 +746,8 @@ def _write_outputs(
         f"- aggregate status: {summary['aggregate_status']}",
         f"- batches: {summary['batch_count']}",
         f"- completed documents: {summary['aggregate_document_count']}",
+        f"- rate confirmations: {summary.get('rate_confirmation_document_count', 0)}",
+        f"- non-RC/BOL-POD filtered: {summary.get('non_rc_document_count', 0)}",
         f"- duplicate documents excluded: {summary['duplicate_document_count']}",
         f"- schema errors: {summary['schema_error_count']}",
         f"- missing evidence: {summary['missing_evidence_count']}",
@@ -707,25 +757,32 @@ def _write_outputs(
         "",
         "## Field Metrics",
         "",
-        f"- load_number: {load.get('correct', 0)} correct / {load.get('wrong', 0)} wrong / {load.get('missing', 0)} missing",
+        (
+            f"- load_number: {load.get('correct', 0)} correct / {load.get('wrong', 0)} wrong / "
+            f"{load.get('missing', 0)} missing / {load.get('not_applicable_non_rc', 0)} non-RC not applicable"
+        ),
         (
             f"- total_carrier_rate: {rate.get('correct', 0)} correct / "
-            f"{rate.get('wrong', 0)} wrong / {rate.get('missing', 0)} missing"
+            f"{rate.get('wrong', 0)} wrong / {rate.get('missing', 0)} missing / "
+            f"{rate.get('not_applicable_non_rc', 0)} non-RC not applicable"
         ),
         (
             f"- pickup_stops: {pickup.get('exact_complete', 0)} exact / "
             f"{_stop_uncertain_count(pickup)} uncertain-gold review / "
-            f"{pickup.get('unsafe_wrong', 0)} unsafe / {pickup.get('missing_review_required', 0)} missing"
+            f"{pickup.get('unsafe_wrong', 0)} unsafe / {pickup.get('missing_review_required', 0)} missing / "
+            f"{pickup.get('not_applicable', 0)} non-RC not applicable"
         ),
         (
             f"- delivery_stops: {delivery.get('exact_complete', 0)} exact / "
             f"{_stop_uncertain_count(delivery)} uncertain-gold review / "
-            f"{delivery.get('unsafe_wrong', 0)} unsafe / {delivery.get('missing_review_required', 0)} missing"
+            f"{delivery.get('unsafe_wrong', 0)} unsafe / {delivery.get('missing_review_required', 0)} missing / "
+            f"{delivery.get('not_applicable', 0)} non-RC not applicable"
         ),
         "",
         "## Interpretation",
         "",
         "- uncertain-gold review items are review-required, not failures",
+        "- non-RC/BOL-POD not-applicable scalar fields are filtered/no-action, not accuracy failures",
         "- stops remain review drafts with auto_accept=false",
         "- private benchmark outputs remain local-only",
         "",

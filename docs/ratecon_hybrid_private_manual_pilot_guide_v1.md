@@ -389,6 +389,14 @@ batches show no schema errors, no missing evidence, no stop auto-accept
 violations, no unsafe wrong stops, and only explicit review-required uncertain
 gold remains.
 
+Non-RC/BOL-POD documents are counted separately in the multi-batch summary.
+For confirmed non-RC documents, blank load/rate/stop rows appear as
+`not_applicable_non_rc` or `not_applicable`. These are no-action
+classification outcomes, not scalar accuracy failures. Do not fill those rows
+with guessed rate-con values; if the document is not a rate confirmation, the
+correct manual action is to leave rate-con fields blank and preserve the
+non-RC document type.
+
 ## Generate The Remaining Plan
 
 When `--write-remaining-plan` is supplied, the summary script writes
