@@ -5,6 +5,7 @@ from pathlib import Path
 
 from app.document_ai.field_candidate_resolver import resolve_candidates
 from app.document_ai.ratecon_gold_labels import (
+    FIELD_DELIVERY_STOPS,
     FIELD_PICKUP_STOPS,
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
@@ -23,10 +24,13 @@ from app.document_ai.ratecon_stop_draft_profile import (
     STOP_DRAFT_PROFILE_NONE,
 )
 from scripts.create_ratecon_stop_gold_review_packets import (
+    build_no_candidate_source_trace_summary,
     build_residual_extraction_report,
     build_patch_template,
     build_stop_gold_review_packet,
+    build_stop_source_inventory_report,
     write_residual_extraction_report,
+    write_stop_source_inventory_report,
     write_packet,
 )
 from scripts.apply_ratecon_stop_gold_review_patch import (
@@ -211,6 +215,67 @@ def _audit_record(candidates, resolved, stop_draft_profile=STOP_DRAFT_PROFILE_NO
             candidates=candidates,
             stop_draft_profile=stop_draft_profile,
         ),
+    }
+
+
+def _source_inventory_audit_record():
+    return {
+        "document_id": "DOC-HANDOFF",
+        "file_hash": "hash-handoff",
+        "file_name": "handoff.pdf",
+        "candidate_counts_by_field": {
+            FIELD_PICKUP_STOPS: 1,
+            "delivery_location": 1,
+            "delivery_time": 1,
+        },
+        "private_eval_values": {
+            "stop_component_candidate_inventory": [
+                {
+                    "candidate_id": "pickup-native-1",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [
+                        {
+                            "role": "pickup",
+                            "stop_index": 1,
+                            "city": "Dallas",
+                            "state": "TX",
+                            "date": "2026-06-05",
+                        }
+                    ],
+                    "source": "native_text",
+                    "parser_name": "stop_evidence_assembler",
+                    "metadata_summary": {
+                        "candidate_id": "pickup-native-1",
+                        "stop_role": "pickup",
+                        "page": 1,
+                        "line_index": 4,
+                    },
+                },
+                {
+                    "candidate_id": "delivery-ocr-1",
+                    "field": FIELD_DELIVERY_STOPS,
+                    "value": [
+                        {
+                            "role": "delivery",
+                            "stop_index": 1,
+                            "city": "Austin",
+                            "state": "TX",
+                            "appointment_window": "0800 to 1000",
+                        }
+                    ],
+                    "source": "ocr",
+                    "parser_name": "ocr_stop_table_reconstructor",
+                    "metadata_summary": {
+                        "candidate_id": "delivery-ocr-1",
+                        "stop_role": "delivery",
+                        "assembled_from_column_geometry": True,
+                        "component_bboxes_available": True,
+                        "page": 1,
+                        "line_index": 8,
+                    },
+                },
+            ]
+        },
     }
 
 
@@ -635,6 +700,238 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             self.assertTrue(Path(paths["summary_md"]).exists())
             self.assertTrue(Path(paths["items_csv"]).exists())
             self.assertTrue(Path(paths["items_json"]).exists())
+
+    def test_stop_source_inventory_exports_components_and_redacts_by_default(self):
+        report = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=False,
+        )
+
+        self.assertEqual(report["source_inventory_summary"]["inventory_item_count"], 4)
+        self.assertEqual(report["source_inventory_summary"]["by_source"]["ocr_geometry_column"], 2)
+        self.assertEqual(report["source_inventory_summary"]["by_source"]["stop_evidence_assembler"], 2)
+        self.assertTrue(all(item["value_local_only"] == "" for item in report["items"]))
+        doc = next(iter(report["stop_component_availability_matrix"].values()))
+        self.assertTrue(doc["pickup"]["has_same_role_location_date"])
+        self.assertTrue(doc["delivery"]["has_same_role_location_time"])
+
+    def test_stop_source_inventory_includes_private_values_only_with_flag(self):
+        redacted = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=False,
+        )
+        private = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=True,
+        )
+
+        self.assertFalse(any(item["value_local_only"] for item in redacted["items"]))
+        self.assertTrue(any(item["value_local_only"] == "Dallas TX" for item in private["items"]))
+
+    def test_stop_source_inventory_writer_outputs_local_files(self):
+        report = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=True,
+        )
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = write_stop_source_inventory_report(report, Path(tmpdir))
+
+            self.assertTrue(Path(paths["summary_md"]).exists())
+            self.assertTrue(Path(paths["items_csv"]).exists())
+            self.assertTrue(Path(paths["items_json"]).exists())
+            self.assertTrue(Path(paths["by_document_json"]).exists())
+
+    def test_stop_source_inventory_exports_selected_stop_source_group(self):
+        audit = {
+            "document_id": "RATECON_INTERNAL_001",
+            "file_hash": "hash-handoff",
+            "file_name": "handoff.pdf",
+            "private_eval_values": {
+                "shadow_selected_stop": {
+                    FIELD_PICKUP_STOPS: {
+                        "value": [{"city": "Dallas", "state": "TX"}],
+                        "source": "stop_evidence_assembler",
+                        "parser_name": "stop_evidence_assembler",
+                        "metadata_summary": {"stop_role": "pickup"},
+                    }
+                }
+            },
+        }
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [audit],
+            include_private_values=True,
+        )
+
+        self.assertEqual(source_inventory["items"][0]["source_group"], "shadow_selected_stop")
+        trace = build_no_candidate_source_trace_summary(
+            [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff-full",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                }
+            ],
+            source_inventory,
+        )
+        self.assertEqual(
+            trace["reason_counts"]["selected_stop_comes_from_assembler_without_component_sources"],
+            1,
+        )
+
+    def test_no_candidate_source_trace_uses_inventory_when_available(self):
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=False,
+        )
+        residual_items = [
+            {
+                "document_id": "DOC-HANDOFF",
+                "file_hash": "hash-handoff",
+                "file_name": "handoff.pdf",
+                "field": FIELD_PICKUP_STOPS,
+            }
+        ]
+
+        trace = build_no_candidate_source_trace_summary(residual_items, source_inventory)
+
+        self.assertEqual(trace["issues_checked"], 1)
+        self.assertEqual(trace["reason_counts"]["evaluator_only_missing_candidate_source"], 1)
+        self.assertEqual(trace["unknown"], 0)
+
+    def test_no_candidate_source_trace_matches_inventory_by_file_hash(self):
+        audit = _source_inventory_audit_record()
+        audit["document_id"] = "RATECON_INTERNAL_001"
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [audit],
+            include_private_values=False,
+        )
+        residual_items = [
+            {
+                "document_id": "DOC-HANDOFF",
+                "file_hash": "hash-handoff",
+                "file_name": "handoff.pdf",
+                "field": FIELD_PICKUP_STOPS,
+            }
+        ]
+
+        trace = build_no_candidate_source_trace_summary(residual_items, source_inventory)
+
+        self.assertEqual(trace["reason_counts"]["evaluator_only_missing_candidate_source"], 1)
+        self.assertEqual(trace["cases"][0]["inventory_entries_for_field"], 2)
+
+    def test_no_candidate_source_trace_detects_inventory_omission_and_true_gap(self):
+        generated_without_inventory = {
+            "document_id": "DOC-HANDOFF",
+            "file_hash": "hash-handoff",
+            "file_name": "handoff.pdf",
+            "candidate_counts_by_field": {FIELD_PICKUP_STOPS: 2},
+            "private_eval_values": {"stop_component_candidate_inventory": []},
+        }
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [generated_without_inventory],
+            include_private_values=False,
+        )
+        residual_items = [
+            {
+                "document_id": "DOC-HANDOFF",
+                "file_hash": "hash-handoff",
+                "file_name": "handoff.pdf",
+                "field": FIELD_PICKUP_STOPS,
+            },
+            {
+                "document_id": "DOC-MISSING",
+                "file_hash": "hash-missing",
+                "file_name": "missing.pdf",
+                "field": FIELD_PICKUP_STOPS,
+            },
+        ]
+
+        trace = build_no_candidate_source_trace_summary(residual_items, source_inventory)
+
+        self.assertEqual(trace["reason_counts"]["component_candidate_generated_but_not_in_inventory"], 1)
+        self.assertEqual(trace["reason_counts"]["true_no_source"], 1)
+        self.assertEqual(trace["unknown"], 0)
+
+    def test_residual_extraction_report_uses_source_inventory_context(self):
+        packet = {
+            "exclusive_category_counts": {},
+            "items": [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                    "categories": ["extraction_candidate_issue"],
+                    "selected_stop_component_summary": {
+                        "raw_status": "partial_match",
+                        "dispatch_usability_tier": "useful_partial_location_only",
+                    },
+                    "selected_components": {},
+                    "selected_source_hint": {},
+                    "best_candidate_components": {},
+                    "draft_components": {},
+                    "gold_components": {},
+                }
+            ],
+        }
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [_source_inventory_audit_record()],
+            include_private_values=False,
+        )
+
+        report = build_residual_extraction_report(packet, source_inventory_report=source_inventory)
+        item = report["items"][0]
+
+        self.assertEqual(item["selected_candidate_source"], "inventory:stop_evidence_assembler")
+        self.assertEqual(item["source_inventory_match_count"], 2)
+        self.assertNotIn(
+            "no_candidate_source",
+            report["stop_component_fusion_opportunity_summary"]["blocked_reason_counts"],
+        )
+        self.assertEqual(
+            report["no_candidate_source_trace_summary"]["reason_counts"][
+                "evaluator_only_missing_candidate_source"
+            ],
+            1,
+        )
+
+    def test_dedupe_provenance_summary_counts_missing_metadata(self):
+        audit = _source_inventory_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "pickup-nosource",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [{"city": "Dallas"}],
+                "source": "",
+                "parser_name": "",
+                "metadata_summary": {},
+            }
+        )
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [{"city": "Fort Worth"}],
+                "source": "native_text",
+                "parser_name": "stop_evidence_assembler",
+                "metadata_summary": {},
+            }
+        )
+        report = build_stop_source_inventory_report({}, [audit], include_private_values=False)
+        dedupe = report["stop_dedupe_provenance_loss_summary"]
+
+        self.assertGreaterEqual(dedupe["lost_candidate_id_count"], 1)
+        self.assertGreaterEqual(dedupe["merged_without_source_metadata"], 1)
 
     def test_candidate_has_dispatch_components_can_be_unsafe_against_gold(self):
         candidate = _dispatch_candidate()

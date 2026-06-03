@@ -688,6 +688,700 @@ def _prediction_component_payload(item, prefix):
     }
 
 
+def _role_from_field(field_name, metadata=None):
+    metadata = metadata if isinstance(metadata, dict) else {}
+    role = _text(metadata.get("stop_role") or metadata.get("role"))
+    if role in {"pickup", "delivery"}:
+        return role
+    field_name = _text(field_name)
+    if field_name.startswith("pickup_") or field_name == FIELD_PICKUP_STOPS:
+        return "pickup"
+    if field_name.startswith("delivery_") or field_name == FIELD_DELIVERY_STOPS:
+        return "delivery"
+    return "unknown"
+
+
+def _field_from_role(role):
+    if role == "pickup":
+        return FIELD_PICKUP_STOPS
+    if role == "delivery":
+        return FIELD_DELIVERY_STOPS
+    return ""
+
+
+def _component_values_from_stop(stop):
+    stop = stop if isinstance(stop, dict) else {}
+    city_state_zip = " ".join(
+        part
+        for part in [
+            _text(stop.get("city")),
+            _text(stop.get("state")),
+            _text(stop.get("zip")),
+        ]
+        if part
+    )
+    raw_location = (
+        _text(stop.get("raw_location_text_local_only"))
+        or _text(stop.get("unparsed_location_text_local_only"))
+        or _text(stop.get("location"))
+        or _text(stop.get("value"))
+    )
+    return {
+        "facility": _text(stop.get("facility")),
+        "address": _text(stop.get("address")),
+        "city_state_zip": city_state_zip,
+        "date": _text(stop.get("date")),
+        "time": _text(stop.get("time")),
+        "appointment_window": _text(stop.get("appointment_window")),
+        "raw_location": raw_location,
+    }
+
+
+def _component_values_from_inventory_item(item):
+    item = item if isinstance(item, dict) else {}
+    value = item.get("value")
+    field = _text(item.get("field"))
+    values = []
+    if field.endswith("_location"):
+        if isinstance(value, dict):
+            component_values = _component_values_from_stop(value)
+            for component in ["facility", "address", "city_state_zip", "raw_location"]:
+                if _text(component_values.get(component)):
+                    values.append((component, _text(component_values.get(component))))
+        elif isinstance(value, list):
+            for entry in value:
+                if isinstance(entry, dict):
+                    component_values = _component_values_from_stop(entry)
+                    for component in ["facility", "address", "city_state_zip", "raw_location"]:
+                        if _text(component_values.get(component)):
+                            values.append((component, _text(component_values.get(component))))
+        elif _text(value):
+            values.append(("raw_location", _text(value)))
+    elif field.endswith("_date"):
+        if _text(value):
+            values.append(("date", _text(value)))
+    elif field.endswith("_time"):
+        if _text(value):
+            values.append(("time", _text(value)))
+    elif field in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+        stops = value if isinstance(value, list) else [value]
+        for stop in stops:
+            if not isinstance(stop, dict):
+                continue
+            component_values = _component_values_from_stop(stop)
+            for component, component_value in component_values.items():
+                if _text(component_value):
+                    values.append((component, _text(component_value)))
+    return values
+
+
+def _metadata_page(metadata):
+    for key in ["page", "page_number", "source_page"]:
+        if metadata.get(key) not in {None, ""}:
+            return metadata.get(key)
+    line_span = metadata.get("line_span")
+    if isinstance(line_span, dict):
+        for key in ["page", "page_number"]:
+            if line_span.get(key) not in {None, ""}:
+                return line_span.get(key)
+    return None
+
+
+def _metadata_line_index(metadata):
+    for key in ["line_index", "reading_order_index", "source_line_index"]:
+        if metadata.get(key) not in {None, ""}:
+            return metadata.get(key)
+    offsets = metadata.get("component_line_offsets")
+    if isinstance(offsets, dict):
+        values = [value for value in offsets.values() if value not in {None, ""}]
+        if values:
+            return min(values)
+    line_span = metadata.get("line_span")
+    if isinstance(line_span, dict):
+        for key in ["start", "start_line_index", "line_start"]:
+            if line_span.get(key) not in {None, ""}:
+                return line_span.get(key)
+    return None
+
+
+def _metadata_bbox(metadata):
+    for key in ["bbox", "component_bboxes"]:
+        value = metadata.get(key)
+        if value is not None and value != "" and value != {}:
+            return value
+    return None
+
+
+def _normalized_component_source(item, metadata):
+    source = _text(item.get("source")).lower()
+    parser = _text(item.get("parser_name")).lower()
+    if metadata.get("assembled_from_column_geometry") or "ocr_stop_table_reconstructor" in parser:
+        return "ocr_geometry_column"
+    if metadata.get("ocr_candidate") or "ocr" in source or "ocr" in parser:
+        if metadata.get("component_bboxes_available") or metadata.get("geometry_available"):
+            return "ocr_tsv"
+        return "ocr_text"
+    if item.get("table_based") or metadata.get("table_cell_candidate"):
+        return "pdfplumber_table" if "pdfplumber" in source or "pdfplumber" in parser else "native_layout"
+    if item.get("layout_based") or "layout" in source or "layout" in parser:
+        return "native_layout"
+    if item.get("legacy_fallback") or "legacy" in source or "legacy" in parser:
+        return "legacy_fallback"
+    if "stop_evidence_assembler" in parser or "stop_evidence_assembler" in source:
+        return "stop_evidence_assembler"
+    if "text" in source:
+        return "native_text"
+    return _text(item.get("source")) or "unknown"
+
+
+def _source_safety_status(item, metadata):
+    warning_values = []
+    for key in [
+        "stop_alignment_warnings",
+        "stop_geometry_warnings",
+        "stop_column_warnings",
+        "alignment_warnings",
+        "warnings",
+        "unsafe_reason",
+        "abstention_reason",
+        "stop_abstention_reason",
+        "section_context",
+        "document_region",
+    ]:
+        value = metadata.get(key)
+        if isinstance(value, list):
+            warning_values.extend(_text(entry) for entry in value)
+        else:
+            warning_values.append(_text(value))
+    warning_text = " ".join(value for value in warning_values if value).lower()
+    reference_flag = bool(
+        metadata.get("is_stop_level_reference")
+        or metadata.get("is_pickup_delivery_reference")
+        or metadata.get("is_bol_or_po_or_customer_ref")
+    )
+    if reference_flag or any(
+        token in warning_text
+        for token in ["payment", "instruction", "footer", "terms", "reference"]
+    ):
+        return "unsafe", "component_from_payment_or_instruction"
+    if _role_from_field(item.get("field"), metadata) == "unknown":
+        return "risky", "role_unclear"
+    if not _text(item.get("source")) and not _text(item.get("parser_name")):
+        return "unknown", "missing_source"
+    return "safe", None
+
+
+def _provenance_status(entry):
+    if entry.get("safety_status") == "unsafe":
+        return "unsafe_source"
+    if not _text(entry.get("role")) or entry.get("role") == "unknown":
+        return "missing_role"
+    if not _text(entry.get("candidate_id")):
+        return "missing_candidate_id"
+    if not _text(entry.get("source")) or entry.get("source") == "unknown":
+        return "missing_source"
+    if entry.get("page") in {None, ""} and entry.get("line_index") in {None, ""} and not entry.get("bbox"):
+        return "missing_page_line"
+    return "complete"
+
+
+def _inventory_entries_from_record(record, include_private_values):
+    private_values = _private_eval_values(record)
+    inventory = private_values.get("stop_component_candidate_inventory", [])
+    entries = []
+    def append_entries(item, source_group="candidate_inventory"):
+        if not isinstance(item, dict):
+            return
+        metadata = item.get("metadata_summary") if isinstance(item.get("metadata_summary"), dict) else {}
+        role = _role_from_field(item.get("field"), metadata)
+        normalized_source = _normalized_component_source(item, metadata)
+        safety_status, unsafe_reason = _source_safety_status(item, metadata)
+        for component, value in _component_values_from_inventory_item(item):
+            candidate_id = _text(item.get("candidate_id") or metadata.get("candidate_id"))
+            entry = {
+                "file_name": _text(record.get("file_name")),
+                "document_id": _text(record.get("document_id")),
+                "file_hash": _text(record.get("file_hash")),
+                "field": _field_from_role(role) or _text(item.get("field")),
+                "role": role,
+                "component": component,
+                "value_local_only": value if include_private_values else "",
+                "source": normalized_source,
+                "parser_name": _text(item.get("parser_name")),
+                "generator_name": _text(metadata.get("source_generator_name")) or _text(item.get("parser_name")),
+                "source_group": source_group,
+                "page": _metadata_page(metadata),
+                "line_index": _metadata_line_index(metadata),
+                "bbox": _metadata_bbox(metadata),
+                "stop_index": metadata.get("stop_index") or 1,
+                "candidate_id": candidate_id,
+                "synthetic_candidate_id": (
+                    candidate_id
+                    or f"{source_group}:{_field_from_role(role) or _text(item.get('field'))}:1"
+                ),
+                "safety_status": safety_status,
+                "unsafe_reason": unsafe_reason,
+                "metadata_summary": metadata,
+            }
+            entry["provenance_status"] = _provenance_status(entry)
+            entries.append(entry)
+    for item in inventory if isinstance(inventory, list) else []:
+        append_entries(item)
+    for group_name in [
+        "shadow_selected_stop",
+        "shadow_best_structured_stop_candidate",
+        "shadow_best_dispatch_usable_stop_candidate",
+        "shadow_best_ocr_column_stop_candidate",
+        "shadow_best_native_layout_stop_candidate",
+        "shadow_stop_review_draft",
+        "legacy_fallback_stop_candidate",
+    ]:
+        group = private_values.get(group_name)
+        if not isinstance(group, dict):
+            continue
+        for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+            prediction = group.get(field_name)
+            if not isinstance(prediction, dict):
+                continue
+            metadata = prediction.get("metadata_summary")
+            metadata = metadata if isinstance(metadata, dict) else {}
+            append_entries(
+                {
+                    "candidate_id": (
+                        _text(prediction.get("candidate_id"))
+                        or _text(metadata.get("candidate_id"))
+                    ),
+                    "field": field_name,
+                    "value": prediction.get("value"),
+                    "source": prediction.get("source"),
+                    "parser_name": prediction.get("parser_name"),
+                    "metadata_summary": {
+                        **metadata,
+                        "source_generator_name": group_name,
+                    },
+                },
+                source_group=group_name,
+            )
+    return entries
+
+
+def _inventory_key(entry):
+    return (
+        _text(entry.get("document_id")),
+        _text(entry.get("file_hash")),
+        _text(entry.get("field")),
+    )
+
+
+def _inventory_key_string(key):
+    return "|".join(_text(part) for part in key)
+
+
+def _hashes_match(left, right):
+    left = _text(left)
+    right = _text(right)
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    shorter, longer = (left, right) if len(left) <= len(right) else (right, left)
+    return len(shorter) >= 8 and longer.startswith(shorter)
+
+
+def _candidate_counts_by_doc_field(audit_records):
+    by_key = {}
+    stop_fields = {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+        "pickup_location",
+        "pickup_date",
+        "pickup_time",
+        "delivery_location",
+        "delivery_date",
+        "delivery_time",
+    }
+    for record in audit_records or []:
+        if not isinstance(record, dict):
+            continue
+        counts = _candidate_counts_for_record(record)
+        document_id = _text(record.get("document_id"))
+        file_hash = _text(record.get("file_hash"))
+        file_name = _text(record.get("file_name"))
+        for field, count in counts.items():
+            if field not in stop_fields:
+                continue
+            role = _role_from_field(field)
+            normalized_field = _field_from_role(role) or field
+            for key_parts in [
+                (document_id, file_hash, normalized_field),
+                ("", file_hash, normalized_field),
+                (file_name, file_hash, normalized_field),
+            ]:
+                if not key_parts[0] and not key_parts[1]:
+                    continue
+                key = _inventory_key_string(key_parts)
+                by_key[key] = by_key.get(key, 0) + int(count or 0)
+    return by_key
+
+
+def _candidate_counts_for_record(record):
+    counts = record.get("candidate_counts_by_field") if isinstance(record, dict) else {}
+    if isinstance(counts, dict) and counts:
+        return counts
+    candidate_summary = record.get("candidate_summary") if isinstance(record, dict) else {}
+    candidate_summary = candidate_summary if isinstance(candidate_summary, dict) else {}
+    counts = candidate_summary.get("candidates_by_field")
+    if isinstance(counts, dict) and counts:
+        return counts
+    taxonomy = candidate_summary.get("candidate_taxonomy")
+    taxonomy = taxonomy if isinstance(taxonomy, dict) else {}
+    canonical_by_generator = taxonomy.get("canonical_fields_by_generator")
+    if not isinstance(canonical_by_generator, dict):
+        return {}
+    merged = {}
+    for fields in canonical_by_generator.values():
+        if not isinstance(fields, dict):
+            continue
+        for field, count in fields.items():
+            try:
+                merged[field] = merged.get(field, 0) + int(count or 0)
+            except (TypeError, ValueError):
+                continue
+    return merged
+
+
+def _candidate_counts_stop_total(record):
+    counts = _candidate_counts_for_record(record)
+    stop_fields = {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+        "pickup_location",
+        "pickup_date",
+        "pickup_time",
+        "delivery_location",
+        "delivery_date",
+        "delivery_time",
+    }
+    total = 0
+    for field, count in counts.items():
+        if field in stop_fields:
+            try:
+                total += int(count or 0)
+            except (TypeError, ValueError):
+                continue
+    return total
+
+
+def _build_source_inventory_items(audit_records, include_private_values):
+    items = []
+    for record in audit_records or []:
+        if not isinstance(record, dict):
+            continue
+        items.extend(_inventory_entries_from_record(record, include_private_values))
+    return items
+
+
+def _matrix_for_entries(entries):
+    matrix = {}
+    for entry in entries:
+        doc_key = f"{entry.get('document_id')}|{entry.get('file_hash')}"
+        doc = matrix.setdefault(
+            doc_key,
+            {
+                "document_id": entry.get("document_id", ""),
+                "file_hash": entry.get("file_hash", ""),
+                "file_name": entry.get("file_name", ""),
+                "pickup": {},
+                "delivery": {},
+            },
+        )
+        role = entry.get("role") if entry.get("role") in {"pickup", "delivery"} else "unknown"
+        if role == "unknown":
+            continue
+        role_matrix = doc.setdefault(role, {})
+        component = entry.get("component")
+        sources = set(role_matrix.get("sources", []))
+        sources.add(_text(entry.get("source")) or "unknown")
+        role_matrix["sources"] = sorted(sources)
+        if component in {"facility", "address", "city_state_zip", "raw_location"}:
+            role_matrix["has_location"] = True
+        if component == "date":
+            role_matrix["has_date"] = True
+        if component in {"time", "appointment_window"}:
+            role_matrix["has_time_or_window"] = True
+        if component in {"facility", "address"}:
+            role_matrix["has_facility_or_address"] = True
+    for doc in matrix.values():
+        for role in ["pickup", "delivery"]:
+            role_matrix = doc.setdefault(role, {})
+            role_matrix.setdefault("has_location", False)
+            role_matrix.setdefault("has_date", False)
+            role_matrix.setdefault("has_time_or_window", False)
+            role_matrix.setdefault("has_facility_or_address", False)
+            role_matrix.setdefault("sources", [])
+            role_matrix["has_same_role_location_date"] = bool(
+                role_matrix["has_location"] and role_matrix["has_date"]
+            )
+            role_matrix["has_same_role_location_time"] = bool(
+                role_matrix["has_location"] and role_matrix["has_time_or_window"]
+            )
+            role_matrix["has_same_role_complete_candidate"] = bool(
+                role_matrix["has_location"]
+                and role_matrix["has_date"]
+                and role_matrix["has_time_or_window"]
+            )
+    return matrix
+
+
+def _source_inventory_summary(items, matrix):
+    by_source = _counter(items, "source")
+    by_component = _counter(items, "component")
+    by_provenance = _counter(items, "provenance_status")
+    docs_with_split_sources = 0
+    pickup_complete = 0
+    delivery_complete = 0
+    role_ambiguity = 0
+    missing_source_metadata = 0
+    unsafe_source = 0
+    for doc in matrix.values():
+        for role in ["pickup", "delivery"]:
+            role_matrix = doc.get(role, {}) or {}
+            sources = role_matrix.get("sources", []) or []
+            if len(sources) > 1:
+                docs_with_split_sources += 1
+            if role == "pickup" and role_matrix.get("has_same_role_complete_candidate"):
+                pickup_complete += 1
+            if role == "delivery" and role_matrix.get("has_same_role_complete_candidate"):
+                delivery_complete += 1
+    for item in items:
+        if item.get("role") == "unknown" or item.get("provenance_status") == "missing_role":
+            role_ambiguity += 1
+        if item.get("provenance_status") in {"missing_source", "missing_page_line", "missing_candidate_id"}:
+            missing_source_metadata += 1
+        if item.get("safety_status") == "unsafe":
+            unsafe_source += 1
+    return {
+        "inventory_item_count": len(items),
+        "by_source": by_source,
+        "by_component": by_component,
+        "by_provenance_status": by_provenance,
+        "component_availability_corpus_summary": {
+            "docs_with_pickup_location_date_time": pickup_complete,
+            "docs_with_delivery_location_date_time": delivery_complete,
+            "docs_with_components_split_across_sources": docs_with_split_sources,
+            "docs_blocked_by_role_ambiguity": role_ambiguity,
+            "docs_blocked_by_missing_source_metadata": missing_source_metadata,
+            "docs_blocked_by_unsafe_source": unsafe_source,
+        },
+    }
+
+
+def _dedupe_provenance_loss_summary(audit_records, inventory_items):
+    reported_total = sum(_candidate_counts_stop_total(record) for record in audit_records or [])
+    post_total = len(inventory_items)
+    return {
+        "pre_dedupe_stop_components": reported_total,
+        "post_dedupe_stop_components": post_total,
+        "dropped_with_unique_source": max(reported_total - post_total, 0),
+        "merged_without_source_metadata": sum(
+            1 for item in inventory_items if item.get("provenance_status") == "missing_source"
+        ),
+        "lost_role_count": sum(
+            1 for item in inventory_items if item.get("provenance_status") == "missing_role"
+        ),
+        "lost_page_line_count": sum(
+            1 for item in inventory_items if item.get("provenance_status") == "missing_page_line"
+        ),
+        "lost_candidate_id_count": sum(
+            1 for item in inventory_items if item.get("provenance_status") == "missing_candidate_id"
+        ),
+    }
+
+
+def build_stop_source_inventory_report(packet, audit_records, include_private_values=False):
+    items = _build_source_inventory_items(audit_records, include_private_values)
+    matrix = _matrix_for_entries(items)
+    return {
+        "schema_version": "ratecon_stop_source_inventory_v1",
+        "items": items,
+        "candidate_counts_by_doc_field": _candidate_counts_by_doc_field(audit_records),
+        "source_inventory_summary": _source_inventory_summary(items, matrix),
+        "stop_component_availability_matrix": matrix,
+        "stop_dedupe_provenance_loss_summary": _dedupe_provenance_loss_summary(
+            audit_records,
+            items,
+        ),
+        "private_values_printed": bool(include_private_values),
+        "raw_text_printed": False,
+        "local_only": True,
+    }
+
+
+def _inventory_entries_for_residual_item(source_inventory_report, item):
+    if not source_inventory_report:
+        return []
+    document_id = _text(item.get("document_id"))
+    file_hash = _text(item.get("file_hash"))
+    file_name = _text(item.get("file_name"))
+    field = _text(item.get("field"))
+    return [
+        entry
+        for entry in source_inventory_report.get("items", []) or []
+        if _text(entry.get("field")) == field
+        and (
+            (
+                _text(entry.get("document_id")) == document_id
+                and _hashes_match(entry.get("file_hash"), file_hash)
+            )
+            or _hashes_match(entry.get("file_hash"), file_hash)
+            or (
+                _text(entry.get("file_name")) == file_name
+                and _hashes_match(entry.get("file_hash"), file_hash)
+                and file_name
+            )
+        )
+    ]
+
+
+def _inventory_candidate_count_for_residual_item(source_inventory_report, item):
+    if not source_inventory_report:
+        return 0
+    counts = source_inventory_report.get("candidate_counts_by_doc_field", {})
+    counts = counts if isinstance(counts, dict) else {}
+    keys = [
+        _inventory_key_string(
+            (
+                _text(item.get("document_id")),
+                _text(item.get("file_hash")),
+                _text(item.get("field")),
+            )
+        ),
+        _inventory_key_string(("", _text(item.get("file_hash")), _text(item.get("field")))),
+        _inventory_key_string(
+            (
+                _text(item.get("file_name")),
+                _text(item.get("file_hash")),
+                _text(item.get("field")),
+            )
+        ),
+    ]
+    for key in keys:
+        try:
+            count = int(counts.get(key, 0) or 0)
+        except (TypeError, ValueError):
+            count = 0
+        if count:
+            return count
+    total = 0
+    target_hash = _text(item.get("file_hash"))
+    target_field = _text(item.get("field"))
+    for key, raw_count in counts.items():
+        parts = key.split("|")
+        if len(parts) != 3:
+            continue
+        _doc_or_name, hash_value, field = parts
+        if field != target_field or not _hashes_match(hash_value, target_hash):
+            continue
+        try:
+            total += int(raw_count or 0)
+        except (TypeError, ValueError):
+            continue
+    if total:
+        return total
+    return 0
+
+
+def _trace_no_candidate_source(item, source_inventory_report):
+    entries = _inventory_entries_for_residual_item(source_inventory_report, item)
+    other_role_entries = [
+        entry
+        for entry in source_inventory_report.get("items", []) or []
+        if (
+            (
+                _text(entry.get("document_id")) == _text(item.get("document_id"))
+                and _hashes_match(entry.get("file_hash"), item.get("file_hash"))
+            )
+            or _hashes_match(entry.get("file_hash"), item.get("file_hash"))
+        )
+        and _text(entry.get("field")) != _text(item.get("field"))
+    ] if source_inventory_report else []
+    generated_count = _inventory_candidate_count_for_residual_item(
+        source_inventory_report,
+        item,
+    )
+    if any(entry.get("safety_status") == "unsafe" for entry in entries):
+        reason = "component_from_payment_or_instruction"
+    elif any(entry.get("role") not in {"pickup", "delivery"} for entry in entries):
+        reason = "component_candidate_generated_but_role_missing"
+    elif any(entry.get("source_group") == "shadow_selected_stop" for entry in entries) and not generated_count:
+        reason = "selected_stop_comes_from_assembler_without_component_sources"
+    elif any(entry.get("provenance_status") == "missing_page_line" for entry in entries):
+        reason = "component_candidate_generated_but_page_line_missing"
+    elif any(entry.get("provenance_status") == "missing_source" for entry in entries):
+        reason = "component_candidate_generated_but_source_metadata_missing"
+    elif entries:
+        reason = "evaluator_only_missing_candidate_source"
+    elif other_role_entries:
+        reason = "component_from_wrong_role"
+    elif generated_count:
+        reason = "component_candidate_generated_but_not_in_inventory"
+    else:
+        reason = "true_no_source"
+    return {
+        "document_id": item.get("document_id", ""),
+        "file_hash": item.get("file_hash", ""),
+        "file_name": item.get("file_name", ""),
+        "field": item.get("field", ""),
+        "root_cause": reason,
+        "inventory_entries_for_field": len(entries),
+        "other_role_entries_for_document": len(other_role_entries),
+        "candidate_count_for_field": generated_count,
+    }
+
+
+def build_no_candidate_source_trace_summary(residual_items, source_inventory_report):
+    cases = [
+        _trace_no_candidate_source(item, source_inventory_report)
+        for item in residual_items or []
+    ]
+    reason_counts = _counter(cases, "root_cause")
+    recoverable = {
+        "component_candidate_generated_but_not_in_inventory",
+        "evaluator_only_missing_candidate_source",
+        "review_packet_lookup_bug",
+    }
+    generation_gap = {"component_candidate_never_generated", "true_no_source"}
+    provenance_loss = {
+        "component_candidate_generated_but_deduped_without_provenance",
+        "component_candidate_generated_but_role_missing",
+        "component_candidate_generated_but_page_line_missing",
+        "component_candidate_generated_but_source_metadata_missing",
+        "selected_stop_comes_from_assembler_without_component_sources",
+        "selected_stop_summary_lost_component_sources",
+    }
+    unsafe = {"component_from_wrong_role", "component_from_payment_or_instruction"}
+    return {
+        "issues_checked": len(cases),
+        "reason_counts": reason_counts,
+        "recoverable_inventory_omission": sum(
+            1 for case in cases if case["root_cause"] in recoverable
+        ),
+        "true_generation_gap": sum(
+            1 for case in cases if case["root_cause"] in generation_gap
+        ),
+        "dedupe_or_provenance_loss": sum(
+            1 for case in cases if case["root_cause"] in provenance_loss
+        ),
+        "wrong_role_or_unsafe_source": sum(
+            1 for case in cases if case["root_cause"] in unsafe
+        ),
+        "unknown": reason_counts.get("unknown", 0),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _best_available_source(item):
     for prefix in ["selected", "best_candidate", "draft"]:
         hint = item.get(f"{prefix}_source_hint", {}) or {}
@@ -792,7 +1486,34 @@ def _recommended_fix_type(issue_type, item):
     return "unknown"
 
 
-def _fusion_diagnostic(item, issue_type):
+def _source_inventory_presence(entries):
+    safe_entries = [
+        entry for entry in entries or [] if entry.get("safety_status") != "unsafe"
+    ]
+    components = {entry.get("component") for entry in safe_entries}
+    sources = sorted(
+        {
+            _text(entry.get("source")) or "unknown"
+            for entry in safe_entries
+            if _text(entry.get("source")) or entry.get("source") == "unknown"
+        }
+    )
+    has_location = bool(
+        components.intersection({"facility", "address", "city_state_zip", "raw_location"})
+    )
+    has_date = "date" in components
+    has_time = bool(components.intersection({"time", "appointment_window"}))
+    return {
+        "has_location": has_location,
+        "has_date": has_date,
+        "has_time": has_time,
+        "sources": sources,
+        "component_counts": _counter(safe_entries, "component"),
+        "unsafe_count": len(entries or []) - len(safe_entries),
+    }
+
+
+def _fusion_diagnostic(item, issue_type, source_inventory_entries=None):
     selected = item.get("selected_stop_component_summary", {}) or {}
     dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
     draft = item.get("draft_stop_summary", {}) or {}
@@ -807,6 +1528,10 @@ def _fusion_diagnostic(item, issue_type):
     has_location = any(presence["location"] for presence in sources.values())
     has_date = any(presence["date"] for presence in sources.values())
     has_time = any(presence["time"] for presence in sources.values())
+    inventory_presence = _source_inventory_presence(source_inventory_entries or [])
+    has_location = has_location or inventory_presence["has_location"]
+    has_date = has_date or inventory_presence["has_date"]
+    has_time = has_time or inventory_presence["has_time"]
     issues = _row_issues(selected) | _row_issues(dispatch) | _row_issues(draft)
     blocked_reasons = []
     if any(issue.startswith("wrong_role") for issue in issues):
@@ -819,8 +1544,10 @@ def _fusion_diagnostic(item, issue_type):
         blocked_reasons.append("component_from_reference_text")
     if "wrong_time" in " ".join(issues) or "wrong_location" in " ".join(issues):
         blocked_reasons.append("component_from_wrong_role")
-    if _best_available_source(item) == "source_not_available":
+    if _best_available_source(item) == "source_not_available" and not source_inventory_entries:
         blocked_reasons.append("no_candidate_source")
+    if inventory_presence["unsafe_count"]:
+        blocked_reasons.append("component_from_payment_or_instruction")
     if "ocr" in _best_available_source(item).lower() and issue_type in {
         "OCR_column_candidate_wrong_alignment",
         "candidate_has_components_but_wrong_against_gold",
@@ -832,6 +1559,10 @@ def _fusion_diagnostic(item, issue_type):
         fusion_possible = False
     if has_location and (has_date or has_time) and not fusion_possible and not blocked_reasons:
         blocked_reasons.append("no_line_or_geometry_proximity")
+    if has_location and not (has_date or has_time) and not blocked_reasons:
+        blocked_reasons.append("no_date_time_candidate_source")
+    if (has_date or has_time) and not has_location and not blocked_reasons:
+        blocked_reasons.append("no_location_candidate_source")
     if not (has_location or has_date or has_time) and not blocked_reasons:
         blocked_reasons.append("no_candidate_source")
     return {
@@ -840,12 +1571,18 @@ def _fusion_diagnostic(item, issue_type):
         "same_role_location_time_available": bool(has_location and has_time),
         "same_role_date_time_available": bool(has_date and has_time),
         "blocked_reasons": sorted(set(blocked_reasons)),
+        "source_inventory_components": inventory_presence["component_counts"],
+        "source_inventory_sources": inventory_presence["sources"],
     }
 
 
-def _residual_item_record(item):
+def _residual_item_record(item, source_inventory_report=None):
     issue_type = _candidate_issue_type(item)
-    fusion = _fusion_diagnostic(item, issue_type)
+    inventory_entries = _inventory_entries_for_residual_item(source_inventory_report, item)
+    fusion = _fusion_diagnostic(item, issue_type, inventory_entries)
+    selected_source = _best_available_source(item)
+    if selected_source == "source_not_available" and fusion["source_inventory_sources"]:
+        selected_source = "inventory:" + ",".join(fusion["source_inventory_sources"])
     return {
         "document_id": item.get("document_id", ""),
         "file_hash": item.get("file_hash", ""),
@@ -856,7 +1593,7 @@ def _residual_item_record(item):
             "dispatch_usability_tier",
             "",
         ),
-        "selected_candidate_source": _best_available_source(item),
+        "selected_candidate_source": selected_source,
         "selected_candidate_components": _prediction_component_payload(item, "selected"),
         "gold_components": _prediction_component_payload(item, "gold"),
         "best_structured_candidate": _prediction_component_payload(item, "best_candidate"),
@@ -877,6 +1614,9 @@ def _residual_item_record(item):
         "same_role_location_time_available": fusion["same_role_location_time_available"],
         "same_role_date_time_available": fusion["same_role_date_time_available"],
         "blocked_reasons": fusion["blocked_reasons"],
+        "source_inventory_match_count": len(inventory_entries),
+        "source_inventory_components": fusion["source_inventory_components"],
+        "source_inventory_sources": fusion["source_inventory_sources"],
     }
 
 
@@ -894,9 +1634,9 @@ def _counter(items, key):
     return dict(sorted(counts.items()))
 
 
-def build_residual_extraction_report(packet):
+def build_residual_extraction_report(packet, source_inventory_report=None):
     residual_items = [
-        _residual_item_record(item)
+        _residual_item_record(item, source_inventory_report=source_inventory_report)
         for item in packet.get("items", []) or []
         if "extraction_candidate_issue" in (item.get("categories", []) or [])
     ]
@@ -937,6 +1677,10 @@ def build_residual_extraction_report(packet):
         "candidate_issue_type_counts": _counter(residual_items, "candidate_issue_type"),
         "recommended_fix_type_counts": _counter(residual_items, "recommended_fix_type"),
         "stop_component_fusion_opportunity_summary": fusion_summary,
+        "no_candidate_source_trace_summary": build_no_candidate_source_trace_summary(
+            residual_items,
+            source_inventory_report,
+        ),
         "stop_residual_decision": by_field,
         "items": residual_items,
         "private_values_printed": bool(packet.get("private_values_printed")),
@@ -1468,6 +2212,8 @@ def write_residual_extraction_report(report, output_dir: Path):
             report.get("stop_component_fusion_opportunity_summary", {}),
             sort_keys=True,
         ),
+        "No candidate source trace summary: "
+        + json.dumps(report.get("no_candidate_source_trace_summary", {}), sort_keys=True),
         "Stop residual decision: "
         + json.dumps(report.get("stop_residual_decision", {}), sort_keys=True),
         "",
@@ -1503,6 +2249,9 @@ def write_residual_extraction_report(report, output_dir: Path):
         "same_role_location_time_available",
         "same_role_date_time_available",
         "blocked_reasons",
+        "source_inventory_match_count",
+        "source_inventory_components",
+        "source_inventory_sources",
     ]
     with items_csv_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -1516,6 +2265,8 @@ def write_residual_extraction_report(report, output_dir: Path):
                 "best_ocr_column_candidate",
                 "best_native_layout_candidate",
                 "blocked_reasons",
+                "source_inventory_components",
+                "source_inventory_sources",
             ]:
                 row[key] = json.dumps(row.get(key, [] if key == "blocked_reasons" else {}), sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in fieldnames})
@@ -1526,6 +2277,89 @@ def write_residual_extraction_report(report, output_dir: Path):
     }
 
 
+def write_stop_source_inventory_report(report, output_dir: Path):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "stop_source_inventory_summary.md"
+    items_csv_path = output_dir / "stop_source_inventory_items.csv"
+    items_json_path = output_dir / "stop_source_inventory_items.json"
+    by_document_path = output_dir / "stop_source_inventory_by_document.json"
+    items = report.get("items", []) or []
+    matrix = report.get("stop_component_availability_matrix", {}) or {}
+    items_json_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    by_document_path.write_text(
+        json.dumps(matrix, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    summary_lines = [
+        "# Stop Component Source Inventory",
+        "",
+        "Source inventory summary: "
+        + json.dumps(report.get("source_inventory_summary", {}), sort_keys=True),
+        "Component availability corpus summary: "
+        + json.dumps(
+            (
+                report.get("source_inventory_summary", {})
+                .get("component_availability_corpus_summary", {})
+            ),
+            sort_keys=True,
+        ),
+        "Dedupe/provenance loss summary: "
+        + json.dumps(
+            report.get("stop_dedupe_provenance_loss_summary", {}),
+            sort_keys=True,
+        ),
+        "",
+        "Private values are local-only and must not be committed.",
+        "",
+        "## Documents",
+        "",
+    ]
+    for doc in matrix.values():
+        summary_lines.append(
+            f"- {doc.get('file_name') or doc.get('document_id')}: "
+            f"pickup={json.dumps(doc.get('pickup', {}), sort_keys=True)} "
+            f"delivery={json.dumps(doc.get('delivery', {}), sort_keys=True)}"
+        )
+    summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    fieldnames = [
+        "file_name",
+        "document_id",
+        "file_hash",
+        "field",
+        "role",
+        "component",
+        "value_local_only",
+        "source",
+        "parser_name",
+        "generator_name",
+        "source_group",
+        "page",
+        "line_index",
+        "bbox",
+        "stop_index",
+        "candidate_id",
+        "provenance_status",
+        "safety_status",
+        "unsafe_reason",
+    ]
+    with items_csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in items:
+            row = dict(item)
+            row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    return {
+        "summary_md": str(summary_path),
+        "items_csv": str(items_csv_path),
+        "items_json": str(items_json_path),
+        "by_document_json": str(by_document_path),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gold-dir", required=True)
@@ -1533,6 +2367,7 @@ def main(argv=None):
     parser.add_argument("--eval-dir")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument("--residual-output-dir")
+    parser.add_argument("--source-inventory-output-dir")
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
     args = parser.parse_args(argv)
@@ -1552,6 +2387,20 @@ def main(argv=None):
             "Refusing to write residual stop extraction report outside .local_outputs "
             "without --confirm-private-local-run"
         )
+    source_inventory_output_dir = (
+        Path(args.source_inventory_output_dir)
+        if args.source_inventory_output_dir
+        else None
+    )
+    if (
+        source_inventory_output_dir
+        and not _is_under_local_outputs(source_inventory_output_dir)
+        and not args.confirm_private_local_run
+    ):
+        raise SystemExit(
+            "Refusing to write stop source inventory outside .local_outputs "
+            "without --confirm-private-local-run"
+        )
     gold_labels = load_gold_labels(args.gold_dir)
     audit_records = _read_jsonl(Path(args.audit))
     evaluation = _evaluation_from_dir(args.eval_dir)
@@ -1562,8 +2411,22 @@ def main(argv=None):
         include_private_values_local_only=args.include_private_values_local_only,
     )
     paths = write_packet(packet, output_dir)
+    source_inventory_report = build_stop_source_inventory_report(
+        packet,
+        audit_records,
+        include_private_values=args.include_private_values_local_only,
+    )
+    source_inventory_paths = {}
+    if source_inventory_output_dir:
+        source_inventory_paths = write_stop_source_inventory_report(
+            source_inventory_report,
+            source_inventory_output_dir,
+        )
     residual_paths = {}
-    residual_report = build_residual_extraction_report(packet)
+    residual_report = build_residual_extraction_report(
+        packet,
+        source_inventory_report=source_inventory_report,
+    )
     if residual_output_dir:
         residual_paths = write_residual_extraction_report(residual_report, residual_output_dir)
     print(
@@ -1571,6 +2434,7 @@ def main(argv=None):
             {
                 "output_paths": paths,
                 "residual_output_paths": residual_paths,
+                "source_inventory_output_paths": source_inventory_paths,
                 "review_item_count": packet["review_item_count"],
                 "reason_counts": packet["reason_counts"],
                 "secondary_reason_counts": packet["secondary_reason_counts"],
@@ -1591,11 +2455,23 @@ def main(argv=None):
                         "stop_component_fusion_opportunity_summary",
                         {},
                     ),
+                    "no_candidate_source_trace_summary": residual_report.get(
+                        "no_candidate_source_trace_summary",
+                        {},
+                    ),
                     "stop_residual_decision": residual_report.get(
                         "stop_residual_decision",
                         {},
                     ),
                 },
+                "source_inventory_summary": source_inventory_report.get(
+                    "source_inventory_summary",
+                    {},
+                ),
+                "stop_dedupe_provenance_loss_summary": source_inventory_report.get(
+                    "stop_dedupe_provenance_loss_summary",
+                    {},
+                ),
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])
                 ),
