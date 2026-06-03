@@ -37,7 +37,10 @@ from scripts.create_ratecon_stop_gold_review_packets import (
     build_stop_gold_review_packet,
     build_stop_source_inventory_report,
     _cluster_location_entries,
+    _date_time_conflict_reason,
     _row_block_disambiguation_for_case,
+    _row_block_proof_diagnostic,
+    _source_trust_metadata,
     write_residual_extraction_report,
     write_stop_location_disambiguation_report,
     write_stop_source_inventory_report,
@@ -1073,6 +1076,201 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             self.assertTrue(Path(paths["location_clusters_json"]).exists())
             self.assertTrue(Path(paths["row_block_disambiguation_csv"]).exists())
             self.assertTrue(Path(paths["fusion_safety_after_disambiguation_json"]).exists())
+            self.assertTrue(Path(paths["trusted_summary_md"]).exists())
+            self.assertTrue(Path(paths["trusted_disambiguation_items_csv"]).exists())
+            self.assertTrue(Path(paths["trusted_safe_opportunities_csv"]).exists())
+            self.assertTrue(Path(paths["excluded_legacy_fallback_noise_csv"]).exists())
+            self.assertTrue(Path(paths["datetime_conflicts_csv"]).exists())
+
+    def test_source_trust_tiers_separate_trusted_weak_and_unsafe_sources(self):
+        ocr_row = {
+            "source": "ocr_geometry_column",
+            "parser_name": "ocr_stop_table_reconstructor",
+            "role": "pickup",
+            "page_line_status": "available",
+            "bbox": {"top": 10},
+            "safety_status": "safe",
+            "metadata_summary": {"assembled_from_column_geometry": True},
+        }
+        native_row = {
+            "source": "native_layout",
+            "parser_name": "pdfplumber_table_row",
+            "role": "delivery",
+            "page_line_status": "available",
+            "line_index": 5,
+            "safety_status": "safe",
+        }
+        legacy = {
+            "source": "legacy_fallback",
+            "parser_name": "legacy_fallback",
+            "role": "pickup",
+            "page_line_status": "unavailable_from_source",
+            "safety_status": "safe",
+        }
+        payment = {
+            "source": "native_text",
+            "parser_name": "stop_evidence_assembler",
+            "role": "pickup",
+            "page_line_status": "available",
+            "safety_status": "unsafe",
+            "unsafe_reason": "component_from_payment_or_instruction",
+        }
+
+        self.assertEqual(_source_trust_metadata(ocr_row)["source_trust_tier"], "trusted_row_level")
+        self.assertEqual(_source_trust_metadata(native_row)["source_trust_tier"], "trusted_row_level")
+        self.assertEqual(_source_trust_metadata(legacy)["source_trust_tier"], "weak_diagnostic_only")
+        self.assertEqual(_source_trust_metadata(payment)["source_trust_tier"], "unsafe")
+
+    def test_trusted_only_diagnostics_exclude_legacy_fallback_noise(self):
+        audit = _location_disambiguation_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "pickup-legacy-noise",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [{"role": "pickup", "stop_index": 1, "city": "Wrongtown", "state": "TX"}],
+                "source": "legacy",
+                "parser_name": "legacy_fallback",
+                "legacy_fallback": True,
+                "metadata_summary": {
+                    "candidate_id": "pickup-legacy-noise",
+                    "stop_role": "pickup",
+                },
+            }
+        )
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [audit],
+            include_private_values=True,
+        )
+
+        report = build_stop_location_disambiguation_report(
+            source_inventory,
+            include_private_values=True,
+        )
+        trusted = report["trusted_source_disambiguation_summary"]
+
+        self.assertGreaterEqual(report["multiple_location_root_cause_counts"]["legacy_fallback_noise"], 1)
+        self.assertGreaterEqual(report["source_trust_tier_counts"]["weak_diagnostic_only"], 1)
+        self.assertGreaterEqual(
+            trusted["excluded_source_counts"]["legacy_fallback"],
+            1,
+        )
+        self.assertEqual(trusted["trusted_sources_only"]["multiple_locations"], 0)
+        self.assertGreaterEqual(trusted["trusted_sources_only"]["fusion_safe"], 1)
+        self.assertGreaterEqual(report["safe_opportunity_count"], 1)
+
+    def test_legacy_fallback_noise_classifies_duplicates_and_unbounded_values(self):
+        audit = _location_disambiguation_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].extend(
+            [
+                {
+                    "candidate_id": "pickup-legacy-duplicate",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [{"role": "pickup", "stop_index": 1, "city": "Dallas", "state": "TX"}],
+                    "source": "legacy",
+                    "parser_name": "legacy_fallback",
+                    "legacy_fallback": True,
+                    "metadata_summary": {"candidate_id": "pickup-legacy-duplicate", "stop_role": "pickup"},
+                },
+                {
+                    "candidate_id": "pickup-legacy-unbounded",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [{"role": "pickup", "stop_index": 1, "city": "Fort Worth", "state": "TX"}],
+                    "source": "legacy",
+                    "parser_name": "legacy_fallback",
+                    "legacy_fallback": True,
+                    "metadata_summary": {"candidate_id": "pickup-legacy-unbounded", "stop_role": "pickup"},
+                },
+            ]
+        )
+        source_inventory = build_stop_source_inventory_report({}, [audit], include_private_values=True)
+
+        report = build_stop_location_disambiguation_report(source_inventory, include_private_values=True)
+        summary = report["legacy_fallback_stop_noise_summary"]
+
+        self.assertGreaterEqual(summary["duplicate_of_better_source"], 1)
+        self.assertGreaterEqual(summary["useful_but_unbounded"], 1)
+        self.assertEqual(summary["unknown"], 0)
+
+    def test_date_time_conflict_classifies_split_windows_and_leakage(self):
+        split_entries = [
+            {
+                "component": "time",
+                "value_local_only": "0700 to 1500",
+                "role": "pickup",
+                "source": "native_text",
+                "page_line_status": "available",
+                "safety_status": "safe",
+            },
+            {
+                "component": "appointment_window",
+                "value_local_only": "FCFS 0700 to 1500",
+                "role": "pickup",
+                "source": "native_text",
+                "page_line_status": "available",
+                "safety_status": "safe",
+            },
+        ]
+        leakage_entries = [
+            {
+                "component": "date",
+                "value_local_only": "2026-06-05",
+                "role": "pickup",
+                "source": "native_text",
+                "safety_status": "unsafe",
+                "unsafe_reason": "component_from_payment_or_instruction",
+                "metadata_summary": {"section_context": "payment terms"},
+            }
+        ]
+
+        self.assertEqual(
+            _date_time_conflict_reason(split_entries),
+            "appointment_window_split_start_end",
+        )
+        self.assertEqual(
+            _date_time_conflict_reason(leakage_entries),
+            "payment_or_terms_date_time",
+        )
+
+    def test_row_block_proof_reports_probable_for_bounded_trusted_rows(self):
+        entries = [
+            {
+                "candidate_id": "tql-location",
+                "component": "raw_location",
+                "value_local_only": "Dallas TX",
+                "role": "pickup",
+                "stop_index": 1,
+                "page": 1,
+                "line_index": 10,
+                "source": "native_layout",
+                "parser_name": "tql_compact_table_row",
+                "safety_status": "safe",
+                "page_line_status": "available",
+                "source_trust_tier": "trusted_row_level",
+                "eligible_for_disambiguation": True,
+            },
+            {
+                "candidate_id": "tql-time",
+                "component": "appointment_window",
+                "value_local_only": "FCFS 0700 to 1500",
+                "role": "pickup",
+                "stop_index": 1,
+                "page": 1,
+                "line_index": 10,
+                "source": "native_layout",
+                "parser_name": "tql_compact_table_row",
+                "safety_status": "safe",
+                "page_line_status": "available",
+                "source_trust_tier": "trusted_row_level",
+                "eligible_for_disambiguation": True,
+            },
+        ]
+        clusters = _cluster_location_entries([entries[0]])
+
+        proof = _row_block_proof_diagnostic(entries, clusters)
+
+        self.assertEqual(proof["row_block_type"], "tql_compact_row")
+        self.assertEqual(proof["proof_status"], "proven")
 
     def test_location_cluster_collapses_duplicates_and_keeps_roles_separate(self):
         pickup_duplicate_a = {

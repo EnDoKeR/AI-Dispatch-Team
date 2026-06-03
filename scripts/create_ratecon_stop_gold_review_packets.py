@@ -1020,6 +1020,7 @@ def _inventory_entries_from_record(record, include_private_values):
             }
             entry["page_line_status"] = _page_line_status(entry)
             entry["provenance_status"] = _provenance_status(entry)
+            _apply_source_trust_metadata(entry)
             entries.append(entry)
     for item in inventory if isinstance(inventory, list) else []:
         append_entries(item)
@@ -1775,6 +1776,125 @@ def _entry_has_proximity(entry):
     )
 
 
+def _entry_has_row_or_block_boundary(entry):
+    metadata = entry.get("metadata_summary") if isinstance(entry.get("metadata_summary"), dict) else {}
+    if entry.get("bbox"):
+        return True
+    if entry.get("component_sources") or entry.get("source_lineage") or entry.get("merged_provenance"):
+        return True
+    if metadata.get("assembled_from_column_geometry"):
+        return True
+    if metadata.get("has_clear_horizontal_boundary") or metadata.get("row_boundary_confidence"):
+        return True
+    if metadata.get("component_bboxes_available") or metadata.get("geometry_available"):
+        return True
+    return False
+
+
+def _source_trust_metadata(entry):
+    metadata = entry.get("metadata_summary") if isinstance(entry.get("metadata_summary"), dict) else {}
+    source = _text(entry.get("source")).lower()
+    parser = _text(entry.get("parser_name")).lower()
+    generator = _text(entry.get("generator_name")).lower()
+    source_group = _text(entry.get("source_group")).lower()
+    if _entry_is_instruction_or_payment(entry):
+        return {
+            "source_trust_tier": "unsafe",
+            "trust_reason": "payment_instruction_footer_source",
+            "eligible_for_disambiguation": False,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "payment_instruction_footer_source",
+        }
+    if _entry_is_reference_or_contact(entry):
+        return {
+            "source_trust_tier": "unsafe",
+            "trust_reason": "reference_contact_only_source",
+            "eligible_for_disambiguation": False,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "reference_contact_only_source",
+        }
+    if entry.get("role") not in {"pickup", "delivery"}:
+        return {
+            "source_trust_tier": "unsafe",
+            "trust_reason": "role_not_linked",
+            "eligible_for_disambiguation": False,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "role_not_linked",
+        }
+    row_geometry = bool(
+        entry.get("source") == "ocr_geometry_column"
+        or "ocr_stop_table_reconstructor" in parser
+        or metadata.get("assembled_from_column_geometry")
+    )
+    native_row = bool(
+        entry.get("source") in {"native_layout", "pdfplumber_table"}
+        or "table" in parser
+        or "layout" in parser
+        or metadata.get("table_cell_candidate")
+    )
+    explicit_block = bool(
+        "role_block" in parser
+        or "role_block" in generator
+        or metadata.get("has_clear_role_anchor")
+        or metadata.get("has_clear_horizontal_boundary")
+        or metadata.get("component_sources")
+    )
+    if (row_geometry or native_row or explicit_block) and _entry_has_proximity(entry):
+        return {
+            "source_trust_tier": "trusted_row_level",
+            "trust_reason": "bounded_row_or_role_block",
+            "eligible_for_disambiguation": True,
+            "eligible_for_review_fusion": True,
+            "exclusion_reason": "",
+        }
+    if entry.get("page_line_status") == "available" and entry.get("component_sources_available"):
+        return {
+            "source_trust_tier": "trusted_component_level",
+            "trust_reason": "same_role_component_with_lineage",
+            "eligible_for_disambiguation": True,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "",
+        }
+    if entry.get("page_line_status") == "available" and source not in {"legacy_fallback", ""}:
+        return {
+            "source_trust_tier": "trusted_component_level",
+            "trust_reason": "same_role_component_with_page_line",
+            "eligible_for_disambiguation": True,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "",
+        }
+    if source == "legacy_fallback" or "legacy" in parser or "legacy" in source_group:
+        return {
+            "source_trust_tier": "weak_diagnostic_only",
+            "trust_reason": "legacy_fallback_without_row_boundary",
+            "eligible_for_disambiguation": False,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "legacy_fallback_without_row_boundary",
+        }
+    if entry.get("source") == "stop_evidence_assembler" and not _entry_has_row_or_block_boundary(entry):
+        return {
+            "source_trust_tier": "weak_diagnostic_only",
+            "trust_reason": "aggregate_without_component_proximity",
+            "eligible_for_disambiguation": False,
+            "eligible_for_review_fusion": False,
+            "exclusion_reason": "aggregate_without_component_proximity",
+        }
+    return {
+        "source_trust_tier": "weak_diagnostic_only",
+        "trust_reason": "unbounded_component_source",
+        "eligible_for_disambiguation": False,
+        "eligible_for_review_fusion": False,
+        "exclusion_reason": "unbounded_component_source",
+    }
+
+
+def _apply_source_trust_metadata(entry):
+    trust = _source_trust_metadata(entry)
+    for key, value in trust.items():
+        entry[key] = value
+    return entry
+
+
 def _fusion_safety_for_entries(entries):
     entries = entries or []
     if not entries:
@@ -2093,15 +2213,115 @@ def _multiple_location_root_cause(entries, clusters):
             return "facility_address_city_split"
         if status == "split_address_cluster":
             return "OCR_geometry_split"
-    if any("ocr" in _text(entry.get("source")).lower() for entry in location_entries):
-        return "OCR_geometry_split"
     if any(_text(entry.get("source")) == "legacy_fallback" for entry in location_entries):
         return "legacy_fallback_noise"
+    if any("ocr" in _text(entry.get("source")).lower() for entry in location_entries):
+        return "OCR_geometry_split"
     if all(entry.get("component") == "raw_location" for entry in location_entries):
         return "duplicate_fragments"
     if any("table" in _text(entry.get("parser_name")).lower() or "row" in _text(entry.get("parser_name")).lower() for entry in location_entries):
         return "table_row_ambiguity"
     return "table_row_ambiguity"
+
+
+def _legacy_fallback_noise_reason(entry, entries):
+    metadata = entry.get("metadata_summary") if isinstance(entry.get("metadata_summary"), dict) else {}
+    if _entry_is_instruction_or_payment(entry):
+        return "instruction_or_payment_text"
+    if _entry_is_reference_or_contact(entry):
+        return "reference_or_contact_text"
+    if entry.get("role") not in {"pickup", "delivery"}:
+        return "missing_role"
+    if not _text(entry.get("stop_index")):
+        return "missing_stop_index"
+    entry_text = _entry_location_text(entry)
+    better_sources = [
+        candidate
+        for candidate in _location_components(entries)
+        if candidate is not entry and _text(candidate.get("source")) != "legacy_fallback"
+    ]
+    for candidate in better_sources:
+        if _location_texts_related(entry_text, _entry_location_text(candidate)):
+            source = _text(candidate.get("source"))
+            if source == "ocr_geometry_column":
+                return "duplicate_of_ocr_geometry_candidate"
+            if source in {"native_layout", "pdfplumber_table"}:
+                return "duplicate_of_native_layout_candidate"
+            return "duplicate_of_structured_candidate"
+    if entry.get("page_line_status") == "unavailable_from_source":
+        if metadata.get("selected_output_only") or entry.get("source_group") == "shadow_selected_stop":
+            return "selected_output_only_no_evidence"
+        return "useful_but_unbounded_location"
+    if entry.get("page_line_status") in {"dropped_by_pipeline", "missing"}:
+        return "missing_page_line"
+    if entry.get("component") in {"facility", "address", "city_state_zip"}:
+        return "facility_address_city_fragment"
+    if metadata.get("stale_final_row_value"):
+        return "stale_final_row_value"
+    return "useful_but_unbounded_location"
+
+
+def _legacy_fallback_stop_noise_report(cases, groups):
+    records = []
+    for case in cases or []:
+        if case.get("root_cause") != "legacy_fallback_noise":
+            continue
+        key = (
+            _text(case.get("document_id")),
+            _text(case.get("file_hash")),
+            _text(case.get("field")),
+        )
+        entries = groups.get(key, []) or []
+        for entry in _location_components(entries):
+            if _text(entry.get("source")) != "legacy_fallback":
+                continue
+            reason = _legacy_fallback_noise_reason(entry, entries)
+            records.append(
+                {
+                    "document_id": key[0],
+                    "file_hash": key[1],
+                    "file_name": case.get("file_name", ""),
+                    "field": key[2],
+                    "role": entry.get("role", ""),
+                    "candidate_id": entry.get("candidate_id", ""),
+                    "reason": reason,
+                    "source_trust_tier": entry.get("source_trust_tier", ""),
+                    "exclusion_reason": entry.get("exclusion_reason", ""),
+                    "value_local_only": entry.get("value_local_only", ""),
+                }
+            )
+    reason_counts = _counter(records, "reason")
+    duplicate_count = sum(
+        count
+        for reason, count in reason_counts.items()
+        if reason.startswith("duplicate_of_")
+    )
+    missing_role_or_boundary = sum(
+        reason_counts.get(reason, 0)
+        for reason in [
+            "missing_role",
+            "missing_stop_index",
+            "missing_page_line",
+            "source_unavailable",
+            "selected_output_only_no_evidence",
+        ]
+    )
+    unsafe_or_wrong_role = sum(
+        reason_counts.get(reason, 0)
+        for reason in ["wrong_role", "reference_or_contact_text", "instruction_or_payment_text"]
+    )
+    useful_unbounded = reason_counts.get("useful_but_unbounded_location", 0)
+    return {
+        "legacy_fallback_location_candidates": len(records),
+        "noise_cases": len([case for case in cases or [] if case.get("root_cause") == "legacy_fallback_noise"]),
+        "duplicate_of_better_source": duplicate_count,
+        "missing_role_or_boundary": missing_role_or_boundary,
+        "unsafe_or_wrong_role": unsafe_or_wrong_role,
+        "useful_but_unbounded": useful_unbounded,
+        "unknown": reason_counts.get("unknown", 0),
+        "reason_counts": reason_counts,
+        "items": records,
+    }
 
 
 def _location_candidate_record(entry, include_private_values):
@@ -2123,7 +2343,171 @@ def _location_candidate_record(entry, include_private_values):
         "is_reference_or_contact_text": _entry_is_reference_or_contact(entry),
         "is_instruction_or_payment_text": _entry_is_instruction_or_payment(entry),
         "is_gold_matching_local_only": False,
+        "source_trust_tier": _text(entry.get("source_trust_tier")),
+        "trust_reason": _text(entry.get("trust_reason")),
+        "eligible_for_disambiguation": bool(entry.get("eligible_for_disambiguation")),
+        "eligible_for_review_fusion": bool(entry.get("eligible_for_review_fusion")),
+        "exclusion_reason": _text(entry.get("exclusion_reason")),
         "value_local_only": entry.get("value_local_only") if include_private_values else "",
+    }
+
+
+def _date_time_text(entry):
+    value = _text(entry.get("value_local_only")).lower()
+    value = re.sub(r"\b(fcfs|appt|appointment|between|from|to|time|date)\b", " ", value)
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return " ".join(value.split())
+
+
+def _date_time_values(entries):
+    return {
+        _date_time_text(entry)
+        for entry in _date_components(entries) + _time_components(entries)
+        if _date_time_text(entry)
+    }
+
+
+def _date_time_conflict_reason(entries):
+    date_time = _date_components(entries) + _time_components(entries)
+    if not date_time:
+        return "same_row_date_time_unproven"
+    if any(_entry_is_instruction_or_payment(entry) for entry in date_time):
+        haystack = " ".join(
+            _text(entry.get("unsafe_reason")) + " " + _text((entry.get("metadata_summary") or {}).get("section_context"))
+            for entry in date_time
+        ).lower()
+        if "payment" in haystack or "terms" in haystack:
+            return "payment_or_terms_date_time"
+        if "footer" in haystack or "signature" in haystack:
+            return "page_footer_signature_date"
+        return "instructions_date_time_leakage"
+    roles = {entry.get("role") for entry in date_time if entry.get("role")}
+    if len(roles.intersection({"pickup", "delivery"})) > 1:
+        return "pickup_and_delivery_dates_mixed"
+    stop_indexes = {_text(entry.get("stop_index")) for entry in date_time if _text(entry.get("stop_index"))}
+    if len(stop_indexes) > 1:
+        return "multiple_stops_same_role"
+    values = sorted(_date_time_values(entries))
+    if len(values) <= 1:
+        components = {entry.get("component") for entry in date_time}
+        if components.intersection({"time", "appointment_window"}) and len(date_time) > 1:
+            return "appointment_window_split_start_end"
+        return "duplicate_time_window_fragments"
+    for left in values:
+        for right in values:
+            if left != right and _location_texts_related(left, right):
+                return "appointment_window_split_start_end"
+    if any(entry.get("page_line_status") == "unavailable_from_source" for entry in date_time):
+        return "missing_role_boundary"
+    if any("ocr" in _text(entry.get("source")).lower() for entry in date_time):
+        return "OCR_line_order_noise"
+    return "same_row_date_time_unproven"
+
+
+def _date_time_cluster_conflict_report(row_records, groups):
+    records = []
+    for row in row_records or []:
+        reasons = row.get("blocked_reasons", []) or []
+        if "conflicting_date_time_clusters" not in reasons:
+            continue
+        key = (
+            _text(row.get("document_id")),
+            _text(row.get("file_hash")),
+            _text(row.get("field")),
+        )
+        entries = groups.get(key, []) or []
+        reason = _date_time_conflict_reason(entries)
+        records.append(
+            {
+                "document_id": key[0],
+                "file_hash": key[1],
+                "field": key[2],
+                "role": row.get("role", ""),
+                "reason": reason,
+                "date_time_candidate_count": len(_date_components(entries) + _time_components(entries)),
+                "source_counts": _counter(_date_components(entries) + _time_components(entries), "source"),
+                "values_local_only": sorted(_date_time_values(entries)),
+            }
+        )
+    reason_counts = _counter(records, "reason")
+    wrong_section = sum(
+        reason_counts.get(reason, 0)
+        for reason in [
+            "instructions_date_time_leakage",
+            "payment_or_terms_date_time",
+            "page_footer_signature_date",
+        ]
+    )
+    return {
+        "conflict_cases": len(records),
+        "duplicate_or_split_window": reason_counts.get("duplicate_time_window_fragments", 0)
+        + reason_counts.get("appointment_window_split_start_end", 0),
+        "wrong_section_leakage": wrong_section,
+        "role_mixing": reason_counts.get("pickup_and_delivery_dates_mixed", 0),
+        "row_boundary_missing": reason_counts.get("same_row_date_time_unproven", 0)
+        + reason_counts.get("missing_role_boundary", 0),
+        "unknown": reason_counts.get("unknown", 0),
+        "reason_counts": reason_counts,
+        "items": records,
+    }
+
+
+def _row_block_type_for_entries(entries):
+    parts = []
+    for entry in entries or []:
+        parts.extend(
+            [
+                _text(entry.get("source")),
+                _text(entry.get("parser_name")),
+                _text(entry.get("generator_name")),
+                _text((entry.get("metadata_summary") or {}).get("section_context")),
+                _text((entry.get("metadata_summary") or {}).get("pairing_method")),
+            ]
+        )
+    haystack = " ".join(parts).lower()
+    if "tql" in haystack or "compact" in haystack:
+        return "tql_compact_row"
+    if "express" in haystack or "pickup 1" in haystack or "drop 2" in haystack:
+        return "express_pickup_drop_table"
+    if "pu" in haystack or " so " in f" {haystack} " or "ocr_stop_table_reconstructor" in haystack:
+        return "pu_so_role_row"
+    if any(token in haystack for token in ["shipper", "consignee", "fello", "landstar", "spi"]):
+        return "shipper_consignee_role_block"
+    if "native_layout" in haystack or "pdfplumber_table" in haystack or "route" in haystack:
+        return "route_block"
+    return "unknown"
+
+
+def _row_block_proof_diagnostic(entries, clusters):
+    base = _row_block_disambiguation_for_case(entries, clusters)
+    row_block_type = _row_block_type_for_entries(entries)
+    locations = _location_components(entries)
+    date_time = _date_components(entries) + _time_components(entries)
+    trusted_locations = [entry for entry in locations if entry.get("eligible_for_disambiguation")]
+    trusted_date_time = [entry for entry in date_time if entry.get("eligible_for_disambiguation")]
+    blocker = ",".join(base.get("blocked_reasons", []) or [])
+    proof_status = "not_proven"
+    if base["same_row_or_block_proven"]:
+        proof_status = "proven"
+        blocker = ""
+    elif any(reason in base.get("blocked_reasons", []) for reason in ["payment_instruction_overlap", "role_boundary_unclear"]):
+        proof_status = "blocked"
+    elif trusted_locations and trusted_date_time:
+        if any(_same_location_proximity(location, component) for location in trusted_locations for component in trusted_date_time):
+            proof_status = "probable"
+            blocker = ""
+        elif row_block_type != "unknown" and all(_entry_has_proximity(entry) for entry in trusted_locations + trusted_date_time):
+            proof_status = "probable"
+            blocker = ""
+    if proof_status == "not_proven" and not blocker:
+        blocker = "no_bbox_or_line_geometry"
+    return {
+        **base,
+        "row_block_type": row_block_type,
+        "proof_status": proof_status,
+        "blocker_reason": blocker,
+        "location_present": bool(locations),
+        "date_time_present": bool(date_time),
     }
 
 
@@ -2171,10 +2555,13 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
     cluster_records = []
     row_records = []
     after_cases = []
+    trusted_cases = []
+    trusted_safe_opportunities = []
     groups = {}
     for item in items:
         if item.get("role") not in {"pickup", "delivery"}:
             continue
+        _apply_source_trust_metadata(item)
         key = (
             _text(item.get("document_id")),
             _text(item.get("file_hash")),
@@ -2183,6 +2570,59 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
         groups.setdefault(key, []).append(item)
     for key, entries in groups.items():
         before_status, before_reasons = _fusion_safety_for_entries(entries)
+        trusted_entries = [
+            entry for entry in entries if entry.get("eligible_for_disambiguation")
+        ]
+        trusted_locations = _location_components(trusted_entries)
+        trusted_clusters = _cluster_location_entries(trusted_locations)
+        trusted_clustered_entries = _diagnostic_cluster_representatives(
+            trusted_entries,
+            trusted_clusters,
+        )
+        trusted_status, trusted_reasons = _fusion_safety_for_entries(trusted_clustered_entries)
+        trusted_status_label, _trusted_score = _location_disambiguation_status(
+            trusted_clusters,
+            trusted_locations,
+        )
+        trusted_row_block = _row_block_proof_diagnostic(trusted_entries, trusted_clusters)
+        trusted_cases.append(
+            {
+                "document_id": key[0],
+                "file_hash": key[1],
+                "field": key[2],
+                "fusion_safety": trusted_status,
+                "blocked_reasons": trusted_reasons,
+                "multiple_locations": "multiple_locations" in trusted_reasons,
+                "location_disambiguation_status": trusted_status_label,
+                "same_row_or_block_proven": trusted_row_block["same_row_or_block_proven"],
+                "row_block_proof_status": trusted_row_block["proof_status"],
+                "row_block_type": trusted_row_block["row_block_type"],
+            }
+        )
+        if (
+            trusted_status == "fusion_safe"
+            and trusted_row_block["proof_status"] in {"proven", "probable"}
+        ):
+            trusted_safe_opportunities.append(
+                {
+                    "document_id": key[0],
+                    "file_hash": key[1],
+                    "file_name": _text(entries[0].get("file_name")) if entries else "",
+                    "field": key[2],
+                    "role": trusted_entries[0].get("role", "") if trusted_entries else "",
+                    "source_type": ",".join(sorted({_text(entry.get("source")) for entry in trusted_entries if _text(entry.get("source"))})),
+                    "row_block_type": trusted_row_block["row_block_type"],
+                    "location_components": sorted({_text(entry.get("component")) for entry in _location_components(trusted_entries)}),
+                    "date_time_components": sorted({_text(entry.get("component")) for entry in _date_components(trusted_entries) + _time_components(trusted_entries)}),
+                    "proof_status": trusted_row_block["proof_status"],
+                    "recommended_next_step": "eligible_for_review_only_fusion_next_branch",
+                    "values_local_only": [
+                        entry.get("value_local_only")
+                        for entry in trusted_entries
+                        if include_private_values
+                    ],
+                }
+            )
         if "multiple_locations" not in before_reasons:
             after_cases.append(
                 {
@@ -2249,6 +2689,7 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
                 }
             )
         row_block = _row_block_disambiguation_for_case(entries, clusters)
+        row_block_proof = _row_block_proof_diagnostic(entries, clusters)
         row_records.append(
             {
                 "document_id": key[0],
@@ -2258,6 +2699,11 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
                 "same_row_or_block_proven": row_block["same_row_or_block_proven"],
                 "blocked_reasons": row_block["blocked_reasons"],
                 "source_counts": row_block["source_counts"],
+                "row_block_type": row_block_proof["row_block_type"],
+                "proof_status": row_block_proof["proof_status"],
+                "blocker_reason": row_block_proof["blocker_reason"],
+                "location_present": row_block_proof["location_present"],
+                "date_time_present": row_block_proof["date_time_present"],
             }
         )
         after_cases.append(
@@ -2283,12 +2729,60 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
         "same_row_or_block_not_proven": sum(1 for row in row_records if not row["same_row_or_block_proven"]),
         "blocked_reason_counts": _counter(row_records, "blocked_reasons"),
         "source_counts": dict(row_source_counts.most_common()),
+        "proof_status_counts": _counter(row_records, "proof_status"),
+        "row_block_type_counts": _counter(row_records, "row_block_type"),
     }
+    source_trust_tier_counts = _counter(items, "source_trust_tier")
+    excluded_items = [
+        item
+        for item in items
+        if item.get("role") in {"pickup", "delivery"}
+        and not item.get("eligible_for_disambiguation")
+    ]
+    trusted_counts = _counter(trusted_cases, "fusion_safety")
+    trusted_summary = {
+        "all_sources": {
+            "multiple_locations": len(cases),
+            "ambiguous_multiple_locations": sum(
+                1 for case in cases if case.get("location_disambiguation_status") == "ambiguous_multiple_locations"
+            ),
+            "clear_location_cluster": sum(
+                1 for case in cases if case.get("location_disambiguation_status") == "clear_location_cluster"
+            ),
+            "same_row_or_block_proven": row_summary["same_row_or_block_proven"],
+            "fusion_safe": after_counts.get("fusion_safe", 0),
+            "fusion_risky": after_counts.get("fusion_risky", 0),
+            "fusion_unsafe": after_counts.get("fusion_unsafe", 0),
+            "fusion_not_possible": after_counts.get("fusion_not_possible", 0),
+        },
+        "trusted_sources_only": {
+            "multiple_locations": sum(1 for case in trusted_cases if case.get("multiple_locations")),
+            "ambiguous_multiple_locations": sum(
+                1 for case in trusted_cases if case.get("location_disambiguation_status") == "ambiguous_multiple_locations"
+            ),
+            "clear_location_cluster": sum(
+                1 for case in trusted_cases if case.get("location_disambiguation_status") == "clear_location_cluster"
+            ),
+            "same_row_or_block_proven": sum(
+                1 for case in trusted_cases if case.get("same_row_or_block_proven")
+            ),
+            "fusion_safe": trusted_counts.get("fusion_safe", 0),
+            "fusion_risky": trusted_counts.get("fusion_risky", 0),
+            "fusion_unsafe": trusted_counts.get("fusion_unsafe", 0),
+            "fusion_not_possible": trusted_counts.get("fusion_not_possible", 0),
+        },
+        "excluded_source_counts": _counter(excluded_items, "source"),
+        "excluded_reason_counts": _counter(excluded_items, "exclusion_reason"),
+    }
+    legacy_noise_report = _legacy_fallback_stop_noise_report(cases, groups)
+    datetime_conflict_report = _date_time_cluster_conflict_report(row_records, groups)
     return {
         "schema_version": "ratecon_stop_location_disambiguation_v1",
         "multiple_location_items": cases,
         "location_clusters": cluster_records,
         "row_block_disambiguation": row_records,
+        "trusted_source_disambiguation_cases": trusted_cases,
+        "trusted_safe_opportunities": trusted_safe_opportunities,
         "multiple_location_root_cause_counts": _counter(cases, "root_cause"),
         "location_cluster_counts": _counter(cluster_records, "cluster_status"),
         "location_disambiguation_score_counts": _counter(cases, "location_disambiguation_status"),
@@ -2296,6 +2790,17 @@ def build_stop_location_disambiguation_report(source_inventory_report, include_p
         "fusion_safety_before_disambiguation": before_counts,
         "fusion_safety_after_disambiguation": after_counts,
         "fusion_safety_after_disambiguation_cases": after_cases,
+        "legacy_fallback_stop_noise_summary": {
+            key: value for key, value in legacy_noise_report.items() if key != "items"
+        },
+        "legacy_fallback_stop_noise_items": legacy_noise_report.get("items", []),
+        "source_trust_tier_counts": source_trust_tier_counts,
+        "trusted_source_disambiguation_summary": trusted_summary,
+        "date_time_cluster_conflict_summary": {
+            key: value for key, value in datetime_conflict_report.items() if key != "items"
+        },
+        "date_time_cluster_conflict_items": datetime_conflict_report.get("items", []),
+        "safe_opportunity_count": len(trusted_safe_opportunities),
         "private_values_printed": bool(include_private_values),
         "raw_text_printed": False,
         "local_only": True,
@@ -3237,7 +3742,12 @@ def write_stop_source_inventory_report(report, output_dir: Path):
 def write_stop_location_disambiguation_report(report, output_dir: Path):
     output_dir.mkdir(parents=True, exist_ok=True)
     summary_path = output_dir / "stop_location_disambiguation_summary.md"
+    trusted_summary_path = output_dir / "stop_trusted_disambiguation_summary.md"
     multiple_items_path = output_dir / "stop_multiple_location_items.csv"
+    trusted_items_path = output_dir / "stop_trusted_disambiguation_items.csv"
+    safe_opportunities_path = output_dir / "stop_trusted_safe_opportunities.csv"
+    excluded_legacy_path = output_dir / "stop_excluded_legacy_fallback_noise.csv"
+    datetime_conflicts_path = output_dir / "stop_datetime_conflicts.csv"
     clusters_path = output_dir / "stop_location_clusters.json"
     row_block_path = output_dir / "stop_row_block_disambiguation.csv"
     fusion_after_path = output_dir / "stop_fusion_safety_after_disambiguation.json"
@@ -3256,12 +3766,40 @@ def write_stop_location_disambiguation_report(report, output_dir: Path):
         + json.dumps(report.get("fusion_safety_before_disambiguation", {}), sort_keys=True),
         "Fusion safety after disambiguation: "
         + json.dumps(report.get("fusion_safety_after_disambiguation", {}), sort_keys=True),
+        "Legacy fallback noise: "
+        + json.dumps(report.get("legacy_fallback_stop_noise_summary", {}), sort_keys=True),
+        "Source trust tiers: "
+        + json.dumps(report.get("source_trust_tier_counts", {}), sort_keys=True),
+        "Trusted-source disambiguation: "
+        + json.dumps(report.get("trusted_source_disambiguation_summary", {}), sort_keys=True),
+        "Date/time conflict summary: "
+        + json.dumps(report.get("date_time_cluster_conflict_summary", {}), sort_keys=True),
+        f"Trusted safe opportunity count: {report.get('safe_opportunity_count', 0)}",
         "",
         "This report is diagnostic-only. It must not change selected output or enable fusion.",
         "Private values are local-only and must not be committed.",
         "",
     ]
     summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    trusted_summary_lines = [
+        "# Trusted Source Stop Disambiguation Diagnostics",
+        "",
+        "Legacy fallback noise summary: "
+        + json.dumps(report.get("legacy_fallback_stop_noise_summary", {}), sort_keys=True),
+        "Source trust tier counts: "
+        + json.dumps(report.get("source_trust_tier_counts", {}), sort_keys=True),
+        "All sources vs trusted sources only: "
+        + json.dumps(report.get("trusted_source_disambiguation_summary", {}), sort_keys=True),
+        "Date/time conflict summary: "
+        + json.dumps(report.get("date_time_cluster_conflict_summary", {}), sort_keys=True),
+        "Narrow row/block proof summary: "
+        + json.dumps(report.get("stop_row_block_disambiguation_summary", {}), sort_keys=True),
+        f"Safe opportunities: {report.get('safe_opportunity_count', 0)}",
+        "",
+        "This report is diagnostic-only. Fused stops are not emitted by this packet.",
+        "",
+    ]
+    trusted_summary_path.write_text("\n".join(trusted_summary_lines) + "\n", encoding="utf-8")
     clusters_path.write_text(
         json.dumps(report.get("location_clusters", []), indent=2, sort_keys=True),
         encoding="utf-8",
@@ -3309,6 +3847,11 @@ def write_stop_location_disambiguation_report(report, output_dir: Path):
         "same_row_or_block_proven",
         "blocked_reasons",
         "source_counts",
+        "row_block_type",
+        "proof_status",
+        "blocker_reason",
+        "location_present",
+        "date_time_present",
     ]
     with row_block_path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=row_fieldnames)
@@ -3318,9 +3861,91 @@ def write_stop_location_disambiguation_report(report, output_dir: Path):
             row["blocked_reasons"] = json.dumps(row.get("blocked_reasons", []), sort_keys=True)
             row["source_counts"] = json.dumps(row.get("source_counts", {}), sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in row_fieldnames})
+    trusted_fieldnames = [
+        "document_id",
+        "file_hash",
+        "field",
+        "fusion_safety",
+        "blocked_reasons",
+        "multiple_locations",
+        "location_disambiguation_status",
+        "same_row_or_block_proven",
+        "row_block_proof_status",
+        "row_block_type",
+    ]
+    with trusted_items_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=trusted_fieldnames)
+        writer.writeheader()
+        for item in report.get("trusted_source_disambiguation_cases", []) or []:
+            row = dict(item)
+            row["blocked_reasons"] = json.dumps(row.get("blocked_reasons", []), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in trusted_fieldnames})
+    safe_fieldnames = [
+        "document_id",
+        "file_hash",
+        "file_name",
+        "field",
+        "role",
+        "source_type",
+        "row_block_type",
+        "location_components",
+        "date_time_components",
+        "proof_status",
+        "recommended_next_step",
+        "values_local_only",
+    ]
+    with safe_opportunities_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=safe_fieldnames)
+        writer.writeheader()
+        for item in report.get("trusted_safe_opportunities", []) or []:
+            row = dict(item)
+            row["location_components"] = json.dumps(row.get("location_components", []), sort_keys=True)
+            row["date_time_components"] = json.dumps(row.get("date_time_components", []), sort_keys=True)
+            row["values_local_only"] = json.dumps(row.get("values_local_only", []), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in safe_fieldnames})
+    legacy_fieldnames = [
+        "document_id",
+        "file_hash",
+        "file_name",
+        "field",
+        "role",
+        "candidate_id",
+        "reason",
+        "source_trust_tier",
+        "exclusion_reason",
+        "value_local_only",
+    ]
+    with excluded_legacy_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=legacy_fieldnames)
+        writer.writeheader()
+        for item in report.get("legacy_fallback_stop_noise_items", []) or []:
+            writer.writerow({key: item.get(key, "") for key in legacy_fieldnames})
+    datetime_fieldnames = [
+        "document_id",
+        "file_hash",
+        "field",
+        "role",
+        "reason",
+        "date_time_candidate_count",
+        "source_counts",
+        "values_local_only",
+    ]
+    with datetime_conflicts_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=datetime_fieldnames)
+        writer.writeheader()
+        for item in report.get("date_time_cluster_conflict_items", []) or []:
+            row = dict(item)
+            row["source_counts"] = json.dumps(row.get("source_counts", {}), sort_keys=True)
+            row["values_local_only"] = json.dumps(row.get("values_local_only", []), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in datetime_fieldnames})
     return {
         "summary_md": str(summary_path),
+        "trusted_summary_md": str(trusted_summary_path),
         "multiple_location_items_csv": str(multiple_items_path),
+        "trusted_disambiguation_items_csv": str(trusted_items_path),
+        "trusted_safe_opportunities_csv": str(safe_opportunities_path),
+        "excluded_legacy_fallback_noise_csv": str(excluded_legacy_path),
+        "datetime_conflicts_csv": str(datetime_conflicts_path),
         "location_clusters_json": str(clusters_path),
         "row_block_disambiguation_csv": str(row_block_path),
         "fusion_safety_after_disambiguation_json": str(fusion_after_path),
@@ -3495,6 +4120,26 @@ def main(argv=None):
                     "fusion_safety_after_disambiguation": location_disambiguation_report.get(
                         "fusion_safety_after_disambiguation",
                         {},
+                    ),
+                    "legacy_fallback_stop_noise_summary": location_disambiguation_report.get(
+                        "legacy_fallback_stop_noise_summary",
+                        {},
+                    ),
+                    "source_trust_tier_counts": location_disambiguation_report.get(
+                        "source_trust_tier_counts",
+                        {},
+                    ),
+                    "trusted_source_disambiguation_summary": location_disambiguation_report.get(
+                        "trusted_source_disambiguation_summary",
+                        {},
+                    ),
+                    "date_time_cluster_conflict_summary": location_disambiguation_report.get(
+                        "date_time_cluster_conflict_summary",
+                        {},
+                    ),
+                    "safe_opportunity_count": location_disambiguation_report.get(
+                        "safe_opportunity_count",
+                        0,
                     ),
                 },
                 "patch_template_row_count": len(
