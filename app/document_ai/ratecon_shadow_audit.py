@@ -1573,6 +1573,7 @@ def _metadata_eval_summary(metadata):
         "source_line_id",
         "page_line_status",
         "source_lineage",
+        "component_sources",
         "dedupe_lineage",
         "merged_provenance",
         "fusion_safety",
@@ -1818,6 +1819,8 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
         "component_values_serialized": component_values_serialized,
         "metadata_summary": _metadata_eval_summary(metadata),
     }
+    if _text(metadata.get("candidate_id")):
+        payload["candidate_id"] = _text(metadata.get("candidate_id"))
     if gap_reason:
         payload["serialization_gap_reason"] = gap_reason
         if gap_reason == "selected_stop_really_missing":
@@ -1849,7 +1852,7 @@ def _candidate_eval_prediction(candidate, field_name):
         private_components = candidate.get("_private_eval_stop_components")
         if private_components:
             value = private_components
-        return _private_stop_prediction(
+        prediction = _private_stop_prediction(
             value,
             field_name,
             confidence=confidence,
@@ -1857,6 +1860,11 @@ def _candidate_eval_prediction(candidate, field_name):
             parser_name=parser_name,
             metadata=metadata,
         )
+        if _text(metadata.get("candidate_id")):
+            prediction["candidate_id"] = _text(metadata.get("candidate_id"))
+        prediction["page"] = candidate.get("page", "")
+        prediction["bbox"] = _json_safe(candidate.get("bbox"))
+        return prediction
     return {
         "value": _json_safe(value),
         "normalized_value": _json_safe(candidate.get("normalized_value")),
@@ -1957,7 +1965,7 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
             value = selected.get("value")
         else:
             value = selected.get("value") if selected else resolution.get("value")
-        return _private_stop_prediction(
+        prediction = _private_stop_prediction(
             value,
             field_name,
             confidence=confidence,
@@ -1965,6 +1973,11 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
             parser_name=parser_name,
             metadata=metadata,
         )
+        if _text(metadata.get("candidate_id")):
+            prediction["candidate_id"] = _text(metadata.get("candidate_id"))
+        prediction["page"] = selected.get("page", "") if selected else resolution.get("page", "")
+        prediction["bbox"] = _json_safe(selected.get("bbox")) if selected else None
+        return prediction
     value = resolution.get("value")
     if value in ["", None] and selected:
         value = selected.get("value")
@@ -2625,15 +2638,25 @@ def _stop_component_candidate_inventory(candidates):
                 "role": _text(metadata.get("stop_role") or metadata.get("role")),
                 "stop_index": metadata.get("stop_index") or 1,
                 "component_type": _text(metadata.get("component_type")),
-                "page": metadata.get("page") or metadata.get("page_number") or metadata.get("source_page"),
+                "page": (
+                    candidate.get("page")
+                    or metadata.get("page")
+                    or metadata.get("page_number")
+                    or metadata.get("source_page")
+                ),
                 "line_index": (
                     metadata.get("line_index")
                     or metadata.get("source_line_index")
                     or metadata.get("reading_order_index")
                 ),
-                "bbox": _json_safe(metadata.get("bbox") or metadata.get("component_bboxes")),
+                "bbox": _json_safe(
+                    candidate.get("bbox")
+                    or metadata.get("bbox")
+                    or metadata.get("component_bboxes")
+                ),
                 "page_line_status": _text(metadata.get("page_line_status")),
                 "source_lineage": _json_safe(metadata.get("source_lineage") or []),
+                "component_sources": _json_safe(metadata.get("component_sources") or {}),
                 "dedupe_lineage": _json_safe(metadata.get("dedupe_lineage") or []),
                 "merged_provenance": _json_safe(metadata.get("merged_provenance") or []),
                 "metadata_summary": _metadata_eval_summary(metadata),

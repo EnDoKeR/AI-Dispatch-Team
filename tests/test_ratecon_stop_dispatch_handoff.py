@@ -3,6 +3,7 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from app.document_ai.field_candidate_generators import _dedupe
 from app.document_ai.field_candidate_resolver import resolve_candidates
 from app.document_ai.ratecon_gold_labels import (
     FIELD_DELIVERY_STOPS,
@@ -391,6 +392,15 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertGreater(
             metrics["pickup"]["dispatch_usable"] + metrics["pickup"]["exact_complete"],
             0,
+        )
+        consistent = evaluation["stop_metrics_consistent_summary"]
+        fused_pickup = consistent["fusion"][SYSTEM_SHADOW_REVIEW_FUSED_STOPS]["pickup"]
+        self.assertIn("detailed", fused_pickup)
+        self.assertIn("compressed", fused_pickup)
+        self.assertGreaterEqual(fused_pickup["detailed"]["denominator"], 1)
+        self.assertEqual(
+            fused_pickup["compressed"]["denominator"],
+            fused_pickup["detailed"]["denominator"],
         )
 
     def test_review_safe_fusion_profile_leaves_selected_output_unchanged(self):
@@ -887,6 +897,93 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             report["stop_dedupe_provenance_loss_summary"]["dedupe_lineage_available_count"],
             1,
         )
+
+    def test_dedupe_preserves_merged_provenance_lineage(self):
+        base = {
+            "field": FIELD_PICKUP_STOPS,
+            "value": [{"role": "pickup", "city": "Dallas", "date": "2026-06-05"}],
+            "normalized_value": "pickup_stop",
+            "label": "pickup",
+            "source": "native_text",
+            "parser_name": "stop_evidence_assembler",
+            "metadata": {
+                "candidate_id": "pickup-a",
+                "structured_stop_candidate": True,
+                "stop_role": "pickup",
+                "pairing_method": "native_role_block",
+                "has_location": True,
+                "has_date": True,
+            },
+        }
+        duplicate = {
+            **base,
+            "metadata": {
+                **base["metadata"],
+                "candidate_id": "pickup-b",
+                "source_line_index": 7,
+            },
+        }
+
+        result = _dedupe([base, duplicate])
+
+        self.assertEqual(len(result), 1)
+        metadata = result[0]["metadata"]
+        self.assertEqual(len(metadata["dedupe_lineage"]), 2)
+        self.assertEqual(len(metadata["merged_provenance"]), 2)
+        self.assertIn("native_text", metadata["dropped_unique_sources"])
+
+    def test_source_inventory_v3_counts_component_sources(self):
+        audit = _source_inventory_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "component-sourced-pickup",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [{"role": "pickup", "city": "Dallas", "date": "2026-06-05"}],
+                "source": "native_text",
+                "parser_name": "stop_evidence_assembler",
+                "metadata_summary": {
+                    "candidate_id": "component-sourced-pickup",
+                    "stop_role": "pickup",
+                    "component_sources": {
+                        "city_state_zip": [
+                            {
+                                "candidate_id": "pickup-location",
+                                "source": "native_text",
+                                "parser_name": "stop_evidence_assembler",
+                                "page": 1,
+                                "line_index": 4,
+                                "role": "pickup",
+                                "component_type": "city_state_zip",
+                            }
+                        ],
+                        "date": [
+                            {
+                                "candidate_id": "pickup-date",
+                                "source": "native_text",
+                                "parser_name": "stop_evidence_assembler",
+                                "page": 1,
+                                "line_index": 5,
+                                "role": "pickup",
+                                "component_type": "date",
+                            }
+                        ],
+                    },
+                },
+            }
+        )
+
+        report = build_stop_source_inventory_report({}, [audit], include_private_values=False)
+
+        self.assertGreaterEqual(
+            report["source_inventory_v3_summary"]["component_sources_available"],
+            2,
+        )
+        self.assertGreaterEqual(
+            report["source_inventory_v3_summary"]["structured_stops_with_component_sources"],
+            1,
+        )
+        root_causes = report["provenance_loss_root_cause_by_module"]
+        self.assertIn("by_loss_type", root_causes)
 
     def test_fusion_safety_model_counts_safe_and_unsafe_sources(self):
         audit = _source_inventory_audit_record()

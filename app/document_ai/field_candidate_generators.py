@@ -7,6 +7,8 @@ measurement result.
 
 from collections import Counter
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 
 from app.document_ai.field_candidate_provenance import (
@@ -229,10 +231,89 @@ def _annotate(candidate, generator_name, independent=True):
     return item
 
 
+def _safe_value_hash(value):
+    try:
+        payload = json.dumps(value, sort_keys=True, default=str)
+    except TypeError:
+        payload = str(value)
+    return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _candidate_lineage(candidate, index):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    return {
+        "candidate_id": _text(metadata.get("candidate_id")),
+        "field": _text(candidate.get("field")),
+        "role": _text(metadata.get("stop_role") or metadata.get("role")),
+        "component_type": _text(metadata.get("component_type")),
+        "source": _text(candidate.get("source")),
+        "parser_name": _text(candidate.get("parser_name")),
+        "generator_name": _text(metadata.get("generator_name") or metadata.get("source_generator_name")),
+        "page": candidate.get("page") or metadata.get("page") or metadata.get("page_number"),
+        "line_index": (
+            metadata.get("line_index")
+            or metadata.get("source_line_index")
+            or metadata.get("reading_order_index")
+        ),
+        "bbox": candidate.get("bbox") or metadata.get("bbox") or metadata.get("component_bboxes"),
+        "stop_index": metadata.get("stop_index"),
+        "pairing_method": _text(metadata.get("pairing_method")),
+        "value_hash": _safe_value_hash(candidate.get("normalized_value") or candidate.get("value")),
+        "input_index": index,
+    }
+
+
+def _with_candidate_id(candidate, index):
+    item = dict(candidate or {})
+    metadata = dict(item.get("metadata") or {})
+    if not _text(metadata.get("candidate_id")):
+        basis = "|".join(
+            [
+                _text(item.get("field")),
+                _text(item.get("source")),
+                _text(item.get("parser_name")),
+                _text(item.get("label")),
+                _safe_value_hash(item.get("normalized_value") or item.get("value")),
+                str(index),
+            ]
+        )
+        metadata["candidate_id"] = (
+            f"{_text(item.get('field')) or 'candidate'}:"
+            f"{hashlib.sha256(basis.encode('utf-8', errors='replace')).hexdigest()[:12]}"
+        )
+        metadata["synthetic_candidate_id"] = True
+    item["metadata"] = metadata
+    return item
+
+
+def _append_unique_lineage(existing, entry):
+    existing = list(existing or [])
+    key = (
+        _text(entry.get("candidate_id")),
+        _text(entry.get("field")),
+        _text(entry.get("source")),
+        _text(entry.get("parser_name")),
+        _text(entry.get("value_hash")),
+    )
+    for item in existing:
+        if (
+            _text(item.get("candidate_id")),
+            _text(item.get("field")),
+            _text(item.get("source")),
+            _text(item.get("parser_name")),
+            _text(item.get("value_hash")),
+        ) == key:
+            return existing
+    existing.append(entry)
+    return existing
+
+
 def _dedupe(candidates):
-    seen = set()
+    seen = {}
     result = []
-    for candidate in candidates or []:
+    for index, raw_candidate in enumerate(candidates or [], start=1):
+        candidate = _with_candidate_id(raw_candidate, index)
         metadata = candidate.get("metadata") or {}
         structured_stop_identity = ()
         if metadata.get("structured_stop_candidate"):
@@ -259,8 +340,26 @@ def _dedupe(candidates):
             structured_stop_identity,
         )
         if identity in seen:
+            retained = seen[identity]
+            retained_metadata = dict(retained.get("metadata") or {})
+            kept_lineage = _candidate_lineage(retained, index)
+            dropped_lineage = _candidate_lineage(candidate, index)
+            lineage = retained_metadata.get("dedupe_lineage") or []
+            if not lineage:
+                lineage = _append_unique_lineage(lineage, kept_lineage)
+            lineage = _append_unique_lineage(lineage, dropped_lineage)
+            retained_metadata["dedupe_lineage"] = lineage
+            retained_metadata["merged_provenance"] = lineage
+            retained_metadata["dropped_unique_sources"] = sorted(
+                {
+                    _text(item.get("source"))
+                    for item in lineage
+                    if _text(item.get("source"))
+                }
+            )
+            retained["metadata"] = retained_metadata
             continue
-        seen.add(identity)
+        seen[identity] = candidate
         result.append(candidate)
     return result
 

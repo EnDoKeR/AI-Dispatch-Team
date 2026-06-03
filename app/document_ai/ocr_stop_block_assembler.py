@@ -519,6 +519,75 @@ def _component_completeness(has_location, has_date, has_time):
     return round((int(has_location) + int(has_date) + int(has_time)) / 3.0, 3)
 
 
+def _component_bbox(block, component):
+    geometry = block.get("geometry") if isinstance(block.get("geometry"), dict) else {}
+    columns = block.get("column_geometry") if isinstance(block.get("column_geometry"), dict) else {}
+    if component in {"facility", "address", "city_state_zip", "raw_location"}:
+        return (
+            geometry.get("location_bbox")
+            or columns.get("location_bbox")
+            or columns.get("location_column_bbox")
+        )
+    if component in {"date", "time", "appointment_window"}:
+        return (
+            geometry.get("date_time_bbox")
+            or columns.get("date_time_bbox")
+            or columns.get("date_time_column_bbox")
+        )
+    return geometry.get("bbox") or columns.get("row_bbox")
+
+
+def _component_source_ref(block, component, offset=None):
+    start_line = block.get("start_line_index")
+    line_index = ""
+    if start_line not in {None, ""} and offset is not None:
+        try:
+            line_index = int(start_line) + int(offset)
+        except (TypeError, ValueError):
+            line_index = start_line
+    elif start_line not in {None, ""}:
+        line_index = start_line
+    page = block.get("page")
+    return {
+        "candidate_id": "",
+        "source": block.get("source") or SOURCE_OCR,
+        "parser_name": GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+        "generator_name": GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+        "page": page,
+        "line_index": line_index,
+        "bbox": _component_bbox(block, component),
+        "role": block.get("role") or ROLE_UNKNOWN,
+        "stop_index": block.get("stop_index") or 1,
+        "component_type": component,
+        "safety_status": "safe",
+        "provenance_status": (
+            "complete"
+            if page not in {None, ""} and (line_index not in {None, ""} or _component_bbox(block, component))
+            else "page_line_unavailable_from_source"
+        ),
+    }
+
+
+def _component_sources_from_offsets(block, stop, offsets):
+    sources = {}
+    for component, stop_keys in {
+        "facility": ["facility"],
+        "address": ["address"],
+        "city_state_zip": ["city", "state", "zip"],
+        "date": ["date"],
+        "time": ["time"],
+        "appointment_window": ["appointment_window"],
+        "raw_location": ["facility", "address", "city", "state", "zip"],
+    }.items():
+        if not any(_text(stop.get(key)) for key in stop_keys):
+            continue
+        offset_key = "city_state_zip" if component == "raw_location" else component
+        sources[component] = [
+            _component_source_ref(block, component, (offsets or {}).get(offset_key))
+        ]
+    return sources
+
+
 def _alignment_metadata(block, stop, offsets):
     lines = list(block.get("lines") or [])
     warnings = []
@@ -647,11 +716,14 @@ def _structured_stop_from_block(block):
     return stop, _alignment_metadata(block, stop, offsets)
 
 
-def _base_metadata(block, stop):
+def _base_metadata(block, stop, offsets=None):
     has_location = bool(_location_string(stop))
     has_date = bool(_text(stop.get("date")))
     has_time = bool(_text(stop.get("time")) or _text(stop.get("appointment_window")))
     source = block.get("source") or SOURCE_OCR
+    page = block.get("page")
+    start_line = block.get("start_line_index")
+    component_sources = _component_sources_from_offsets(block, stop, offsets or {})
     return {
         "raw_field": FIELD_PICKUP_STOPS if stop["role"] == ROLE_PICKUP else FIELD_DELIVERY_STOPS,
         "canonical_mapping_strength": MAPPING_STRONG,
@@ -671,10 +743,24 @@ def _base_metadata(block, stop):
         "has_address": bool(_text(stop.get("address"))),
         "pairing_method": "ocr_role_block" if source == SOURCE_OCR else "native_role_block",
         "section_context": SECTION_STOP,
-        "page_span": [block.get("page")],
+        "page": page,
+        "line_index": start_line,
+        "bbox": (block.get("geometry") or {}).get("bbox") or (block.get("column_geometry") or {}).get("row_bbox"),
+        "page_line_status": (
+            "available"
+            if page not in {None, ""} and start_line not in {None, ""}
+            else "unavailable_from_source"
+        ),
+        "page_span": [page],
         "proximity_cluster_line_span": [
-            block.get("start_line_index"),
+            start_line,
             block.get("end_line_index"),
+        ],
+        "component_sources": component_sources,
+        "source_lineage": [
+            source_ref
+            for refs in component_sources.values()
+            for source_ref in refs
         ],
         "component_completeness": _component_completeness(has_location, has_date, has_time),
         "review_required": True,
@@ -691,6 +777,26 @@ def _field_candidate(field, value, label, block, metadata, confidence, component
         payload_metadata["structured_stop_candidate"] = False
         payload_metadata["stop_block_component_candidate"] = True
         payload_metadata["raw_field"] = field
+        if field.endswith("_location"):
+            component_type = "raw_location"
+        elif field.endswith("_date"):
+            component_type = "date"
+        elif field.endswith("_time"):
+            component_type = "time"
+        else:
+            component_type = ""
+        payload_metadata["component_type"] = component_type
+        refs = (payload_metadata.get("component_sources") or {}).get(component_type) or []
+        if refs:
+            ref = refs[0]
+            payload_metadata["page"] = ref.get("page")
+            payload_metadata["line_index"] = ref.get("line_index")
+            payload_metadata["bbox"] = ref.get("bbox")
+            payload_metadata["page_line_status"] = (
+                "available"
+                if ref.get("provenance_status") == "complete"
+                else ref.get("provenance_status")
+            )
     return {
         "field": field,
         "value": value,
@@ -702,7 +808,7 @@ def _field_candidate(field, value, label, block, metadata, confidence, component
             else f"{metadata.get('stop_role')}_stop: OCR role block structured evidence present"
         ),
         "page": block.get("page") or "",
-        "bbox": None,
+        "bbox": payload_metadata.get("bbox"),
         "source": block.get("source") or SOURCE_OCR,
         "parser_name": GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
         "confidence": confidence,
@@ -729,7 +835,10 @@ def candidates_from_stop_evidence_blocks(blocks):
         if role not in {ROLE_PICKUP, ROLE_DELIVERY}:
             continue
         stop, alignment = _structured_stop_from_block(block)
-        metadata = _base_metadata(block, stop)
+        offsets = {
+            **(alignment.get("component_line_offsets") or {}),
+        }
+        metadata = _base_metadata(block, stop, offsets=offsets)
         metadata.update(alignment)
         has_location = metadata["has_location"]
         has_date = metadata["has_date"]

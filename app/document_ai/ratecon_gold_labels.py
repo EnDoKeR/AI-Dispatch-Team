@@ -4010,6 +4010,72 @@ def _build_stop_fusion_profile_metrics(comparison_rows):
     return _build_stop_group_usability_metrics(comparison_rows, STOP_FUSION_SYSTEMS)
 
 
+def _consistent_role_metrics(bucket):
+    bucket = bucket or {}
+    detailed = {
+        "exact_complete": int(bucket.get("exact_complete", 0) or 0),
+        "dispatch_usable": int(bucket.get("dispatch_usable", 0) or 0),
+        "useful_partial": int(bucket.get("useful_partial", 0) or 0),
+        "location_only_partial": int(bucket.get("useful_partial_location_only", 0) or 0),
+        "date_only_partial": int(bucket.get("useful_partial_date_only", 0) or 0),
+        "time_only_partial": int(bucket.get("useful_partial_time_only", 0) or 0),
+        "unsafe_wrong": int(bucket.get("unsafe_wrong", 0) or 0),
+        "missing_review_required": int(bucket.get("missing_review_required", 0) or 0),
+        "serialized_gap": int(bucket.get("serialized_gap", 0) or 0),
+    }
+    detailed["denominator"] = sum(detailed.values())
+    partial = (
+        detailed["dispatch_usable"]
+        + detailed["useful_partial"]
+        + detailed["location_only_partial"]
+        + detailed["date_only_partial"]
+        + detailed["time_only_partial"]
+    )
+    compressed = {
+        "exact": detailed["exact_complete"],
+        "partial": partial,
+        "wrong": detailed["unsafe_wrong"],
+        "missing": detailed["missing_review_required"] + detailed["serialized_gap"],
+        "denominator": detailed["denominator"],
+    }
+    return {"detailed": detailed, "compressed": compressed}
+
+
+def _consistent_group_metrics(group_metrics, system_name):
+    system_payload = (group_metrics or {}).get(system_name, {}) or {}
+    return {
+        "pickup": _consistent_role_metrics(system_payload.get("pickup", {})),
+        "delivery": _consistent_role_metrics(system_payload.get("delivery", {})),
+    }
+
+
+def _build_stop_metrics_consistent_summary(comparison_rows):
+    selected = {"shadow": {
+        "pickup": _empty_stop_usability(),
+        "delivery": _empty_stop_usability(),
+    }}
+    selected["shadow"] = {
+        role: bucket
+        for role, bucket in _build_stop_usability_summary(comparison_rows).items()
+        if role in {"pickup", "delivery"}
+    }
+    draft_metrics = _build_stop_draft_profile_metrics(comparison_rows)
+    fusion_metrics = _build_stop_fusion_profile_metrics(comparison_rows)
+    return {
+        "selected": _consistent_group_metrics(selected, "shadow"),
+        "draft": {
+            system_name: _consistent_group_metrics(draft_metrics, system_name)
+            for system_name in STOP_DRAFT_SYSTEMS
+        },
+        "fusion": {
+            system_name: _consistent_group_metrics(fusion_metrics, system_name)
+            for system_name in STOP_FUSION_SYSTEMS
+        },
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _serialization_gap_classification(row):
     status = _text(row.get("status"))
     source_status = _text(row.get("source_status"))
@@ -4908,6 +4974,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             comparison_rows,
         ),
         "stop_fusion_profile_metrics": _build_stop_fusion_profile_metrics(
+            comparison_rows,
+        ),
+        "stop_metrics_consistent_summary": _build_stop_metrics_consistent_summary(
             comparison_rows,
         ),
         "dispatch_usable_handoff_summary": _build_dispatch_usable_handoff_summary(

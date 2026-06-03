@@ -453,6 +453,13 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "stop_metrics_consistent_summary: "
+        + json.dumps(
+            evaluation.get("stop_metrics_consistent_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "ocr_stop_evidence_gap_summary: "
         + json.dumps(
             evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},

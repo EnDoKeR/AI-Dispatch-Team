@@ -7,6 +7,7 @@ This script does not modify gold labels.
 from __future__ import annotations
 
 import argparse
+from collections import Counter
 import csv
 import json
 from pathlib import Path
@@ -823,6 +824,18 @@ def _metadata_lineage(metadata, *keys):
     return []
 
 
+def _component_sources_for_item(item, metadata, component):
+    for value in [item.get("component_sources"), metadata.get("component_sources")]:
+        if not isinstance(value, dict):
+            continue
+        refs = value.get(component)
+        if isinstance(refs, list):
+            return refs
+        if isinstance(refs, dict):
+            return [refs]
+    return []
+
+
 def _normalized_component_source(item, metadata):
     source = _text(item.get("source")).lower()
     parser = _text(item.get("parser_name")).lower()
@@ -944,10 +957,15 @@ def _inventory_entries_from_record(record, include_private_values):
         safety_status, unsafe_reason = _source_safety_status(item, metadata)
         for component, value in _component_values_from_inventory_item(item):
             candidate_id = _text(item.get("candidate_id") or metadata.get("candidate_id"))
+            component_source_refs = _component_sources_for_item(item, metadata, component)
             source_lineage = (
+                component_source_refs
+                if component_source_refs
+                else (
                 item.get("source_lineage")
                 if isinstance(item.get("source_lineage"), list)
                 else _metadata_lineage(metadata, "source_lineage", "component_source_list", "source_components")
+                )
             )
             dedupe_lineage = (
                 item.get("dedupe_lineage")
@@ -993,6 +1011,8 @@ def _inventory_entries_from_record(record, include_private_values):
                 "unsafe_reason": unsafe_reason,
                 "page_line_status": _text(item.get("page_line_status") or metadata.get("page_line_status")),
                 "source_lineage": source_lineage,
+                "component_sources": component_source_refs,
+                "component_sources_available": bool(component_source_refs),
                 "dedupe_lineage": dedupe_lineage,
                 "merged_provenance": merged_provenance,
                 "metadata_summary": metadata,
@@ -1279,6 +1299,102 @@ def _source_inventory_v2_summary(items):
     }
 
 
+def _source_inventory_v3_summary(items):
+    v2 = _source_inventory_v2_summary(items)
+    structured_items = [
+        item
+        for item in items or []
+        if item.get("source_group")
+        in {
+            "candidate_inventory",
+            "shadow_selected_stop",
+            "shadow_best_structured_stop_candidate",
+            "shadow_best_dispatch_usable_stop_candidate",
+            "shadow_best_ocr_column_stop_candidate",
+            "shadow_best_native_layout_stop_candidate",
+            "shadow_stop_review_draft",
+            "review_fused_stops",
+            "legacy_fallback_stop_candidate",
+        }
+        and item.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+    ]
+    return {
+        **v2,
+        "component_sources_available": sum(
+            1 for item in items or [] if item.get("component_sources_available")
+        ),
+        "structured_stops_with_component_sources": len(
+            {
+                (
+                    item.get("document_id"),
+                    item.get("file_hash"),
+                    item.get("field"),
+                    item.get("candidate_id") or item.get("synthetic_candidate_id"),
+                )
+                for item in structured_items
+                if item.get("component_sources_available")
+            }
+        ),
+    }
+
+
+def _module_from_inventory_item(item):
+    return (
+        _text(item.get("generator_name"))
+        or _text(item.get("parser_name"))
+        or _text(item.get("source_group"))
+        or _text(item.get("source"))
+        or "unknown"
+    )
+
+
+def _loss_type_from_inventory_item(item):
+    if item.get("safety_status") == "unsafe":
+        if item.get("unsafe_reason") == "component_from_payment_or_instruction":
+            return "component_from_payment_or_instruction"
+        return "unsafe_source"
+    if not _text(item.get("candidate_id")):
+        if item.get("source_group") != "candidate_inventory":
+            return "candidate_id_lost_during_adapter"
+        return "generated_without_candidate_id"
+    page_line_status = item.get("page_line_status")
+    if page_line_status == "unavailable_from_source":
+        if item.get("source") == "legacy_fallback":
+            return "page_line_unavailable_from_legacy_source"
+        if item.get("source_group") != "candidate_inventory":
+            return "evaluator_inventory_lookup_missing"
+        return "page_line_unavailable_from_aggregated_assembler"
+    if page_line_status == "dropped_by_pipeline":
+        if item.get("source") == "ocr_geometry_column":
+            return "row_column_lost_from_ocr_table_reconstructor"
+        if "geometry" in _module_from_inventory_item(item):
+            return "bbox_lost_from_ocr_geometry"
+        return "generated_with_page_line_then_dropped"
+    if item.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS} and not item.get("component_sources_available"):
+        return "component_sources_lost_from_structured_stop"
+    return "no_loss"
+
+
+def _provenance_loss_root_cause_summary(items):
+    by_module = Counter()
+    by_loss_type = Counter()
+    by_module_loss = Counter()
+    for item in items or []:
+        loss_type = _loss_type_from_inventory_item(item)
+        if loss_type == "no_loss":
+            continue
+        module = _module_from_inventory_item(item)
+        by_module[module] += 1
+        by_loss_type[loss_type] += 1
+        by_module_loss[f"{module}|{loss_type}"] += 1
+    return {
+        "by_module": dict(by_module.most_common()),
+        "by_loss_type": dict(by_loss_type.most_common()),
+        "by_module_and_loss_type": dict(by_module_loss.most_common()),
+        "unknown": by_loss_type.get("unknown", 0),
+    }
+
+
 def _dedupe_provenance_loss_summary(audit_records, inventory_items):
     reported_total = sum(_candidate_counts_stop_total(record) for record in audit_records or [])
     post_total = len(inventory_items)
@@ -1314,16 +1430,18 @@ def build_stop_source_inventory_report(packet, audit_records, include_private_va
     items = _build_source_inventory_items(audit_records, include_private_values)
     matrix = _matrix_for_entries(items)
     return {
-        "schema_version": "ratecon_stop_source_inventory_v2",
+        "schema_version": "ratecon_stop_source_inventory_v3",
         "items": items,
         "candidate_counts_by_doc_field": _candidate_counts_by_doc_field(audit_records),
         "source_inventory_summary": _source_inventory_summary(items, matrix),
         "source_inventory_v2_summary": _source_inventory_v2_summary(items),
+        "source_inventory_v3_summary": _source_inventory_v3_summary(items),
         "stop_component_availability_matrix": matrix,
         "stop_dedupe_provenance_loss_summary": _dedupe_provenance_loss_summary(
             audit_records,
             items,
         ),
+        "provenance_loss_root_cause_by_module": _provenance_loss_root_cause_summary(items),
         "stop_fusion_safety_model_summary": _fusion_safety_model_summary(items),
         "private_values_printed": bool(include_private_values),
         "raw_text_printed": False,
@@ -2508,6 +2626,7 @@ def write_stop_source_inventory_report(report, output_dir: Path):
     by_document_path = output_dir / "stop_source_inventory_by_document.json"
     provenance_gap_path = output_dir / "stop_provenance_gap_report.csv"
     dedupe_lineage_path = output_dir / "stop_dedupe_lineage_report.csv"
+    component_lineage_path = output_dir / "stop_component_source_lineage_report.csv"
     items = report.get("items", []) or []
     matrix = report.get("stop_component_availability_matrix", {}) or {}
     items_json_path.write_text(
@@ -2525,6 +2644,10 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         + json.dumps(report.get("source_inventory_summary", {}), sort_keys=True),
         "Source inventory V2 summary: "
         + json.dumps(report.get("source_inventory_v2_summary", {}), sort_keys=True),
+        "Source inventory V3 summary: "
+        + json.dumps(report.get("source_inventory_v3_summary", {}), sort_keys=True),
+        "Provenance loss root cause by module: "
+        + json.dumps(report.get("provenance_loss_root_cause_by_module", {}), sort_keys=True),
         "Component availability corpus summary: "
         + json.dumps(
             (
@@ -2581,6 +2704,8 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "synthetic_candidate_id",
         "page_line_status",
         "source_lineage",
+        "component_sources",
+        "component_sources_available",
         "dedupe_lineage",
         "merged_provenance",
         "provenance_status",
@@ -2594,6 +2719,7 @@ def write_stop_source_inventory_report(report, output_dir: Path):
             row = dict(item)
             row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
             row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["component_sources"] = json.dumps(row.get("component_sources") or [], sort_keys=True)
             row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
             row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in fieldnames})
@@ -2610,6 +2736,7 @@ def write_stop_source_inventory_report(report, output_dir: Path):
             row = dict(item)
             row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
             row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["component_sources"] = json.dumps(row.get("component_sources") or [], sort_keys=True)
             row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
             row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in fieldnames})
@@ -2623,6 +2750,21 @@ def write_stop_source_inventory_report(report, output_dir: Path):
             row = dict(item)
             row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
             row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["component_sources"] = json.dumps(row.get("component_sources") or [], sort_keys=True)
+            row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
+            row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    component_lineage_rows = [
+        item for item in items if item.get("component_sources") or item.get("component_sources_available")
+    ]
+    with component_lineage_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in component_lineage_rows:
+            row = dict(item)
+            row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
+            row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["component_sources"] = json.dumps(row.get("component_sources") or [], sort_keys=True)
             row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
             row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in fieldnames})
@@ -2633,6 +2775,7 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "by_document_json": str(by_document_path),
         "provenance_gap_csv": str(provenance_gap_path),
         "dedupe_lineage_csv": str(dedupe_lineage_path),
+        "component_source_lineage_csv": str(component_lineage_path),
     }
 
 
@@ -2748,8 +2891,16 @@ def main(argv=None):
                     "source_inventory_v2_summary",
                     {},
                 ),
+                "source_inventory_v3_summary": source_inventory_report.get(
+                    "source_inventory_v3_summary",
+                    {},
+                ),
                 "stop_dedupe_provenance_loss_summary": source_inventory_report.get(
                     "stop_dedupe_provenance_loss_summary",
+                    {},
+                ),
+                "provenance_loss_root_cause_by_module": source_inventory_report.get(
+                    "provenance_loss_root_cause_by_module",
                     {},
                 ),
                 "stop_fusion_safety_model_summary": {
