@@ -461,8 +461,16 @@ def _is_stop_field(field_name):
 
 
 def _stop_normalization(candidate, field_name):
+    value = _raw_value(candidate)
+    private_components = (candidate or {}).get("_private_eval_stop_components")
+    if (
+        not isinstance(value, (dict, list, tuple))
+        and isinstance(private_components, (dict, list, tuple))
+        and private_components
+    ):
+        value = private_components
     return normalize_stop_candidate_value(
-        _raw_value(candidate),
+        value,
         field_name,
         candidate_metadata=_metadata(candidate),
     )

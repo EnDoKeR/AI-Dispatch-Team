@@ -796,6 +796,92 @@ class RateConArchitectureSliceTests(unittest.TestCase):
             "conflict_review_required",
         )
 
+    def test_layout_stop_sidecar_components_drive_conflict_comparison(self):
+        candidates = [
+            {
+                "field": FIELD_PICKUP_STOPS,
+                "value": "pickup_layout_stop_present",
+                "normalized_value": "pickup_layout_stop_present",
+                "label": "pickup_stop",
+                "source": "native_layout",
+                "parser_name": "layout_stop_table_candidate_generator",
+                "confidence": 0.82,
+                "metadata": {
+                    "structured_stop_candidate": True,
+                    "stop_role": "pickup",
+                    "has_location": True,
+                    "has_date": True,
+                    "pairing_method": "table_row_semantic",
+                },
+                "_private_eval_stop_components": [
+                    {"role": "pickup", "city": "Private A", "date": "01/02/2030"}
+                ],
+            },
+            {
+                "field": FIELD_PICKUP_STOPS,
+                "value": "pickup_layout_stop_present",
+                "normalized_value": "pickup_layout_stop_present",
+                "label": "pickup_stop",
+                "source": "native_layout",
+                "parser_name": "layout_stop_table_candidate_generator",
+                "confidence": 0.82,
+                "metadata": {
+                    "structured_stop_candidate": True,
+                    "stop_role": "pickup",
+                    "has_location": True,
+                    "has_date": True,
+                    "pairing_method": "table_row_semantic",
+                },
+                "_private_eval_stop_components": [
+                    {"role": "pickup", "city": "Private B", "date": "01/03/2030"}
+                ],
+            },
+        ]
+
+        result = resolve_candidates(candidates, field_names=[FIELD_PICKUP_STOPS])
+        stop = result["resolved_fields"][FIELD_PICKUP_STOPS]
+        conflict_counts = stop["structured_stop_conflict_summary"]["conflict_type_counts"]
+
+        self.assertEqual(stop["selected_status"], "conflict")
+        self.assertGreater(conflict_counts["location_conflict"], 0)
+        self.assertGreater(conflict_counts["date_conflict"], 0)
+
+    def test_layout_stop_sidecar_values_are_not_exposed_in_safe_trace(self):
+        candidates = [
+            {
+                "field": FIELD_PICKUP_STOPS,
+                "value": "pickup_layout_stop_present",
+                "normalized_value": "pickup_layout_stop_present",
+                "label": "pickup_stop",
+                "source": "native_layout",
+                "parser_name": "layout_stop_table_candidate_generator",
+                "confidence": 0.78,
+                "metadata": {
+                    "structured_stop_candidate": True,
+                    "stop_role": "pickup",
+                    "has_location": True,
+                    "has_date": True,
+                    "pairing_method": "table_row_semantic",
+                },
+                "_private_eval_stop_components": [
+                    {
+                        "role": "pickup",
+                        "facility": "Private Facility Name",
+                        "date": "01/02/2030",
+                    }
+                ],
+            }
+        ]
+
+        result = resolve_candidates(candidates, field_names=[FIELD_PICKUP_STOPS])
+        payload = str(result)
+
+        self.assertEqual(
+            result["resolved_fields"][FIELD_PICKUP_STOPS]["structure_status"],
+            "complete",
+        )
+        self.assertNotIn("Private Facility Name", payload)
+
     def test_legacy_fallback_does_not_beat_complete_layout_stop(self):
         candidates = [
             {
