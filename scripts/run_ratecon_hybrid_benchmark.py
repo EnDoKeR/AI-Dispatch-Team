@@ -25,6 +25,7 @@ from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     FIELD_PICKUP_STOPS,
     FIELD_TOTAL_CARRIER_RATE,
     STATUS_EXACT,
+    STATUS_GOLD_UNCERTAIN,
     STATUS_MISSING,
     STATUS_NORMALIZED_MATCH,
     STATUS_PARTIAL_MATCH,
@@ -32,6 +33,9 @@ from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     STATUS_WRONG_VALUE,
     compare_field,
     load_gold_labels,
+    normalize_date,
+    normalize_location_component,
+    normalize_money,
 )
 from app.document_ai.ratecon_hybrid_contract import (  # noqa: E402
     _field_has_value,
@@ -45,9 +49,24 @@ STOP_TIERS = (
     "exact_complete",
     "dispatch_usable",
     "useful_partial",
+    "matches_uncertain_gold_review_required",
+    "partial_match_uncertain_gold_review_required",
+    "gold_uncertain_review_required",
     "unsafe_wrong",
     "missing_review_required",
 )
+UNCERTAIN_GOLD_REVIEW_TIERS = {
+    "matches_uncertain_gold_review_required",
+    "partial_match_uncertain_gold_review_required",
+    "gold_uncertain_review_required",
+}
+UNCERTAIN_GOLD_STATUSES = {
+    "matches_uncertain_gold_review_required",
+    "partial_match_uncertain_gold_review_required",
+    "gold_uncertain_not_scored_as_wrong",
+    "gold_uncertain_needs_human_review",
+}
+STABLE_UNCERTAIN_STOP_COMPONENTS = ("facility", "address", "city", "state", "zip", "date")
 BASELINE = {
     "load_number": {"correct": 25, "wrong": 1, "missing": 5},
     "total_carrier_rate": {"correct": 26, "wrong": 3, "missing": 2},
@@ -145,10 +164,92 @@ def _is_missing_status(status: str) -> bool:
     return status in {STATUS_MISSING, STATUS_UNLABELED}
 
 
+def _normalize_stop_component(stop: dict[str, Any], key: str) -> str:
+    value = stop.get(key) if isinstance(stop, dict) else None
+    if key == "date":
+        return normalize_date(value)
+    if key == "zip":
+        return "".join(ch for ch in _text(value) if ch.isdigit())
+    return normalize_location_component(value)
+
+
+def _uncertain_gold_stop_result(prediction: dict[str, Any], gold_stops: list[dict[str, Any]]) -> dict[str, Any]:
+    """Classify an uncertain-gold stop without treating uncertainty as unsafe by default."""
+
+    pred_values = {
+        key: _normalize_stop_component(prediction, key)
+        for key in STABLE_UNCERTAIN_STOP_COMPONENTS
+    }
+    if not any(pred_values.values()):
+        return {
+            "status": "gold_uncertain_needs_human_review",
+            "tier": "gold_uncertain_review_required",
+            "issues": ["gold_uncertain", "no_stable_stop_components"],
+        }
+
+    best_partial: dict[str, Any] | None = None
+    conflict_issues: Counter[str] = Counter()
+    for gold_stop in gold_stops or []:
+        if not isinstance(gold_stop, dict):
+            continue
+        gold_values = {
+            key: _normalize_stop_component(gold_stop, key)
+            for key in STABLE_UNCERTAIN_STOP_COMPONENTS
+        }
+        labeled_keys = [key for key, value in gold_values.items() if value]
+        if not labeled_keys:
+            continue
+        matches = [key for key in labeled_keys if pred_values.get(key) == gold_values.get(key)]
+        missing = [key for key in labeled_keys if not pred_values.get(key)]
+        conflicts = [
+            key
+            for key in labeled_keys
+            if pred_values.get(key) and pred_values.get(key) != gold_values.get(key)
+        ]
+        if conflicts:
+            conflict_issues.update(f"wrong_stable_{key}" for key in conflicts)
+            continue
+        if matches and not missing:
+            return {
+                "status": "matches_uncertain_gold_review_required",
+                "tier": "matches_uncertain_gold_review_required",
+                "issues": ["gold_uncertain", "stable_components_match"],
+            }
+        if matches:
+            candidate = {
+                "status": "partial_match_uncertain_gold_review_required",
+                "tier": "partial_match_uncertain_gold_review_required",
+                "issues": ["gold_uncertain", "stable_components_partial_match"]
+                + [f"missing_stable_{key}" for key in missing],
+                "match_count": len(matches),
+            }
+            if not best_partial or candidate["match_count"] > best_partial["match_count"]:
+                best_partial = candidate
+
+    if best_partial:
+        best_partial.pop("match_count", None)
+        return best_partial
+    if conflict_issues:
+        return {
+            "status": "wrong_against_uncertain_gold",
+            "tier": "unsafe_wrong",
+            "issues": ["gold_uncertain"] + sorted(conflict_issues),
+        }
+    return {
+        "status": "gold_uncertain_needs_human_review",
+        "tier": "gold_uncertain_review_required",
+        "issues": ["gold_uncertain", "stable_components_not_comparable"],
+    }
+
+
 def _stop_tier(compare_result: dict[str, Any], prediction: dict[str, Any], gold_stops: list[dict[str, Any]]) -> str:
     status = compare_result.get("status")
     if _is_correct_status(status):
         return "exact_complete"
+    if status == STATUS_GOLD_UNCERTAIN:
+        return _uncertain_gold_stop_result(prediction, gold_stops)["tier"]
+    if status in UNCERTAIN_GOLD_STATUSES:
+        return compare_result.get("tier") or "gold_uncertain_review_required"
     if status == STATUS_PARTIAL_MATCH:
         issues = set(compare_result.get("issues") or [])
         has_location = any(_text(prediction.get(key)) for key in ("city", "state", "address", "facility"))
@@ -213,11 +314,43 @@ def _match_gold(result: dict[str, Any], indexes: dict[str, dict[str, dict[str, A
     return None
 
 
+def _scalar_value_from_field(field: Any, field_name: str) -> Any:
+    if not isinstance(field, dict):
+        return field
+    value = field.get("value")
+    if field_name == FIELD_TOTAL_CARRIER_RATE:
+        if isinstance(value, dict):
+            for key in ("amount", "value", "numeric_value", "total"):
+                if value.get(key) not in [None, ""]:
+                    return value.get(key)
+        if value in [None, ""]:
+            for key in ("amount", "numeric_value", "total"):
+                if field.get(key) not in [None, ""]:
+                    return field.get(key)
+    return value
+
+
+def _scalar_source_path(field: Any, field_name: str) -> str:
+    if not isinstance(field, dict):
+        return f"fields.{field_name}"
+    value = field.get("value")
+    if field_name == FIELD_TOTAL_CARRIER_RATE:
+        if isinstance(value, dict):
+            for key in ("amount", "value", "numeric_value", "total"):
+                if value.get(key) not in [None, ""]:
+                    return f"fields.{field_name}.value.{key}"
+        if value in [None, ""]:
+            for key in ("amount", "numeric_value", "total"):
+                if field.get(key) not in [None, ""]:
+                    return f"fields.{field_name}.{key}"
+    return f"fields.{field_name}.value"
+
+
 def _prediction_for_scalar(result: dict[str, Any], field_name: str) -> dict[str, Any]:
     field = (result.get("fields") or {}).get(field_name) or {}
     if not isinstance(field, dict):
         field = {"value": field}
-    return {"value": field.get("value"), "confidence": field.get("confidence")}
+    return {"value": _scalar_value_from_field(field, field_name), "confidence": field.get("confidence")}
 
 
 def _compare_scalar_field(result: dict[str, Any], gold: dict[str, Any], field_name: str) -> dict[str, Any]:
@@ -273,7 +406,53 @@ def _compare_stop_field(result: dict[str, Any], gold: dict[str, Any], field_name
                 "auto_accept": stop.get("auto_accept") is True,
             }
         )
+        if compare_result.get("status") == STATUS_GOLD_UNCERTAIN:
+            uncertain_result = _uncertain_gold_stop_result(stop, gold_stops)
+            rows[-1]["status"] = uncertain_result["status"]
+            rows[-1]["tier"] = uncertain_result["tier"]
+            rows[-1]["issues"] = uncertain_result["issues"]
+            rows[-1]["gold_uncertain_status"] = uncertain_result["status"]
     return rows
+
+
+def _gold_scalar_value(gold_field: Any) -> Any:
+    if isinstance(gold_field, dict):
+        return gold_field.get("value")
+    return gold_field
+
+
+def _safe_or_private(value: Any, *, include_private_values_local_only: bool) -> Any:
+    if include_private_values_local_only:
+        return value
+    return "<redacted>" if _text(value) else ""
+
+
+def _money_diagnostic_row(
+    *,
+    result: dict[str, Any],
+    gold: dict[str, Any],
+    field_row: dict[str, Any],
+    include_private_values_local_only: bool,
+) -> dict[str, Any]:
+    field = (result.get("fields") or {}).get(FIELD_TOTAL_CARRIER_RATE) or {}
+    gold_field = (gold.get("gold") or {}).get(FIELD_TOTAL_CARRIER_RATE)
+    hybrid_value = _scalar_value_from_field(field, FIELD_TOTAL_CARRIER_RATE)
+    gold_value = _gold_scalar_value(gold_field)
+    normalized_hybrid = normalize_money(hybrid_value)
+    normalized_gold = normalize_money(gold_value)
+    return {
+        "document_id": _text(result.get("document_id")),
+        "field": FIELD_TOTAL_CARRIER_RATE,
+        "status": field_row.get("status"),
+        "comparison_reason": ",".join(field_row.get("issues") or []),
+        "tolerance_applied": "exact_decimal_cent_normalization",
+        "source_field_path": _scalar_source_path(field, FIELD_TOTAL_CARRIER_RATE),
+        "currency": _text(field.get("currency")) if isinstance(field, dict) else "",
+        "hybrid_value_numeric": _safe_or_private(hybrid_value, include_private_values_local_only=include_private_values_local_only),
+        "gold_value_numeric": _safe_or_private(gold_value, include_private_values_local_only=include_private_values_local_only),
+        "normalized_hybrid_value": _safe_or_private(normalized_hybrid, include_private_values_local_only=include_private_values_local_only),
+        "normalized_gold_value": _safe_or_private(normalized_gold, include_private_values_local_only=include_private_values_local_only),
+    }
 
 
 def _document_type_status(result: dict[str, Any], gold: dict[str, Any] | None) -> str:
@@ -327,11 +506,13 @@ def run_hybrid_benchmark(
     field_rows: list[dict[str, Any]] = []
     error_rows: list[dict[str, Any]] = []
     review_rows: list[dict[str, Any]] = []
+    money_diagnostic_rows: list[dict[str, Any]] = []
     field_metrics = _empty_field_metrics()
     stop_metrics = _empty_stop_metrics()
     doc_type_counts = Counter()
     review_policy = Counter()
     evidence_metrics = Counter()
+    gold_uncertain_metrics = Counter()
     confidence_buckets = Counter()
     unfilled_manual_template_count = 0
 
@@ -394,6 +575,15 @@ def run_hybrid_benchmark(
                 field_metrics[field_name]["wrong"] += 1
                 if (row.get("confidence") or 0) >= 0.8:
                     field_metrics[field_name]["high_confidence_wrong"] += 1
+                if field_name == FIELD_TOTAL_CARRIER_RATE:
+                    money_diagnostic_rows.append(
+                        _money_diagnostic_row(
+                            result=result,
+                            gold=gold,
+                            field_row=row,
+                            include_private_values_local_only=include_private_values_local_only,
+                        )
+                    )
             if _field_has_value((result.get("fields") or {}).get(field_name)) and not row["has_evidence"]:
                 evidence_metrics["field_without_evidence"] += 1
                 error_rows.append(
@@ -410,6 +600,11 @@ def run_hybrid_benchmark(
                 row["document_id"] = document_id
                 field_rows.append(row)
                 stop_metrics[field_name][row["tier"]] += 1
+                if row["tier"] in UNCERTAIN_GOLD_REVIEW_TIERS:
+                    gold_uncertain_metrics[row["tier"]] += 1
+                    gold_uncertain_metrics["review_required"] += 1
+                if row.get("gold_uncertain_status") == "matches_uncertain_gold_review_required":
+                    gold_uncertain_metrics["matches_uncertain_gold"] += 1
                 confidence_buckets[(field_name, row["confidence_bucket"])] += 1
                 if row["auto_accept"]:
                     review_policy["stop_auto_accept_violation"] += 1
@@ -500,6 +695,8 @@ def run_hybrid_benchmark(
         "stop_metrics": stop_metrics,
         "review_policy": dict(review_policy),
         "evidence_metrics": dict(evidence_metrics),
+        "gold_uncertain_metrics": dict(gold_uncertain_metrics),
+        "money_diagnostic_count": len(money_diagnostic_rows),
         "confidence_buckets": {
             f"{field}:{bucket}": count
             for (field, bucket), count in sorted(confidence_buckets.items())
@@ -515,6 +712,8 @@ def run_hybrid_benchmark(
         "missing_evidence": evidence_metrics.get("missing_evidence", 0)
         + evidence_metrics.get("field_without_evidence", 0),
         "unsafe_wrong_stops": sum(metrics.get("unsafe_wrong", 0) for metrics in stop_metrics.values()),
+        "gold_uncertain_review_required": gold_uncertain_metrics.get("review_required", 0),
+        "matches_uncertain_gold": gold_uncertain_metrics.get("matches_uncertain_gold", 0),
         "non_rc_bol_pod_filtered": sum(
             1
             for _, result in hybrid_results
@@ -539,6 +738,7 @@ def run_hybrid_benchmark(
         error_rows=error_rows,
         schema_errors=schema_errors,
         review_rows=review_rows,
+        money_diagnostic_rows=money_diagnostic_rows,
         include_private_values_local_only=include_private_values_local_only,
         write_review_packets=write_review_packets,
     )
@@ -550,6 +750,8 @@ def _recommended_action(row: dict[str, Any]) -> str:
         return "reject_wrong"
     if not row.get("has_evidence"):
         return "missing_evidence"
+    if row.get("tier") in UNCERTAIN_GOLD_REVIEW_TIERS:
+        return "needs_human_review"
     if row.get("tier") == "unsafe_wrong":
         return "reject_wrong"
     if row.get("tier") in {"exact_complete", "dispatch_usable", "useful_partial"}:
@@ -580,6 +782,8 @@ def _next_action(summary: dict[str, Any]) -> str:
     )
     if unsafe_wrong:
         return "review_or_reject_unsafe_wrong_stops"
+    if summary.get("gold_uncertain_metrics", {}).get("review_required", 0):
+        return "review_uncertain_gold_cases"
     return "review_hybrid_drafts"
 
 
@@ -588,6 +792,7 @@ def _stop_metric_line(field_name: str, metrics: dict[str, int]) -> str:
         f"- {field_name}: exact {metrics.get('exact_complete', 0)} / "
         f"dispatch {metrics.get('dispatch_usable', 0)} / "
         f"partial {metrics.get('useful_partial', 0)} / "
+        f"uncertain-review {sum(metrics.get(tier, 0) for tier in UNCERTAIN_GOLD_REVIEW_TIERS)} / "
         f"unsafe {metrics.get('unsafe_wrong', 0)} / "
         f"missing {metrics.get('missing_review_required', 0)}"
     )
@@ -609,6 +814,7 @@ def _write_outputs(
     error_rows: list[dict[str, Any]],
     schema_errors: list[dict[str, Any]],
     review_rows: list[dict[str, Any]],
+    money_diagnostic_rows: list[dict[str, Any]],
     include_private_values_local_only: bool,
     write_review_packets: bool,
 ) -> None:
@@ -617,6 +823,7 @@ def _write_outputs(
     safety = summary.get("safety", {})
     field_metrics = summary.get("field_metrics", {})
     stop_metrics = summary.get("stop_metrics", {})
+    gold_uncertain_metrics = summary.get("gold_uncertain_metrics", {})
     error_examples = summary.get("error_case_examples") or []
     report = [
         "# RateCon Hybrid Benchmark Report",
@@ -632,6 +839,8 @@ def _write_outputs(
         f"- missing evidence: {one_screen.get('missing_evidence', 0)}",
         f"- stop auto-accept violations: {one_screen.get('stop_auto_accept_violations', 0)}",
         f"- unsafe wrong stops: {one_screen.get('unsafe_wrong_stops', 0)}",
+        f"- gold uncertain review required: {one_screen.get('gold_uncertain_review_required', 0)}",
+        f"- matches uncertain gold: {one_screen.get('matches_uncertain_gold', 0)}",
         f"- non-RC BOL/POD filtered: {one_screen.get('non_rc_bol_pod_filtered', 0)}",
         f"- next action: {summary.get('next_action', 'review_hybrid_drafts')}",
         "",
@@ -660,6 +869,18 @@ def _write_outputs(
         _stop_metric_line(FIELD_PICKUP_STOPS, stop_metrics.get(FIELD_PICKUP_STOPS, {})),
         "- delivery stops: 0 exact / 12 partial / 5 wrong / 4 missing",
         _stop_metric_line(FIELD_DELIVERY_STOPS, stop_metrics.get(FIELD_DELIVERY_STOPS, {})),
+        "",
+        "## Uncertain Gold",
+        "",
+        f"- review-required uncertain gold stops: {gold_uncertain_metrics.get('review_required', 0)}",
+        f"- matching uncertain gold stops: {gold_uncertain_metrics.get('matches_uncertain_gold', 0)}",
+        f"- partial-match uncertain gold stops: {gold_uncertain_metrics.get('partial_match_uncertain_gold_review_required', 0)}",
+        f"- other uncertain gold review stops: {gold_uncertain_metrics.get('gold_uncertain_review_required', 0)}",
+        "",
+        "## Money Diagnostics",
+        "",
+        f"- wrong money diagnostic rows: {summary.get('money_diagnostic_count', 0)}",
+        "- diagnostics file: hybrid_money_diagnostics.csv",
         "",
         "## Error Case Examples",
         "",
@@ -696,6 +917,7 @@ def _write_outputs(
             "has_evidence",
             "requires_human_review",
             "auto_accept",
+            "gold_uncertain_status",
         ],
     )
     _write_csv(
@@ -716,6 +938,23 @@ def _write_outputs(
         output_dir / "hybrid_error_cases.csv",
         error_rows,
         ["document_id", "field", "status", "issue", "recommended_action"],
+    )
+    _write_csv(
+        output_dir / "hybrid_money_diagnostics.csv",
+        money_diagnostic_rows,
+        [
+            "document_id",
+            "field",
+            "status",
+            "comparison_reason",
+            "tolerance_applied",
+            "source_field_path",
+            "currency",
+            "hybrid_value_numeric",
+            "gold_value_numeric",
+            "normalized_hybrid_value",
+            "normalized_gold_value",
+        ],
     )
     _write_csv(output_dir / "hybrid_schema_errors.csv", schema_errors, ["file", "document_id", "errors"])
     if write_review_packets:

@@ -154,6 +154,17 @@ Key outputs:
 Start with schema errors and auto-accept violations, then missing evidence, then
 unsafe wrong stops.
 
+Uncertain gold labels are review cases. When stable stop components match but
+the gold stop is marked uncertain, the benchmark reports the row as
+review-required instead of `unsafe_wrong` or `reject_wrong`. This keeps manual
+preservation of visibly odd source values from being treated as an automatic
+failure.
+
+Wrong money rows also write `hybrid_money_diagnostics.csv`. By default this
+file redacts raw values and reports the source field path, comparison reason,
+and decimal-cent normalization status. Use `--include-private-values-local-only`
+only for ignored local debugging.
+
 ## Keep Private Data Local
 
 Do not commit:

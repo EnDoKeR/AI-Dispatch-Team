@@ -136,6 +136,15 @@ Fix in this order:
 4. Unsafe wrong stops.
 5. Remaining missing/unfilled fields.
 
+If a stop gold label is marked uncertain, the benchmark keeps that row in
+human review instead of treating a stable-component match as `unsafe_wrong`.
+Review the source document and gold note before changing a manually preserved
+odd date or appointment window.
+
+For wrong rate rows, inspect `hybrid_money_diagnostics.csv`. The default file
+redacts raw private values but shows the source field path, comparison reason,
+and whether decimal-cent normalization matched.
+
 ## Files That Must Never Be Committed
 
 Do not commit:
