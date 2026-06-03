@@ -10,6 +10,7 @@ from app.document_ai.ratecon_gold_labels import (
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
     SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
+    SYSTEM_SHADOW_REVIEW_FUSED_STOPS,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
     build_stop_gold_completeness_summary,
     evaluate_ratecon_against_gold,
@@ -22,6 +23,10 @@ from app.document_ai.ratecon_stop_component_policy import (
 from app.document_ai.ratecon_stop_draft_profile import (
     STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
     STOP_DRAFT_PROFILE_NONE,
+)
+from app.document_ai.ratecon_stop_fusion_profile import (
+    STOP_FUSION_PROFILE_NONE,
+    STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
 )
 from scripts.create_ratecon_stop_gold_review_packets import (
     build_no_candidate_source_trace_summary,
@@ -71,6 +76,9 @@ def _dispatch_candidate():
             "column_alignment_confidence": 0.75,
             "stop_column_status": "medium",
             "stop_column_warnings": [],
+            "page": 1,
+            "line_index": 7,
+            "bbox": {"left": 10, "top": 10, "right": 120, "bottom": 36},
         },
     }
 
@@ -200,7 +208,12 @@ def _optional_location_missing_gold_label():
     return label
 
 
-def _audit_record(candidates, resolved, stop_draft_profile=STOP_DRAFT_PROFILE_NONE):
+def _audit_record(
+    candidates,
+    resolved,
+    stop_draft_profile=STOP_DRAFT_PROFILE_NONE,
+    stop_fusion_profile=STOP_FUSION_PROFILE_NONE,
+):
     return {
         "document_id": "DOC-HANDOFF",
         "file_hash": "hash-handoff",
@@ -214,6 +227,7 @@ def _audit_record(candidates, resolved, stop_draft_profile=STOP_DRAFT_PROFILE_NO
             raw_resolved=resolved.get("resolved_fields", {}),
             candidates=candidates,
             stop_draft_profile=stop_draft_profile,
+            stop_fusion_profile=stop_fusion_profile,
         ),
     }
 
@@ -342,6 +356,65 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertEqual(default_payload["shadow_stop_review_draft"], {})
         self.assertIn(FIELD_PICKUP_STOPS, explicit_payload["shadow_stop_review_draft"])
         self.assertTrue(explicit_payload["shadow_stop_review_draft"][FIELD_PICKUP_STOPS]["review_required"])
+
+    def test_review_safe_fusion_profile_emits_separate_review_group(self):
+        candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
+        resolved = resolve_candidates(
+            candidates,
+            field_names=[FIELD_PICKUP_STOPS],
+            stop_ranking_profile=STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
+        )
+        default_payload = build_private_eval_values(
+            raw_resolved=resolved.get("resolved_fields", {}),
+            candidates=candidates,
+            stop_fusion_profile=STOP_FUSION_PROFILE_NONE,
+        )
+        explicit_payload = build_private_eval_values(
+            raw_resolved=resolved.get("resolved_fields", {}),
+            candidates=candidates,
+            stop_fusion_profile=STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
+        )
+
+        self.assertEqual(default_payload["review_fused_stops"], {})
+        fused = explicit_payload["review_fused_stops"][FIELD_PICKUP_STOPS]
+        self.assertTrue(fused["review_required"])
+        self.assertFalse(fused["auto_accept"])
+        self.assertEqual(fused["source"], "shadow_stop_fusion")
+
+        audit = _audit_record(
+            candidates,
+            resolved,
+            stop_fusion_profile=STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
+        )
+        evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
+        metrics = evaluation["stop_fusion_profile_metrics"][SYSTEM_SHADOW_REVIEW_FUSED_STOPS]
+        self.assertGreater(
+            metrics["pickup"]["dispatch_usable"] + metrics["pickup"]["exact_complete"],
+            0,
+        )
+
+    def test_review_safe_fusion_profile_leaves_selected_output_unchanged(self):
+        candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
+        resolved = resolve_candidates(
+            candidates,
+            field_names=[FIELD_PICKUP_STOPS],
+            stop_ranking_profile=STOP_RANKING_PROFILE_COLUMN_STRICT_V1,
+        )
+        default_payload = build_private_eval_values(
+            raw_resolved=resolved.get("resolved_fields", {}),
+            candidates=candidates,
+            stop_fusion_profile=STOP_FUSION_PROFILE_NONE,
+        )
+        explicit_payload = build_private_eval_values(
+            raw_resolved=resolved.get("resolved_fields", {}),
+            candidates=candidates,
+            stop_fusion_profile=STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
+        )
+
+        self.assertEqual(
+            default_payload["shadow_selected_stop"],
+            explicit_payload["shadow_selected_stop"],
+        )
 
     def test_selected_structured_stop_components_serialize_in_private_eval(self):
         candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
@@ -636,7 +709,8 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         report = build_residual_extraction_report(packet)
         summary = report["stop_component_fusion_opportunity_summary"]
 
-        self.assertEqual(summary["fusion_possible"], 1)
+        self.assertEqual(summary["fusion_possible"], 0)
+        self.assertEqual(summary["fusion_safety_counts"]["fusion_not_possible"], 1)
         self.assertEqual(summary["same_role_location_date_available"], 1)
         self.assertEqual(summary["same_role_location_time_available"], 1)
 
@@ -744,6 +818,126 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             self.assertTrue(Path(paths["items_csv"]).exists())
             self.assertTrue(Path(paths["items_json"]).exists())
             self.assertTrue(Path(paths["by_document_json"]).exists())
+            self.assertTrue(Path(paths["provenance_gap_csv"]).exists())
+            self.assertTrue(Path(paths["dedupe_lineage_csv"]).exists())
+
+    def test_source_inventory_v2_splits_unavailable_and_dropped_page_line(self):
+        audit = _source_inventory_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].extend(
+            [
+                {
+                    "candidate_id": "legacy-stop",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [{"role": "pickup", "city": "Legacy City"}],
+                    "source": "legacy",
+                    "parser_name": "legacy_fallback",
+                    "metadata_summary": {
+                        "candidate_id": "legacy-stop",
+                        "stop_role": "pickup",
+                        "diagnostic_fallback": True,
+                    },
+                    "legacy_fallback": True,
+                },
+                {
+                    "candidate_id": "native-dropped",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [{"role": "pickup", "city": "Dropped City"}],
+                    "source": "native_text",
+                    "parser_name": "stop_evidence_assembler",
+                    "metadata_summary": {
+                        "candidate_id": "native-dropped",
+                        "stop_role": "pickup",
+                    },
+                },
+            ]
+        )
+
+        report = build_stop_source_inventory_report({}, [audit], include_private_values=False)
+        v2 = report["source_inventory_v2_summary"]
+        statuses = report["source_inventory_summary"]["by_provenance_status"]
+
+        self.assertGreaterEqual(v2["page_line_unavailable_from_source"], 1)
+        self.assertGreaterEqual(v2["page_line_dropped_by_pipeline"], 1)
+        self.assertGreaterEqual(statuses["page_line_unavailable_from_source"], 1)
+        self.assertGreaterEqual(statuses["page_line_dropped_by_pipeline"], 1)
+
+    def test_source_inventory_v2_reports_dedupe_lineage(self):
+        audit = _source_inventory_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "merged-pickup",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [{"role": "pickup", "city": "Dallas", "date": "2026-06-05"}],
+                "source": "native_text",
+                "parser_name": "stop_evidence_assembler",
+                "dedupe_lineage": ["candidate-a", "candidate-b"],
+                "metadata_summary": {
+                    "candidate_id": "merged-pickup",
+                    "stop_role": "pickup",
+                    "page": 1,
+                    "line_index": 5,
+                },
+            }
+        )
+
+        report = build_stop_source_inventory_report({}, [audit], include_private_values=False)
+
+        self.assertGreaterEqual(report["source_inventory_v2_summary"]["dedupe_lineage_available"], 1)
+        self.assertGreaterEqual(
+            report["stop_dedupe_provenance_loss_summary"]["dedupe_lineage_available_count"],
+            1,
+        )
+
+    def test_fusion_safety_model_counts_safe_and_unsafe_sources(self):
+        audit = _source_inventory_audit_record()
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "safe-pickup",
+                "field": FIELD_PICKUP_STOPS,
+                "value": [
+                    {
+                        "role": "pickup",
+                        "city": "Dallas",
+                        "state": "TX",
+                        "date": "2026-06-05",
+                        "appointment_window": "0700 to 1500",
+                    }
+                ],
+                "source": "ocr",
+                "parser_name": "ocr_stop_table_reconstructor",
+                "metadata_summary": {
+                    "candidate_id": "safe-pickup",
+                    "stop_role": "pickup",
+                    "assembled_from_column_geometry": True,
+                    "page": 1,
+                    "line_index": 7,
+                    "bbox": {"left": 1, "top": 1, "right": 10, "bottom": 10},
+                },
+            }
+        )
+        audit["private_eval_values"]["stop_component_candidate_inventory"].append(
+            {
+                "candidate_id": "payment-delivery",
+                "field": FIELD_DELIVERY_STOPS,
+                "value": [{"role": "delivery", "city": "Payment", "date": "2026-06-05"}],
+                "source": "native_text",
+                "parser_name": "stop_evidence_assembler",
+                "metadata_summary": {
+                    "candidate_id": "payment-delivery",
+                    "stop_role": "delivery",
+                    "page": 1,
+                    "line_index": 20,
+                    "stop_column_warnings": ["payment_overlap"],
+                },
+            }
+        )
+
+        report = build_stop_source_inventory_report({}, [audit], include_private_values=False)
+        fusion = report["stop_fusion_safety_model_summary"]
+
+        self.assertGreaterEqual(fusion["fusion_safe"], 1)
+        self.assertGreaterEqual(fusion["fusion_unsafe"], 1)
+        self.assertIn("unsafe_source_payment_instruction", fusion["blocked_reason_counts"])
 
     def test_stop_source_inventory_exports_selected_stop_source_group(self):
         audit = {

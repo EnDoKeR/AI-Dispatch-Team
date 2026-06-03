@@ -77,6 +77,7 @@ from app.document_ai.field_candidate_generators import (
     STOP_CANDIDATE_PROFILES,
 )
 from app.document_ai.ratecon_stop_draft_profile import STOP_DRAFT_PROFILES
+from app.document_ai.ratecon_stop_fusion_profile import STOP_FUSION_PROFILES
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
@@ -188,6 +189,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_stop_candidate_profile="baseline",
     ratecon_shadow_stop_ranking_profile="baseline",
     ratecon_shadow_stop_draft_profile="none",
+    ratecon_shadow_stop_fusion_profile="none",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -236,6 +238,7 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
             ratecon_shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             ratecon_shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+            ratecon_shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -770,6 +773,17 @@ def main(argv=None):
         ),
     )
     parser.add_argument(
+        "--ratecon-shadow-stop-fusion-profile",
+        default="none",
+        choices=sorted(STOP_FUSION_PROFILES),
+        help=(
+            "Shadow-only stop fusion review profile. review_safe_v1 emits "
+            "only high-provenance review-required fused stop drafts into a "
+            "separate private-eval group; selected shadow and legacy output "
+            "remain unchanged."
+        ),
+    )
+    parser.add_argument(
         "--strict-ratecon-shadow-ocr",
         action="store_true",
         help="Fail cleanly when explicit shadow OCR cannot run.",
@@ -993,6 +1007,7 @@ def main(argv=None):
             ratecon_shadow_stop_candidate_profile=args.ratecon_shadow_stop_candidate_profile,
             ratecon_shadow_stop_ranking_profile=args.ratecon_shadow_stop_ranking_profile,
             ratecon_shadow_stop_draft_profile=args.ratecon_shadow_stop_draft_profile,
+            ratecon_shadow_stop_fusion_profile=args.ratecon_shadow_stop_fusion_profile,
             strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
         )

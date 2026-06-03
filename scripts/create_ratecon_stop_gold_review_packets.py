@@ -22,6 +22,7 @@ from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     STOP_GOLD_COMPLETENESS_COMPONENTS,
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    SYSTEM_SHADOW_REVIEW_FUSED_STOPS,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
     build_stop_gold_completeness_summary,
     evaluate_ratecon_against_gold,
@@ -812,6 +813,16 @@ def _metadata_bbox(metadata):
     return None
 
 
+def _metadata_lineage(metadata, *keys):
+    for key in keys:
+        value = metadata.get(key)
+        if isinstance(value, list):
+            return value
+        if isinstance(value, dict):
+            return [value]
+    return []
+
+
 def _normalized_component_source(item, metadata):
     source = _text(item.get("source")).lower()
     parser = _text(item.get("parser_name")).lower()
@@ -832,6 +843,38 @@ def _normalized_component_source(item, metadata):
     if "text" in source:
         return "native_text"
     return _text(item.get("source")) or "unknown"
+
+
+def _source_has_page_line_limitations(source, source_group):
+    source = _text(source)
+    source_group = _text(source_group)
+    return bool(
+        source == "legacy_fallback"
+        or source_group == "legacy_fallback_stop_candidate"
+        or source_group
+        in {
+            "shadow_selected_stop",
+            "shadow_best_structured_stop_candidate",
+            "shadow_best_dispatch_usable_stop_candidate",
+            "shadow_best_ocr_column_stop_candidate",
+            "shadow_best_native_layout_stop_candidate",
+            "shadow_stop_review_draft",
+            "review_fused_stops",
+        }
+    )
+
+
+def _page_line_status(entry):
+    explicit = _text(entry.get("page_line_status"))
+    if explicit:
+        return explicit
+    if entry.get("safety_status") == "unsafe":
+        return "unsafe_source"
+    if entry.get("page") not in {None, ""} or entry.get("line_index") not in {None, ""} or entry.get("bbox"):
+        return "available"
+    if _source_has_page_line_limitations(entry.get("source"), entry.get("source_group")):
+        return "unavailable_from_source"
+    return "dropped_by_pipeline"
 
 
 def _source_safety_status(item, metadata):
@@ -880,8 +923,11 @@ def _provenance_status(entry):
         return "missing_candidate_id"
     if not _text(entry.get("source")) or entry.get("source") == "unknown":
         return "missing_source"
-    if entry.get("page") in {None, ""} and entry.get("line_index") in {None, ""} and not entry.get("bbox"):
-        return "missing_page_line"
+    page_line_status = _page_line_status(entry)
+    if page_line_status == "unavailable_from_source":
+        return "page_line_unavailable_from_source"
+    if page_line_status == "dropped_by_pipeline":
+        return "page_line_dropped_by_pipeline"
     return "complete"
 
 
@@ -898,6 +944,21 @@ def _inventory_entries_from_record(record, include_private_values):
         safety_status, unsafe_reason = _source_safety_status(item, metadata)
         for component, value in _component_values_from_inventory_item(item):
             candidate_id = _text(item.get("candidate_id") or metadata.get("candidate_id"))
+            source_lineage = (
+                item.get("source_lineage")
+                if isinstance(item.get("source_lineage"), list)
+                else _metadata_lineage(metadata, "source_lineage", "component_source_list", "source_components")
+            )
+            dedupe_lineage = (
+                item.get("dedupe_lineage")
+                if isinstance(item.get("dedupe_lineage"), list)
+                else _metadata_lineage(metadata, "dedupe_lineage", "merged_candidate_ids")
+            )
+            merged_provenance = (
+                item.get("merged_provenance")
+                if isinstance(item.get("merged_provenance"), list)
+                else _metadata_lineage(metadata, "merged_provenance")
+            )
             entry = {
                 "file_name": _text(record.get("file_name")),
                 "document_id": _text(record.get("document_id")),
@@ -905,15 +966,24 @@ def _inventory_entries_from_record(record, include_private_values):
                 "field": _field_from_role(role) or _text(item.get("field")),
                 "role": role,
                 "component": component,
+                "component_type": _text(item.get("component_type")) or component,
                 "value_local_only": value if include_private_values else "",
                 "source": normalized_source,
                 "parser_name": _text(item.get("parser_name")),
                 "generator_name": _text(metadata.get("source_generator_name")) or _text(item.get("parser_name")),
                 "source_group": source_group,
-                "page": _metadata_page(metadata),
-                "line_index": _metadata_line_index(metadata),
-                "bbox": _metadata_bbox(metadata),
-                "stop_index": metadata.get("stop_index") or 1,
+                "page": item.get("page") if item.get("page") not in {None, ""} else _metadata_page(metadata),
+                "line_index": (
+                    item.get("line_index")
+                    if item.get("line_index") not in {None, ""}
+                    else _metadata_line_index(metadata)
+                ),
+                "bbox": (
+                    item.get("bbox")
+                    if item.get("bbox") is not None and item.get("bbox") != "" and item.get("bbox") != {}
+                    else _metadata_bbox(metadata)
+                ),
+                "stop_index": item.get("stop_index") or metadata.get("stop_index") or 1,
                 "candidate_id": candidate_id,
                 "synthetic_candidate_id": (
                     candidate_id
@@ -921,8 +991,13 @@ def _inventory_entries_from_record(record, include_private_values):
                 ),
                 "safety_status": safety_status,
                 "unsafe_reason": unsafe_reason,
+                "page_line_status": _text(item.get("page_line_status") or metadata.get("page_line_status")),
+                "source_lineage": source_lineage,
+                "dedupe_lineage": dedupe_lineage,
+                "merged_provenance": merged_provenance,
                 "metadata_summary": metadata,
             }
+            entry["page_line_status"] = _page_line_status(entry)
             entry["provenance_status"] = _provenance_status(entry)
             entries.append(entry)
     for item in inventory if isinstance(inventory, list) else []:
@@ -934,6 +1009,7 @@ def _inventory_entries_from_record(record, include_private_values):
         "shadow_best_ocr_column_stop_candidate",
         "shadow_best_native_layout_stop_candidate",
         "shadow_stop_review_draft",
+        "review_fused_stops",
         "legacy_fallback_stop_candidate",
     ]:
         group = private_values.get(group_name)
@@ -1156,7 +1232,11 @@ def _source_inventory_summary(items, matrix):
     for item in items:
         if item.get("role") == "unknown" or item.get("provenance_status") == "missing_role":
             role_ambiguity += 1
-        if item.get("provenance_status") in {"missing_source", "missing_page_line", "missing_candidate_id"}:
+        if item.get("provenance_status") in {
+            "missing_source",
+            "page_line_dropped_by_pipeline",
+            "missing_candidate_id",
+        }:
             missing_source_metadata += 1
         if item.get("safety_status") == "unsafe":
             unsafe_source += 1
@@ -1176,6 +1256,29 @@ def _source_inventory_summary(items, matrix):
     }
 
 
+def _source_inventory_v2_summary(items):
+    items = items or []
+    page_line_available = sum(1 for item in items if item.get("page_line_status") == "available")
+    page_line_unavailable = sum(
+        1 for item in items if item.get("page_line_status") == "unavailable_from_source"
+    )
+    page_line_dropped = sum(
+        1 for item in items if item.get("page_line_status") == "dropped_by_pipeline"
+    )
+    return {
+        "total_items": len(items),
+        "provenance_complete": sum(1 for item in items if item.get("provenance_status") == "complete"),
+        "page_line_available": page_line_available,
+        "page_line_unavailable_from_source": page_line_unavailable,
+        "page_line_dropped_by_pipeline": page_line_dropped,
+        "candidate_id_available": sum(1 for item in items if _text(item.get("candidate_id"))),
+        "candidate_id_missing": sum(1 for item in items if not _text(item.get("candidate_id"))),
+        "dedupe_lineage_available": sum(1 for item in items if item.get("dedupe_lineage")),
+        "merged_provenance_available": sum(1 for item in items if item.get("merged_provenance")),
+        "unsafe_source": sum(1 for item in items if item.get("safety_status") == "unsafe"),
+    }
+
+
 def _dedupe_provenance_loss_summary(audit_records, inventory_items):
     reported_total = sum(_candidate_counts_stop_total(record) for record in audit_records or [])
     post_total = len(inventory_items)
@@ -1190,10 +1293,19 @@ def _dedupe_provenance_loss_summary(audit_records, inventory_items):
             1 for item in inventory_items if item.get("provenance_status") == "missing_role"
         ),
         "lost_page_line_count": sum(
-            1 for item in inventory_items if item.get("provenance_status") == "missing_page_line"
+            1 for item in inventory_items if item.get("provenance_status") == "page_line_dropped_by_pipeline"
         ),
         "lost_candidate_id_count": sum(
             1 for item in inventory_items if item.get("provenance_status") == "missing_candidate_id"
+        ),
+        "page_line_unavailable_from_source_count": sum(
+            1 for item in inventory_items if item.get("page_line_status") == "unavailable_from_source"
+        ),
+        "dedupe_lineage_available_count": sum(
+            1 for item in inventory_items if item.get("dedupe_lineage")
+        ),
+        "merged_provenance_available_count": sum(
+            1 for item in inventory_items if item.get("merged_provenance")
         ),
     }
 
@@ -1202,15 +1314,17 @@ def build_stop_source_inventory_report(packet, audit_records, include_private_va
     items = _build_source_inventory_items(audit_records, include_private_values)
     matrix = _matrix_for_entries(items)
     return {
-        "schema_version": "ratecon_stop_source_inventory_v1",
+        "schema_version": "ratecon_stop_source_inventory_v2",
         "items": items,
         "candidate_counts_by_doc_field": _candidate_counts_by_doc_field(audit_records),
         "source_inventory_summary": _source_inventory_summary(items, matrix),
+        "source_inventory_v2_summary": _source_inventory_v2_summary(items),
         "stop_component_availability_matrix": matrix,
         "stop_dedupe_provenance_loss_summary": _dedupe_provenance_loss_summary(
             audit_records,
             items,
         ),
+        "stop_fusion_safety_model_summary": _fusion_safety_model_summary(items),
         "private_values_printed": bool(include_private_values),
         "raw_text_printed": False,
         "local_only": True,
@@ -1513,6 +1627,108 @@ def _source_inventory_presence(entries):
     }
 
 
+def _location_components(entries):
+    return [
+        entry
+        for entry in entries or []
+        if entry.get("component") in {"facility", "address", "city_state_zip", "raw_location"}
+    ]
+
+
+def _date_components(entries):
+    return [entry for entry in entries or [] if entry.get("component") == "date"]
+
+
+def _time_components(entries):
+    return [
+        entry
+        for entry in entries or []
+        if entry.get("component") in {"time", "appointment_window"}
+    ]
+
+
+def _entry_has_proximity(entry):
+    return bool(
+        entry.get("page_line_status") == "available"
+        or entry.get("bbox")
+        or entry.get("source_lineage")
+        or entry.get("merged_provenance")
+    )
+
+
+def _fusion_safety_for_entries(entries):
+    entries = entries or []
+    if not entries:
+        return "fusion_not_possible", ["no_proximity_evidence"]
+    if any(entry.get("safety_status") == "unsafe" for entry in entries):
+        return "fusion_unsafe", ["unsafe_source_payment_instruction"]
+    if any(entry.get("role") not in {"pickup", "delivery"} for entry in entries):
+        return "fusion_unsafe", ["source_not_linked_to_role"]
+    locations = _location_components(entries)
+    dates = _date_components(entries)
+    times = _time_components(entries)
+    if not locations or not (dates or times):
+        return "fusion_not_possible", ["missing_page_line_or_geometry"]
+    if len({entry.get("value_local_only") for entry in locations if _text(entry.get("value_local_only"))}) > 1:
+        return "fusion_risky", ["multiple_locations"]
+    if len({entry.get("value_local_only") for entry in dates if _text(entry.get("value_local_only"))}) > 1:
+        return "fusion_risky", ["multiple_dates"]
+    if len({entry.get("value_local_only") for entry in times if _text(entry.get("value_local_only"))}) > 1:
+        return "fusion_risky", ["multiple_times"]
+    candidate_entries = locations + dates + times
+    if any(entry.get("page_line_status") == "dropped_by_pipeline" for entry in candidate_entries):
+        return "fusion_risky", ["dedupe_lost_provenance"]
+    if any(entry.get("page_line_status") == "unavailable_from_source" for entry in candidate_entries):
+        return "fusion_risky", ["unavailable_from_source"]
+    if not all(_entry_has_proximity(entry) for entry in candidate_entries):
+        return "fusion_risky", ["no_proximity_evidence"]
+    pages = {
+        _text(entry.get("page"))
+        for entry in candidate_entries
+        if _text(entry.get("page"))
+    }
+    if len(pages) > 1:
+        return "fusion_risky", ["no_proximity_evidence"]
+    return "fusion_safe", []
+
+
+def _fusion_safety_model_summary(items):
+    groups = {}
+    for item in items or []:
+        if item.get("role") not in {"pickup", "delivery"}:
+            continue
+        key = (
+            _text(item.get("document_id")),
+            _text(item.get("file_hash")),
+            _text(item.get("field")),
+        )
+        groups.setdefault(key, []).append(item)
+    cases = []
+    for key, entries in groups.items():
+        status, reasons = _fusion_safety_for_entries(entries)
+        cases.append(
+            {
+                "document_id": key[0],
+                "file_hash": key[1],
+                "field": key[2],
+                "fusion_safety": status,
+                "blocked_reasons": reasons,
+                "component_counts": _counter(entries, "component"),
+                "source_counts": _counter(entries, "source"),
+            }
+        )
+    return {
+        "fusion_safe": sum(1 for case in cases if case["fusion_safety"] == "fusion_safe"),
+        "fusion_risky": sum(1 for case in cases if case["fusion_safety"] == "fusion_risky"),
+        "fusion_unsafe": sum(1 for case in cases if case["fusion_safety"] == "fusion_unsafe"),
+        "fusion_not_possible": sum(1 for case in cases if case["fusion_safety"] == "fusion_not_possible"),
+        "blocked_reason_counts": _counter(cases, "blocked_reasons"),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _fusion_diagnostic(item, issue_type, source_inventory_entries=None):
     selected = item.get("selected_stop_component_summary", {}) or {}
     dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
@@ -1565,8 +1781,12 @@ def _fusion_diagnostic(item, issue_type, source_inventory_entries=None):
         blocked_reasons.append("no_location_candidate_source")
     if not (has_location or has_date or has_time) and not blocked_reasons:
         blocked_reasons.append("no_candidate_source")
+    fusion_safety, safety_reasons = _fusion_safety_for_entries(source_inventory_entries or [])
+    if fusion_safety != "fusion_safe":
+        blocked_reasons.extend(safety_reasons)
     return {
-        "fusion_possible": fusion_possible,
+        "fusion_possible": fusion_safety == "fusion_safe",
+        "fusion_safety": fusion_safety,
         "same_role_location_date_available": bool(has_location and has_date),
         "same_role_location_time_available": bool(has_location and has_time),
         "same_role_date_time_available": bool(has_date and has_time),
@@ -1610,6 +1830,7 @@ def _residual_item_record(item, source_inventory_report=None):
         "candidate_issue_type": issue_type,
         "recommended_fix_type": _recommended_fix_type(issue_type, item),
         "fusion_possible": fusion["fusion_possible"],
+        "fusion_safety": fusion["fusion_safety"],
         "same_role_location_date_available": fusion["same_role_location_date_available"],
         "same_role_location_time_available": fusion["same_role_location_time_available"],
         "same_role_date_time_available": fusion["same_role_date_time_available"],
@@ -1656,6 +1877,7 @@ def build_residual_extraction_report(packet, source_inventory_report=None):
         ),
         "best_source_counts": _counter(residual_items, "selected_candidate_source"),
         "blocked_reason_counts": _counter(residual_items, "blocked_reasons"),
+        "fusion_safety_counts": _counter(residual_items, "fusion_safety"),
     }
     by_field = {}
     for field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
@@ -2245,6 +2467,7 @@ def write_residual_extraction_report(report, output_dir: Path):
         "candidate_issue_type",
         "recommended_fix_type",
         "fusion_possible",
+        "fusion_safety",
         "same_role_location_date_available",
         "same_role_location_time_available",
         "same_role_date_time_available",
@@ -2283,6 +2506,8 @@ def write_stop_source_inventory_report(report, output_dir: Path):
     items_csv_path = output_dir / "stop_source_inventory_items.csv"
     items_json_path = output_dir / "stop_source_inventory_items.json"
     by_document_path = output_dir / "stop_source_inventory_by_document.json"
+    provenance_gap_path = output_dir / "stop_provenance_gap_report.csv"
+    dedupe_lineage_path = output_dir / "stop_dedupe_lineage_report.csv"
     items = report.get("items", []) or []
     matrix = report.get("stop_component_availability_matrix", {}) or {}
     items_json_path.write_text(
@@ -2298,6 +2523,8 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "",
         "Source inventory summary: "
         + json.dumps(report.get("source_inventory_summary", {}), sort_keys=True),
+        "Source inventory V2 summary: "
+        + json.dumps(report.get("source_inventory_v2_summary", {}), sort_keys=True),
         "Component availability corpus summary: "
         + json.dumps(
             (
@@ -2309,6 +2536,15 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "Dedupe/provenance loss summary: "
         + json.dumps(
             report.get("stop_dedupe_provenance_loss_summary", {}),
+            sort_keys=True,
+        ),
+        "Fusion safety model summary: "
+        + json.dumps(
+            {
+                key: value
+                for key, value in (report.get("stop_fusion_safety_model_summary", {}) or {}).items()
+                if key != "cases"
+            },
             sort_keys=True,
         ),
         "",
@@ -2331,6 +2567,7 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "field",
         "role",
         "component",
+        "component_type",
         "value_local_only",
         "source",
         "parser_name",
@@ -2341,6 +2578,11 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         "bbox",
         "stop_index",
         "candidate_id",
+        "synthetic_candidate_id",
+        "page_line_status",
+        "source_lineage",
+        "dedupe_lineage",
+        "merged_provenance",
         "provenance_status",
         "safety_status",
         "unsafe_reason",
@@ -2351,12 +2593,46 @@ def write_stop_source_inventory_report(report, output_dir: Path):
         for item in items:
             row = dict(item)
             row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
+            row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
+            row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    gap_rows = [
+        item
+        for item in items
+        if item.get("provenance_status")
+        not in {"complete", "page_line_unavailable_from_source"}
+    ]
+    with provenance_gap_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in gap_rows:
+            row = dict(item)
+            row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
+            row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
+            row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    lineage_rows = [
+        item for item in items if item.get("dedupe_lineage") or item.get("merged_provenance")
+    ]
+    with dedupe_lineage_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in lineage_rows:
+            row = dict(item)
+            row["bbox"] = json.dumps(row.get("bbox"), sort_keys=True)
+            row["source_lineage"] = json.dumps(row.get("source_lineage") or [], sort_keys=True)
+            row["dedupe_lineage"] = json.dumps(row.get("dedupe_lineage") or [], sort_keys=True)
+            row["merged_provenance"] = json.dumps(row.get("merged_provenance") or [], sort_keys=True)
             writer.writerow({key: row.get(key, "") for key in fieldnames})
     return {
         "summary_md": str(summary_path),
         "items_csv": str(items_csv_path),
         "items_json": str(items_json_path),
         "by_document_json": str(by_document_path),
+        "provenance_gap_csv": str(provenance_gap_path),
+        "dedupe_lineage_csv": str(dedupe_lineage_path),
     }
 
 
@@ -2468,10 +2744,25 @@ def main(argv=None):
                     "source_inventory_summary",
                     {},
                 ),
+                "source_inventory_v2_summary": source_inventory_report.get(
+                    "source_inventory_v2_summary",
+                    {},
+                ),
                 "stop_dedupe_provenance_loss_summary": source_inventory_report.get(
                     "stop_dedupe_provenance_loss_summary",
                     {},
                 ),
+                "stop_fusion_safety_model_summary": {
+                    key: value
+                    for key, value in (
+                        source_inventory_report.get(
+                            "stop_fusion_safety_model_summary",
+                            {},
+                        )
+                        or {}
+                    ).items()
+                    if key != "cases"
+                },
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])
                 ),

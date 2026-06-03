@@ -46,6 +46,7 @@ from app.document_ai.ratecon_stop_component_policy import (
     apply_stop_geometry_strict_profile_to_candidates,
 )
 from app.document_ai.ratecon_stop_draft_profile import STOP_DRAFT_PROFILE_NONE
+from app.document_ai.ratecon_stop_fusion_profile import STOP_FUSION_PROFILE_NONE
 from app.document_ai.section_context import section_context_summary
 
 
@@ -107,6 +108,7 @@ def extract_ratecon_document(
     shadow_stop_candidate_profile=STOP_CANDIDATE_PROFILE_BASELINE,
     shadow_stop_ranking_profile=STOP_RANKING_PROFILE_BASELINE,
     shadow_stop_draft_profile=STOP_DRAFT_PROFILE_NONE,
+    shadow_stop_fusion_profile=STOP_FUSION_PROFILE_NONE,
     shadow_ranking_profile=RANKING_PROFILE_BASELINE,
     shadow_load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
     shadow_load_ranking_profile=None,
@@ -216,6 +218,7 @@ def extract_ratecon_document(
                 shadow_stop_ranking_profile,
             ),
             "stop_draft_profile": shadow_stop_draft_profile,
+            "stop_fusion_profile": shadow_stop_fusion_profile,
             "field_ranking_profiles": resolved.get("field_ranking_profiles", {}),
             "field_scoped_ranking_enabled": resolved.get(
                 "field_scoped_ranking_enabled",

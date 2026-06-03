@@ -1,0 +1,9 @@
+"""Shadow-only stop fusion profile constants."""
+
+STOP_FUSION_PROFILE_NONE = "none"
+STOP_FUSION_PROFILE_REVIEW_SAFE_V1 = "review_safe_v1"
+
+STOP_FUSION_PROFILES = {
+    STOP_FUSION_PROFILE_NONE,
+    STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
+}

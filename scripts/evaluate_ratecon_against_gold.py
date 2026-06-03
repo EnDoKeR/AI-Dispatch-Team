@@ -446,6 +446,13 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "stop_fusion_profile_metrics: "
+        + json.dumps(
+            evaluation.get("stop_fusion_profile_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "ocr_stop_evidence_gap_summary: "
         + json.dumps(
             evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},

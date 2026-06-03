@@ -107,6 +107,7 @@ SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP = "shadow_best_dispatch_usable_stop_cand
 SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP = "shadow_best_ocr_column_stop_candidate"
 SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP = "shadow_best_native_layout_stop_candidate"
 SYSTEM_SHADOW_STOP_REVIEW_DRAFT = "shadow_stop_review_draft"
+SYSTEM_SHADOW_REVIEW_FUSED_STOPS = "review_fused_stops"
 SYSTEM_LEGACY_FALLBACK_CANDIDATE = "legacy_fallback_candidate"
 SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE = "legacy_fallback_stop_candidate"
 
@@ -122,6 +123,7 @@ EVALUATION_SYSTEMS = (
     SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
     SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
+    SYSTEM_SHADOW_REVIEW_FUSED_STOPS,
     SYSTEM_LEGACY_FALLBACK_CANDIDATE,
     SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE,
 )
@@ -136,6 +138,7 @@ STOP_DIAGNOSTIC_SYSTEMS = (
 )
 
 STOP_DRAFT_SYSTEMS = (SYSTEM_SHADOW_STOP_REVIEW_DRAFT,)
+STOP_FUSION_SYSTEMS = (SYSTEM_SHADOW_REVIEW_FUSED_STOPS,)
 
 STATUS_EXACT = "correct_exact"
 STATUS_NORMALIZED_MATCH = "correct_normalized"
@@ -4003,6 +4006,10 @@ def _build_stop_draft_profile_metrics(comparison_rows):
     return _build_stop_group_usability_metrics(comparison_rows, STOP_DRAFT_SYSTEMS)
 
 
+def _build_stop_fusion_profile_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_FUSION_SYSTEMS)
+
+
 def _serialization_gap_classification(row):
     status = _text(row.get("status"))
     source_status = _text(row.get("source_status"))
@@ -4898,6 +4905,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             comparison_rows,
         ),
         "stop_draft_profile_metrics": _build_stop_draft_profile_metrics(
+            comparison_rows,
+        ),
+        "stop_fusion_profile_metrics": _build_stop_fusion_profile_metrics(
             comparison_rows,
         ),
         "dispatch_usable_handoff_summary": _build_dispatch_usable_handoff_summary(

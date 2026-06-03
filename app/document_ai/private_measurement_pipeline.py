@@ -1261,6 +1261,7 @@ def _with_shadow_document_pipeline(
     shadow_stop_candidate_profile="baseline",
     shadow_stop_ranking_profile="baseline",
     shadow_stop_draft_profile="none",
+    shadow_stop_fusion_profile="none",
     strict_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -1305,6 +1306,7 @@ def _with_shadow_document_pipeline(
             shadow_stop_candidate_profile=shadow_stop_candidate_profile,
             shadow_stop_ranking_profile=shadow_stop_ranking_profile,
             shadow_stop_draft_profile=shadow_stop_draft_profile,
+            shadow_stop_fusion_profile=shadow_stop_fusion_profile,
             strict_ocr=strict_shadow_ocr,
             strict_layout_provider=strict,
             include_private_eval_artifact=include_private_eval_values,
@@ -1498,6 +1500,7 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_stop_candidate_profile="baseline",
     ratecon_shadow_stop_ranking_profile="baseline",
     ratecon_shadow_stop_draft_profile="none",
+    ratecon_shadow_stop_fusion_profile="none",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
@@ -1540,6 +1543,7 @@ def measure_private_ratecon_pdf(
             shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
             shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+            shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -1583,6 +1587,7 @@ def measure_private_ratecon_pdf(
             shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
             shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+            shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -1673,6 +1678,7 @@ def measure_private_ratecon_pdf(
             shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
             shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
             shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+            shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
@@ -2109,6 +2115,7 @@ def measure_private_ratecon_pdf(
         shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
         shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
         shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+        shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
         strict_shadow_ocr=strict_ratecon_shadow_ocr,
         include_private_eval_values=include_private_eval_values,
     )
