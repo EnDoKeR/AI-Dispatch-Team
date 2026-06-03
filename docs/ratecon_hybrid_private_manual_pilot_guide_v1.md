@@ -145,6 +145,30 @@ For wrong rate rows, inspect `hybrid_money_diagnostics.csv`. The default file
 redacts raw private values but shows the source field path, comparison reason,
 and whether decimal-cent normalization matched.
 
+## Review Scalar Mismatches
+
+For load number or total carrier rate mismatches, generate a local-only scalar
+review packet:
+
+```powershell
+python scripts/create_ratecon_hybrid_scalar_discrepancy_review.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_manual_pilot/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_uncertain_gold_v1 ^
+  --output-dir .local_outputs/private_ratecon_hybrid_scalar_discrepancy_review ^
+  --confirm-private-local-run
+```
+
+Open `scalar_discrepancy_summary.md` first, then
+`scalar_discrepancy_items.csv`. The packet recommends whether to correct a
+manual hybrid template, request gold-label review, inspect document/file-hash
+matching, or investigate a benchmark bug. The patch template is dry-run-only
+and leaves proposed values blank.
+
+Do not edit gold labels automatically. Do not change a manually filled template
+unless the source document evidence proves the template is wrong.
+
 ## Files That Must Never Be Committed
 
 Do not commit:

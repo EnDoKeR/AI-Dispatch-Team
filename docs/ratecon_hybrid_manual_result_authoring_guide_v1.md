@@ -165,6 +165,27 @@ file redacts raw values and reports the source field path, comparison reason,
 and decimal-cent normalization status. Use `--include-private-values-local-only`
 only for ignored local debugging.
 
+## Review Scalar Discrepancies
+
+When load number or total carrier rate mismatches remain, create a local-only
+scalar discrepancy packet before changing anything:
+
+```powershell
+python scripts/create_ratecon_hybrid_scalar_discrepancy_review.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_manual_pilot/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_uncertain_gold_v1 ^
+  --output-dir .local_outputs/private_ratecon_hybrid_scalar_discrepancy_review ^
+  --confirm-private-local-run
+```
+
+The packet classifies each scalar mismatch as a likely template issue, gold
+review issue, match-key issue, benchmark lookup issue, normalization issue, or
+uncertain-gold review case. It writes a dry-run patch template with blank
+proposed values only. Do not edit gold labels or hybrid templates until a human
+has checked the document evidence and decided which side is wrong.
+
 ## Keep Private Data Local
 
 Do not commit:
