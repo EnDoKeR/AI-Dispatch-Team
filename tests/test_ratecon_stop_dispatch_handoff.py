@@ -23,8 +23,10 @@ from app.document_ai.ratecon_stop_draft_profile import (
     STOP_DRAFT_PROFILE_NONE,
 )
 from scripts.create_ratecon_stop_gold_review_packets import (
+    build_residual_extraction_report,
     build_patch_template,
     build_stop_gold_review_packet,
+    write_residual_extraction_report,
     write_packet,
 )
 from scripts.apply_ratecon_stop_gold_review_patch import (
@@ -482,6 +484,157 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             self.assertTrue(known_absent_path.exists())
             self.assertIn("gold_time_window_not_visible_in_source", known_absent_path.read_text())
             self.assertEqual(len(manual_path.read_text().strip().splitlines()), 1)
+
+    def test_exclusive_category_counts_are_mutually_exclusive(self):
+        packet = build_stop_gold_review_packet(
+            [_known_absent_city_level_gold_label()],
+            [],
+        )
+
+        exclusive = packet["exclusive_category_counts"]
+        self.assertEqual(exclusive["known_absent_no_action"], 1)
+        self.assertEqual(exclusive["total_unique_items"], 1)
+        self.assertIn("mutually exclusive", exclusive["notes"])
+        self.assertEqual(build_patch_template(packet)["patches"], [])
+
+    def test_residual_extraction_report_classifies_location_only_partial(self):
+        packet = {
+            "exclusive_category_counts": {
+                "extraction_candidate_issue": 1,
+                "total_unique_items": 1,
+            },
+            "private_values_printed": True,
+            "items": [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                    "categories": ["extraction_candidate_issue"],
+                    "selected_stop_component_summary": {
+                        "raw_status": "partial_match",
+                        "dispatch_usability_tier": "useful_partial_location_only",
+                        "has_location": True,
+                        "has_date": False,
+                        "has_time": False,
+                    },
+                    "selected_components": {"city": "Dallas", "state": "TX"},
+                    "selected_source_hint": {
+                        "source": "native_text",
+                        "parser_name": "stop_evidence_assembler",
+                    },
+                    "best_candidate_components": {},
+                    "draft_components": {},
+                    "gold_components": {"city": "Dallas", "state": "TX", "date": "2026-06-05"},
+                }
+            ],
+        }
+
+        report = build_residual_extraction_report(packet)
+
+        self.assertEqual(report["residual_item_count"], 1)
+        self.assertEqual(report["candidate_issue_type_counts"]["selected_location_only_partial"], 1)
+        self.assertEqual(report["recommended_fix_type_counts"]["candidate_fusion"], 1)
+        self.assertEqual(report["stop_component_fusion_opportunity_summary"]["fusion_not_possible"], 1)
+        self.assertEqual(report["stop_residual_decision"]["pickup"], "needs_component_fusion")
+
+    def test_residual_extraction_report_detects_fusion_opportunity(self):
+        packet = {
+            "exclusive_category_counts": {},
+            "items": [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                    "categories": ["extraction_candidate_issue"],
+                    "selected_stop_component_summary": {
+                        "raw_status": "partial_match",
+                        "dispatch_usability_tier": "useful_partial_location_only",
+                        "has_location": True,
+                    },
+                    "selected_components": {"city": "Dallas", "state": "TX"},
+                    "best_candidate_components": {
+                        "date": "2026-06-05",
+                        "appointment_window": "0700 to 1500",
+                    },
+                    "best_candidate_source_hint": {
+                        "source": "ocr",
+                        "parser_name": "ocr_stop_table_reconstructor",
+                    },
+                    "draft_components": {},
+                    "gold_components": {},
+                }
+            ],
+        }
+
+        report = build_residual_extraction_report(packet)
+        summary = report["stop_component_fusion_opportunity_summary"]
+
+        self.assertEqual(summary["fusion_possible"], 1)
+        self.assertEqual(summary["same_role_location_date_available"], 1)
+        self.assertEqual(summary["same_role_location_time_available"], 1)
+
+    def test_residual_extraction_report_blocks_wrong_role_and_payment_fusion(self):
+        packet = {
+            "exclusive_category_counts": {},
+            "items": [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                    "categories": ["extraction_candidate_issue"],
+                    "selected_stop_component_summary": {
+                        "raw_status": "wrong",
+                        "dispatch_usability_tier": "unsafe_wrong",
+                        "has_location": True,
+                        "has_date": True,
+                        "issues": ["wrong_role", "component_from_payment_section"],
+                    },
+                    "selected_components": {"city": "Dallas", "state": "TX", "date": "2026-06-05"},
+                    "selected_source_hint": {"source": "ocr"},
+                    "best_candidate_components": {},
+                    "draft_components": {},
+                    "gold_components": {},
+                }
+            ],
+        }
+
+        report = build_residual_extraction_report(packet)
+        blocked = report["stop_component_fusion_opportunity_summary"]["blocked_reason_counts"]
+
+        self.assertEqual(report["stop_component_fusion_opportunity_summary"]["fusion_possible"], 0)
+        self.assertEqual(blocked["component_from_wrong_role"], 1)
+        self.assertEqual(blocked["component_from_payment_or_instruction"], 1)
+
+    def test_residual_extraction_report_writer_is_local_only(self):
+        packet = {
+            "exclusive_category_counts": {},
+            "private_values_printed": True,
+            "items": [
+                {
+                    "document_id": "DOC-HANDOFF",
+                    "file_hash": "hash-handoff",
+                    "file_name": "handoff.pdf",
+                    "field": FIELD_PICKUP_STOPS,
+                    "categories": ["extraction_candidate_issue"],
+                    "selected_stop_component_summary": {"has_location": True},
+                    "selected_components": {"city": "Dallas"},
+                    "selected_source_hint": {"source": "native_text"},
+                    "best_candidate_components": {},
+                    "draft_components": {},
+                    "gold_components": {"city": "Dallas"},
+                }
+            ],
+        }
+        report = build_residual_extraction_report(packet)
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = write_residual_extraction_report(report, Path(tmpdir))
+
+            self.assertTrue(Path(paths["summary_md"]).exists())
+            self.assertTrue(Path(paths["items_csv"]).exists())
+            self.assertTrue(Path(paths["items_json"]).exists())
 
     def test_candidate_has_dispatch_components_can_be_unsafe_against_gold(self):
         candidate = _dispatch_candidate()

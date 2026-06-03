@@ -38,6 +38,14 @@ STOP_REVIEW_CATEGORIES = (
     "no_action_needed",
 )
 
+EXCLUSIVE_PACKET_CATEGORIES = (
+    "code_or_evaluator_issue",
+    "extraction_candidate_issue",
+    "true_gold_review_needed",
+    "known_absent_no_action",
+    "other_no_action",
+)
+
 LOCAL_ONLY_STOP_COMPONENTS = (
     "raw_location_text_local_only",
     "unparsed_location_text_local_only",
@@ -50,6 +58,11 @@ KNOWN_ABSENT_REASONS = {
     "gold_time_window_not_visible_in_source",
     "gold_component_absent_but_document_lacks_value",
 }
+
+STOP_COMPONENT_VALUE_KEYS = (
+    *STOP_GOLD_COMPLETENESS_COMPONENTS,
+    *LOCAL_ONLY_STOP_COMPONENTS,
+)
 
 
 def _text(value) -> str:
@@ -610,6 +623,328 @@ def _known_absent_summary(review_items):
     }
 
 
+def _item_has_known_absent_reason(item):
+    reasons = {item.get("suspect_reason"), *(item.get("secondary_reasons", []) or [])}
+    return bool(reasons.intersection(KNOWN_ABSENT_REASONS))
+
+
+def _exclusive_category_for_item(item):
+    categories = set(item.get("categories", []) or [])
+    if "code_or_evaluator_issue" in categories:
+        return "code_or_evaluator_issue"
+    if "true_gold_review_needed" in categories:
+        return "true_gold_review_needed"
+    if "extraction_candidate_issue" in categories:
+        return "extraction_candidate_issue"
+    if _item_has_known_absent_reason(item):
+        return "known_absent_no_action"
+    return "other_no_action"
+
+
+def _exclusive_category_counts(review_items):
+    counts = {category: 0 for category in EXCLUSIVE_PACKET_CATEGORIES}
+    for item in review_items or []:
+        counts[_exclusive_category_for_item(item)] += 1
+    counts["total_unique_items"] = len(review_items or [])
+    counts["notes"] = (
+        "exclusive_category_counts are mutually exclusive. category_counts and "
+        "known_absent_summary may overlap because a row can have multiple diagnostic reasons."
+    )
+    return counts
+
+
+def _row_issues(summary):
+    summary = summary if isinstance(summary, dict) else {}
+    return {_text(issue) for issue in summary.get("issues", []) or [] if _text(issue)}
+
+
+def _component_presence(components, summary=None):
+    components = components if isinstance(components, dict) else {}
+    summary = summary if isinstance(summary, dict) else {}
+    has_location = bool(summary.get("has_location")) or any(
+        _text(components.get(component))
+        for component in [
+            "facility",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "raw_location_text_local_only",
+            "unparsed_location_text_local_only",
+        ]
+    )
+    has_date = bool(summary.get("has_date")) or bool(_text(components.get("date")))
+    has_time = bool(summary.get("has_time")) or bool(
+        _text(components.get("time")) or _text(components.get("appointment_window"))
+    )
+    return {"location": has_location, "date": has_date, "time": has_time}
+
+
+def _prediction_component_payload(item, prefix):
+    values = item.get(f"{prefix}_components", {}) or {}
+    return {
+        component: _text(values.get(component))
+        for component in STOP_COMPONENT_VALUE_KEYS
+    }
+
+
+def _best_available_source(item):
+    for prefix in ["selected", "best_candidate", "draft"]:
+        hint = item.get(f"{prefix}_source_hint", {}) or {}
+        source = _text(hint.get("parser_name")) or _text(hint.get("source"))
+        if source:
+            return source
+    return "source_not_available"
+
+
+def _candidate_issue_type(item):
+    selected = item.get("selected_stop_component_summary", {}) or {}
+    dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
+    draft = item.get("draft_stop_summary", {}) or {}
+    selected_components = item.get("selected_components", {}) or {}
+    dispatch_components = item.get("best_candidate_components", {}) or {}
+    draft_components = item.get("draft_components", {}) or {}
+    issues = _row_issues(selected) | _row_issues(dispatch) | _row_issues(draft)
+    issue_text = " ".join(sorted(issues)).lower()
+    source_text = " ".join(
+        _text((item.get(f"{prefix}_source_hint", {}) or {}).get("parser_name"))
+        + " "
+        + _text((item.get(f"{prefix}_source_hint", {}) or {}).get("source"))
+        + " "
+        + _text((item.get(f"{prefix}_source_hint", {}) or {}).get("pairing_method"))
+        for prefix in ["selected", "best_candidate", "draft"]
+    ).lower()
+    selected_presence = _component_presence(selected_components, selected)
+    dispatch_presence = _component_presence(dispatch_components, dispatch)
+    draft_presence = _component_presence(draft_components, draft)
+    any_presence = {
+        key: selected_presence[key] or dispatch_presence[key] or draft_presence[key]
+        for key in ["location", "date", "time"]
+    }
+    if "wrong_city" in issue_text or "wrong_state" in issue_text:
+        return "selected_wrong_city_state"
+    if "wrong_facility" in issue_text:
+        return "selected_wrong_facility"
+    if "wrong_time" in issue_text or "wrong_appointment" in issue_text:
+        return "selected_wrong_time"
+    if "wrong_location" in issue_text or "wrong_address" in issue_text:
+        return "selected_wrong_location"
+    if "ocr_stop_table_reconstructor" in source_text and "unsafe_wrong" in {
+        _text(dispatch.get("dispatch_usability_tier")),
+        _text(draft.get("dispatch_usability_tier")),
+        _text(selected.get("dispatch_usability_tier")),
+    }:
+        return "OCR_column_candidate_wrong_alignment"
+    selected_status = _text(selected.get("raw_status") or selected.get("source_status"))
+    if selected_presence["location"] and not selected_presence["date"] and not selected_presence["time"]:
+        return "selected_location_only_partial"
+    if selected_presence["date"] and not selected_presence["location"] and not selected_presence["time"]:
+        return "selected_date_only_partial"
+    if selected_presence["time"] and not selected_presence["location"] and not selected_presence["date"]:
+        return "selected_time_only_partial"
+    if selected_presence["location"] and not (selected_presence["date"] or selected_presence["time"]):
+        return "selected_missing_date_time"
+    if (selected_presence["date"] or selected_presence["time"]) and not selected_presence["location"]:
+        return "selected_missing_location_components"
+    if dispatch.get("dispatch_usability_tier") == "unsafe_wrong" or draft.get("dispatch_usability_tier") == "unsafe_wrong":
+        return "candidate_has_components_but_wrong_against_gold"
+    if any_presence["location"] or any_presence["date"] or any_presence["time"]:
+        if selected_status in {
+            "extractor_missing",
+            "source_not_available",
+            "selected_partial_not_comparable",
+            "unsupported_unparsed_location",
+        }:
+            return "best_candidate_exists_not_selected"
+        return "selected_abstained_candidate_counted_wrong"
+    return "no_viable_candidate"
+
+
+def _recommended_fix_type(issue_type, item):
+    source = _best_available_source(item).lower()
+    if issue_type in {
+        "selected_location_only_partial",
+        "selected_date_only_partial",
+        "selected_time_only_partial",
+        "selected_missing_location_components",
+        "selected_missing_date_time",
+        "best_candidate_exists_not_selected",
+    }:
+        return "candidate_fusion"
+    if issue_type in {
+        "OCR_column_candidate_wrong_alignment",
+        "OCR_column_candidate_missing_city_state",
+    } or "ocr" in source:
+        return "OCR_geometry"
+    if issue_type in {
+        "selected_wrong_time",
+        "selected_wrong_location",
+        "selected_wrong_facility",
+        "selected_wrong_city_state",
+        "candidate_has_components_but_wrong_against_gold",
+        "selected_abstained_candidate_counted_wrong",
+    }:
+        return "stop_ranking"
+    if issue_type == "no_viable_candidate":
+        return "leave_review_required"
+    if "layout" in source or "table" in source:
+        return "native_layout_table"
+    return "unknown"
+
+
+def _fusion_diagnostic(item, issue_type):
+    selected = item.get("selected_stop_component_summary", {}) or {}
+    dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
+    draft = item.get("draft_stop_summary", {}) or {}
+    selected_presence = _component_presence(item.get("selected_components", {}) or {}, selected)
+    dispatch_presence = _component_presence(item.get("best_candidate_components", {}) or {}, dispatch)
+    draft_presence = _component_presence(item.get("draft_components", {}) or {}, draft)
+    sources = {
+        "selected": selected_presence,
+        "best_candidate": dispatch_presence,
+        "draft": draft_presence,
+    }
+    has_location = any(presence["location"] for presence in sources.values())
+    has_date = any(presence["date"] for presence in sources.values())
+    has_time = any(presence["time"] for presence in sources.values())
+    issues = _row_issues(selected) | _row_issues(dispatch) | _row_issues(draft)
+    blocked_reasons = []
+    if any(issue.startswith("wrong_role") for issue in issues):
+        blocked_reasons.append("component_from_wrong_role")
+    if any("payment" in issue for issue in issues):
+        blocked_reasons.append("component_from_payment_or_instruction")
+    if any("instruction" in issue for issue in issues):
+        blocked_reasons.append("component_from_payment_or_instruction")
+    if any("reference" in issue for issue in issues):
+        blocked_reasons.append("component_from_reference_text")
+    if "wrong_time" in " ".join(issues) or "wrong_location" in " ".join(issues):
+        blocked_reasons.append("component_from_wrong_role")
+    if _best_available_source(item) == "source_not_available":
+        blocked_reasons.append("no_candidate_source")
+    if "ocr" in _best_available_source(item).lower() and issue_type in {
+        "OCR_column_candidate_wrong_alignment",
+        "candidate_has_components_but_wrong_against_gold",
+    }:
+        blocked_reasons.append("OCR_noise")
+    if has_location and (has_date or has_time) and not blocked_reasons:
+        fusion_possible = True
+    else:
+        fusion_possible = False
+    if has_location and (has_date or has_time) and not fusion_possible and not blocked_reasons:
+        blocked_reasons.append("no_line_or_geometry_proximity")
+    if not (has_location or has_date or has_time) and not blocked_reasons:
+        blocked_reasons.append("no_candidate_source")
+    return {
+        "fusion_possible": fusion_possible,
+        "same_role_location_date_available": bool(has_location and has_date),
+        "same_role_location_time_available": bool(has_location and has_time),
+        "same_role_date_time_available": bool(has_date and has_time),
+        "blocked_reasons": sorted(set(blocked_reasons)),
+    }
+
+
+def _residual_item_record(item):
+    issue_type = _candidate_issue_type(item)
+    fusion = _fusion_diagnostic(item, issue_type)
+    return {
+        "document_id": item.get("document_id", ""),
+        "file_hash": item.get("file_hash", ""),
+        "file_name": item.get("file_name", ""),
+        "field": item.get("field", ""),
+        "selected_status": (item.get("selected_stop_component_summary", {}) or {}).get("raw_status", ""),
+        "selected_usability_tier": (item.get("selected_stop_component_summary", {}) or {}).get(
+            "dispatch_usability_tier",
+            "",
+        ),
+        "selected_candidate_source": _best_available_source(item),
+        "selected_candidate_components": _prediction_component_payload(item, "selected"),
+        "gold_components": _prediction_component_payload(item, "gold"),
+        "best_structured_candidate": _prediction_component_payload(item, "best_candidate"),
+        "best_ocr_column_candidate": (
+            _prediction_component_payload(item, "best_candidate")
+            if "ocr" in _best_available_source(item).lower()
+            else {}
+        ),
+        "best_native_layout_candidate": (
+            _prediction_component_payload(item, "best_candidate")
+            if "layout" in _best_available_source(item).lower()
+            else {}
+        ),
+        "candidate_issue_type": issue_type,
+        "recommended_fix_type": _recommended_fix_type(issue_type, item),
+        "fusion_possible": fusion["fusion_possible"],
+        "same_role_location_date_available": fusion["same_role_location_date_available"],
+        "same_role_location_time_available": fusion["same_role_location_time_available"],
+        "same_role_date_time_available": fusion["same_role_date_time_available"],
+        "blocked_reasons": fusion["blocked_reasons"],
+    }
+
+
+def _counter(items, key):
+    counts = {}
+    for item in items:
+        value = item.get(key)
+        if isinstance(value, list):
+            values = value or [""]
+        else:
+            values = [value]
+        for entry in values:
+            entry = _text(entry) or "none"
+            counts[entry] = counts.get(entry, 0) + 1
+    return dict(sorted(counts.items()))
+
+
+def build_residual_extraction_report(packet):
+    residual_items = [
+        _residual_item_record(item)
+        for item in packet.get("items", []) or []
+        if "extraction_candidate_issue" in (item.get("categories", []) or [])
+    ]
+    fusion_possible = [item for item in residual_items if item.get("fusion_possible")]
+    fusion_summary = {
+        "issues_checked": len(residual_items),
+        "fusion_possible": len(fusion_possible),
+        "fusion_not_possible": len(residual_items) - len(fusion_possible),
+        "same_role_location_date_available": sum(
+            1 for item in residual_items if item.get("same_role_location_date_available")
+        ),
+        "same_role_location_time_available": sum(
+            1 for item in residual_items if item.get("same_role_location_time_available")
+        ),
+        "same_role_date_time_available": sum(
+            1 for item in residual_items if item.get("same_role_date_time_available")
+        ),
+        "best_source_counts": _counter(residual_items, "selected_candidate_source"),
+        "blocked_reason_counts": _counter(residual_items, "blocked_reasons"),
+    }
+    by_field = {}
+    for field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        field_items = [item for item in residual_items if item.get("field") == field]
+        issue_counts = _counter(field_items, "candidate_issue_type")
+        if issue_counts.get("selected_location_only_partial") or issue_counts.get("selected_missing_date_time"):
+            decision = "needs_component_fusion"
+        elif any("OCR" in key for key in issue_counts):
+            decision = "needs_ocr_geometry_work"
+        elif issue_counts.get("no_viable_candidate"):
+            decision = "keep_manual_review"
+        else:
+            decision = "keep_manual_review"
+        by_field["pickup" if field == FIELD_PICKUP_STOPS else "delivery"] = decision
+    return {
+        "schema_version": "ratecon_stop_residual_extraction_report_v1",
+        "exclusive_category_counts": packet.get("exclusive_category_counts", {}),
+        "residual_item_count": len(residual_items),
+        "candidate_issue_type_counts": _counter(residual_items, "candidate_issue_type"),
+        "recommended_fix_type_counts": _counter(residual_items, "recommended_fix_type"),
+        "stop_component_fusion_opportunity_summary": fusion_summary,
+        "stop_residual_decision": by_field,
+        "items": residual_items,
+        "private_values_printed": bool(packet.get("private_values_printed")),
+        "raw_text_printed": False,
+        "local_only": True,
+    }
+
+
 def build_stop_gold_review_packet(
     gold_labels,
     audit_records,
@@ -752,6 +1087,7 @@ def build_stop_gold_review_packet(
         "reason_counts": reason_counts,
         "secondary_reason_counts": secondary_reason_counts,
         "category_counts": category_counts,
+        "exclusive_category_counts": _exclusive_category_counts(review_items),
         "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
             gold_labels,
         ),
@@ -826,6 +1162,8 @@ def write_packet(packet, output_dir: Path):
         "",
         f"Review items: {packet.get('review_item_count', 0)}",
         f"Category counts: {json.dumps(packet.get('category_counts', {}), sort_keys=True)}",
+        "Exclusive category counts: "
+        + json.dumps(packet.get("exclusive_category_counts", {}), sort_keys=True),
         f"Reason counts: {json.dumps(packet.get('reason_counts', {}), sort_keys=True)}",
         f"Secondary reason counts: {json.dumps(packet.get('secondary_reason_counts', {}), sort_keys=True)}",
         f"Known absent summary: {json.dumps(packet.get('known_absent_summary', {}), sort_keys=True)}",
@@ -1105,12 +1443,96 @@ def write_packet(packet, output_dir: Path):
     }
 
 
+def write_residual_extraction_report(report, output_dir: Path):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "stop_residual_extraction_summary.md"
+    items_csv_path = output_dir / "stop_residual_extraction_items.csv"
+    items_json_path = output_dir / "stop_residual_extraction_items.json"
+    items = report.get("items", []) or []
+    items_json_path.write_text(
+        json.dumps(report, indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    summary_lines = [
+        "# Stop Residual Extraction Forensics",
+        "",
+        f"Residual extraction/candidate items: {report.get('residual_item_count', 0)}",
+        "Exclusive category counts: "
+        + json.dumps(report.get("exclusive_category_counts", {}), sort_keys=True),
+        "Candidate issue type counts: "
+        + json.dumps(report.get("candidate_issue_type_counts", {}), sort_keys=True),
+        "Recommended fix type counts: "
+        + json.dumps(report.get("recommended_fix_type_counts", {}), sort_keys=True),
+        "Fusion opportunity summary: "
+        + json.dumps(
+            report.get("stop_component_fusion_opportunity_summary", {}),
+            sort_keys=True,
+        ),
+        "Stop residual decision: "
+        + json.dumps(report.get("stop_residual_decision", {}), sort_keys=True),
+        "",
+        "Private values are local-only and must not be committed.",
+        "",
+        "## Items",
+        "",
+    ]
+    for item in items:
+        summary_lines.append(
+            f"- {item.get('file_name') or item.get('document_id')} "
+            f"{item.get('field')}: {item.get('candidate_issue_type')} "
+            f"-> {item.get('recommended_fix_type')}"
+        )
+    summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    fieldnames = [
+        "document_id",
+        "file_hash",
+        "file_name",
+        "field",
+        "selected_status",
+        "selected_usability_tier",
+        "selected_candidate_source",
+        "selected_candidate_components",
+        "gold_components",
+        "best_structured_candidate",
+        "best_ocr_column_candidate",
+        "best_native_layout_candidate",
+        "candidate_issue_type",
+        "recommended_fix_type",
+        "fusion_possible",
+        "same_role_location_date_available",
+        "same_role_location_time_available",
+        "same_role_date_time_available",
+        "blocked_reasons",
+    ]
+    with items_csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for item in items:
+            row = dict(item)
+            for key in [
+                "selected_candidate_components",
+                "gold_components",
+                "best_structured_candidate",
+                "best_ocr_column_candidate",
+                "best_native_layout_candidate",
+                "blocked_reasons",
+            ]:
+                row[key] = json.dumps(row.get(key, [] if key == "blocked_reasons" else {}), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in fieldnames})
+    return {
+        "summary_md": str(summary_path),
+        "items_csv": str(items_csv_path),
+        "items_json": str(items_json_path),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gold-dir", required=True)
     parser.add_argument("--audit", required=True)
     parser.add_argument("--eval-dir")
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
+    parser.add_argument("--residual-output-dir")
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
     args = parser.parse_args(argv)
@@ -1119,6 +1541,16 @@ def main(argv=None):
         raise SystemExit(
             "Refusing to write stop review packet outside .local_outputs without "
             "--confirm-private-local-run"
+        )
+    residual_output_dir = Path(args.residual_output_dir) if args.residual_output_dir else None
+    if (
+        residual_output_dir
+        and not _is_under_local_outputs(residual_output_dir)
+        and not args.confirm_private_local_run
+    ):
+        raise SystemExit(
+            "Refusing to write residual stop extraction report outside .local_outputs "
+            "without --confirm-private-local-run"
         )
     gold_labels = load_gold_labels(args.gold_dir)
     audit_records = _read_jsonl(Path(args.audit))
@@ -1130,15 +1562,40 @@ def main(argv=None):
         include_private_values_local_only=args.include_private_values_local_only,
     )
     paths = write_packet(packet, output_dir)
+    residual_paths = {}
+    residual_report = build_residual_extraction_report(packet)
+    if residual_output_dir:
+        residual_paths = write_residual_extraction_report(residual_report, residual_output_dir)
     print(
         json.dumps(
             {
                 "output_paths": paths,
+                "residual_output_paths": residual_paths,
                 "review_item_count": packet["review_item_count"],
                 "reason_counts": packet["reason_counts"],
                 "secondary_reason_counts": packet["secondary_reason_counts"],
                 "category_counts": packet["category_counts"],
+                "exclusive_category_counts": packet["exclusive_category_counts"],
                 "known_absent_summary": packet.get("known_absent_summary", {}),
+                "residual_extraction_summary": {
+                    "residual_item_count": residual_report.get("residual_item_count", 0),
+                    "candidate_issue_type_counts": residual_report.get(
+                        "candidate_issue_type_counts",
+                        {},
+                    ),
+                    "recommended_fix_type_counts": residual_report.get(
+                        "recommended_fix_type_counts",
+                        {},
+                    ),
+                    "stop_component_fusion_opportunity_summary": residual_report.get(
+                        "stop_component_fusion_opportunity_summary",
+                        {},
+                    ),
+                    "stop_residual_decision": residual_report.get(
+                        "stop_residual_decision",
+                        {},
+                    ),
+                },
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])
                 ),
