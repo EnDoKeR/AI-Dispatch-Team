@@ -1,0 +1,26 @@
+{
+  "schema_version": "ratecon_gold_label_v1",
+  "document_id": "DOC_FIXTURE_MISSING_EVIDENCE",
+  "file_hash": "fixturehashmissing00000000000000000002",
+  "file_name": "fixture_missing_evidence.pdf",
+  "label_status": "partial",
+  "skip_reason": null,
+  "gold": {
+    "document_type": "rate_confirmation",
+    "broker_name": {"value": null, "uncertain": false, "notes": ""},
+    "carrier_name": {"value": null, "uncertain": false, "notes": ""},
+    "load_number": {"value": "FIXLOAD-1002", "alternate_acceptable_values": [], "uncertain": false, "notes": ""},
+    "total_carrier_rate": {"value": "1800.00", "currency": "USD", "uncertain": false, "notes": ""},
+    "pickup_stops": [
+      {"stop_index": 1, "facility": null, "address": null, "city": "Evidence City", "state": "ES", "zip": null, "date": "04/03/2026", "time": null, "appointment_window": null, "uncertain": false, "notes": ""}
+    ],
+    "delivery_stops": [
+      {"stop_index": 1, "facility": null, "address": null, "city": "Proof City", "state": "PS", "zip": null, "date": "04/04/2026", "time": null, "appointment_window": null, "uncertain": false, "notes": ""}
+    ],
+    "equipment_type": {"value": null, "uncertain": false, "notes": ""},
+    "commodity": {"value": null, "uncertain": false, "notes": ""},
+    "weight": {"value": null, "unit": "", "uncertain": false, "notes": ""},
+    "reference_numbers": []
+  },
+  "labeler": {"name": null, "labeled_at": null, "review_notes": "Synthetic fixture."}
+}

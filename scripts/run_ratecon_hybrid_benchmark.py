@@ -72,6 +72,15 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _file_name_or_label(result: dict[str, Any], fallback: str = "") -> str:
+    return (
+        _text(result.get("file_name"))
+        or _text(result.get("file_name_or_label"))
+        or _text(result.get("document_label"))
+        or fallback
+    )
+
+
 def _has_evidence_ids(item: dict[str, Any]) -> bool:
     evidence_ids = item.get("evidence_ids") or []
     return isinstance(evidence_ids, list) and any(_text(eid) for eid in evidence_ids)
@@ -326,8 +335,12 @@ def run_hybrid_benchmark(
         doc_status = _document_type_status(result, gold)
         doc_type_counts[doc_status] += 1
         document_id = _text(result.get("document_id")) or path.stem
+        file_name_or_label = _file_name_or_label(result, path.stem)
+        document_type = _text(result.get("document_type"))
         doc_row = {
             "document_id": document_id,
+            "file_name_or_label": file_name_or_label,
+            "document_type": document_type,
             "schema_valid": validation.valid,
             "document_type_status": doc_status,
             "gold_matched": bool(gold),
@@ -420,15 +433,21 @@ def run_hybrid_benchmark(
                         }
                     )
                 if write_review_packets:
+                    missing_evidence = row["tier"] != "missing_review_required" and not row["has_evidence"]
                     review_rows.append(
                         {
                             "document_id": document_id,
+                            "file_name_or_label": file_name_or_label,
+                            "document_type": document_type,
                             "field": field_name,
-                            "hybrid_value_status": row["tier"],
-                            "gold_comparison_status": row["status"],
+                            "stop_role": _stop_role(field_name),
+                            "stop_index": row.get("stop_index") or "",
+                            "status": row["tier"],
                             "review_reason": ",".join(row.get("issues") or []),
                             "evidence_status": "present" if row["has_evidence"] else "missing",
                             "confidence": row.get("confidence"),
+                            "auto_accept_violation": bool(row["auto_accept"]),
+                            "missing_evidence": bool(missing_evidence),
                             "recommended_action": _recommended_action(row),
                         }
                     )
@@ -463,6 +482,30 @@ def run_hybrid_benchmark(
         },
         "baseline": BASELINE,
     }
+    summary["one_screen_summary"] = {
+        "results": len(hybrid_results),
+        "schema_errors": len(schema_errors),
+        "error_cases": len(error_rows),
+        "stop_auto_accept_violations": review_policy.get("stop_auto_accept_violation", 0),
+        "missing_evidence": evidence_metrics.get("missing_evidence", 0)
+        + evidence_metrics.get("field_without_evidence", 0),
+        "unsafe_wrong_stops": sum(metrics.get("unsafe_wrong", 0) for metrics in stop_metrics.values()),
+        "non_rc_bol_pod_filtered": sum(
+            1
+            for _, result in hybrid_results
+            if result.get("document_type") == "bol_pod"
+        ),
+        "next_action": None,
+    }
+    summary["safety"] = {
+        "external_api_calls_attempted": False,
+        "pdf_processing_attempted": False,
+        "ai_model_invocation_attempted": False,
+        "private_values_included": bool(include_private_values_local_only),
+    }
+    summary["error_case_examples"] = error_rows[:5]
+    summary["next_action"] = _next_action(summary)
+    summary["one_screen_summary"]["next_action"] = summary["next_action"]
     _write_outputs(
         resolved_output,
         summary=summary,
@@ -489,6 +532,42 @@ def _recommended_action(row: dict[str, Any]) -> str:
     return "needs_human_review"
 
 
+def _stop_role(field_name: str) -> str:
+    if field_name == FIELD_PICKUP_STOPS:
+        return "pickup"
+    if field_name == FIELD_DELIVERY_STOPS:
+        return "delivery"
+    return ""
+
+
+def _next_action(summary: dict[str, Any]) -> str:
+    if summary.get("schema_error_count", 0):
+        return "fix_schema_errors"
+    if summary.get("review_policy", {}).get("stop_auto_accept_violation", 0):
+        return "remove_stop_auto_accept_flags"
+    evidence = summary.get("evidence_metrics", {})
+    if evidence.get("missing_evidence", 0) or evidence.get("field_without_evidence", 0):
+        return "add_missing_evidence"
+    unsafe_wrong = sum(
+        metrics.get("unsafe_wrong", 0)
+        for metrics in (summary.get("stop_metrics") or {}).values()
+        if isinstance(metrics, dict)
+    )
+    if unsafe_wrong:
+        return "review_or_reject_unsafe_wrong_stops"
+    return "review_hybrid_drafts"
+
+
+def _stop_metric_line(field_name: str, metrics: dict[str, int]) -> str:
+    return (
+        f"- {field_name}: exact {metrics.get('exact_complete', 0)} / "
+        f"dispatch {metrics.get('dispatch_usable', 0)} / "
+        f"partial {metrics.get('useful_partial', 0)} / "
+        f"unsafe {metrics.get('unsafe_wrong', 0)} / "
+        f"missing {metrics.get('missing_review_required', 0)}"
+    )
+
+
 def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames, extrasaction="ignore")
@@ -509,22 +588,72 @@ def _write_outputs(
     write_review_packets: bool,
 ) -> None:
     _write_json(output_dir / "hybrid_benchmark_summary.json", summary)
+    one_screen = summary.get("one_screen_summary", {})
+    safety = summary.get("safety", {})
+    field_metrics = summary.get("field_metrics", {})
+    stop_metrics = summary.get("stop_metrics", {})
+    error_examples = summary.get("error_case_examples") or []
     report = [
         "# RateCon Hybrid Benchmark Report",
         "",
         "This local-only benchmark made no AI, cloud, OCR, model, or PDF processing calls.",
         "",
-        f"hybrid_result_count: {summary['hybrid_result_count']}",
-        f"schema_error_count: {summary['schema_error_count']}",
-        f"private_values_included: {bool(include_private_values_local_only)}",
+        "## One-Screen Summary",
         "",
-        "## Baseline",
+        f"- hybrid results: {one_screen.get('results', 0)}",
+        f"- schema errors: {one_screen.get('schema_errors', 0)}",
+        f"- error cases: {one_screen.get('error_cases', 0)}",
+        f"- missing evidence: {one_screen.get('missing_evidence', 0)}",
+        f"- stop auto-accept violations: {one_screen.get('stop_auto_accept_violations', 0)}",
+        f"- unsafe wrong stops: {one_screen.get('unsafe_wrong_stops', 0)}",
+        f"- non-RC BOL/POD filtered: {one_screen.get('non_rc_bol_pod_filtered', 0)}",
+        f"- next action: {summary.get('next_action', 'review_hybrid_drafts')}",
+        "",
+        "## Safety",
+        "",
+        f"- external API calls attempted: {safety.get('external_api_calls_attempted', False)}",
+        f"- PDF processing attempted: {safety.get('pdf_processing_attempted', False)}",
+        f"- AI/model invocation attempted: {safety.get('ai_model_invocation_attempted', False)}",
+        f"- private values included: {safety.get('private_values_included', bool(include_private_values_local_only))}",
+        "",
+        "## Baseline Comparison",
         "",
         "- load_number: 25 correct / 1 wrong / 5 missing",
+        (
+            f"  - hybrid: {field_metrics.get(FIELD_LOAD_NUMBER, {}).get('correct', 0)} correct / "
+            f"{field_metrics.get(FIELD_LOAD_NUMBER, {}).get('wrong', 0)} wrong / "
+            f"{field_metrics.get(FIELD_LOAD_NUMBER, {}).get('missing', 0)} missing"
+        ),
         "- total_carrier_rate: 26 correct / 3 wrong / 2 missing",
+        (
+            f"  - hybrid: {field_metrics.get(FIELD_TOTAL_CARRIER_RATE, {}).get('correct', 0)} correct / "
+            f"{field_metrics.get(FIELD_TOTAL_CARRIER_RATE, {}).get('wrong', 0)} wrong / "
+            f"{field_metrics.get(FIELD_TOTAL_CARRIER_RATE, {}).get('missing', 0)} missing"
+        ),
         "- pickup stops: 0 exact / 17 partial / 5 wrong / 3 missing",
+        _stop_metric_line(FIELD_PICKUP_STOPS, stop_metrics.get(FIELD_PICKUP_STOPS, {})),
         "- delivery stops: 0 exact / 12 partial / 5 wrong / 4 missing",
+        _stop_metric_line(FIELD_DELIVERY_STOPS, stop_metrics.get(FIELD_DELIVERY_STOPS, {})),
+        "",
+        "## Error Case Examples",
+        "",
     ]
+    if error_examples:
+        for row in error_examples:
+            report.append(
+                f"- {row.get('document_id', '')} {row.get('field', '')}: "
+                f"{row.get('issue', '')} -> {row.get('recommended_action', '')}"
+            )
+    else:
+        report.append("- none")
+    report.extend(
+        [
+            "",
+            "## Next Action",
+            "",
+            f"- {summary.get('next_action', 'review_hybrid_drafts')}",
+        ]
+    )
     (output_dir / "hybrid_benchmark_report.md").write_text("\n".join(report) + "\n", encoding="utf-8")
     _write_csv(
         output_dir / "hybrid_field_metrics.csv",
@@ -548,6 +677,8 @@ def _write_outputs(
         document_rows,
         [
             "document_id",
+            "file_name_or_label",
+            "document_type",
             "schema_valid",
             "document_type_status",
             "gold_matched",
@@ -568,19 +699,25 @@ def _write_outputs(
             review_rows,
             [
                 "document_id",
+                "file_name_or_label",
+                "document_type",
                 "field",
-                "hybrid_value_status",
-                "gold_comparison_status",
+                "stop_role",
+                "stop_index",
+                "status",
                 "review_reason",
                 "evidence_status",
                 "confidence",
+                "auto_accept_violation",
+                "missing_evidence",
                 "recommended_action",
             ],
         )
         lines = ["# Hybrid Review Packet", ""]
         for row in review_rows:
             lines.append(
-                f"- {row['document_id']} {row['field']}: {row['recommended_action']} ({row['hybrid_value_status']})"
+                f"- {row['document_id']} {row['field']}[{row.get('stop_index', '')}]: "
+                f"{row['recommended_action']} ({row['status']})"
             )
         (output_dir / "hybrid_review_packet.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
