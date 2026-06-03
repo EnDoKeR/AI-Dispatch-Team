@@ -1598,6 +1598,12 @@ def _metadata_eval_summary(metadata):
         "ocr_candidate",
         "ocr_provider",
         "serialization_gap_reason",
+        "sidecar_gap_reason",
+        "sidecar_gap_classification",
+        "raw_location_text_local_only_present",
+        "unparsed_location_text_local_only_present",
+        "unsupported_selected_partial",
+        "selected_value_was_placeholder_only",
     ]
     payload = {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
     if "dispatch_usable" in metadata and "candidate_has_dispatch_components" not in payload:
@@ -1617,11 +1623,88 @@ def _metadata_eval_summary(metadata):
 def _has_real_stop_component(stop):
     if not isinstance(stop, dict):
         return False
-    for key in ["facility", "address", "city", "state", "zip", "date", "time", "appointment_window"]:
+    for key in [
+        "facility",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "date",
+        "time",
+        "appointment_window",
+        "raw_location_text_local_only",
+        "unparsed_location_text_local_only",
+    ]:
         value = _text(stop.get(key))
         if value and value != "__present__":
             return True
     return False
+
+
+def _is_stop_placeholder_text(value):
+    text = _text(value).lower()
+    if not text:
+        return False
+    return bool(
+        re.fullmatch(
+            r"(pickup|delivery)_stop_(complete|partial|useful_partial|missing)",
+            text,
+        )
+    )
+
+
+def _stops_have_only_presence_markers(stops):
+    seen_marker = False
+    for stop in stops or []:
+        if not isinstance(stop, dict):
+            continue
+        for key in [
+            "facility",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "date",
+            "time",
+            "appointment_window",
+        ]:
+            value = _text(stop.get(key))
+            if value == "__present__":
+                seen_marker = True
+            elif value:
+                return False
+    return seen_marker
+
+
+def _unstructured_location_stop(value, field_name, metadata, confidence, source, normalized):
+    if not isinstance(value, str):
+        return None
+    text = _text(value)
+    if not text or _is_stop_placeholder_text(text):
+        return None
+    if not metadata.get("has_location"):
+        return None
+    role = _text(metadata.get("stop_role"))
+    if not role:
+        role = "pickup" if field_name == "pickup_stops" else "delivery"
+    stop = {
+        "role": role,
+        "stop_index": metadata.get("stop_index") or 1,
+        "facility": "",
+        "address": "",
+        "city": "",
+        "state": "",
+        "zip": "",
+        "date": "",
+        "time": "",
+        "appointment_window": "",
+        "raw_location_text_local_only": text,
+        "unparsed_location_text_local_only": text,
+        "confidence": round(float(confidence or 0.0), 3),
+        "source": _text(source),
+        "structure_status": _text(normalized.get("structure_status")),
+    }
+    return stop
 
 
 def _stop_prediction_gap_reason(value, metadata, normalized):
@@ -1633,6 +1716,16 @@ def _stop_prediction_gap_reason(value, metadata, normalized):
     if not stops:
         return "selected_stop_value_is_empty_dict_or_list"
     if metadata.get("has_location") or metadata.get("has_date") or metadata.get("has_time"):
+        if (
+            metadata.get("selected_value_was_placeholder_only")
+            or (isinstance(value, str) and _is_stop_placeholder_text(value))
+            or _stops_have_only_presence_markers(stops)
+        ):
+            return "selected_value_has_placeholder_only_no_component"
+        if metadata.get("has_location") and not (metadata.get("has_date") or metadata.get("has_time")):
+            return "unsupported_selected_partial"
+        if metadata.get("has_date") or metadata.get("has_time"):
+            return "selected_partial_missing_required_components"
         return "private_eval_sidecar_missing_components"
     if isinstance(value, str) and _text(value):
         return "selected_stop_value_is_string_placeholder"
@@ -1656,6 +1749,12 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
             "date": _text(stop.get("date")),
             "time": _text(stop.get("time")),
             "appointment_window": _text(stop.get("appointment_window")),
+            "raw_location_text_local_only": _text(
+                stop.get("raw_location_text_local_only")
+            ),
+            "unparsed_location_text_local_only": _text(
+                stop.get("unparsed_location_text_local_only")
+            ),
             "confidence": round(float(confidence or 0.0), 3),
             "source": _text(source),
             "structure_status": _text(normalized.get("structure_status")),
@@ -1664,10 +1763,28 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
         if isinstance(stop, dict)
     ]
     component_values_serialized = bool(any(_has_real_stop_component(stop) for stop in stops))
+    if stops and not component_values_serialized:
+        local_stop = _unstructured_location_stop(
+            value,
+            field_name,
+            metadata,
+            confidence,
+            source,
+            normalized,
+        )
+        if local_stop:
+            stops = [local_stop]
+            component_values_serialized = True
+            metadata["raw_location_text_local_only_present"] = True
+            metadata["unparsed_location_text_local_only_present"] = True
+            metadata["unsupported_selected_partial"] = True
     gap_reason = ""
+    source_status = ""
     if stops and not component_values_serialized:
         gap_reason = _stop_prediction_gap_reason(value, metadata, normalized)
         metadata["serialization_gap_reason"] = gap_reason
+        metadata["sidecar_gap_reason"] = gap_reason
+        metadata["sidecar_gap_classification"] = gap_reason
     payload = {
         "value": stops if component_values_serialized else "",
         "confidence": round(float(confidence or 0.0), 3),
@@ -1680,9 +1797,20 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
     if gap_reason:
         payload["serialization_gap_reason"] = gap_reason
         if gap_reason == "selected_stop_really_missing":
-            payload["source_status"] = "shadow_extractor_missing"
+            source_status = "shadow_extractor_missing"
+        elif gap_reason in {
+            "selected_value_has_placeholder_only_no_component",
+            "unsupported_selected_partial",
+        }:
+            source_status = "selected_partial_not_comparable"
+        elif gap_reason == "selected_partial_missing_required_components":
+            source_status = "selected_partial_missing_required_components"
         else:
-            payload["source_status"] = "shadow_component_not_serialized"
+            source_status = "shadow_component_not_serialized"
+    elif component_values_serialized and metadata.get("unsupported_selected_partial"):
+        payload["source_status"] = "unsupported_unparsed_location"
+    if source_status:
+        payload["source_status"] = source_status
     return payload
 
 
@@ -1777,9 +1905,11 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
     resolution = resolution if isinstance(resolution, dict) else {}
     selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
     metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    if not metadata and isinstance(resolution.get("metadata"), dict):
+        metadata = resolution.get("metadata")
     confidence = round(float(resolution.get("confidence") or selected.get("confidence") or 0.0), 3)
     source = _text(selected.get("source") or resolution.get("source"))
-    parser_name = _text(selected.get("parser_name"))
+    parser_name = _text(selected.get("parser_name") or resolution.get("parser_name"))
     if field_name in PRIVATE_EVAL_STOP_FIELDS:
         private_candidate = _private_selected_candidate(
             resolution,
@@ -1789,6 +1919,9 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
         if private_candidate.get("_private_eval_stop_components"):
             selected = private_candidate
             metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else metadata
+            metadata = dict(metadata) if isinstance(metadata, dict) else {}
+            if _is_stop_placeholder_text(selected.get("value")):
+                metadata["selected_value_was_placeholder_only"] = True
             source = _text(selected.get("source") or source)
             parser_name = _text(selected.get("parser_name") or parser_name)
             value = selected.get("_private_eval_stop_components")

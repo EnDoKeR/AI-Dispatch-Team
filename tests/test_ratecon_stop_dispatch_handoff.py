@@ -93,6 +93,25 @@ def _placeholder_stop_candidate(candidate_id="placeholder-pickup", stop_abstaine
     }
 
 
+def _unparsed_location_stop_candidate():
+    return {
+        "field": FIELD_PICKUP_STOPS,
+        "value": "Warehouse District",
+        "confidence": 0.45,
+        "source": "native_text",
+        "parser_name": "stop_evidence_assembler",
+        "metadata": {
+            "structured_stop_candidate": True,
+            "stop_role": "pickup",
+            "stop_index": 1,
+            "has_location": True,
+            "has_date": False,
+            "has_time": False,
+            "stop_selection_policy": "partial_review",
+        },
+    }
+
+
 def _gold_label():
     return {
         "document_id": "DOC-HANDOFF",
@@ -269,12 +288,47 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
 
         self.assertFalse(selected["component_values_serialized"])
-        self.assertEqual(selected["source_status"], "shadow_component_not_serialized")
-        self.assertEqual(selected["serialization_gap_reason"], "private_eval_sidecar_missing_components")
+        self.assertEqual(selected["source_status"], "selected_partial_not_comparable")
         self.assertEqual(
-            evaluation["selected_stop_serialization_gap_summary"]["reason_counts"],
-            {"private_eval_sidecar_missing_components": 1},
+            selected["serialization_gap_reason"],
+            "selected_value_has_placeholder_only_no_component",
         )
+        self.assertEqual(
+            evaluation["selected_stop_serialization_gap_summary"]["total"],
+            0,
+        )
+        self.assertEqual(
+            evaluation["remaining_sidecar_component_gap_summary"]["reason_counts"],
+            {"selected_value_has_placeholder_only_no_component": 1},
+        )
+
+    def test_unparsed_location_only_partial_serializes_local_only_text(self):
+        candidate = _unparsed_location_stop_candidate()
+        resolved = {
+            "resolved_fields": {
+                FIELD_PICKUP_STOPS: {
+                    "value": candidate["value"],
+                    "confidence": candidate["confidence"],
+                    "source": candidate["source"],
+                    "parser_name": candidate["parser_name"],
+                    "metadata": candidate["metadata"],
+                }
+            }
+        }
+        audit = _audit_record([candidate], resolved)
+        selected = audit["private_eval_values"]["shadow_selected_stop"][FIELD_PICKUP_STOPS]
+        evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
+        row = next(
+            row
+            for row in evaluation["comparison_rows"]
+            if row["system"] == SYSTEM_SHADOW and row["field"] == FIELD_PICKUP_STOPS
+        )
+
+        self.assertTrue(selected["component_values_serialized"])
+        self.assertEqual(selected["source_status"], "unsupported_unparsed_location")
+        self.assertEqual(selected["value"][0]["unparsed_location_text_local_only"], "Warehouse District")
+        self.assertEqual(row["status"], "unsupported_unparsed_location")
+        self.assertEqual(row["dispatch_usability_tier"], "unsupported_unparsed_location")
 
     def test_stop_gold_review_packet_is_local_only_and_does_not_modify_gold(self):
         candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])

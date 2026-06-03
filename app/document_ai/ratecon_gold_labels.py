@@ -154,6 +154,10 @@ STATUS_LEGACY_EXTRACTOR_MISSING = "legacy_extractor_missing"
 STATUS_SHADOW_COMPONENT_NOT_SERIALIZED = "shadow_component_not_serialized"
 STATUS_SHADOW_REDACTED_NOT_COMPARABLE = "shadow_redacted_not_comparable"
 STATUS_SHADOW_EXTRACTOR_MISSING = "shadow_extractor_missing"
+STATUS_UNSUPPORTED_UNPARSED_LOCATION = "unsupported_unparsed_location"
+STATUS_SELECTED_PARTIAL_NOT_COMPARABLE = "selected_partial_not_comparable"
+STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS = "selected_partial_missing_required_components"
+STATUS_TRUE_EXTRACTOR_MISSING = "true_extractor_missing"
 STATUS_PREDICTION_UNAVAILABLE = STATUS_SOURCE_NOT_AVAILABLE
 
 SOURCE_AVAILABILITY_STATUSES = {
@@ -166,12 +170,17 @@ SOURCE_AVAILABILITY_STATUSES = {
     STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
     STATUS_SHADOW_REDACTED_NOT_COMPARABLE,
     STATUS_SHADOW_EXTRACTOR_MISSING,
+    STATUS_UNSUPPORTED_UNPARSED_LOCATION,
+    STATUS_SELECTED_PARTIAL_NOT_COMPARABLE,
+    STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS,
+    STATUS_TRUE_EXTRACTOR_MISSING,
 }
 
 EXTRACTOR_MISSING_STATUSES = {
     STATUS_MISSING,
     STATUS_LEGACY_EXTRACTOR_MISSING,
     STATUS_SHADOW_EXTRACTOR_MISSING,
+    STATUS_TRUE_EXTRACTOR_MISSING,
 }
 
 ADJ_LEGACY_CORRECT_SHADOW_WRONG = "legacy_correct_shadow_wrong"
@@ -1170,6 +1179,9 @@ def _empty_metric():
         "field_not_serialized_count": 0,
         "redacted_not_comparable_count": 0,
         "unsupported_value_type_count": 0,
+        "unsupported_unparsed_location_count": 0,
+        "selected_partial_not_comparable_count": 0,
+        "selected_partial_missing_required_components_count": 0,
         "wrong_value_count": 0,
         "conflict_count": 0,
         "low_confidence_but_correct_count": 0,
@@ -1209,6 +1221,12 @@ def _update_metric(metric, comparison):
         metric["redacted_not_comparable_count"] += 1
     elif status == STATUS_UNSUPPORTED_VALUE_TYPE:
         metric["unsupported_value_type_count"] += 1
+    elif status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        metric["unsupported_unparsed_location_count"] += 1
+    elif status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        metric["selected_partial_not_comparable_count"] += 1
+    elif status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS:
+        metric["selected_partial_missing_required_components_count"] += 1
     if confidence is not None:
         if confidence < 0.70 and _status_correct(status):
             metric["low_confidence_but_correct_count"] += 1
@@ -3497,6 +3515,15 @@ def _stop_missing_reason(row):
     source_status = _text(row.get("source_status"))
     if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
         return "serialized_gap"
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "unsupported_unparsed_location"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        return "selected_partial_not_comparable"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
     if source_status == STATUS_UNSUPPORTED_VALUE_TYPE:
         return "unsupported_structured_value"
     if row.get("stop_abstained"):
@@ -3611,6 +3638,10 @@ def _empty_stop_usability():
         "exact_complete": 0,
         "dispatch_usable": 0,
         "useful_partial": 0,
+        "useful_partial_location_only": 0,
+        "unsupported_unparsed_location": 0,
+        "selected_partial_not_comparable": 0,
+        "selected_partial_missing_required_components": 0,
         "unsafe_wrong": 0,
         "missing_review_required": 0,
         "serialized_gap": 0,
@@ -3760,6 +3791,17 @@ def _stop_usability_tier(row, component_rows):
     source_status = _text(row.get("source_status"))
     if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}:
         return "exact_complete"
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "unsupported_unparsed_location"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        if row.get("has_location") and not (row.get("has_date") or row.get("has_time")):
+            return "useful_partial_location_only"
+        return "selected_partial_not_comparable"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
     if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
         return "serialized_gap"
     if status in EXTRACTOR_MISSING_STATUSES or status in SOURCE_AVAILABILITY_STATUSES:
@@ -3838,7 +3880,14 @@ def _annotate_stop_usability_tiers(comparison_rows):
                 row["dispatch_usability_tier"] = tier
                 if tier in {"exact_complete", "dispatch_usable"}:
                     row["gold_dispatch_usable_match"] = True
-                elif tier in {"useful_partial", "unsafe_wrong"}:
+                elif tier in {
+                    "useful_partial",
+                    "useful_partial_location_only",
+                    "unsupported_unparsed_location",
+                    "selected_partial_not_comparable",
+                    "selected_partial_missing_required_components",
+                    "unsafe_wrong",
+                }:
                     row["gold_dispatch_usable_match"] = False
                 else:
                     row["gold_dispatch_usable_match"] = None
@@ -4061,6 +4110,112 @@ def _build_selected_stop_serialization_gap_summary(comparison_rows):
         "fixable_count": fixable_count,
         "true_missing_count": true_missing_count,
         "remaining_after_fix": len(rows),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _sidecar_gap_reason_for_row(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    explicit_reason = (
+        _text(row.get("sidecar_gap_classification"))
+        or _text(row.get("sidecar_gap_reason"))
+        or _text(row.get("serialization_gap_classification"))
+        or _text(row.get("serialization_gap_reason"))
+    )
+    if explicit_reason:
+        return explicit_reason
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "selected_value_has_unstructured_location_text_only"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        return "selected_value_has_placeholder_only_no_component"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return _serialization_gap_classification(row) or "unknown"
+    return ""
+
+
+def _build_remaining_sidecar_component_gap_summary(comparison_rows):
+    trace_statuses = {
+        STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
+        STATUS_UNSUPPORTED_UNPARSED_LOCATION,
+        STATUS_SELECTED_PARTIAL_NOT_COMPARABLE,
+        STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS,
+    }
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        and (
+            row.get("status") in trace_statuses
+            or row.get("source_status") in trace_statuses
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    recoverable = 0
+    unsupported_selected_partial = 0
+    true_missing = 0
+    unknown = 0
+    cases = []
+    for row in rows:
+        reason = _sidecar_gap_reason_for_row(row) or "unknown"
+        reason_counts[reason] += 1
+        field = _text(row.get("field")) or "unknown"
+        field_counts[field] += 1
+        if reason in {
+            "sidecar_can_recover_component_by_candidate_id",
+            "sidecar_can_recover_component_by_structured_metadata",
+            "sidecar_can_recover_component_by_field_role_stop_index",
+            "selected_value_has_unstructured_location_text_only",
+        }:
+            recoverable += 1
+        elif reason in {
+            "selected_value_has_placeholder_only_no_component",
+            "unsupported_selected_partial",
+            "selected_partial_not_comparable",
+            "selected_partial_missing_required_components",
+        }:
+            unsupported_selected_partial += 1
+        elif reason in {"selected_stop_really_missing", "selected_stop_really_missing_review_required"}:
+            true_missing += 1
+        elif reason == "unknown":
+            unknown += 1
+        cases.append(
+            {
+                "document_id": _text(row.get("document_id")),
+                "file_name": _text(row.get("file_name")),
+                "field": field,
+                "source": _text(row.get("source")),
+                "parser_name": _text(row.get("parser_name")),
+                "pairing_method": _text(row.get("pairing_method")),
+                "stop_role": _text(row.get("stop_role")),
+                "stop_index": row.get("stop_index"),
+                "status": _text(row.get("status")),
+                "source_status": _text(row.get("source_status")),
+                "has_location": bool(row.get("has_location")),
+                "has_date": bool(row.get("has_date")),
+                "has_time": bool(row.get("has_time")),
+                "sidecar_gap_reason": reason,
+            }
+        )
+    return {
+        "total": len(rows),
+        "pickup": field_counts.get(FIELD_PICKUP_STOPS, 0),
+        "delivery": field_counts.get(FIELD_DELIVERY_STOPS, 0),
+        "recoverable": recoverable,
+        "unsupported_selected_partial": unsupported_selected_partial,
+        "true_missing": true_missing,
+        "unknown": unknown,
+        "reason_counts": dict(reason_counts.most_common()),
         "cases": cases,
         "private_values_printed": False,
         "raw_text_printed": False,
@@ -4513,6 +4668,19 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                             else ""
                         )
                     ),
+                    "sidecar_gap_reason": _text(metadata.get("sidecar_gap_reason")),
+                    "sidecar_gap_classification": _text(
+                        metadata.get("sidecar_gap_classification")
+                    ),
+                    "raw_location_text_local_only_present": bool(
+                        metadata.get("raw_location_text_local_only_present")
+                    ),
+                    "unparsed_location_text_local_only_present": bool(
+                        metadata.get("unparsed_location_text_local_only_present")
+                    ),
+                    "unsupported_selected_partial": bool(
+                        metadata.get("unsupported_selected_partial")
+                    ),
                     "role_confidence": _safe_float(metadata.get("role_confidence")),
                     "component_completeness": _safe_float(
                         metadata.get("component_completeness")
@@ -4721,6 +4889,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             comparison_rows,
         ),
         "selected_stop_serialization_gap_summary": _build_selected_stop_serialization_gap_summary(
+            comparison_rows,
+        ),
+        "remaining_sidecar_component_gap_summary": _build_remaining_sidecar_component_gap_summary(
             comparison_rows,
         ),
         "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(

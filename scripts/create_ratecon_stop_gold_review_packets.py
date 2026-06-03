@@ -38,6 +38,11 @@ STOP_REVIEW_CATEGORIES = (
     "no_action_needed",
 )
 
+LOCAL_ONLY_STOP_COMPONENTS = (
+    "raw_location_text_local_only",
+    "unparsed_location_text_local_only",
+)
+
 
 def _text(value) -> str:
     return str(value or "").strip()
@@ -203,7 +208,7 @@ def _stop_component_values_from_prediction(prediction, include_private_values):
     stop = stops[0]
     return {
         component: _text(stop.get(component))
-        for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+        for component in [*STOP_GOLD_COMPLETENESS_COMPONENTS, *LOCAL_ONLY_STOP_COMPONENTS]
     }
 
 
@@ -276,6 +281,12 @@ def _selected_stop_side_by_side_items(evaluation, audit_lookup, gold_lookup, inc
                 if gap_reason == "selected_stop_really_missing"
                 else "needs_private_eval_serialization"
             )
+        elif row.get("source_status") in {
+            "unsupported_unparsed_location",
+            "selected_partial_not_comparable",
+            "selected_partial_missing_required_components",
+        }:
+            fix_status = "unsupported_selected_partial"
         elif row.get("status") in {"extractor_missing", "shadow_extractor_missing"}:
             fix_status = "selected_missing_or_review_required"
         else:
@@ -321,6 +332,12 @@ def _reason_for_case(selected, dispatch, draft, gold_info):
             or _text(selected.get("serialization_gap_reason"))
             or "evaluator_serialized_gap"
         )
+    if selected and selected.get("source_status") == "unsupported_unparsed_location":
+        return "unsupported_unparsed_location"
+    if selected and selected.get("source_status") == "selected_partial_not_comparable":
+        return "selected_partial_not_comparable"
+    if selected and selected.get("source_status") == "selected_partial_missing_required_components":
+        return "selected_partial_missing_required_components"
     if dispatch.get("status") == "partial_match" and dispatch.get("dispatch_usability_tier") == "unsafe_wrong":
         return "candidate_partial_match_but_unsafe_by_usability"
     if dispatch.get("predicted") and not dispatch.get("status"):
@@ -350,6 +367,12 @@ def _secondary_reasons_for_case(selected, dispatch, draft, gold_info):
             or _text(selected.get("serialization_gap_reason"))
             or "evaluator_serialized_gap"
         )
+    if selected and selected.get("source_status") in {
+        "unsupported_unparsed_location",
+        "selected_partial_not_comparable",
+        "selected_partial_missing_required_components",
+    }:
+        reasons.append(_text(selected.get("source_status")))
     if dispatch.get("status") == "partial_match" and dispatch.get("dispatch_usability_tier") == "unsafe_wrong":
         reasons.append("candidate_partial_match_but_unsafe_by_usability")
     if dispatch.get("predicted") and missing:
@@ -396,6 +419,9 @@ def _item_categories(selected, dispatch, draft, gold_info, primary_reason, secon
     candidate_issues = set(dispatch.get("issues") or []) | set(draft.get("issues") or [])
     if (
         "candidate_partial_match_but_unsafe_by_usability" in reasons
+        or "unsupported_unparsed_location" in reasons
+        or "selected_partial_not_comparable" in reasons
+        or "selected_partial_missing_required_components" in reasons
         or any(issue.startswith("wrong_") for issue in candidate_issues)
         or dispatch.get("dispatch_usability_tier") == "unsafe_wrong"
         or draft.get("dispatch_usability_tier") == "unsafe_wrong"
@@ -418,6 +444,12 @@ def _primary_category(categories):
 def _recommendation_for_reason(reason):
     if reason == "evaluator_serialized_gap":
         return "evaluator_bug_suspected"
+    if reason in {
+        "unsupported_unparsed_location",
+        "selected_partial_not_comparable",
+        "selected_partial_missing_required_components",
+    }:
+        return "candidate_is_review_draft_only"
     if reason in {
         "gold_missing_date",
         "gold_missing_time_or_window",
@@ -479,9 +511,21 @@ def build_stop_gold_review_packet(
                 "extractor_missing",
                 "shadow_component_not_serialized",
                 "source_not_available",
+                "unsupported_unparsed_location",
+                "selected_partial_not_comparable",
+                "selected_partial_missing_required_components",
             }
             )
-            and not tiers.intersection({"unsafe_wrong", "useful_partial"})
+            and not tiers.intersection(
+                {
+                    "unsafe_wrong",
+                    "useful_partial",
+                    "useful_partial_location_only",
+                    "unsupported_unparsed_location",
+                    "selected_partial_not_comparable",
+                    "selected_partial_missing_required_components",
+                }
+            )
             and not _true_gold_review_needed(gold_info)
         ):
             continue
@@ -576,6 +620,10 @@ def build_stop_gold_review_packet(
             "selected_stop_serialization_gap_summary",
             {},
         ),
+        "remaining_sidecar_component_gap_summary": evaluation.get(
+            "remaining_sidecar_component_gap_summary",
+            {},
+        ),
         "selected_stop_side_by_side_items": selected_side_by_side,
         "items": review_items,
         "gold_labels_modified": False,
@@ -643,6 +691,11 @@ def write_packet(packet, output_dir: Path):
         "Selected stop serialization gap summary: "
         + json.dumps(
             packet.get("selected_stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        ),
+        "Remaining sidecar component gap summary: "
+        + json.dumps(
+            packet.get("remaining_sidecar_component_gap_summary", {}) or {},
             sort_keys=True,
         ),
         "",
@@ -758,6 +811,10 @@ def write_packet(packet, output_dir: Path):
             for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
                 key = f"{prefix}_{component}"
                 row[key] = values.get(component, "")
+            if prefix != "gold":
+                for component in LOCAL_ONLY_STOP_COMPONENTS:
+                    key = f"{prefix}_{component}"
+                    row[key] = values.get(component, "")
         for prefix in ["selected", "best_candidate", "draft"]:
             hint = item.get(f"{prefix}_source_hint", {}) or {}
             for key in ["source", "parser_name", "pairing_method", "page"]:
@@ -767,6 +824,9 @@ def write_packet(packet, output_dir: Path):
     private_fieldnames = list(fieldnames)
     for prefix in ["gold", "selected", "best_candidate", "draft"]:
         for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
+            private_fieldnames.append(f"{prefix}_{component}")
+    for prefix in ["selected", "best_candidate", "draft"]:
+        for component in LOCAL_ONLY_STOP_COMPONENTS:
             private_fieldnames.append(f"{prefix}_{component}")
     for prefix in ["selected", "best_candidate", "draft"]:
         for key in ["source", "parser_name", "pairing_method", "page"]:
@@ -813,6 +873,8 @@ def write_packet(packet, output_dir: Path):
     for prefix in ["gold", "selected"]:
         for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
             side_by_side_fieldnames.append(f"{prefix}_{component}")
+    for component in LOCAL_ONLY_STOP_COMPONENTS:
+        side_by_side_fieldnames.append(f"selected_{component}")
 
     def side_by_side_row(item):
         row = {
@@ -836,6 +898,9 @@ def write_packet(packet, output_dir: Path):
             values = item.get(f"{prefix}_components", {}) or {}
             for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
                 row[f"{prefix}_{component}"] = values.get(component, "")
+            if prefix == "selected":
+                for component in LOCAL_ONLY_STOP_COMPONENTS:
+                    row[f"{prefix}_{component}"] = values.get(component, "")
         return row
 
     selected_side_by_side_items = packet.get("selected_stop_side_by_side_items", []) or []
@@ -847,7 +912,8 @@ def write_packet(packet, output_dir: Path):
     selected_gap_items = [
         item
         for item in selected_side_by_side_items
-        if item.get("fix_status") in {"needs_private_eval_serialization", "true_missing"}
+        if item.get("fix_status")
+        in {"needs_private_eval_serialization", "true_missing", "unsupported_selected_partial"}
     ]
     selected_gaps_json_path.write_text(
         json.dumps(
@@ -925,6 +991,10 @@ def main(argv=None):
                 ),
                 "selected_stop_serialization_gap_summary": packet.get(
                     "selected_stop_serialization_gap_summary",
+                    {},
+                ),
+                "remaining_sidecar_component_gap_summary": packet.get(
+                    "remaining_sidecar_component_gap_summary",
                     {},
                 ),
             },
