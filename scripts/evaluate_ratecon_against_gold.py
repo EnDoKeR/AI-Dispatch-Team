@@ -191,6 +191,10 @@ def _error_case_rows(evaluation):
                 "gold_dispatch_usable_match": row.get("gold_dispatch_usable_match", ""),
                 "candidate_review_tier": row.get("candidate_review_tier", ""),
                 "dispatch_usability_note": row.get("dispatch_usability_note", ""),
+                "serialization_gap_reason": row.get(
+                    "serialization_gap_reason",
+                    "",
+                ),
                 "serialization_gap_classification": row.get(
                     "serialization_gap_classification",
                     "",
@@ -408,6 +412,13 @@ def _markdown_report(evaluation):
         )
     )
     lines.append(
+        "selected_stop_serialization_gap_summary: "
+        + json.dumps(
+            evaluation.get("selected_stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "dispatch_usable_handoff_summary: "
         + json.dumps(
             {
@@ -569,6 +580,7 @@ def evaluate_and_write(
             "gold_dispatch_usable_match",
             "candidate_review_tier",
             "dispatch_usability_note",
+            "serialization_gap_reason",
             "serialization_gap_classification",
             "role_confidence",
             "component_completeness",

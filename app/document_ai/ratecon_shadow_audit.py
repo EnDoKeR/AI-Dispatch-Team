@@ -1597,6 +1597,7 @@ def _metadata_eval_summary(metadata):
         "load_candidate_profile_adjustments",
         "ocr_candidate",
         "ocr_provider",
+        "serialization_gap_reason",
     ]
     payload = {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
     if "dispatch_usable" in metadata and "candidate_has_dispatch_components" not in payload:
@@ -1623,8 +1624,25 @@ def _has_real_stop_component(stop):
     return False
 
 
-def _private_stop_prediction(value, field_name, confidence=0.0, source="", parser_name="", metadata=None):
+def _stop_prediction_gap_reason(value, metadata, normalized):
     metadata = metadata if isinstance(metadata, dict) else {}
+    stops = normalized.get("stops", []) if isinstance(normalized, dict) else []
+    policy = _text(metadata.get("stop_selection_policy"))
+    if metadata.get("stop_abstained") or policy == "abstain":
+        return "selected_stop_really_missing"
+    if not stops:
+        return "selected_stop_value_is_empty_dict_or_list"
+    if metadata.get("has_location") or metadata.get("has_date") or metadata.get("has_time"):
+        return "private_eval_sidecar_missing_components"
+    if isinstance(value, str) and _text(value):
+        return "selected_stop_value_is_string_placeholder"
+    if isinstance(value, (dict, list, tuple)):
+        return "selected_stop_value_is_empty_dict_or_list"
+    return "unknown"
+
+
+def _private_stop_prediction(value, field_name, confidence=0.0, source="", parser_name="", metadata=None):
+    metadata = dict(metadata) if isinstance(metadata, dict) else {}
     normalized = normalize_stop_candidate_value(value, field_name, metadata)
     stops = [
         {
@@ -1645,17 +1663,26 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
         for stop in normalized.get("stops", []) or []
         if isinstance(stop, dict)
     ]
+    component_values_serialized = bool(any(_has_real_stop_component(stop) for stop in stops))
+    gap_reason = ""
+    if stops and not component_values_serialized:
+        gap_reason = _stop_prediction_gap_reason(value, metadata, normalized)
+        metadata["serialization_gap_reason"] = gap_reason
     payload = {
-        "value": stops if any(_has_real_stop_component(stop) for stop in stops) else "",
+        "value": stops if component_values_serialized else "",
         "confidence": round(float(confidence or 0.0), 3),
         "source": _text(source),
         "parser_name": _text(parser_name),
         "structure_status": _text(normalized.get("structure_status")),
-        "component_values_serialized": bool(any(_has_real_stop_component(stop) for stop in stops)),
+        "component_values_serialized": component_values_serialized,
         "metadata_summary": _metadata_eval_summary(metadata),
     }
-    if stops and not payload["component_values_serialized"]:
-        payload["source_status"] = "shadow_component_not_serialized"
+    if gap_reason:
+        payload["serialization_gap_reason"] = gap_reason
+        if gap_reason == "selected_stop_really_missing":
+            payload["source_status"] = "shadow_extractor_missing"
+        else:
+            payload["source_status"] = "shadow_component_not_serialized"
     return payload
 
 
@@ -1700,11 +1727,18 @@ def _candidate_matches_selected(candidate, selected, field_name):
     selected_metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
     candidate_id = _text(metadata.get("candidate_id"))
     selected_candidate_id = _text(selected_metadata.get("candidate_id"))
-    if candidate_id and selected_candidate_id and candidate_id == selected_candidate_id:
-        return True
+    if candidate_id or selected_candidate_id:
+        if candidate_id and selected_candidate_id and candidate_id == selected_candidate_id:
+            return True
+        if candidate_id and selected_candidate_id and candidate_id != selected_candidate_id:
+            return False
     if _text(candidate.get("parser_name")) != _text(selected.get("parser_name")):
         return False
     if _text(candidate.get("source")) != _text(selected.get("source")):
+        return False
+    candidate_page = _text(candidate.get("page"))
+    selected_page = _text(selected.get("page"))
+    if candidate_page and selected_page and candidate_page != selected_page:
         return False
     candidate_value = _text(candidate.get("normalized_value") or candidate.get("value"))
     selected_value = _text(selected.get("normalized_value") or selected.get("value"))
@@ -1721,7 +1755,7 @@ def _candidate_matches_selected(candidate, selected, field_name):
         )
     ):
         return False
-    for key in ["pairing_method", "table_index", "row_index", "stop_role"]:
+    for key in ["pairing_method", "table_index", "row_index", "stop_role", "stop_index"]:
         left = _text(metadata.get(key))
         right = _text(selected_metadata.get(key))
         if left and right and left != right:

@@ -207,6 +207,16 @@ def _stop_component_values_from_prediction(prediction, include_private_values):
     }
 
 
+def _first_stop_from_prediction(prediction):
+    prediction = prediction if isinstance(prediction, dict) else {}
+    value = prediction.get("value")
+    if isinstance(value, dict):
+        return value
+    if isinstance(value, list):
+        return next((item for item in value if isinstance(item, dict)), {})
+    return {}
+
+
 def _gold_component_values(gold_info, include_private_values):
     if not include_private_values:
         return {}
@@ -216,6 +226,12 @@ def _gold_component_values(gold_info, include_private_values):
         component: _text(stop.get(component))
         for component in STOP_GOLD_COMPLETENESS_COMPONENTS
     }
+
+
+def _gold_stop_index(gold_info):
+    stops = gold_info.get("stops", []) if isinstance(gold_info, dict) else []
+    stop = next((item for item in stops if isinstance(item, dict)), {})
+    return stop.get("stop_index") or 1
 
 
 def _source_hint_from_prediction(prediction):
@@ -228,6 +244,63 @@ def _source_hint_from_prediction(prediction):
         "pairing_method": _text(metadata.get("pairing_method")),
         "page": _text(prediction.get("page")),
     }
+
+
+def _selected_stop_side_by_side_items(evaluation, audit_lookup, gold_lookup, include_private_values):
+    rows = []
+    for row in evaluation.get("comparison_rows", []) or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        if row.get("field") not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        key = (row.get("document_id"), row.get("file_hash"), row.get("field"))
+        gold_info = gold_lookup.get(key, {})
+        record = _record_for_key(audit_lookup, key)
+        prediction = _private_prediction(record, SYSTEM_SHADOW, row.get("field"))
+        selected_stop = _first_stop_from_prediction(prediction)
+        selected_components = _stop_component_values_from_prediction(
+            prediction,
+            include_private_values,
+        )
+        gold_components = _gold_component_values(gold_info, include_private_values)
+        metadata = prediction.get("metadata_summary", {}) if isinstance(prediction, dict) else {}
+        gap_reason = (
+            _text(row.get("serialization_gap_classification"))
+            or _text(row.get("serialization_gap_reason"))
+            or _text(metadata.get("serialization_gap_reason"))
+        )
+        fix_status = ""
+        if row.get("source_status") == "shadow_component_not_serialized":
+            fix_status = (
+                "true_missing"
+                if gap_reason == "selected_stop_really_missing"
+                else "needs_private_eval_serialization"
+            )
+        elif row.get("status") in {"extractor_missing", "shadow_extractor_missing"}:
+            fix_status = "selected_missing_or_review_required"
+        else:
+            fix_status = "comparable"
+        rows.append(
+            {
+                "document_id": _text(row.get("document_id")),
+                "file_hash": _text(row.get("file_hash")),
+                "file_name": _text(row.get("file_name")),
+                "field": _text(row.get("field")),
+                "stop_index": selected_stop.get("stop_index") or _gold_stop_index(gold_info),
+                "selected_source": _text(prediction.get("source")) if isinstance(prediction, dict) else "",
+                "selected_parser_name": _text(prediction.get("parser_name")) if isinstance(prediction, dict) else "",
+                "selected_pairing_method": _text(metadata.get("pairing_method")),
+                "raw_status": _text(row.get("status")),
+                "dispatch_usability_tier": _text(
+                    row.get("dispatch_usability_tier") or row.get("stop_usability_tier")
+                ),
+                "serialization_gap_reason": gap_reason,
+                "fix_status": fix_status,
+                "gold_components": gold_components,
+                "selected_components": selected_components,
+            }
+        )
+    return rows
 
 
 def _missing_gold_components(gold_info):
@@ -243,8 +316,12 @@ def _reason_for_case(selected, dispatch, draft, gold_info):
     draft = draft if isinstance(draft, dict) else {}
     missing = set(_missing_gold_components(gold_info))
     if selected and selected.get("source_status") == "shadow_component_not_serialized":
-        return "evaluator_serialized_gap"
-    if dispatch.get("status") == "partial_match" and dispatch.get("stop_usability_tier") == "unsafe_wrong":
+        return (
+            _text(selected.get("serialization_gap_classification"))
+            or _text(selected.get("serialization_gap_reason"))
+            or "evaluator_serialized_gap"
+        )
+    if dispatch.get("status") == "partial_match" and dispatch.get("dispatch_usability_tier") == "unsafe_wrong":
         return "candidate_partial_match_but_unsafe_by_usability"
     if dispatch.get("predicted") and not dispatch.get("status"):
         return "candidate_not_compared"
@@ -268,8 +345,12 @@ def _secondary_reasons_for_case(selected, dispatch, draft, gold_info):
     missing = set(_missing_gold_components(gold_info))
     reasons = []
     if selected and selected.get("source_status") == "shadow_component_not_serialized":
-        reasons.append("evaluator_serialized_gap")
-    if dispatch.get("status") == "partial_match" and dispatch.get("stop_usability_tier") == "unsafe_wrong":
+        reasons.append(
+            _text(selected.get("serialization_gap_classification"))
+            or _text(selected.get("serialization_gap_reason"))
+            or "evaluator_serialized_gap"
+        )
+    if dispatch.get("status") == "partial_match" and dispatch.get("dispatch_usability_tier") == "unsafe_wrong":
         reasons.append("candidate_partial_match_but_unsafe_by_usability")
     if dispatch.get("predicted") and missing:
         reasons.append("dispatch_candidate_compared_against_incomplete_gold")
@@ -300,9 +381,15 @@ def _item_categories(selected, dispatch, draft, gold_info, primary_reason, secon
         reason in reasons
         for reason in {
             "evaluator_serialized_gap",
-            "selected_structured_value_not_serialized",
-            "selected_candidate_components_missing_from_private_eval",
-            "selected_candidate_serialized_as_placeholder",
+            "selected_stop_components_exist_but_not_in_resolved_output",
+            "selected_candidate_components_exist_but_not_joined_to_selected",
+            "selected_candidate_id_missing",
+            "selected_candidate_id_mismatch",
+            "resolver_selected_summary_lost_structured_value",
+            "audit_redaction_removed_private_components",
+            "private_eval_sidecar_missing_components",
+            "evaluator_lookup_path_bug",
+            "review_packet_lookup_path_bug",
         }
     ):
         categories.add("code_or_evaluator_issue")
@@ -362,6 +449,12 @@ def build_stop_gold_review_packet(
     evaluation = evaluation or evaluate_ratecon_against_gold(gold_labels, audit_records)
     gold_lookup = _gold_by_doc_field(gold_labels)
     audit_lookup = _audit_by_doc_field(audit_records)
+    selected_side_by_side = _selected_stop_side_by_side_items(
+        evaluation,
+        audit_lookup,
+        gold_lookup,
+        include_private_values_local_only,
+    )
     review_items = []
     for key, rows in sorted(_comparison_rows_by_doc_field(evaluation).items()):
         selected = rows.get(SYSTEM_SHADOW, {})
@@ -479,6 +572,11 @@ def build_stop_gold_review_packet(
         "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
             gold_labels,
         ),
+        "selected_stop_serialization_gap_summary": evaluation.get(
+            "selected_stop_serialization_gap_summary",
+            {},
+        ),
+        "selected_stop_side_by_side_items": selected_side_by_side,
         "items": review_items,
         "gold_labels_modified": False,
         "private_values_printed": bool(include_private_values_local_only),
@@ -527,6 +625,9 @@ def write_packet(packet, output_dir: Path):
     patch_template_path = output_dir / "stop_gold_patch_template.json"
     code_issues_path = output_dir / "stop_code_issues.csv"
     manual_review_path = output_dir / "stop_manual_review_items.csv"
+    selected_gaps_csv_path = output_dir / "selected_stop_serialization_gaps.csv"
+    selected_gaps_json_path = output_dir / "selected_stop_serialization_gaps.json"
+    selected_side_by_side_path = output_dir / "selected_stop_component_side_by_side.csv"
     items_json_path.write_text(
         json.dumps(packet, indent=2, sort_keys=True),
         encoding="utf-8",
@@ -539,6 +640,11 @@ def write_packet(packet, output_dir: Path):
         f"Reason counts: {json.dumps(packet.get('reason_counts', {}), sort_keys=True)}",
         f"Secondary reason counts: {json.dumps(packet.get('secondary_reason_counts', {}), sort_keys=True)}",
         f"Patch template rows: {len(build_patch_template(packet).get('patches', []))}",
+        "Selected stop serialization gap summary: "
+        + json.dumps(
+            packet.get("selected_stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        ),
         "",
         "## Stop Gold Completeness",
         "",
@@ -690,6 +796,80 @@ def write_packet(packet, output_dir: Path):
             if "true_gold_review_needed" in (item.get("categories", []) or [])
         ],
     )
+    side_by_side_fieldnames = [
+        "document_id",
+        "file_hash",
+        "file_name",
+        "field",
+        "stop_index",
+        "selected_source",
+        "selected_parser_name",
+        "selected_pairing_method",
+        "raw_status",
+        "dispatch_usability_tier",
+        "serialization_gap_reason",
+        "fix_status",
+    ]
+    for prefix in ["gold", "selected"]:
+        for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
+            side_by_side_fieldnames.append(f"{prefix}_{component}")
+
+    def side_by_side_row(item):
+        row = {
+            key: item.get(key, "")
+            for key in [
+                "document_id",
+                "file_hash",
+                "file_name",
+                "field",
+                "stop_index",
+                "selected_source",
+                "selected_parser_name",
+                "selected_pairing_method",
+                "raw_status",
+                "dispatch_usability_tier",
+                "serialization_gap_reason",
+                "fix_status",
+            ]
+        }
+        for prefix in ["gold", "selected"]:
+            values = item.get(f"{prefix}_components", {}) or {}
+            for component in STOP_GOLD_COMPLETENESS_COMPONENTS:
+                row[f"{prefix}_{component}"] = values.get(component, "")
+        return row
+
+    selected_side_by_side_items = packet.get("selected_stop_side_by_side_items", []) or []
+    with selected_side_by_side_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=side_by_side_fieldnames)
+        writer.writeheader()
+        for item in selected_side_by_side_items:
+            writer.writerow(side_by_side_row(item))
+    selected_gap_items = [
+        item
+        for item in selected_side_by_side_items
+        if item.get("fix_status") in {"needs_private_eval_serialization", "true_missing"}
+    ]
+    selected_gaps_json_path.write_text(
+        json.dumps(
+            {
+                "selected_stop_serialization_gap_summary": packet.get(
+                    "selected_stop_serialization_gap_summary",
+                    {},
+                ),
+                "items": selected_gap_items,
+                "private_values_printed": bool(packet.get("private_values_printed")),
+                "raw_text_printed": False,
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    with selected_gaps_csv_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=side_by_side_fieldnames)
+        writer.writeheader()
+        for item in selected_gap_items:
+            writer.writerow(side_by_side_row(item))
     patch_template_path.write_text(
         json.dumps(build_patch_template(packet), indent=2, sort_keys=True),
         encoding="utf-8",
@@ -701,6 +881,9 @@ def write_packet(packet, output_dir: Path):
         "code_issues_csv": str(code_issues_path),
         "manual_review_items_csv": str(manual_review_path),
         "patch_template_json": str(patch_template_path),
+        "selected_stop_serialization_gaps_csv": str(selected_gaps_csv_path),
+        "selected_stop_serialization_gaps_json": str(selected_gaps_json_path),
+        "selected_stop_component_side_by_side_csv": str(selected_side_by_side_path),
     }
 
 
@@ -739,6 +922,10 @@ def main(argv=None):
                 "category_counts": packet["category_counts"],
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])
+                ),
+                "selected_stop_serialization_gap_summary": packet.get(
+                    "selected_stop_serialization_gap_summary",
+                    {},
                 ),
             },
             indent=2,

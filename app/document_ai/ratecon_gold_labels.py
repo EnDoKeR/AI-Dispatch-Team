@@ -3959,16 +3959,21 @@ def _serialization_gap_classification(row):
     source_status = _text(row.get("source_status"))
     if status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED and source_status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
         return ""
+    explicit_reason = _text(row.get("serialization_gap_reason"))
+    if explicit_reason:
+        return explicit_reason
+    if _text(row.get("stop_selection_policy")) == "abstain" or row.get("stop_abstained"):
+        return "selected_stop_really_missing"
     if row.get("system") == SYSTEM_SHADOW and (
         row.get("has_location") or row.get("has_date") or row.get("has_time")
     ):
-        return "selected_structured_value_not_serialized"
+        return "resolver_selected_summary_lost_structured_value"
     if row.get("assembled_from_column_geometry"):
-        return "OCR_column_candidate_components_available_but_not_selected_output"
+        return "selected_candidate_components_exist_but_not_joined_to_selected"
     if row.get("candidate_has_dispatch_components") or row.get("dispatch_usable"):
-        return "selected_candidate_components_missing_from_private_eval"
+        return "private_eval_sidecar_missing_components"
     if row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
-        return "selected_candidate_serialized_as_placeholder"
+        return "selected_stop_value_is_string_placeholder"
     return "unknown"
 
 
@@ -3996,6 +4001,67 @@ def _build_stop_serialization_gap_summary(comparison_rows):
         "classification_counts": dict(reason_counts.most_common()),
         "field_counts": dict(field_counts.most_common()),
         "system_counts": dict(system_counts.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_selected_stop_serialization_gap_summary(comparison_rows):
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        and (
+            row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    cases = []
+    for row in rows:
+        classification = _serialization_gap_classification(row) or "unknown"
+        reason_counts[classification] += 1
+        field = _text(row.get("field")) or "unknown"
+        field_counts[field] += 1
+        row["serialization_gap_classification"] = classification
+        cases.append(
+            {
+                "document_id": _text(row.get("document_id")),
+                "file_name": _text(row.get("file_name")),
+                "field": field,
+                "source": _text(row.get("source")),
+                "parser_name": _text(row.get("parser_name")),
+                "pairing_method": _text(row.get("pairing_method")),
+                "stop_role": _text(row.get("stop_role")),
+                "stop_index": row.get("stop_index"),
+                "candidate_has_dispatch_components": bool(
+                    row.get("candidate_has_dispatch_components")
+                ),
+                "has_location": bool(row.get("has_location")),
+                "has_date": bool(row.get("has_date")),
+                "has_time": bool(row.get("has_time")),
+                "serialization_gap_reason": classification,
+                "fix_status": (
+                    "true_missing"
+                    if classification == "selected_stop_really_missing"
+                    else "needs_private_eval_serialization"
+                ),
+            }
+        )
+    true_missing_count = reason_counts.get("selected_stop_really_missing", 0)
+    fixable_count = len(rows) - true_missing_count - reason_counts.get("unknown", 0)
+    return {
+        "total": len(rows),
+        "pickup": field_counts.get(FIELD_PICKUP_STOPS, 0),
+        "delivery": field_counts.get(FIELD_DELIVERY_STOPS, 0),
+        "reason_counts": dict(reason_counts.most_common()),
+        "fixable_count": fixable_count,
+        "true_missing_count": true_missing_count,
+        "remaining_after_fix": len(rows),
+        "cases": cases,
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -4439,6 +4505,14 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "candidate_review_tier": _text(
                         metadata.get("candidate_review_tier")
                     ),
+                    "serialization_gap_reason": _text(
+                        metadata.get("serialization_gap_reason")
+                        or (
+                            prediction.get("serialization_gap_reason")
+                            if isinstance(prediction, dict)
+                            else ""
+                        )
+                    ),
                     "role_confidence": _safe_float(metadata.get("role_confidence")),
                     "component_completeness": _safe_float(
                         metadata.get("component_completeness")
@@ -4644,6 +4718,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
             gold_labels,
         ),
         "stop_serialization_gap_summary": _build_stop_serialization_gap_summary(
+            comparison_rows,
+        ),
+        "selected_stop_serialization_gap_summary": _build_selected_stop_serialization_gap_summary(
             comparison_rows,
         ),
         "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(

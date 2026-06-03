@@ -6,6 +6,7 @@ from pathlib import Path
 from app.document_ai.field_candidate_resolver import resolve_candidates
 from app.document_ai.ratecon_gold_labels import (
     FIELD_PICKUP_STOPS,
+    SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
     SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
     SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
@@ -64,6 +65,30 @@ def _dispatch_candidate():
             "column_alignment_confidence": 0.75,
             "stop_column_status": "medium",
             "stop_column_warnings": [],
+        },
+    }
+
+
+def _placeholder_stop_candidate(candidate_id="placeholder-pickup", stop_abstained=False):
+    return {
+        "field": FIELD_PICKUP_STOPS,
+        "value": "pickup_stop_complete",
+        "confidence": 0.4,
+        "source": "ocr",
+        "parser_name": "ocr_stop_table_reconstructor",
+        "metadata": {
+            "candidate_id": candidate_id,
+            "structured_stop_candidate": True,
+            "assembled_from_column_geometry": True,
+            "pairing_method": "ocr_geometry_column_row",
+            "stop_role": "pickup",
+            "stop_index": 1,
+            "has_location": not stop_abstained,
+            "has_date": False,
+            "has_time": False,
+            "stop_abstained": stop_abstained,
+            "stop_selection_policy": "abstain" if stop_abstained else "partial_review",
+            "stop_abstention_reason": "no_location_or_date" if stop_abstained else "location_only_review",
         },
     }
 
@@ -201,6 +226,56 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         self.assertEqual(selected["value"][0]["city"], "Dallas")
         self.assertNotEqual(selected.get("source_status"), "shadow_component_not_serialized")
 
+    def test_abstained_selected_stop_placeholder_is_missing_not_serialized_gap(self):
+        candidate = _placeholder_stop_candidate(stop_abstained=True)
+        resolved = {
+            "resolved_fields": {
+                FIELD_PICKUP_STOPS: {
+                    "selected_candidate": candidate,
+                    "confidence": 0.4,
+                }
+            }
+        }
+        audit = _audit_record([candidate], resolved)
+
+        selected = audit["private_eval_values"]["shadow_selected_stop"][FIELD_PICKUP_STOPS]
+        evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
+        shadow_row = next(
+            row
+            for row in evaluation["comparison_rows"]
+            if row["system"] == SYSTEM_SHADOW and row["field"] == FIELD_PICKUP_STOPS
+        )
+
+        self.assertEqual(selected["source_status"], "shadow_extractor_missing")
+        self.assertEqual(selected["serialization_gap_reason"], "selected_stop_really_missing")
+        self.assertEqual(shadow_row["dispatch_usability_tier"], "missing_review_required")
+        self.assertEqual(evaluation["selected_stop_serialization_gap_summary"]["total"], 0)
+
+    def test_candidate_id_mismatch_is_not_joined_to_wrong_structured_candidate(self):
+        selected_candidate = _placeholder_stop_candidate(candidate_id="selected-other")
+        structured_candidate = _dispatch_candidate()
+        structured_candidate["source"] = selected_candidate["source"]
+        structured_candidate["parser_name"] = selected_candidate["parser_name"]
+        resolved = {
+            "resolved_fields": {
+                FIELD_PICKUP_STOPS: {
+                    "selected_candidate": selected_candidate,
+                    "confidence": 0.4,
+                }
+            }
+        }
+        audit = _audit_record([structured_candidate], resolved)
+        selected = audit["private_eval_values"]["shadow_selected_stop"][FIELD_PICKUP_STOPS]
+        evaluation = evaluate_ratecon_against_gold([_gold_label()], [audit])
+
+        self.assertFalse(selected["component_values_serialized"])
+        self.assertEqual(selected["source_status"], "shadow_component_not_serialized")
+        self.assertEqual(selected["serialization_gap_reason"], "private_eval_sidecar_missing_components")
+        self.assertEqual(
+            evaluation["selected_stop_serialization_gap_summary"]["reason_counts"],
+            {"private_eval_sidecar_missing_components": 1},
+        )
+
     def test_stop_gold_review_packet_is_local_only_and_does_not_modify_gold(self):
         candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
         resolved = resolve_candidates(
@@ -233,6 +308,9 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
             self.assertTrue(Path(paths["code_issues_csv"]).exists())
             self.assertTrue(Path(paths["manual_review_items_csv"]).exists())
             self.assertTrue(Path(paths["patch_template_json"]).exists())
+            self.assertTrue(Path(paths["selected_stop_serialization_gaps_csv"]).exists())
+            self.assertTrue(Path(paths["selected_stop_serialization_gaps_json"]).exists())
+            self.assertTrue(Path(paths["selected_stop_component_side_by_side_csv"]).exists())
 
     def test_patch_template_only_includes_true_gold_review_rows(self):
         candidates = apply_stop_column_strict_profile_to_candidates([_dispatch_candidate()])
