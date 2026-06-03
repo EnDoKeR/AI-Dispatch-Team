@@ -11,6 +11,7 @@ from collections import Counter
 import csv
 import json
 from pathlib import Path
+import re
 import sys
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -1847,6 +1848,460 @@ def _fusion_safety_model_summary(items):
     }
 
 
+def _normalize_location_text(value):
+    value = _text(value).lower()
+    value = re.sub(r"[^a-z0-9]+", " ", value)
+    return " ".join(value.split())
+
+
+def _entry_line_number(entry):
+    try:
+        return int(float(entry.get("line_index")))
+    except (TypeError, ValueError):
+        return None
+
+
+def _bbox_top(entry):
+    bbox = entry.get("bbox")
+    if not isinstance(bbox, dict):
+        return None
+    for key in ["top", "y", "y0"]:
+        try:
+            return float(bbox.get(key))
+        except (TypeError, ValueError):
+            continue
+    return None
+
+
+def _same_location_proximity(left, right):
+    if _text(left.get("candidate_id")) and _text(left.get("candidate_id")) == _text(right.get("candidate_id")):
+        return True
+    if _text(left.get("page")) and _text(left.get("page")) != _text(right.get("page")):
+        return False
+    left_line = _entry_line_number(left)
+    right_line = _entry_line_number(right)
+    if left_line is not None and right_line is not None:
+        return abs(left_line - right_line) <= 4
+    left_top = _bbox_top(left)
+    right_top = _bbox_top(right)
+    if left_top is not None and right_top is not None:
+        return abs(left_top - right_top) <= 90.0
+    return False
+
+
+def _entry_location_text(entry):
+    return _normalize_location_text(entry.get("value_local_only"))
+
+
+def _location_texts_related(left_text, right_text):
+    if not left_text or not right_text:
+        return False
+    if left_text == right_text:
+        return True
+    shorter, longer = (left_text, right_text) if len(left_text) <= len(right_text) else (right_text, left_text)
+    return len(shorter) >= 5 and shorter in longer
+
+
+def _entry_is_reference_or_contact(entry):
+    metadata = entry.get("metadata_summary") if isinstance(entry.get("metadata_summary"), dict) else {}
+    haystack = " ".join(
+        [
+            _text(entry.get("parser_name")),
+            _text(entry.get("generator_name")),
+            _text(entry.get("source_group")),
+            _text(metadata.get("section_context")),
+            _text(metadata.get("document_region")),
+            _text(metadata.get("table_context_role")),
+            _text(metadata.get("raw_field")),
+            _text(entry.get("unsafe_reason")),
+        ]
+    ).lower()
+    return any(token in haystack for token in ["reference", "contact", "phone", "email"])
+
+
+def _entry_is_instruction_or_payment(entry):
+    metadata = entry.get("metadata_summary") if isinstance(entry.get("metadata_summary"), dict) else {}
+    haystack = " ".join(
+        [
+            _text(entry.get("unsafe_reason")),
+            _text(metadata.get("section_context")),
+            _text(metadata.get("document_region")),
+            _text(metadata.get("stop_column_warnings")),
+            _text(metadata.get("stop_geometry_warnings")),
+            _text(metadata.get("alignment_warnings")),
+        ]
+    ).lower()
+    return entry.get("safety_status") == "unsafe" or any(
+        token in haystack for token in ["payment", "instruction", "terms", "footer"]
+    )
+
+
+def _locations_should_cluster(entry, cluster_entries):
+    if not cluster_entries:
+        return True
+    if entry.get("role") not in {"pickup", "delivery"}:
+        return False
+    for member in cluster_entries:
+        if member.get("role") != entry.get("role"):
+            return False
+        if _text(member.get("stop_index")) and _text(entry.get("stop_index")) and _text(member.get("stop_index")) != _text(entry.get("stop_index")):
+            continue
+        entry_text = _entry_location_text(entry)
+        member_text = _entry_location_text(member)
+        if _location_texts_related(entry_text, member_text):
+            return True
+        complementary = {
+            entry.get("component"),
+            member.get("component"),
+        }.issubset({"facility", "address", "city_state_zip", "raw_location"})
+        if complementary and _same_location_proximity(entry, member):
+            return True
+    return False
+
+
+def _cluster_location_entries(location_entries):
+    clusters = []
+    sorted_entries = sorted(
+        location_entries or [],
+        key=lambda entry: (
+            _text(entry.get("role")),
+            _text(entry.get("stop_index")),
+            _text(entry.get("page")),
+            _entry_line_number(entry) if _entry_line_number(entry) is not None else 999999,
+            _bbox_top(entry) if _bbox_top(entry) is not None else 999999.0,
+            _text(entry.get("candidate_id")),
+        ),
+    )
+    for entry in sorted_entries:
+        for cluster in clusters:
+            if _locations_should_cluster(entry, cluster["entries"]):
+                cluster["entries"].append(entry)
+                break
+        else:
+            clusters.append({"entries": [entry]})
+    result = []
+    for index, cluster in enumerate(clusters, start=1):
+        entries = cluster["entries"]
+        components = {entry.get("component") for entry in entries}
+        values = {
+            _entry_location_text(entry)
+            for entry in entries
+            if _entry_location_text(entry)
+        }
+        roles = {entry.get("role") for entry in entries}
+        sources = sorted({_text(entry.get("source")) or "unknown" for entry in entries})
+        status = "single_location_cluster"
+        blocked_reason = None
+        if any(_entry_is_instruction_or_payment(entry) or _entry_is_reference_or_contact(entry) for entry in entries):
+            status = "unsafe_cluster"
+            blocked_reason = "unsafe_source"
+        elif len(roles - {"pickup", "delivery"}) > 0 or len({role for role in roles if role in {"pickup", "delivery"}}) > 1:
+            status = "wrong_role_cluster"
+            blocked_reason = "wrong_role"
+        elif len(values) <= 1 and len(entries) > 1:
+            status = "duplicate_cluster"
+        elif components.intersection({"facility", "address", "city_state_zip"}) and len(components) > 1:
+            status = "facility_address_city_cluster"
+        elif len([entry for entry in entries if entry.get("component") in {"address", "raw_location"}]) > 1:
+            status = "split_address_cluster"
+        result.append(
+            {
+                "cluster_id": f"loc-cluster-{index}",
+                "role": next(iter(roles), ""),
+                "stop_index": entries[0].get("stop_index", 1),
+                "source_types": sources,
+                "component_types": sorted(component for component in components if component),
+                "has_facility": "facility" in components,
+                "has_address": "address" in components,
+                "has_city_state_zip": "city_state_zip" in components,
+                "page_line_available": any(entry.get("page_line_status") == "available" for entry in entries),
+                "bbox_available": any(bool(entry.get("bbox")) for entry in entries),
+                "cluster_confidence": 0.0 if status in {"unsafe_cluster", "wrong_role_cluster"} else (0.95 if status == "duplicate_cluster" else 0.85),
+                "cluster_status": status,
+                "blocked_reason": blocked_reason,
+                "entries": entries,
+                "normalized_value_count": len(values),
+            }
+        )
+    return result
+
+
+def _location_disambiguation_status(clusters, entries):
+    if not entries:
+        return "insufficient_geometry", 0.0
+    if any(cluster["cluster_status"] == "unsafe_cluster" for cluster in clusters):
+        return "unsafe_location_source", 0.0
+    safe_clusters = [
+        cluster for cluster in clusters if cluster["cluster_status"] not in {"unsafe_cluster", "wrong_role_cluster"}
+    ]
+    if len(safe_clusters) == 1:
+        status = safe_clusters[0]["cluster_status"]
+        if status == "single_location_cluster":
+            return "clear_single_location", 1.0
+        if status == "duplicate_cluster":
+            return "duplicate_locations_collapsed", 0.95
+        return "clear_location_cluster", 0.85
+    if len(safe_clusters) > 1:
+        return "ambiguous_multiple_locations", 0.35
+    if clusters:
+        return "unsafe_location_source", 0.0
+    return "unknown", 0.0
+
+
+def _diagnostic_cluster_representatives(entries, clusters):
+    representatives = []
+    represented_ids = set()
+    for cluster in clusters:
+        if cluster["cluster_status"] in {"unsafe_cluster", "wrong_role_cluster"}:
+            representatives.extend(cluster["entries"])
+            continue
+        representative = sorted(
+            cluster["entries"],
+            key=lambda entry: (
+                0 if entry.get("component") == "city_state_zip" else 1,
+                0 if entry.get("page_line_status") == "available" else 1,
+                _text(entry.get("candidate_id")),
+            ),
+        )[0]
+        representatives.append(representative)
+        represented_ids.update(id(entry) for entry in cluster["entries"])
+    return [
+        entry
+        for entry in entries or []
+        if entry.get("component") not in {"facility", "address", "city_state_zip", "raw_location"}
+    ] + representatives
+
+
+def _multiple_location_root_cause(entries, clusters):
+    location_entries = _location_components(entries)
+    if any(_entry_is_instruction_or_payment(entry) for entry in location_entries):
+        return "instruction_or_payment_leakage"
+    if any(_entry_is_reference_or_contact(entry) for entry in location_entries):
+        return "reference_contact_leakage"
+    if any(entry.get("role") not in {"pickup", "delivery"} for entry in location_entries):
+        return "wrong_role_candidates"
+    if len({entry.get("stop_index") for entry in location_entries if _text(entry.get("stop_index"))}) > 1:
+        return "multiple_stops_same_role"
+    safe_clusters = [
+        cluster for cluster in clusters if cluster["cluster_status"] not in {"unsafe_cluster", "wrong_role_cluster"}
+    ]
+    if len(safe_clusters) == 1:
+        status = safe_clusters[0]["cluster_status"]
+        if status == "duplicate_cluster":
+            return "duplicate_fragments"
+        if status == "facility_address_city_cluster":
+            return "facility_address_city_split"
+        if status == "split_address_cluster":
+            return "OCR_geometry_split"
+    if any("ocr" in _text(entry.get("source")).lower() for entry in location_entries):
+        return "OCR_geometry_split"
+    if any(_text(entry.get("source")) == "legacy_fallback" for entry in location_entries):
+        return "legacy_fallback_noise"
+    if all(entry.get("component") == "raw_location" for entry in location_entries):
+        return "duplicate_fragments"
+    if any("table" in _text(entry.get("parser_name")).lower() or "row" in _text(entry.get("parser_name")).lower() for entry in location_entries):
+        return "table_row_ambiguity"
+    return "table_row_ambiguity"
+
+
+def _location_candidate_record(entry, include_private_values):
+    return {
+        "candidate_id": _text(entry.get("candidate_id")),
+        "component_type": _text(entry.get("component_type") or entry.get("component")),
+        "source": _text(entry.get("source")),
+        "parser_name": _text(entry.get("parser_name")),
+        "generator_name": _text(entry.get("generator_name")),
+        "page": entry.get("page"),
+        "line_index": entry.get("line_index"),
+        "bbox": entry.get("bbox"),
+        "stop_index": entry.get("stop_index"),
+        "role": _text(entry.get("role")),
+        "section_context": _text((entry.get("metadata_summary") or {}).get("section_context")),
+        "safety_status": _text(entry.get("safety_status")),
+        "unsafe_reason": entry.get("unsafe_reason"),
+        "is_duplicate_or_fragment": False,
+        "is_reference_or_contact_text": _entry_is_reference_or_contact(entry),
+        "is_instruction_or_payment_text": _entry_is_instruction_or_payment(entry),
+        "is_gold_matching_local_only": False,
+        "value_local_only": entry.get("value_local_only") if include_private_values else "",
+    }
+
+
+def _row_block_disambiguation_for_case(entries, clusters):
+    locations = _location_components(entries)
+    date_time = _date_components(entries) + _time_components(entries)
+    reasons = []
+    source_counts = _counter(entries, "source")
+    if any(_entry_is_instruction_or_payment(entry) for entry in entries):
+        reasons.append("payment_instruction_overlap")
+    if any(entry.get("role") not in {"pickup", "delivery"} for entry in entries):
+        reasons.append("role_boundary_unclear")
+    if len([cluster for cluster in clusters if cluster["cluster_status"] not in {"unsafe_cluster", "wrong_role_cluster"}]) > 1:
+        reasons.append("conflicting_location_clusters")
+    if len({_text(entry.get("value_local_only")) for entry in date_time if _text(entry.get("value_local_only"))}) > 1:
+        reasons.append("conflicting_date_time_clusters")
+    if len({entry.get("stop_index") for entry in locations if _text(entry.get("stop_index"))}) > 1:
+        reasons.append("multiple_stops_same_role")
+    if any(entry.get("page_line_status") == "unavailable_from_source" for entry in locations + date_time):
+        reasons.append("source_unavailable")
+    if not all(_entry_has_proximity(entry) for entry in locations + date_time):
+        reasons.append("no_bbox_or_line_geometry")
+    same_row_or_block = False
+    if not reasons and locations and date_time:
+        for location in locations:
+            if any(_same_location_proximity(location, component) for component in date_time):
+                same_row_or_block = True
+                break
+        if not same_row_or_block:
+            reasons.append("section_boundary_unclear")
+    if not reasons and same_row_or_block:
+        reasons = []
+    elif not reasons:
+        reasons.append("unknown")
+    return {
+        "same_row_or_block_proven": same_row_or_block,
+        "blocked_reasons": sorted(set(reasons)),
+        "source_counts": source_counts,
+    }
+
+
+def build_stop_location_disambiguation_report(source_inventory_report, include_private_values=False):
+    items = (source_inventory_report or {}).get("items", []) or []
+    cases = []
+    cluster_records = []
+    row_records = []
+    after_cases = []
+    groups = {}
+    for item in items:
+        if item.get("role") not in {"pickup", "delivery"}:
+            continue
+        key = (
+            _text(item.get("document_id")),
+            _text(item.get("file_hash")),
+            _text(item.get("field")),
+        )
+        groups.setdefault(key, []).append(item)
+    for key, entries in groups.items():
+        before_status, before_reasons = _fusion_safety_for_entries(entries)
+        if "multiple_locations" not in before_reasons:
+            after_cases.append(
+                {
+                    "document_id": key[0],
+                    "file_hash": key[1],
+                    "field": key[2],
+                    "before_fusion_safety": before_status,
+                    "before_blocked_reasons": before_reasons,
+                    "after_fusion_safety": before_status,
+                    "after_blocked_reasons": before_reasons,
+                    "location_disambiguation_status": "",
+                }
+            )
+            continue
+        locations = _location_components(entries)
+        clusters = _cluster_location_entries(locations)
+        status, score = _location_disambiguation_status(clusters, locations)
+        clustered_entries = _diagnostic_cluster_representatives(entries, clusters)
+        after_status, after_reasons = _fusion_safety_for_entries(clustered_entries)
+        root_cause = _multiple_location_root_cause(entries, clusters)
+        location_records = []
+        duplicate_ids = set()
+        for cluster in clusters:
+            if cluster["cluster_status"] in {"duplicate_cluster", "split_address_cluster"}:
+                duplicate_ids.update(id(entry) for entry in cluster["entries"])
+        for entry in locations:
+            record = _location_candidate_record(entry, include_private_values)
+            record["is_duplicate_or_fragment"] = id(entry) in duplicate_ids
+            location_records.append(record)
+        case = {
+            "file_name": _text(entries[0].get("file_name")),
+            "document_id": key[0],
+            "file_hash": key[1],
+            "role": entries[0].get("role"),
+            "field": key[2],
+            "candidate_location_count": len(locations),
+            "location_candidates": location_records,
+            "root_cause": root_cause,
+            "location_disambiguation_score": score,
+            "location_disambiguation_status": status,
+            "cluster_count": len(clusters),
+        }
+        cases.append(case)
+        for cluster in clusters:
+            cluster_records.append(
+                {
+                    key: value
+                    for key, value in cluster.items()
+                    if key != "entries"
+                }
+                | {
+                    "document_id": key[0],
+                    "file_hash": key[1],
+                    "field": key[2],
+                    "entry_count": len(cluster["entries"]),
+                    "candidate_ids": [
+                        _text(entry.get("candidate_id")) for entry in cluster["entries"]
+                    ],
+                    "values_local_only": [
+                        entry.get("value_local_only") for entry in cluster["entries"]
+                    ]
+                    if include_private_values
+                    else [],
+                }
+            )
+        row_block = _row_block_disambiguation_for_case(entries, clusters)
+        row_records.append(
+            {
+                "document_id": key[0],
+                "file_hash": key[1],
+                "field": key[2],
+                "role": entries[0].get("role"),
+                "same_row_or_block_proven": row_block["same_row_or_block_proven"],
+                "blocked_reasons": row_block["blocked_reasons"],
+                "source_counts": row_block["source_counts"],
+            }
+        )
+        after_cases.append(
+            {
+                "document_id": key[0],
+                "file_hash": key[1],
+                "field": key[2],
+                "before_fusion_safety": before_status,
+                "before_blocked_reasons": before_reasons,
+                "after_fusion_safety": after_status,
+                "after_blocked_reasons": after_reasons,
+                "location_disambiguation_status": status,
+            }
+        )
+    after_counts = _counter(after_cases, "after_fusion_safety")
+    before_counts = _counter(after_cases, "before_fusion_safety")
+    row_source_counts = Counter()
+    for row in row_records:
+        row_source_counts.update(row.get("source_counts", {}) or {})
+    row_summary = {
+        "opportunities_checked": len(row_records),
+        "same_row_or_block_proven": sum(1 for row in row_records if row["same_row_or_block_proven"]),
+        "same_row_or_block_not_proven": sum(1 for row in row_records if not row["same_row_or_block_proven"]),
+        "blocked_reason_counts": _counter(row_records, "blocked_reasons"),
+        "source_counts": dict(row_source_counts.most_common()),
+    }
+    return {
+        "schema_version": "ratecon_stop_location_disambiguation_v1",
+        "multiple_location_items": cases,
+        "location_clusters": cluster_records,
+        "row_block_disambiguation": row_records,
+        "multiple_location_root_cause_counts": _counter(cases, "root_cause"),
+        "location_cluster_counts": _counter(cluster_records, "cluster_status"),
+        "location_disambiguation_score_counts": _counter(cases, "location_disambiguation_status"),
+        "stop_row_block_disambiguation_summary": row_summary,
+        "fusion_safety_before_disambiguation": before_counts,
+        "fusion_safety_after_disambiguation": after_counts,
+        "fusion_safety_after_disambiguation_cases": after_cases,
+        "private_values_printed": bool(include_private_values),
+        "raw_text_printed": False,
+        "local_only": True,
+    }
+
+
 def _fusion_diagnostic(item, issue_type, source_inventory_entries=None):
     selected = item.get("selected_stop_component_summary", {}) or {}
     dispatch = item.get("best_dispatch_usable_candidate_summary", {}) or {}
@@ -2779,6 +3234,99 @@ def write_stop_source_inventory_report(report, output_dir: Path):
     }
 
 
+def write_stop_location_disambiguation_report(report, output_dir: Path):
+    output_dir.mkdir(parents=True, exist_ok=True)
+    summary_path = output_dir / "stop_location_disambiguation_summary.md"
+    multiple_items_path = output_dir / "stop_multiple_location_items.csv"
+    clusters_path = output_dir / "stop_location_clusters.json"
+    row_block_path = output_dir / "stop_row_block_disambiguation.csv"
+    fusion_after_path = output_dir / "stop_fusion_safety_after_disambiguation.json"
+    summary_lines = [
+        "# Stop Location Disambiguation Diagnostics",
+        "",
+        "Multiple-location root causes: "
+        + json.dumps(report.get("multiple_location_root_cause_counts", {}), sort_keys=True),
+        "Location cluster counts: "
+        + json.dumps(report.get("location_cluster_counts", {}), sort_keys=True),
+        "Disambiguation score counts: "
+        + json.dumps(report.get("location_disambiguation_score_counts", {}), sort_keys=True),
+        "Row/block disambiguation summary: "
+        + json.dumps(report.get("stop_row_block_disambiguation_summary", {}), sort_keys=True),
+        "Fusion safety before disambiguation: "
+        + json.dumps(report.get("fusion_safety_before_disambiguation", {}), sort_keys=True),
+        "Fusion safety after disambiguation: "
+        + json.dumps(report.get("fusion_safety_after_disambiguation", {}), sort_keys=True),
+        "",
+        "This report is diagnostic-only. It must not change selected output or enable fusion.",
+        "Private values are local-only and must not be committed.",
+        "",
+    ]
+    summary_path.write_text("\n".join(summary_lines) + "\n", encoding="utf-8")
+    clusters_path.write_text(
+        json.dumps(report.get("location_clusters", []), indent=2, sort_keys=True),
+        encoding="utf-8",
+    )
+    fusion_after_path.write_text(
+        json.dumps(
+            {
+                "before": report.get("fusion_safety_before_disambiguation", {}),
+                "after": report.get("fusion_safety_after_disambiguation", {}),
+                "cases": report.get("fusion_safety_after_disambiguation_cases", []),
+            },
+            indent=2,
+            sort_keys=True,
+        ),
+        encoding="utf-8",
+    )
+    item_fieldnames = [
+        "document_id",
+        "file_hash",
+        "file_name",
+        "field",
+        "role",
+        "candidate_location_count",
+        "root_cause",
+        "location_disambiguation_status",
+        "location_disambiguation_score",
+        "cluster_count",
+        "location_candidates",
+    ]
+    with multiple_items_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=item_fieldnames)
+        writer.writeheader()
+        for item in report.get("multiple_location_items", []) or []:
+            row = dict(item)
+            row["location_candidates"] = json.dumps(
+                row.get("location_candidates", []),
+                sort_keys=True,
+            )
+            writer.writerow({key: row.get(key, "") for key in item_fieldnames})
+    row_fieldnames = [
+        "document_id",
+        "file_hash",
+        "field",
+        "role",
+        "same_row_or_block_proven",
+        "blocked_reasons",
+        "source_counts",
+    ]
+    with row_block_path.open("w", newline="", encoding="utf-8") as handle:
+        writer = csv.DictWriter(handle, fieldnames=row_fieldnames)
+        writer.writeheader()
+        for item in report.get("row_block_disambiguation", []) or []:
+            row = dict(item)
+            row["blocked_reasons"] = json.dumps(row.get("blocked_reasons", []), sort_keys=True)
+            row["source_counts"] = json.dumps(row.get("source_counts", {}), sort_keys=True)
+            writer.writerow({key: row.get(key, "") for key in row_fieldnames})
+    return {
+        "summary_md": str(summary_path),
+        "multiple_location_items_csv": str(multiple_items_path),
+        "location_clusters_json": str(clusters_path),
+        "row_block_disambiguation_csv": str(row_block_path),
+        "fusion_safety_after_disambiguation_json": str(fusion_after_path),
+    }
+
+
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--gold-dir", required=True)
@@ -2835,6 +3383,14 @@ def main(argv=None):
         audit_records,
         include_private_values=args.include_private_values_local_only,
     )
+    location_disambiguation_report = build_stop_location_disambiguation_report(
+        source_inventory_report,
+        include_private_values=args.include_private_values_local_only,
+    )
+    location_disambiguation_paths = write_stop_location_disambiguation_report(
+        location_disambiguation_report,
+        output_dir,
+    )
     source_inventory_paths = {}
     if source_inventory_output_dir:
         source_inventory_paths = write_stop_source_inventory_report(
@@ -2854,6 +3410,7 @@ def main(argv=None):
                 "output_paths": paths,
                 "residual_output_paths": residual_paths,
                 "source_inventory_output_paths": source_inventory_paths,
+                "location_disambiguation_output_paths": location_disambiguation_paths,
                 "review_item_count": packet["review_item_count"],
                 "reason_counts": packet["reason_counts"],
                 "secondary_reason_counts": packet["secondary_reason_counts"],
@@ -2913,6 +3470,32 @@ def main(argv=None):
                         or {}
                     ).items()
                     if key != "cases"
+                },
+                "stop_location_disambiguation_summary": {
+                    "multiple_location_root_cause_counts": location_disambiguation_report.get(
+                        "multiple_location_root_cause_counts",
+                        {},
+                    ),
+                    "location_cluster_counts": location_disambiguation_report.get(
+                        "location_cluster_counts",
+                        {},
+                    ),
+                    "location_disambiguation_score_counts": location_disambiguation_report.get(
+                        "location_disambiguation_score_counts",
+                        {},
+                    ),
+                    "stop_row_block_disambiguation_summary": location_disambiguation_report.get(
+                        "stop_row_block_disambiguation_summary",
+                        {},
+                    ),
+                    "fusion_safety_before_disambiguation": location_disambiguation_report.get(
+                        "fusion_safety_before_disambiguation",
+                        {},
+                    ),
+                    "fusion_safety_after_disambiguation": location_disambiguation_report.get(
+                        "fusion_safety_after_disambiguation",
+                        {},
+                    ),
                 },
                 "patch_template_row_count": len(
                     build_patch_template(packet).get("patches", [])

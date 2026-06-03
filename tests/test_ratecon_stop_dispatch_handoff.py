@@ -31,11 +31,15 @@ from app.document_ai.ratecon_stop_fusion_profile import (
 )
 from scripts.create_ratecon_stop_gold_review_packets import (
     build_no_candidate_source_trace_summary,
+    build_stop_location_disambiguation_report,
     build_residual_extraction_report,
     build_patch_template,
     build_stop_gold_review_packet,
     build_stop_source_inventory_report,
+    _cluster_location_entries,
+    _row_block_disambiguation_for_case,
     write_residual_extraction_report,
+    write_stop_location_disambiguation_report,
     write_stop_source_inventory_report,
     write_packet,
 )
@@ -287,6 +291,46 @@ def _source_inventory_audit_record():
                         "component_bboxes_available": True,
                         "page": 1,
                         "line_index": 8,
+                    },
+                },
+            ]
+        },
+    }
+
+
+def _location_disambiguation_audit_record():
+    return {
+        "document_id": "DOC-LOC",
+        "file_hash": "hash-loc",
+        "file_name": "location.pdf",
+        "candidate_counts_by_field": {
+            FIELD_PICKUP_STOPS: 1,
+        },
+        "private_eval_values": {
+            "stop_component_candidate_inventory": [
+                {
+                    "candidate_id": "pickup-location-cluster",
+                    "field": FIELD_PICKUP_STOPS,
+                    "value": [
+                        {
+                            "role": "pickup",
+                            "stop_index": 1,
+                            "facility": "Warehouse A",
+                            "address": "123 Main St",
+                            "city": "Dallas",
+                            "state": "TX",
+                            "date": "2026-06-05",
+                        }
+                    ],
+                    "source": "ocr",
+                    "parser_name": "ocr_stop_table_reconstructor",
+                    "metadata_summary": {
+                        "candidate_id": "pickup-location-cluster",
+                        "stop_role": "pickup",
+                        "assembled_from_column_geometry": True,
+                        "page": 1,
+                        "line_index": 8,
+                        "bbox": {"left": 20, "top": 100, "right": 420, "bottom": 180},
                     },
                 },
             ]
@@ -984,6 +1028,129 @@ class RateConStopDispatchHandoffTests(unittest.TestCase):
         )
         root_causes = report["provenance_loss_root_cause_by_module"]
         self.assertIn("by_loss_type", root_causes)
+
+    def test_location_disambiguation_clusters_facility_address_city(self):
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [_location_disambiguation_audit_record()],
+            include_private_values=True,
+        )
+
+        report = build_stop_location_disambiguation_report(
+            source_inventory,
+            include_private_values=True,
+        )
+
+        self.assertEqual(
+            report["multiple_location_root_cause_counts"]["facility_address_city_split"],
+            1,
+        )
+        self.assertEqual(
+            report["location_disambiguation_score_counts"]["clear_location_cluster"],
+            1,
+        )
+        self.assertEqual(report["fusion_safety_before_disambiguation"]["fusion_risky"], 1)
+        self.assertEqual(report["fusion_safety_after_disambiguation"]["fusion_safe"], 1)
+        row_summary = report["stop_row_block_disambiguation_summary"]
+        self.assertEqual(row_summary["same_row_or_block_proven"], 1)
+
+    def test_location_disambiguation_writer_outputs_local_files(self):
+        source_inventory = build_stop_source_inventory_report(
+            {},
+            [_location_disambiguation_audit_record()],
+            include_private_values=True,
+        )
+        report = build_stop_location_disambiguation_report(
+            source_inventory,
+            include_private_values=True,
+        )
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            paths = write_stop_location_disambiguation_report(report, Path(tmpdir))
+
+            self.assertTrue(Path(paths["summary_md"]).exists())
+            self.assertTrue(Path(paths["multiple_location_items_csv"]).exists())
+            self.assertTrue(Path(paths["location_clusters_json"]).exists())
+            self.assertTrue(Path(paths["row_block_disambiguation_csv"]).exists())
+            self.assertTrue(Path(paths["fusion_safety_after_disambiguation_json"]).exists())
+
+    def test_location_cluster_collapses_duplicates_and_keeps_roles_separate(self):
+        pickup_duplicate_a = {
+            "candidate_id": "pickup-a",
+            "component": "raw_location",
+            "component_type": "raw_location",
+            "value_local_only": "Dallas TX",
+            "role": "pickup",
+            "stop_index": 1,
+            "page": 1,
+            "line_index": 10,
+            "source": "native_text",
+            "safety_status": "safe",
+        }
+        pickup_duplicate_b = {
+            **pickup_duplicate_a,
+            "candidate_id": "pickup-b",
+            "line_index": 11,
+        }
+        delivery_same_text = {
+            **pickup_duplicate_a,
+            "candidate_id": "delivery-a",
+            "role": "delivery",
+        }
+
+        pickup_clusters = _cluster_location_entries([pickup_duplicate_a, pickup_duplicate_b])
+        mixed_role_clusters = _cluster_location_entries([pickup_duplicate_a, delivery_same_text])
+
+        self.assertEqual(len(pickup_clusters), 1)
+        self.assertEqual(pickup_clusters[0]["cluster_status"], "duplicate_cluster")
+        self.assertEqual(len(mixed_role_clusters), 2)
+
+    def test_row_block_disambiguation_blocks_payment_overlap(self):
+        entries = [
+            {
+                "candidate_id": "pickup-location",
+                "component": "raw_location",
+                "value_local_only": "Dallas TX",
+                "role": "pickup",
+                "stop_index": 1,
+                "page": 1,
+                "line_index": 10,
+                "source": "native_text",
+                "safety_status": "safe",
+                "page_line_status": "available",
+            },
+            {
+                "candidate_id": "pickup-date",
+                "component": "date",
+                "value_local_only": "2026-06-05",
+                "role": "pickup",
+                "stop_index": 1,
+                "page": 1,
+                "line_index": 11,
+                "source": "native_text",
+                "safety_status": "safe",
+                "page_line_status": "available",
+            },
+            {
+                "candidate_id": "payment-location",
+                "component": "raw_location",
+                "value_local_only": "Payment office",
+                "role": "pickup",
+                "stop_index": 1,
+                "page": 1,
+                "line_index": 20,
+                "source": "native_text",
+                "safety_status": "unsafe",
+                "unsafe_reason": "component_from_payment_or_instruction",
+                "page_line_status": "unsafe_source",
+            },
+        ]
+        clusters = _cluster_location_entries([entry for entry in entries if entry["component"] == "raw_location"])
+
+        row_block = _row_block_disambiguation_for_case(entries, clusters)
+
+        self.assertFalse(row_block["same_row_or_block_proven"])
+        self.assertIn("payment_instruction_overlap", row_block["blocked_reasons"])
 
     def test_fusion_safety_model_counts_safe_and_unsafe_sources(self):
         audit = _source_inventory_audit_record()
