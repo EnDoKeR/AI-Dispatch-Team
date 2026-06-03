@@ -325,6 +325,90 @@ Read `hybrid_benchmark_report.md` first, then inspect
 review-required rather than failure when the benchmark classifies it that way.
 Keep private benchmark outputs local.
 
+## Summarize Multiple Manual Batches
+
+After two or more manual benchmark folders exist, aggregate them:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_batches.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --output-dir .local_outputs/private_ratecon_hybrid_multi_batch_summary ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-remaining-plan ^
+  --max-next-docs 10
+```
+
+The multi-batch summary writes:
+
+- `multi_batch_summary.md`;
+- `multi_batch_summary.json`;
+- `multi_batch_document_coverage.csv`;
+- `multi_batch_field_metrics.csv`;
+- `multi_batch_review_items.csv`;
+- `multi_batch_success_criteria.csv`;
+- optionally `remaining_manual_batch_plan.csv`.
+
+Document IDs are deduplicated across benchmark folders. Duplicate documents are
+listed in `multi_batch_document_coverage.csv` but excluded from aggregate
+metrics.
+
+Aggregate statuses:
+
+- `manual_hybrid_workflow_validated`: clean aggregate with no review blockers.
+- `manual_hybrid_validated_with_review_items`: clean aggregate except expected
+  review items, such as uncertain gold.
+- `manual_hybrid_failed_schema`: at least one schema error exists.
+- `manual_hybrid_failed_safety`: missing evidence or stop auto-accept exists.
+- `manual_hybrid_failed_accuracy`: unsafe wrong stops or unresolved scalar
+  wrongs remain.
+- `manual_hybrid_inconclusive`: insufficient benchmark inputs.
+
+The manual workflow is considered validated for the current stage when multiple
+batches show no schema errors, no missing evidence, no stop auto-accept
+violations, no unsafe wrong stops, and only explicit review-required uncertain
+gold remains.
+
+## Generate The Remaining Plan
+
+When `--write-remaining-plan` is supplied, the summary script writes
+`remaining_manual_batch_plan.csv`. It excludes document IDs already benchmarked
+in prior manual batches and excludes non-RC/BOL/POD rows by default.
+
+Use the plan to create a third-batch packet:
+
+```powershell
+python scripts/create_ratecon_hybrid_next_batch_packet.py ^
+  --next-batch-plan .local_outputs/private_ratecon_hybrid_multi_batch_summary/remaining_manual_batch_plan.csv ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_third_batch_packet ^
+  --confirm-private-local-run ^
+  --write-empty-templates ^
+  --write-checklist ^
+  --write-zip-instructions
+```
+
+Benchmark unfilled third-batch templates before manual filling:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_third_batch_packet/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_third_batch_benchmark_unfilled ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+Avoid duplicate documents by checking `multi_batch_document_coverage.csv` and
+the `already_completed` column in `remaining_manual_batch_plan.csv`. Do not
+move to model-assisted filling until the manual workflow remains stable across
+multiple diverse batches.
+
 ## Files That Must Never Be Committed
 
 Do not commit:

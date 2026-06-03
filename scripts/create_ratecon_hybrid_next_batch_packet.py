@@ -30,6 +30,7 @@ from app.document_ai.ratecon_hybrid_contract import (  # noqa: E402
 DEFAULT_OUTPUT_DIR = Path(".local_outputs/private_ratecon_hybrid_next_batch_packet")
 DEFAULT_TEMPLATE_SOURCE = "plan"
 TEMPLATE_SOURCES = {"audit", "gold", "plan"}
+PACKET_PREFIXES = {"next_batch", "third_batch"}
 CHECKLIST_FIELDNAMES = [
     "document_id",
     "file_name",
@@ -431,14 +432,26 @@ def _checklist_rows(row: dict[str, Any]) -> list[dict[str, str]]:
     return rows
 
 
-def _readme() -> str:
-    return """# RateCon Hybrid Next-Batch Manual Packet
+def _packet_prefix(output_dir: Path, requested: str | None = None) -> str:
+    if requested:
+        if requested not in PACKET_PREFIXES:
+            raise HybridNextBatchPacketError("--packet-prefix must be next_batch or third_batch.")
+        return requested
+    return "third_batch" if "third_batch" in output_dir.as_posix().lower() else "next_batch"
+
+
+def _title_label(prefix: str) -> str:
+    return "Third-Batch" if prefix == "third_batch" else "Next-Batch"
+
+
+def _readme(prefix: str) -> str:
+    return f"""# RateCon Hybrid {_title_label(prefix)} Manual Packet
 
 This local-only packet contains blank manual-fill hybrid result templates for
-the next manual pilot batch. It made no AI, cloud, OCR, model, or PDF processing
+the manual pilot batch. It made no AI, cloud, OCR, model, or PDF processing
 calls.
 
-Start with `next_batch_document_index.csv`, then use `next_batch_checklist.csv`
+Start with `{prefix}_document_index.csv`, then use `{prefix}_checklist.csv`
 while editing files under `templates/`.
 
 Every filled value needs evidence. Every stop stays
@@ -446,10 +459,10 @@ Every filled value needs evidence. Every stop stays
 """
 
 
-def _how_to_fill() -> str:
-    return """# How To Fill Next-Batch Hybrid Templates
+def _how_to_fill(prefix: str) -> str:
+    return f"""# How To Fill {_title_label(prefix)} Hybrid Templates
 
-1. Open `next_batch_document_index.csv` and pick a document.
+1. Open `{prefix}_document_index.csv` and pick a document.
 2. Open the matching file under `templates/`.
 3. Set `document_type` first: `rate_confirmation`, `bol_pod`, or `unknown`.
 4. Fill `load_number.value` and `total_carrier_rate.value` only when visible.
@@ -464,9 +477,14 @@ guessing.
 """
 
 
-def _benchmark_doc(output_dir: Path) -> str:
+def _benchmark_doc(output_dir: Path, prefix: str) -> str:
     output = output_dir.as_posix()
-    return f"""# How To Run The Next-Batch Benchmark
+    benchmark_dir = (
+        ".local_outputs/private_ratecon_hybrid_third_batch_benchmark"
+        if prefix == "third_batch"
+        else ".local_outputs/private_ratecon_hybrid_next_batch_benchmark"
+    )
+    return f"""# How To Run The {_title_label(prefix)} Benchmark
 
 PowerShell `^` version:
 
@@ -475,7 +493,7 @@ python scripts/run_ratecon_hybrid_benchmark.py ^
   --hybrid-results-dir {output}/templates ^
   --gold-dir .local_outputs/private_ratecon_gold_labels ^
   --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
-  --output-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --output-dir {benchmark_dir} ^
   --confirm-private-local-run ^
   --allow-unfilled-manual-templates ^
   --write-review-packets
@@ -488,7 +506,7 @@ $benchmarkArgs = @(
   "--hybrid-results-dir", "{output}/templates",
   "--gold-dir", ".local_outputs/private_ratecon_gold_labels",
   "--audit", ".local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl",
-  "--output-dir", ".local_outputs/private_ratecon_hybrid_next_batch_benchmark",
+  "--output-dir", "{benchmark_dir}",
   "--confirm-private-local-run",
   "--allow-unfilled-manual-templates",
   "--write-review-packets"
@@ -501,17 +519,19 @@ committed.
 """
 
 
-def _zip_doc() -> str:
-    return """# How To Zip Templates For Manual Review
+def _zip_doc(prefix: str, output_dir: Path) -> str:
+    output = output_dir.as_posix().replace("/", "\\")
+    zip_name = "hybrid_third_batch_templates_for_chatgpt.zip" if prefix == "third_batch" else "hybrid_next_batch_templates_for_chatgpt.zip"
+    return f"""# How To Zip Templates For Manual Review
 
 Zip only the index, checklist, and blank/fillable JSON templates:
 
 ```powershell
 Compress-Archive `
-  ".local_outputs\\private_ratecon_hybrid_next_batch_packet\\next_batch_document_index.csv", `
-  ".local_outputs\\private_ratecon_hybrid_next_batch_packet\\next_batch_checklist.csv", `
-  ".local_outputs\\private_ratecon_hybrid_next_batch_packet\\templates\\*.hybrid_result.json" `
-  -DestinationPath ".local_outputs\\hybrid_next_batch_templates_for_chatgpt.zip" `
+  "{output}\\{prefix}_document_index.csv", `
+  "{output}\\{prefix}_checklist.csv", `
+  "{output}\\templates\\*.hybrid_result.json" `
+  -DestinationPath ".local_outputs\\{zip_name}" `
   -Force
 ```
 
@@ -533,12 +553,14 @@ def create_next_batch_packet(
     write_checklist: bool = True,
     write_zip_instructions: bool = True,
     template_source: str = DEFAULT_TEMPLATE_SOURCE,
+    packet_prefix: str | None = None,
 ) -> dict[str, Any]:
     if not is_under_local_outputs(output_dir, REPO_ROOT):
         raise HybridNextBatchPacketError("Output directory must be under .local_outputs.")
     resolved_output = _repo_relative(output_dir)
     templates_dir = resolved_output / "templates"
     templates_dir.mkdir(parents=True, exist_ok=True)
+    prefix = _packet_prefix(output_dir, packet_prefix)
 
     plan_rows = _read_csv(next_batch_plan)
     audit_records = _read_audit_records(audit)
@@ -560,19 +582,20 @@ def create_next_batch_packet(
     if write_checklist:
         for row in selected:
             checklist_rows.extend(_checklist_rows(row))
-        _write_csv(resolved_output / "next_batch_checklist.csv", checklist_rows, CHECKLIST_FIELDNAMES)
+        _write_csv(resolved_output / f"{prefix}_checklist.csv", checklist_rows, CHECKLIST_FIELDNAMES)
 
-    _write_csv(resolved_output / "next_batch_document_index.csv", index_rows, INDEX_FIELDNAMES)
-    (resolved_output / "next_batch_readme.md").write_text(_readme(), encoding="utf-8")
-    (resolved_output / "how_to_fill_templates.md").write_text(_how_to_fill(), encoding="utf-8")
-    (resolved_output / "how_to_run_benchmark.md").write_text(_benchmark_doc(output_dir), encoding="utf-8")
+    _write_csv(resolved_output / f"{prefix}_document_index.csv", index_rows, INDEX_FIELDNAMES)
+    (resolved_output / f"{prefix}_readme.md").write_text(_readme(prefix), encoding="utf-8")
+    (resolved_output / "how_to_fill_templates.md").write_text(_how_to_fill(prefix), encoding="utf-8")
+    (resolved_output / "how_to_run_benchmark.md").write_text(_benchmark_doc(output_dir, prefix), encoding="utf-8")
     if write_zip_instructions:
-        (resolved_output / "how_to_zip_for_review.md").write_text(_zip_doc(), encoding="utf-8")
+        (resolved_output / "how_to_zip_for_review.md").write_text(_zip_doc(prefix, output_dir), encoding="utf-8")
 
     pattern_counts = Counter(row["suggested_pattern"] for row in selected)
     summary = {
         "schema_version": "ratecon_hybrid_next_batch_packet_summary_v1",
         "output_dir": str(output_dir),
+        "packet_prefix": prefix,
         "template_source": template_source,
         "plan_row_count": len(plan_rows),
         "audit_records_seen": len(audit_records),
@@ -590,7 +613,7 @@ def create_next_batch_packet(
         "filled_hybrid_templates_modified": False,
         "private_values_included": bool(include_private_values_local_only),
     }
-    _write_json(resolved_output / "next_batch_summary.json", summary)
+    _write_json(resolved_output / f"{prefix}_summary.json", summary)
     return summary
 
 
@@ -608,6 +631,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--write-checklist", action="store_true")
     parser.add_argument("--write-zip-instructions", action="store_true")
     parser.add_argument("--template-source", choices=sorted(TEMPLATE_SOURCES), default=DEFAULT_TEMPLATE_SOURCE)
+    parser.add_argument("--packet-prefix", choices=sorted(PACKET_PREFIXES), default=None)
     return parser
 
 
@@ -628,6 +652,7 @@ def main(argv: list[str] | None = None) -> int:
         write_checklist=True,
         write_zip_instructions=True,
         template_source=args.template_source,
+        packet_prefix=args.packet_prefix,
     )
     print("RateCon hybrid next-batch packet summary")
     print(f"output_dir: {summary['output_dir']}")
