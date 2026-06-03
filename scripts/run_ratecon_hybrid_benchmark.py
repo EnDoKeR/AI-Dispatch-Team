@@ -36,6 +36,7 @@ from app.document_ai.ratecon_gold_labels import (  # noqa: E402
     normalize_date,
     normalize_location_component,
     normalize_money,
+    normalize_time,
 )
 from app.document_ai.ratecon_hybrid_contract import (  # noqa: E402
     _field_has_value,
@@ -74,6 +75,8 @@ UNCERTAIN_GOLD_STATUSES = {
     "gold_uncertain_needs_human_review",
 }
 STABLE_UNCERTAIN_STOP_COMPONENTS = ("facility", "address", "city", "state", "zip", "date")
+STOP_COMPARE_COMPONENTS = ("facility", "address", "city", "state", "zip", "date", "time")
+STABLE_STOP_COMPONENTS = ("facility", "address", "city", "state", "zip", "date")
 BASELINE = {
     "load_number": {"correct": 25, "wrong": 1, "missing": 5},
     "total_carrier_rate": {"correct": 26, "wrong": 3, "missing": 2},
@@ -331,9 +334,187 @@ def _normalize_stop_component(stop: dict[str, Any], key: str) -> str:
     value = stop.get(key) if isinstance(stop, dict) else None
     if key == "date":
         return normalize_date(value)
+    if key == "time":
+        return normalize_time((stop.get("time") if isinstance(stop, dict) else None) or (stop.get("appointment_window") if isinstance(stop, dict) else None))
     if key == "zip":
         return "".join(ch for ch in _text(value) if ch.isdigit())
     return normalize_location_component(value)
+
+
+def _stop_has_label(stop: dict[str, Any]) -> bool:
+    return any(
+        _text(stop.get(key))
+        for key in ("facility", "address", "city", "state", "zip", "date", "time", "appointment_window")
+    )
+
+
+def _normalized_stop(stop: dict[str, Any]) -> dict[str, str]:
+    return {key: _normalize_stop_component(stop, key) for key in STOP_COMPARE_COMPONENTS}
+
+
+def _time_tokens(value: str) -> list[str]:
+    value = _text(value)
+    if not value:
+        return []
+    return [token for token in value.split("-") if token]
+
+
+def _time_compatible(left: str, right: str) -> bool:
+    left = _text(left)
+    right = _text(right)
+    if not left or not right:
+        return False
+    if left == right:
+        return True
+    left_tokens = _time_tokens(left)
+    right_tokens = _time_tokens(right)
+    if len(left_tokens) == 1 and len(right_tokens) == 2 and right_tokens[0] == right_tokens[1] == left_tokens[0]:
+        return True
+    if len(right_tokens) == 1 and len(left_tokens) == 2 and left_tokens[0] == left_tokens[1] == right_tokens[0]:
+        return True
+    return False
+
+
+def _component_matches(component: str, predicted: str, gold: str) -> bool:
+    if component == "time":
+        return _time_compatible(predicted, gold)
+    return bool(predicted and gold and predicted == gold)
+
+
+def _score_stop_pair(pred_stop: dict[str, Any], gold_stop: dict[str, Any]) -> dict[str, Any]:
+    pred_norm = _normalized_stop(pred_stop)
+    gold_norm = _normalized_stop(gold_stop)
+    labeled_components = [component for component, value in gold_norm.items() if value]
+    matches: list[str] = []
+    missing: list[str] = []
+    conflicts: list[str] = []
+    time_representation_match = False
+    for component in labeled_components:
+        pred_value = pred_norm.get(component, "")
+        gold_value = gold_norm.get(component, "")
+        if _component_matches(component, pred_value, gold_value):
+            matches.append(component)
+            if component == "time" and pred_value != gold_value:
+                time_representation_match = True
+        elif not pred_value:
+            missing.append(component)
+        else:
+            conflicts.append(component)
+    stable_labeled = [component for component in STABLE_STOP_COMPONENTS if gold_norm.get(component)]
+    stable_matches = [component for component in stable_labeled if component in matches]
+    stable_conflicts = [component for component in stable_labeled if component in conflicts]
+    score = len(stable_matches) * 3 + (1 if "time" in matches else 0)
+    if pred_stop.get("stop_index") and pred_stop.get("stop_index") == gold_stop.get("stop_index"):
+        score += 2
+    return {
+        "pred_norm": pred_norm,
+        "gold_norm": gold_norm,
+        "labeled_components": labeled_components,
+        "matches": matches,
+        "missing": missing,
+        "conflicts": conflicts,
+        "stable_labeled_count": len(stable_labeled),
+        "stable_match_count": len(stable_matches),
+        "stable_conflicts": stable_conflicts,
+        "exact_component_match_count": len(matches),
+        "score": score,
+        "time_representation_match": time_representation_match,
+    }
+
+
+def _pair_stops(stops: list[dict[str, Any]], gold_stops: list[dict[str, Any]]) -> list[tuple[int, int | None, str, dict[str, Any] | None]]:
+    gold_items = [stop for stop in gold_stops if isinstance(stop, dict) and _stop_has_label(stop)]
+    used_gold: set[int] = set()
+    pairs: list[tuple[int, int | None, str, dict[str, Any] | None]] = []
+    for pred_index, stop in enumerate(stops):
+        stop_index = stop.get("stop_index") if isinstance(stop, dict) else None
+        explicit_index = None
+        explicit_score = None
+        if stop_index not in [None, ""]:
+            for gold_index, gold_stop in enumerate(gold_items):
+                if gold_index in used_gold:
+                    continue
+                if gold_stop.get("stop_index") == stop_index:
+                    explicit_index = gold_index
+                    explicit_score = _score_stop_pair(stop, gold_stop)
+                    break
+        best_index = None
+        best_score: dict[str, Any] | None = None
+        for gold_index, gold_stop in enumerate(gold_items):
+            if gold_index in used_gold:
+                continue
+            score = _score_stop_pair(stop, gold_stop)
+            if best_score is None or score["score"] > best_score["score"]:
+                best_score = score
+                best_index = gold_index
+        if explicit_index is not None and explicit_score is not None:
+            method = "explicit_stop_index"
+            chosen_index = explicit_index
+            chosen_score = explicit_score
+            if best_index is not None and best_score is not None:
+                explicit_conflicts = len(explicit_score.get("stable_conflicts") or [])
+                best_conflicts = len(best_score.get("stable_conflicts") or [])
+                if best_score["score"] > explicit_score["score"] and best_conflicts < explicit_conflicts:
+                    method = "best_similarity"
+                    chosen_index = best_index
+                    chosen_score = best_score
+            used_gold.add(chosen_index)
+            pairs.append((pred_index, chosen_index, method, chosen_score))
+        elif best_index is None:
+            pairs.append((pred_index, None, "no_gold_stop_available", None))
+        else:
+            used_gold.add(best_index)
+            pairs.append((pred_index, best_index, "best_similarity", best_score))
+    return sorted(pairs, key=lambda item: item[0])
+
+
+def _stop_compare_from_score(score: dict[str, Any] | None, gold_stop: dict[str, Any] | None) -> dict[str, Any]:
+    if not score or not gold_stop:
+        return {"status": STATUS_MISSING, "tier": "missing_review_required", "issues": ["missing_gold_stop_pair"]}
+    labeled = score["labeled_components"]
+    matches = score["matches"]
+    missing = score["missing"]
+    conflicts = score["conflicts"]
+    stable_conflicts = score["stable_conflicts"]
+    if labeled and len(matches) == len(labeled):
+        issues = ["time_window_representation_match"] if score.get("time_representation_match") else []
+        return {"status": STATUS_NORMALIZED_MATCH, "tier": "exact_complete", "issues": issues}
+    if not stable_conflicts and score["stable_labeled_count"] and score["stable_match_count"] == score["stable_labeled_count"]:
+        issues = [f"wrong_{component}" for component in conflicts if component == "time"]
+        issues.extend(f"missing_{component}" for component in missing)
+        issues.append("stable_components_match_time_window_differs")
+        return {
+            "status": "stable_components_match_time_window_differs",
+            "tier": "dispatch_usable",
+            "issues": sorted(set(issues)),
+        }
+    if stable_conflicts:
+        return {
+            "status": STATUS_WRONG_VALUE,
+            "tier": "unsafe_wrong",
+            "issues": sorted(f"wrong_{component}" for component in stable_conflicts),
+        }
+    if matches:
+        has_location_match = any(component in matches for component in ("facility", "address", "city"))
+        if has_location_match and "date" in matches:
+            return {
+                "status": STATUS_PARTIAL_MATCH,
+                "tier": "dispatch_usable",
+                "issues": sorted([f"missing_{component}" for component in missing] + [f"wrong_{component}" for component in conflicts])
+                or ["partial_stop"],
+            }
+        return {
+            "status": STATUS_PARTIAL_MATCH,
+            "tier": "useful_partial",
+            "issues": sorted([f"missing_{component}" for component in missing] + [f"wrong_{component}" for component in conflicts]) or ["partial_stop"],
+        }
+    return {"status": STATUS_WRONG_VALUE, "tier": "unsafe_wrong", "issues": ["wrong_stop"]}
+
+
+def _safe_stop_components(norm: dict[str, str], *, include_private_values_local_only: bool) -> dict[str, str]:
+    if include_private_values_local_only:
+        return norm
+    return {key: ("<redacted>" if value else "") for key, value in norm.items()}
 
 
 def _uncertain_gold_stop_result(prediction: dict[str, Any], gold_stops: list[dict[str, Any]]) -> dict[str, Any]:
@@ -530,7 +711,14 @@ def _compare_scalar_field(result: dict[str, Any], gold: dict[str, Any], field_na
     }
 
 
-def _compare_stop_field(result: dict[str, Any], gold: dict[str, Any], field_name: str) -> list[dict[str, Any]]:
+def _compare_stop_field(
+    result: dict[str, Any],
+    gold: dict[str, Any],
+    field_name: str,
+    *,
+    document_id: str,
+    include_private_values_local_only: bool,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     fields = result.get("fields") or {}
     stops = fields.get(field_name) or []
     if not isinstance(stops, list):
@@ -551,31 +739,97 @@ def _compare_stop_field(result: dict[str, Any], gold: dict[str, Any], field_name
                 "requires_human_review": True,
                 "auto_accept": False,
             }
-        ]
+        ], []
+    gold_items = [stop for stop in gold_stops if isinstance(stop, dict) and _stop_has_label(stop)]
+    if not gold_items:
+        rows = []
+        for index, stop in enumerate(stops):
+            rows.append(
+                {
+                    "field": field_name,
+                    "stop_index": stop.get("stop_index") or index + 1,
+                    "status": STATUS_UNLABELED,
+                    "tier": "missing_review_required",
+                    "issues": ["unlabeled"],
+                    "confidence": stop.get("confidence"),
+                    "confidence_bucket": _confidence_bucket(_confidence(stop)),
+                    "has_evidence": _has_stop_evidence(stop),
+                    "requires_human_review": stop.get("requires_human_review") is True,
+                    "auto_accept": stop.get("auto_accept") is True,
+                    "paired_gold_stop_index": "",
+                    "pairing_method": "gold_unlabeled",
+                    "component_match_score": 0,
+                    "stable_component_match_count": 0,
+                    "exact_component_match_count": 0,
+                    "mismatch_reasons": "unlabeled",
+                }
+            )
+        return rows, []
     rows = []
-    for index, stop in enumerate(stops):
-        compare_result = compare_field(field_name, {"value": [stop], "confidence": stop.get("confidence")}, gold_stops)
+    diagnostics: list[dict[str, Any]] = []
+    pairs = _pair_stops(stops, gold_items)
+    gold_uncertain = any(isinstance(stop, dict) and stop.get("uncertain") for stop in gold_items)
+    for index, gold_index, pairing_method, score in pairs:
+        stop = stops[index]
+        if gold_uncertain:
+            uncertain_result = _uncertain_gold_stop_result(stop, gold_items)
+            compare_result = {
+                "status": uncertain_result["status"],
+                "tier": uncertain_result["tier"],
+                "issues": uncertain_result["issues"],
+            }
+        else:
+            compare_result = _stop_compare_from_score(
+                score,
+                gold_items[gold_index] if gold_index is not None else None,
+            )
+        mismatch_reasons = compare_result.get("issues") or []
         rows.append(
             {
                 "field": field_name,
                 "stop_index": stop.get("stop_index") or index + 1,
                 "status": compare_result.get("status"),
-                "tier": _stop_tier(compare_result, stop, gold_stops),
-                "issues": compare_result.get("issues") or [],
+                "tier": compare_result.get("tier") or _stop_tier(compare_result, stop, gold_stops),
+                "issues": mismatch_reasons,
                 "confidence": stop.get("confidence"),
                 "confidence_bucket": _confidence_bucket(_confidence(stop)),
                 "has_evidence": _has_stop_evidence(stop),
                 "requires_human_review": stop.get("requires_human_review") is True,
                 "auto_accept": stop.get("auto_accept") is True,
+                "paired_gold_stop_index": (gold_items[gold_index].get("stop_index") if gold_index is not None else ""),
+                "pairing_method": pairing_method,
+                "component_match_score": (score or {}).get("score", 0),
+                "stable_component_match_count": (score or {}).get("stable_match_count", 0),
+                "exact_component_match_count": (score or {}).get("exact_component_match_count", 0),
+                "mismatch_reasons": ",".join(mismatch_reasons),
             }
         )
-        if compare_result.get("status") == STATUS_GOLD_UNCERTAIN:
-            uncertain_result = _uncertain_gold_stop_result(stop, gold_stops)
-            rows[-1]["status"] = uncertain_result["status"]
-            rows[-1]["tier"] = uncertain_result["tier"]
-            rows[-1]["issues"] = uncertain_result["issues"]
-            rows[-1]["gold_uncertain_status"] = uncertain_result["status"]
-    return rows
+        if rows[-1]["status"] in UNCERTAIN_GOLD_STATUSES:
+            rows[-1]["gold_uncertain_status"] = rows[-1]["status"]
+        gold_norm = (score or {}).get("gold_norm", {})
+        pred_norm = (score or {}).get("pred_norm", {})
+        diagnostics.append(
+            {
+                "document_id": document_id,
+                "field": field_name,
+                "hybrid_stop_index": stop.get("stop_index") or index + 1,
+                "gold_stop_index": rows[-1]["paired_gold_stop_index"],
+                "selected_pairing_method": pairing_method,
+                "component_match_score": (score or {}).get("score", 0),
+                "stable_component_match_count": (score or {}).get("stable_match_count", 0),
+                "exact_component_match_count": (score or {}).get("exact_component_match_count", 0),
+                "mismatch_reasons": ",".join(mismatch_reasons),
+                "hybrid_normalized_components": json.dumps(
+                    _safe_stop_components(pred_norm, include_private_values_local_only=include_private_values_local_only),
+                    sort_keys=True,
+                ),
+                "gold_normalized_components": json.dumps(
+                    _safe_stop_components(gold_norm, include_private_values_local_only=include_private_values_local_only),
+                    sort_keys=True,
+                ),
+            }
+        )
+    return rows, diagnostics
 
 
 def _gold_scalar_value(gold_field: Any) -> Any:
@@ -672,6 +926,7 @@ def run_hybrid_benchmark(
     error_rows: list[dict[str, Any]] = []
     review_rows: list[dict[str, Any]] = []
     money_diagnostic_rows: list[dict[str, Any]] = []
+    stop_pairing_diagnostic_rows: list[dict[str, Any]] = []
     field_metrics = _empty_field_metrics()
     stop_metrics = _empty_stop_metrics()
     doc_type_counts = Counter()
@@ -820,7 +1075,15 @@ def run_hybrid_benchmark(
                     }
                 )
         for field_name in (FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS):
-            for row in _compare_stop_field(result, gold, field_name):
+            stop_rows, diagnostics = _compare_stop_field(
+                result,
+                gold,
+                field_name,
+                document_id=document_id,
+                include_private_values_local_only=include_private_values_local_only,
+            )
+            stop_pairing_diagnostic_rows.extend(diagnostics)
+            for row in stop_rows:
                 row["document_id"] = document_id
                 field_rows.append(row)
                 stop_metrics[field_name][row["tier"]] += 1
@@ -890,6 +1153,9 @@ def run_hybrid_benchmark(
                             "auto_accept_violation": bool(row["auto_accept"]),
                             "missing_evidence": bool(missing_evidence),
                             "recommended_action": _recommended_action(row),
+                            "paired_gold_stop_index": row.get("paired_gold_stop_index", ""),
+                            "pairing_method": row.get("pairing_method", ""),
+                            "mismatch_reasons": row.get("mismatch_reasons", ""),
                         }
                     )
 
@@ -925,6 +1191,7 @@ def run_hybrid_benchmark(
         "evidence_metrics": dict(evidence_metrics),
         "gold_uncertain_metrics": dict(gold_uncertain_metrics),
         "money_diagnostic_count": len(money_diagnostic_rows),
+        "stop_pairing_diagnostic_count": len(stop_pairing_diagnostic_rows),
         "confidence_buckets": {
             f"{field}:{bucket}": count
             for (field, bucket), count in sorted(confidence_buckets.items())
@@ -967,6 +1234,7 @@ def run_hybrid_benchmark(
         schema_errors=schema_errors,
         review_rows=review_rows,
         money_diagnostic_rows=money_diagnostic_rows,
+        stop_pairing_diagnostic_rows=stop_pairing_diagnostic_rows,
         include_private_values_local_only=include_private_values_local_only,
         write_review_packets=write_review_packets,
     )
@@ -1043,6 +1311,7 @@ def _write_outputs(
     schema_errors: list[dict[str, Any]],
     review_rows: list[dict[str, Any]],
     money_diagnostic_rows: list[dict[str, Any]],
+    stop_pairing_diagnostic_rows: list[dict[str, Any]],
     include_private_values_local_only: bool,
     write_review_packets: bool,
 ) -> None:
@@ -1112,6 +1381,8 @@ def _write_outputs(
         "",
         f"- wrong money diagnostic rows: {summary.get('money_diagnostic_count', 0)}",
         "- diagnostics file: hybrid_money_diagnostics.csv",
+        f"- stop pairing diagnostic rows: {len(stop_pairing_diagnostic_rows)}",
+        "- stop pairing diagnostics file: hybrid_stop_pairing_diagnostics.csv",
         "",
         "## Non-RC Handling",
         "",
@@ -1157,6 +1428,12 @@ def _write_outputs(
             "requires_human_review",
             "auto_accept",
             "gold_uncertain_status",
+            "paired_gold_stop_index",
+            "pairing_method",
+            "component_match_score",
+            "stable_component_match_count",
+            "exact_component_match_count",
+            "mismatch_reasons",
         ],
     )
     _write_csv(
@@ -1196,6 +1473,23 @@ def _write_outputs(
         ],
     )
     _write_csv(output_dir / "hybrid_schema_errors.csv", schema_errors, ["file", "document_id", "errors"])
+    _write_csv(
+        output_dir / "hybrid_stop_pairing_diagnostics.csv",
+        stop_pairing_diagnostic_rows,
+        [
+            "document_id",
+            "field",
+            "hybrid_stop_index",
+            "gold_stop_index",
+            "selected_pairing_method",
+            "component_match_score",
+            "stable_component_match_count",
+            "exact_component_match_count",
+            "mismatch_reasons",
+            "hybrid_normalized_components",
+            "gold_normalized_components",
+        ],
+    )
     if write_review_packets:
         _write_json(output_dir / "hybrid_review_packet.json", {"items": review_rows})
         _write_csv(
@@ -1215,6 +1509,9 @@ def _write_outputs(
                 "auto_accept_violation",
                 "missing_evidence",
                 "recommended_action",
+                "paired_gold_stop_index",
+                "pairing_method",
+                "mismatch_reasons",
             ],
         )
         lines = ["# Hybrid Review Packet", ""]

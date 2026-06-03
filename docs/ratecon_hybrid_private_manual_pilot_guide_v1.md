@@ -118,6 +118,20 @@ Then reference the evidence ID from the field or stop:
 Use redacted excerpts in any shareable output. Private raw text belongs only in
 ignored local files.
 
+## Multi-Stop Delivery/Pickup Matching
+
+For documents with multiple pickups or deliveries, keep each stop as a separate
+JSON object and preserve `stop_index` when visible. The benchmark pairs stops
+by explicit `stop_index` when the components agree, and otherwise uses
+one-to-one similarity so a reordered stop list does not become multiple unsafe
+wrong rows.
+
+Review `hybrid_stop_pairing_diagnostics.csv` when multi-stop rows look wrong.
+It shows the paired gold stop index, pairing method, component match score, and
+mismatch reasons. `time` and `appointment_window` can represent the same
+appointment differently; stable location/date matches with only time-window
+representation differences should remain review-required rather than unsafe.
+
 ## Run Benchmark After Editing Templates
 
 ```powershell

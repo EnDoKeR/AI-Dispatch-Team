@@ -119,6 +119,22 @@ Use redacted excerpts in committed or shared artifacts. Private raw text can
 exist only in ignored local outputs and only when explicitly requested by a
 local/private flag.
 
+## Multi-Stop Matching Notes
+
+For pickup or delivery arrays with more than one stop, keep each visible stop
+as a separate object and preserve the document order when possible. The
+benchmark pairs hybrid stops to gold stops by explicit `stop_index` when that
+is coherent, and otherwise uses one-to-one component similarity. This prevents
+the same two stops in a different order from being treated as two unsafe
+wrongs.
+
+The benchmark writes `hybrid_stop_pairing_diagnostics.csv` with the selected
+pairing method, paired gold stop index, component match score, and mismatch
+reasons. Normalized component values are redacted by default. If stable
+location/date components match but `time` and `appointment_window` are
+represented differently, the row should stay review-required rather than being
+treated as an unsafe wrong.
+
 ## Why Stops Require Review
 
 Current stop extraction has poor exact/dispatch-usable selected-stop accuracy.
@@ -131,6 +147,15 @@ for every stop because wrong location, role, date, or time can affect dispatch.
 reports it as an error even if the extracted value matches gold. Stop
 auto-accept requires a separate approved architecture decision and materially
 better measured performance.
+
+## Scalar Discrepancy Review
+
+When load number or total carrier rate is marked wrong but manual inspection
+suggests the template is correct, run the scalar discrepancy review packet
+instead of editing gold labels or templates automatically. The packet explains
+whether the issue appears to be a gold-label mismatch, template mismatch,
+document match-key issue, benchmark lookup issue, or numeric normalization
+bug. Any correction should be a separate human-approved action.
 
 ## Run Benchmark
 
