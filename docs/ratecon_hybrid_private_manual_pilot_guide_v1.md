@@ -241,6 +241,90 @@ contract, evidence rules, review policy, and benchmark reports are stable across
 diverse document patterns. Do not introduce model integration from a single
 successful 5-document pilot.
 
+## Create The Next-Batch Packet
+
+After `manual_pilot_next_batch_plan.csv` exists, create a local-only packet for
+the next 5-10 documents:
+
+```powershell
+python scripts/create_ratecon_hybrid_next_batch_packet.py ^
+  --next-batch-plan .local_outputs/private_ratecon_hybrid_manual_pilot_summary/manual_pilot_next_batch_plan.csv ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_next_batch_packet ^
+  --confirm-private-local-run ^
+  --write-empty-templates ^
+  --write-checklist ^
+  --write-zip-instructions
+```
+
+The packet writes:
+
+- `next_batch_summary.json`;
+- `next_batch_readme.md`;
+- `next_batch_document_index.csv`;
+- `next_batch_checklist.csv`;
+- blank templates under `templates/`;
+- `how_to_fill_templates.md`;
+- `how_to_run_benchmark.md`;
+- `how_to_zip_for_review.md`.
+
+Templates use `model_provider=manual`, `model_name=manual_next_batch_v1`,
+`private_local_only=true`, and review reason `manual_next_batch_unfilled`.
+Likely rate-confirmation documents get one blank pickup stop and one blank
+delivery stop. Every stop remains `requires_human_review=true` and
+`auto_accept=false`.
+
+The checklist separates pickup and delivery rows and includes explicit evidence
+page/source rows. Use it as the manual fill tracker.
+
+## Zip Next-Batch Templates For Manual Filling
+
+Use the generated `how_to_zip_for_review.md` instructions. The zip should only
+include:
+
+- `next_batch_document_index.csv`;
+- `next_batch_checklist.csv`;
+- `templates/*.hybrid_result.json`.
+
+Do not zip PDFs unless explicitly requested. Do not commit the zip. Upload the
+zip only for manual filling/review.
+
+## Benchmark The Filled Next Batch
+
+After the templates are filled, run:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_next_batch_packet/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+PowerShell array form:
+
+```powershell
+$benchmarkArgs = @(
+  "--hybrid-results-dir", ".local_outputs/private_ratecon_hybrid_next_batch_packet/templates",
+  "--gold-dir", ".local_outputs/private_ratecon_gold_labels",
+  "--audit", ".local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl",
+  "--output-dir", ".local_outputs/private_ratecon_hybrid_next_batch_benchmark",
+  "--confirm-private-local-run",
+  "--allow-unfilled-manual-templates",
+  "--write-review-packets"
+)
+python scripts/run_ratecon_hybrid_benchmark.py @benchmarkArgs
+```
+
+Read `hybrid_benchmark_report.md` first, then inspect
+`hybrid_error_cases.csv` and `hybrid_review_items.csv`. Treat uncertain gold as
+review-required rather than failure when the benchmark classifies it that way.
+Keep private benchmark outputs local.
+
 ## Files That Must Never Be Committed
 
 Do not commit:

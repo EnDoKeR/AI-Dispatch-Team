@@ -114,7 +114,10 @@ def _has_field_evidence(field: dict[str, Any]) -> bool:
 
 
 def _is_unfilled_manual_template(result: dict[str, Any]) -> bool:
-    if result.get("model_provider") != "manual" or result.get("model_name") != "manual_pilot_v1":
+    if result.get("model_provider") != "manual" or result.get("model_name") not in {
+        "manual_pilot_v1",
+        "manual_next_batch_v1",
+    }:
         return False
     fields = result.get("fields") or {}
     if _field_has_value(fields.get(FIELD_LOAD_NUMBER)) or _field_has_value(fields.get(FIELD_TOTAL_CARRIER_RATE)):
