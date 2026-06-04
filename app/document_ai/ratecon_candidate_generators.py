@@ -34,6 +34,8 @@ from app.document_ai.ratecon_candidates import (
     build_field_candidate,
 )
 from app.document_ai.ratecon_rate_money_safety import (
+    get_accessorial_charge_labels,
+    get_accessorial_label_types,
     get_total_pay_heading_labels,
     get_total_pay_label_types,
 )
@@ -50,31 +52,8 @@ MONEY_PATTERN = re.compile(
 STRONG_RATE_LABELS = get_total_pay_heading_labels()
 STRONG_RATE_LABEL_TYPES = get_total_pay_label_types()
 
-ACCESSORIAL_LABELS = (
-    "detention",
-    "layover",
-    "lumper",
-    "tonu",
-    "quick pay",
-    "fuel surcharge",
-    "accessorial",
-    "fee",
-    "penalty",
-    "deduction",
-)
-ACCESSORIAL_LABEL_TYPES = (
-    ("detention", "detention_pay"),
-    ("layover", "layover_pay"),
-    ("lumper", "lumper_pay"),
-    ("tonu", "TONU_pay"),
-    ("truck order not used", "TONU_pay"),
-    ("quick pay", "quick_pay_discount"),
-    ("fuel surcharge", "accessorial"),
-    ("accessorial", "accessorial"),
-    ("fee", "accessorial"),
-    ("penalty", "deduction"),
-    ("deduction", "deduction"),
-)
+ACCESSORIAL_LABELS = get_accessorial_charge_labels()
+ACCESSORIAL_LABEL_TYPES = get_accessorial_label_types()
 
 MONEY_EXCLUSION_LABELS = (
     "weight",

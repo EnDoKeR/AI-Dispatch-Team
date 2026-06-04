@@ -27,6 +27,7 @@ from app.document_ai.ratecon_rate_money_safety import (
     RATE_SELECTION_ABSTAIN,
     RATE_SELECTION_WEAK_ONLY,
     apply_rate_money_abstention_profile_to_candidates,
+    get_rate_negative_labels,
     get_total_pay_strong_labels,
 )
 from app.document_ai.ratecon_ocr_candidate_policy import (
@@ -159,20 +160,7 @@ RATE_COMPONENT_LABELS = (
     "linehaul",
     "line haul",
 )
-RATE_NEGATIVE_LABELS = (
-    "fuel",
-    "detention",
-    "layover",
-    "lumper",
-    "quickpay",
-    "quick pay",
-    "deduction",
-    "penalty",
-    "tonu",
-    "insurance",
-    "advance",
-    "accessorial",
-)
+RATE_NEGATIVE_LABELS = get_rate_negative_labels()
 
 LOAD_STRONG_LABELS = (
     "load #",
