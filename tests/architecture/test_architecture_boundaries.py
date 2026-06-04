@@ -475,6 +475,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -495,6 +496,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -505,10 +507,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                     self.assertNotIn(literal, literals)
 
     def test_private_measurement_output_writer_rejects_raw_text_fields(self):
-        source = source_text(DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py")
+        source = source_text(
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_report_writers.py"
+        )
+        compatibility_source = source_text(DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py")
 
         self.assertIn('"raw_text"', source)
         self.assertIn("unsafe output field detected", source)
+        self.assertIn("ratecon_private_report_writers", compatibility_source)
 
     def test_private_measurement_cli_requires_explicit_confirmation(self):
         path = SCRIPTS / "run_private_ratecon_measurement.py"
@@ -522,6 +530,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             / "measurement_cli"
             / "ratecon_private_output_paths.py"
         )
+        report_writer_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_report_writers.py"
+        )
         safety_path = (
             DOCUMENT_AI_PACKAGE
             / "measurement_cli"
@@ -529,7 +542,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         source = "\n".join(
             source_text(source_path)
-            for source_path in [path, parser_path, output_path, safety_path]
+            for source_path in [path, parser_path, output_path, report_writer_path, safety_path]
         )
 
         forbidden_prefixes = [
@@ -543,7 +556,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "easyocr",
             "googleapiclient",
         ]
-        for source_path in [path, parser_path, output_path, safety_path]:
+        for source_path in [path, parser_path, output_path, report_writer_path, safety_path]:
             assert_no_import_prefix(self, source_path, forbidden_prefixes)
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("--write-candidate-coverage", source)

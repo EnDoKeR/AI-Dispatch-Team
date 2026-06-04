@@ -1780,6 +1780,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("parse_private_ratecon_measurement_args", source)
         self.assertIn("validate_private_ratecon_measurement_config", source)
         self.assertIn("build_private_ratecon_output_paths", source)
+        self.assertIn("write_private_ratecon_safe_outputs", source)
         self.assertIn("output_file_name", source)
 
 

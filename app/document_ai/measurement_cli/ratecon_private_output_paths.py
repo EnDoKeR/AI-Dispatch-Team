@@ -5,6 +5,7 @@ from pathlib import Path
 
 
 DEFAULT_PRIVATE_RATECON_OUTPUT_DIR = Path(".local_outputs/private_ratecon_measurement")
+DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR = DEFAULT_PRIVATE_RATECON_OUTPUT_DIR
 
 SAFE_SUMMARY_JSON = "safe_summary.json"
 SAFE_SUMMARY_CSV = "safe_summary.csv"
