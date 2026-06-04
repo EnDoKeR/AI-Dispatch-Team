@@ -125,3 +125,8 @@ file, provider config, and fixture smoke report must show that execution remains
 disabled, outputs are review-first, no model/PDF/OCR work occurred, and the
 provider registry still blocks local/cloud placeholders. Readiness gates cannot
 override registry blockers in this phase.
+
+Bundle that evidence with
+`docs/ratecon_local_provider_evidence_pack_v1.md`. The evidence pack can
+recommend a separate design PR, but it cannot approve implementation or private
+execution.

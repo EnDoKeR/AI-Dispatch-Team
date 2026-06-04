@@ -611,3 +611,9 @@ The smoke test uses sanitized fixtures only. It lists providers, validates a
 safe config, validates readiness gates, writes a dry-run report, creates stub
 submissions, and benchmarks those stub submissions. It does not call a model,
 process PDFs, run OCR, edit gold labels, or edit hybrid templates.
+
+After the smoke test, generate the evidence pack described in
+`docs/ratecon_local_provider_evidence_pack_v1.md`. The pack indexes local
+artifacts, summarizes blockers, and recommends reject, continue fixture-only
+work, or prepare a separate design PR. It does not approve model implementation
+or private execution.

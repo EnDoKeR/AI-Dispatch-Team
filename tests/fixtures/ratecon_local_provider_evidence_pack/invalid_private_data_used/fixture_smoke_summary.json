@@ -1,0 +1,9 @@
+{
+  "external_call_attempted": false,
+  "model_execution_attempted": false,
+  "ocr_attempted": false,
+  "pdf_processing_attempted": false,
+  "private_data_used": true,
+  "schema_version": "ratecon_local_provider_fixture_smoke_summary_v1",
+  "status": "fixture_smoke_passed_no_model_execution"
+}

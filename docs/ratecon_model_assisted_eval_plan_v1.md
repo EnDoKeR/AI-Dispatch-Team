@@ -125,3 +125,8 @@ fixture-only smoke test verify the approval checklist, provider config policy,
 registry blockers, stub submissions, and benchmark comparison without calling a
 model or processing PDFs. These gates do not approve implementation or private
 execution; they define the evidence required for a later PR.
+
+The review evidence should then be bundled with
+`docs/ratecon_local_provider_evidence_pack_v1.md`. The evidence pack summarizes
+whether the fixture-only scaffold is ready for a separate local-provider design
+PR. It does not approve live model integration.

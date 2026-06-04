@@ -149,6 +149,15 @@ The smoke test uses sanitized fixtures only and runs:
 It reports `fixture_smoke_passed_no_model_execution` when the scaffold works
 without model execution.
 
+## Evidence Pack
+
+After the fixture smoke test and readiness dry run, generate the review evidence
+pack described in `docs/ratecon_local_provider_evidence_pack_v1.md`. The pack
+bundles readiness validation, provider config validation, registry blockers,
+smoke status, and artifact references. A ready recommendation allows only a
+separate local-provider design PR to be proposed; it does not approve model
+implementation.
+
 ## Files That Must Never Be Committed
 
 Do not commit:
