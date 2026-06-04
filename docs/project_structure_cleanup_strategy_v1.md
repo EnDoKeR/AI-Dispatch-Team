@@ -51,12 +51,20 @@ already-parsed flags and may prepare console-safe result labels, but it must not
 rewrite workbook internals, change sheet names, columns, styles, row semantics,
 filenames, schemas, measurement execution, audit metrics, or Google sync wiring.
 
-Future phases may move Google sync wiring and pipeline orchestration into
-smaller owners. Each phase must preserve CLI flag names, output schemas, output
-filenames, workbook layout, metric definitions, safety gates, and measurement
-behavior unless a separate behavior-change PR explicitly approves and tests that
-change.
+Phase 3E extracts only Google Sheets sync wiring. The wrapper module may plan
+whether sync should run, apply the existing config override precedence, delegate
+to the existing Google Sheets adapter, and prepare console-safe labels. It must
+not change credential discovery, API scopes, worksheet semantics, sync modes,
+output schemas, workbook layout, measurement execution, or audit metrics. Tests
+must use fake clients and must not call Google.
+
+Future work should pause and measure the remaining CLI responsibilities before
+any further split. Each phase must preserve CLI flag names, output schemas,
+output filenames, workbook layout, metric definitions, safety gates, credential
+behavior, sync semantics, and measurement behavior unless a separate
+behavior-change PR explicitly approves and tests that change.
 
 Private outputs remain local-only. Generated reports, audits, review workbooks,
-OCR artifacts, model outputs, raw extracted text, gold labels, and local audit
-outputs must stay out of git.
+OCR artifacts, model outputs, raw extracted text, gold labels, Google
+credentials, token files, sync logs with private values, and local audit outputs
+must stay out of git.

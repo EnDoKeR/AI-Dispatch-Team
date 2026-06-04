@@ -479,6 +479,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_workbook.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_google_sync.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -503,6 +504,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_workbook.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_google_sync.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -551,6 +553,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             / "measurement_cli"
             / "ratecon_private_review_workbook.py"
         )
+        google_sync_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_google_sync.py"
+        )
         audit_orchestration_path = (
             DOCUMENT_AI_PACKAGE
             / "measurement_cli"
@@ -570,6 +577,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 report_writer_path,
                 review_export_path,
                 review_workbook_path,
+                google_sync_path,
                 audit_orchestration_path,
                 safety_path,
             ]
@@ -593,6 +601,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             report_writer_path,
             review_export_path,
             review_workbook_path,
+            google_sync_path,
             audit_orchestration_path,
             safety_path,
         ]:

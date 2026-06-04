@@ -22,6 +22,11 @@ from app.document_ai.measurement_cli.ratecon_private_args import (
 from app.document_ai.measurement_cli.ratecon_private_config import (
     build_private_ratecon_measurement_config,
 )
+from app.document_ai.measurement_cli.ratecon_private_google_sync import (
+    GoogleSheetsReviewClientError,
+    GoogleSheetsReviewConfigError,
+    run_private_ratecon_google_sync_if_enabled,
+)
 from app.document_ai.measurement_cli.ratecon_private_output_paths import (
     build_private_ratecon_output_paths,
     output_file_labels,
@@ -53,7 +58,6 @@ from app.document_ai.private_measurement_pipeline import measure_private_ratecon
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
-from app.integrations import google_sheets_review as sheets_review
 
 SAFETY_BANNER = (
     "PRIVATE LOCAL MEASUREMENT - no raw text printed or saved; "
@@ -476,48 +480,6 @@ def format_private_measurement_report(report):
     return lines
 
 
-def _load_google_review_config_from_args(args):
-    config = sheets_review.load_google_sheets_review_config(args.google_config)
-    return sheets_review.GoogleSheetsReviewConfig(
-        spreadsheet_id=args.google_spreadsheet_id or config.spreadsheet_id,
-        credentials_json_path=args.google_credentials_json or config.credentials_json_path,
-        worksheet_prefix=args.google_worksheet_prefix or config.worksheet_prefix,
-        service_account_email=config.service_account_email,
-        default_sync_mode=config.default_sync_mode,
-        allow_private_review_value_sync=getattr(
-            config,
-            "allow_private_review_value_sync",
-            False,
-        ),
-    )
-
-
-def _sync_google_review_tabs(report, args):
-    mode = (
-        sheets_review.SYNC_MODE_PRIVATE_VALUES_TEST_ONLY
-        if args.include_private_review_values_google_test_only
-        else sheets_review.SYNC_MODE_STATUS_ONLY
-    )
-    if args.include_private_review_values_google_test_only:
-        config = _load_google_review_config_from_args(args)
-        if not config.allow_private_review_value_sync:
-            raise sheets_review.GoogleSheetsReviewConfigError(
-                "private review value sync requires allow_private_review_value_sync=true in local config"
-            )
-    rows_by_tab = sheets_review.build_google_review_tab_rows(
-        report["rows"],
-        local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
-        sync_mode=mode,
-        include_private_values=args.include_private_review_values_google_test_only,
-        worksheet_prefix=args.google_worksheet_prefix,
-    )
-    config = _load_google_review_config_from_args(args)
-    client = sheets_review.connect_to_google_sheet(config)
-    result = client.batch_update_review_tabs(rows_by_tab)
-    result["sync_mode"] = mode
-    return result
-
-
 def main(argv=None):
     args = parse_private_ratecon_measurement_args(argv)
     config = build_private_ratecon_measurement_config(args)
@@ -660,24 +622,13 @@ def main(argv=None):
             ],
         ):
             print(f"{audit_result.message_label}: {audit_result.payload}")
-        if not args.dry_run and args.sync_review_google_sheet:
-            sync_result = _sync_google_review_tabs(report, args)
-            sync_labels = {
-                "google_sheet_sync": "completed",
-                "tabs_updated": sync_result.get("tabs_updated", []),
-                "row_counts": sync_result.get("row_counts", {}),
-                "sync_mode": sync_result.get("sync_mode", "status_only"),
-                "private_values_printed": sync_result.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "credentials_printed": sync_result.get("credentials_printed", False),
-                "spreadsheet_id_printed": sync_result.get(
-                    "spreadsheet_id_printed",
-                    False,
-                ),
-            }
-            print(f"google_sheet_sync: {sync_labels}")
+        google_sync_result = run_private_ratecon_google_sync_if_enabled(
+            report,
+            config,
+            output_paths,
+        )
+        if google_sync_result is not None:
+            print(f"{google_sync_result.message_label}: {google_sync_result.payload}")
         for audit_result in run_private_ratecon_audit_exports(
             report,
             config,
@@ -693,8 +644,8 @@ def main(argv=None):
         PrivateMeasurementOutputError,
         TemplateRegistryError,
         FileNotFoundError,
-        sheets_review.GoogleSheetsReviewConfigError,
-        sheets_review.GoogleSheetsReviewClientError,
+        GoogleSheetsReviewConfigError,
+        GoogleSheetsReviewClientError,
     ) as exc:
         _print_expected_error(str(exc))
         return 2
