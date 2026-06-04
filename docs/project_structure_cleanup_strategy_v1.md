@@ -168,3 +168,37 @@ Future candidate cleanup should start with one narrow target:
 Do not consolidate duplicates without behavior-pinning tests. Do not migrate
 consumers, refactor candidate generation, delete candidate modules, change
 resolver thresholds, or change selected output in the same PR as guardrail work.
+
+## RateCon Rate/Money Safety Ownership
+
+Rate/money safety cleanup starts with ownership documentation, behavior pinning,
+and guardrails. Use `scripts/audit_ratecon_rate_money_safety_ownership.py` and
+`docs/ratecon_rate_money_safety_ownership_v1.md` before changing total-rate,
+money-context, accessorial/noise, or rate-forensics logic.
+
+Current ownership policy:
+
+- `app/document_ai/ratecon_rate_money_safety.py` is the intended canonical owner
+  for money-context safety taxonomy.
+- Candidate generators may emit rate/money candidates but should not own an
+  independent total-pay/accessorial taxonomy.
+- `app/document_ai/field_candidate_resolver.py` consumes rate/money safety
+  metadata and owns current ranking behavior, but it should not grow a separate
+  rate label taxonomy.
+- Rate forensics and conflict-audit modules report diagnoses and safe aggregate
+  counts; they should not define competing total-vs-accessorial safety rules.
+- Existing duplicate labels/constants are compatibility debt and are pinned by
+  tests until a future narrow consolidation PR.
+
+Do not consolidate duplicate rate/money constants without behavior-pinning
+tests. Future rate/money consolidation should start with one narrow target:
+
+- total-pay label taxonomy;
+- accessorial/noise label taxonomy;
+- money context classification;
+- resolver rate ranking penalties;
+- forensics diagnosis mapping.
+
+Do not lower thresholds, change scoring, change selected rate output, auto-accept
+shadow rates, or use private gold labels as runtime truth as part of ownership
+cleanup.
