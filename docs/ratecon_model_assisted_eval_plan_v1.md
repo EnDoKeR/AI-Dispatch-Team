@@ -130,3 +130,17 @@ The review evidence should then be bundled with
 `docs/ratecon_local_provider_evidence_pack_v1.md`. The evidence pack summarizes
 whether the fixture-only scaffold is ready for a separate local-provider design
 PR. It does not approve live model integration.
+
+## Design Review Before Implementation
+
+An accepted evidence pack leads only to the design-review packet and PR
+checklist in `docs/ratecon_local_provider_design_pr_template_v1.md`. The design
+review defines acceptance criteria for a possible future implementation PR; it
+does not approve execution of OpenAI, Claude, Gemini, local VLMs, OCR, PDF
+processing, or any real provider.
+
+Actual local-provider implementation remains a separate PR with separate
+approval and must satisfy
+`docs/ratecon_local_provider_future_implementation_acceptance_criteria_v1.md`.
+Production extraction, selected stop output, review-required stops, and
+`auto_accept=false` remain unchanged by evidence or design review alone.

@@ -1,0 +1,56 @@
+{
+  "acceptance_criteria": [
+    {
+      "criterion": "Design is not implementation approval.",
+      "id": "scope_design_only",
+      "required": true,
+      "section": "scope",
+      "status": "required"
+    }
+  ],
+  "benchmark_policy": {
+    "fixture_smoke_required_before_implementation": true,
+    "full_corpus_private_benchmark_required_before_private_execution": true,
+    "manual_baseline_required": true,
+    "safety_failure_blocks_progress": true
+  },
+  "blockers": [],
+  "created_at": "2026-06-04T00:00:00+00:00",
+  "design_review_id": "unsafe_auto_accept_allowed",
+  "evidence_pack_reference": {
+    "evidence_pack_id": "fixture_evidence_pack_ready_v1",
+    "recommendation": "ready_for_separate_local_provider_design_pr",
+    "source_path": null,
+    "validated": true
+  },
+  "input_policy": {
+    "fixture_only_inputs": true,
+    "private_image_input": false,
+    "private_pdf_input": false,
+    "private_text_input": false,
+    "private_values_in_logs": false,
+    "private_values_in_prompts": false
+  },
+  "output_policy": {
+    "auto_accept_forbidden": false,
+    "default_redaction_required": true,
+    "must_emit_model_assisted_submission_v1": true,
+    "must_validate_hybrid_contract": true,
+    "raw_model_response_private_local_only": true,
+    "stops_review_required": true
+  },
+  "provider_name": "local_model_placeholder_v1",
+  "provider_type": "local_model_design",
+  "proposed_provider_scope": {
+    "design_only": true,
+    "external_calls_allowed": false,
+    "implementation_pr_requested": false,
+    "model_weight_download_allowed": false,
+    "ocr_allowed": false,
+    "pdf_processing_allowed": false,
+    "runtime_execution_allowed": false
+  },
+  "recommendation": "design_pr_ready",
+  "required_next_actions": [],
+  "schema_version": "ratecon_local_provider_design_review_v1"
+}

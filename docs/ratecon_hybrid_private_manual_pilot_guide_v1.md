@@ -617,3 +617,22 @@ After the smoke test, generate the evidence pack described in
 artifacts, summarizes blockers, and recommends reject, continue fixture-only
 work, or prepare a separate design PR. It does not approve model implementation
 or private execution.
+
+## Local Provider Design Review
+
+If the evidence pack is ready, the next step is still only a design-review
+packet and PR checklist:
+
+```powershell
+python scripts/create_ratecon_local_provider_design_review.py ^
+  --evidence-pack-summary .local_outputs/ratecon_local_provider_evidence_pack/local_provider_evidence_pack_summary.json ^
+  --output-dir .local_outputs/ratecon_local_provider_design_review ^
+  --confirm-private-local-run
+```
+
+The design review may recommend `design_pr_ready`, but that means only that a
+future design PR can be opened. It does not approve model execution, provider
+implementation, PDF processing, OCR, private document processing, external
+calls, or model weight downloads. Any actual implementation requires a separate
+approved PR and must keep production extraction unchanged, stops
+review-required, and `auto_accept=false`.

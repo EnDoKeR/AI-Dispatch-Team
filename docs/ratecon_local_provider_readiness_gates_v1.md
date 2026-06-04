@@ -158,6 +158,19 @@ smoke status, and artifact references. A ready recommendation allows only a
 separate local-provider design PR to be proposed; it does not approve model
 implementation.
 
+## Design Review Boundary
+
+After the evidence pack, create the design-review packet with
+`scripts/create_ratecon_local_provider_design_review.py`. The design review
+leads only to a possible future design PR body/checklist. It does not approve a
+provider implementation, model execution, PDF processing, OCR, external calls,
+or private document processing.
+
+Implementation remains a separate PR and separate approval path. Evidence-pack
+readiness and design-review readiness alone cannot change provider registry
+blocks; local and cloud placeholders remain blocked, and the stub remains the
+only runnable provider.
+
 ## Files That Must Never Be Committed
 
 Do not commit:

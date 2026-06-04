@@ -77,6 +77,25 @@ Possible recommendations:
 good enough to propose a separate design PR. It is not approval to implement a
 model provider, run a model, process private PDFs, or use private data.
 
+## Design Review Handoff
+
+The evidence pack leads only to the design-review packet described in
+`docs/ratecon_local_provider_design_pr_template_v1.md`. Generate that packet
+with:
+
+```powershell
+python scripts/create_ratecon_local_provider_design_review.py ^
+  --evidence-pack-summary .local_outputs/ratecon_local_provider_evidence_pack/local_provider_evidence_pack_summary.json ^
+  --output-dir .local_outputs/ratecon_local_provider_design_review ^
+  --confirm-private-local-run
+```
+
+The design review can only recommend `design_pr_ready` for a future design PR.
+It cannot approve runtime model execution, private PDF processing, OCR,
+external calls, model weight downloads, or a provider implementation. A future
+actual implementation PR still requires separate approval and must satisfy
+`docs/ratecon_local_provider_future_implementation_acceptance_criteria_v1.md`.
+
 ## Blocking Conditions
 
 The pack recommends `reject` if any artifact indicates:

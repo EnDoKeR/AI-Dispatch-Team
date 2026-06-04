@@ -1,0 +1,33 @@
+{
+  "artifact_index": [],
+  "blockers": [],
+  "created_at": "2026-06-04T00:00:00+00:00",
+  "evidence_pack_id": "fixture_evidence_pack_ready_v1",
+  "external_call_attempted": false,
+  "fixture_smoke_status": "fixture_smoke_passed_no_model_execution",
+  "manual_baseline_required": true,
+  "model_execution_attempted": false,
+  "ocr_attempted": false,
+  "pdf_processing_attempted": false,
+  "private_data_used": false,
+  "provider_config_status": "valid",
+  "provider_name": "stub_empty_v1",
+  "provider_registry_status": "fixture_only_plan_valid",
+  "provider_type": "stub",
+  "readiness_status": "fixture_only_plan_valid",
+  "recommendation": "ready_for_separate_local_provider_design_pr",
+  "recommendation_note": "This does not approve model implementation; it only supports proposing a separate local-provider design PR.",
+  "required_next_actions": [
+    "prepare a separate local-provider design PR with no implementation approval implied"
+  ],
+  "safety_summary": {
+    "auto_accept_disabled": true,
+    "filled_templates_unchanged": true,
+    "gold_labels_unchanged": true,
+    "production_output_unchanged": true,
+    "redaction_default": true,
+    "stops_review_required": true
+  },
+  "schema_version": "ratecon_local_provider_evidence_pack_v1",
+  "warnings": []
+}

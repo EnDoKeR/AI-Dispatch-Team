@@ -130,3 +130,18 @@ Bundle that evidence with
 `docs/ratecon_local_provider_evidence_pack_v1.md`. The evidence pack can
 recommend a separate design PR, but it cannot approve implementation or private
 execution.
+
+## Design Review Template Boundary
+
+If the evidence pack recommends
+`ready_for_separate_local_provider_design_pr`, the next step is only the
+design-review checklist in
+`docs/ratecon_local_provider_design_pr_template_v1.md`. That design review can
+prepare acceptance criteria for a future PR, but it cannot execute a model,
+process PDFs, run OCR, unblock local/cloud placeholders, or approve provider
+implementation.
+
+A future actual implementation PR must satisfy
+`docs/ratecon_local_provider_future_implementation_acceptance_criteria_v1.md`
+and still requires separate approval. Until then, local/cloud placeholders stay
+blocked and `stub_empty_v1` remains the only runnable provider.
