@@ -76,3 +76,20 @@ Private outputs remain local-only. Generated reports, audits, review workbooks,
 OCR artifacts, model outputs, raw extracted text, gold labels, Google
 credentials, token files, sync logs with private values, and local audit outputs
 must stay out of git.
+
+## RateCon Field Policy Ownership
+
+`app/document_ai/ratecon_core_field_policy.py` is the single owner for RateCon
+readiness and critical-field policy. New readiness, dispatch-critical,
+intake-core, or extraction-review policy logic must be added there, with tests
+that pin the affected field set and readiness behavior.
+
+Legacy `CRITICAL_FIELDS` in
+`app/market_intelligence/intake/rate_confirmation_intake.py` is a compatibility
+surface only. It should stay available for old imports, but it must not become a
+second owner for field policy. See
+`docs/ratecon_field_policy_ownership_v1.md` before changing any field set.
+
+Do not add new critical/readiness policy lists in scripts, review exporters,
+local audit tooling, provider governance scaffolding, or tests except as
+expected-value assertions for the canonical policy.

@@ -2,6 +2,8 @@
 
 from copy import deepcopy
 
+from app.document_ai.ratecon_core_field_policy import get_legacy_critical_fields
+
 
 CONFIDENCE_HIGH = "HIGH"
 CONFIDENCE_MEDIUM = "MEDIUM"
@@ -19,18 +21,7 @@ STATUS_READY_FOR_REVIEW = "READY_FOR_REVIEW"
 STATUS_REVIEW_REQUIRED = "REVIEW_REQUIRED"
 STATUS_MISSING_FIELDS = "MISSING_FIELDS"
 
-CRITICAL_FIELDS = [
-    "document_id",
-    "broker_name",
-    "load_number",
-    "rate",
-    "pickup_location",
-    "pickup_date",
-    "delivery_location",
-    "delivery_date",
-    "commodity",
-    "weight",
-]
+CRITICAL_FIELDS = list(get_legacy_critical_fields())
 
 
 def value_from(source, key, default=None):
