@@ -139,7 +139,7 @@ design-review checklist in
 `docs/ratecon_local_provider_design_pr_template_v1.md`. That design review can
 prepare acceptance criteria for a future PR, but it cannot execute a model,
 process PDFs, run OCR, unblock local/cloud placeholders, or approve provider
-implementation.
+implementation or private execution.
 
 A future actual implementation PR must satisfy
 `docs/ratecon_local_provider_future_implementation_acceptance_criteria_v1.md`

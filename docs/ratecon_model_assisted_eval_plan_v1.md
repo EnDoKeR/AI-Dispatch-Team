@@ -137,7 +137,8 @@ An accepted evidence pack leads only to the design-review packet and PR
 checklist in `docs/ratecon_local_provider_design_pr_template_v1.md`. The design
 review defines acceptance criteria for a possible future implementation PR; it
 does not approve execution of OpenAI, Claude, Gemini, local VLMs, OCR, PDF
-processing, or any real provider.
+processing, private execution, provider-registry unblocking, or any real
+provider.
 
 Actual local-provider implementation remains a separate PR with separate
 approval and must satisfy

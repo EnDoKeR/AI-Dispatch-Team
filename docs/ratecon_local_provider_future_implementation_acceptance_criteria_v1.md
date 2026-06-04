@@ -4,6 +4,10 @@ This document defines what a future actual local-provider implementation PR
 must prove. It does not implement a provider and does not approve model
 execution.
 
+A design review is not enough to change provider runtime behavior. Private
+execution, provider-registry unblocking, and any executable local/cloud adapter
+must be approved in a separate implementation PR.
+
 ## Required Implementation Posture
 
 - The provider must remain disabled by default.
@@ -56,6 +60,8 @@ execution.
 - Design review output cannot unblock providers.
 - The stub must remain the only runnable provider until implementation approval
   explicitly changes that state.
+- Private execution remains unapproved until that implementation PR is accepted
+  and an explicit confirmed private-pilot command is run.
 
 ## Required Private Pilot Criteria
 

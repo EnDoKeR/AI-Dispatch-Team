@@ -35,8 +35,10 @@ class RateConLocalProviderDesignReviewTests(unittest.TestCase):
         self.assertTrue(review["evidence_pack_reference"]["validated"])
         self.assertGreater(len(review["acceptance_criteria"]), 0)
         self.assertFalse(review["proposed_provider_scope"]["runtime_execution_allowed"])
+        self.assertFalse(review["proposed_provider_scope"]["private_execution_allowed"])
         self.assertFalse(review["proposed_provider_scope"]["pdf_processing_allowed"])
         self.assertFalse(review["proposed_provider_scope"]["ocr_allowed"])
+        self.assertFalse(review["proposed_provider_scope"]["provider_registry_unblock_allowed"])
 
     def test_missing_evidence_pack_produces_design_review_incomplete(self):
         review = build_design_review(
@@ -88,6 +90,38 @@ class RateConLocalProviderDesignReviewTests(unittest.TestCase):
 
         self.assertEqual(validation.recommendation, "reject")
         self.assertTrue(any("ocr_allowed" in blocker for blocker in validation.blockers))
+
+    def test_design_only_false_rejects(self):
+        review = self._ready_review()
+        review["proposed_provider_scope"]["design_only"] = False
+        validation = validate_design_review(review)
+
+        self.assertEqual(validation.recommendation, "reject")
+        self.assertTrue(any("design_only" in blocker for blocker in validation.blockers))
+
+    def test_implementation_pr_requested_true_rejects(self):
+        review = self._ready_review()
+        review["proposed_provider_scope"]["implementation_pr_requested"] = True
+        validation = validate_design_review(review)
+
+        self.assertEqual(validation.recommendation, "reject")
+        self.assertTrue(any("implementation_pr_requested" in blocker for blocker in validation.blockers))
+
+    def test_private_execution_allowed_true_rejects(self):
+        review = self._ready_review()
+        review["proposed_provider_scope"]["private_execution_allowed"] = True
+        validation = validate_design_review(review)
+
+        self.assertEqual(validation.recommendation, "reject")
+        self.assertTrue(any("private_execution_allowed" in blocker for blocker in validation.blockers))
+
+    def test_provider_registry_unblock_allowed_true_rejects(self):
+        review = self._ready_review()
+        review["proposed_provider_scope"]["provider_registry_unblock_allowed"] = True
+        validation = validate_design_review(review)
+
+        self.assertEqual(validation.recommendation, "reject")
+        self.assertTrue(any("provider_registry_unblock_allowed" in blocker for blocker in validation.blockers))
 
     def test_model_weight_download_allowed_true_rejects(self):
         review = self._ready_review()
@@ -151,6 +185,8 @@ class RateConLocalProviderDesignReviewTests(unittest.TestCase):
         self.assertIn("not implementation approval", checklist)
         self.assertIn("does not approve model execution", checklist)
         self.assertIn("Implementation requires a separate PR", checklist)
+        self.assertIn("No private execution or provider-registry unblock is approved", checklist)
+        self.assertIn("No external calls or model-weight downloads are approved", checklist)
 
     def test_design_review_cannot_unblock_real_model_placeholders(self):
         review = self._ready_review()

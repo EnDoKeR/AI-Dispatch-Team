@@ -5,7 +5,8 @@ recommends `ready_for_separate_local_provider_design_pr`.
 
 This template is not implementation approval. It does not approve model
 execution, PDF processing, OCR, private document processing, external calls, or
-model weight downloads. Implementation requires a separate PR and separate
+model weight downloads. It also does not approve private execution or provider
+registry unblocking. Implementation requires a separate PR and separate
 approval.
 
 ## PR Title Template
@@ -24,6 +25,8 @@ RateCon local provider design: <provider name> fixture-only contract review
 - This PR is design-only:
 - Implementation PR requested: no
 - Runtime model execution allowed: no
+- Private execution allowed: no
+- Provider registry unblock allowed: no
 
 ## Scope
 
@@ -33,6 +36,7 @@ RateCon local provider design: <provider name> fixture-only contract review
 - Do not change production or legacy output.
 - Do not change selected stop output.
 - Do not relax provider registry blockers.
+- Do not make local or cloud placeholders executable.
 - Do not lower resolver thresholds.
 - Do not add broker-specific regexes.
 
@@ -58,10 +62,12 @@ RateCon local provider design: <provider name> fixture-only contract review
 - `design_only=true`.
 - `implementation_pr_requested=false`.
 - `runtime_execution_allowed=false`.
+- `private_execution_allowed=false`.
 - `pdf_processing_allowed=false`.
 - `ocr_allowed=false`.
 - `external_calls_allowed=false`.
 - `model_weight_download_allowed=false`.
+- `provider_registry_unblock_allowed=false`.
 - `fixture_only_inputs=true`.
 - Stops remain review-required.
 - `auto_accept` remains false.
@@ -92,6 +98,7 @@ RateCon local provider design: <provider name> fixture-only contract review
 - Stops remain `auto_accept=false`.
 - Gold labels and filled hybrid templates are unchanged.
 - Design review output cannot unblock providers.
+- Private execution remains unapproved.
 
 ## Required Privacy Proof
 
@@ -118,6 +125,8 @@ RateCon local provider design: <provider name> fixture-only contract review
 - [ ] Design review only led to this design PR.
 - [ ] This PR does not approve implementation.
 - [ ] This PR does not approve model execution.
+- [ ] This PR does not approve private execution.
+- [ ] This PR does not approve provider registry unblocking.
 - [ ] Implementation requires a separate approved PR.
 - [ ] Provider registry blocks remain intact.
 - [ ] Stub remains the only runnable provider.

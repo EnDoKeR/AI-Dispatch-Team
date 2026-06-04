@@ -23,10 +23,12 @@ PROPOSED_SCOPE_REQUIRED = {
     "implementation_pr_requested": False,
     "design_only": True,
     "runtime_execution_allowed": False,
+    "private_execution_allowed": False,
     "pdf_processing_allowed": False,
     "ocr_allowed": False,
     "external_calls_allowed": False,
     "model_weight_download_allowed": False,
+    "provider_registry_unblock_allowed": False,
 }
 INPUT_POLICY_REQUIRED = {
     "private_pdf_input": False,
@@ -94,7 +96,14 @@ def default_acceptance_criteria() -> list[dict[str, Any]]:
         {
             "id": "scope_no_runtime_execution",
             "section": "scope",
-            "criterion": "No runtime model, provider, PDF, OCR, or external-call execution is allowed.",
+            "criterion": "No runtime model, provider, private execution, PDF, OCR, external-call, or model-weight-download execution is allowed.",
+            "required": True,
+            "status": "required",
+        },
+        {
+            "id": "scope_no_registry_unblock",
+            "section": "scope",
+            "criterion": "The design review cannot unblock provider registry blockers or make local/cloud placeholders executable.",
             "required": True,
             "status": "required",
         },
@@ -271,7 +280,7 @@ def validate_design_review(payload: Any) -> DesignReviewValidationResult:
         actions = [
             "fix unsafe design-review permissions before opening a design PR",
             "keep local and cloud model providers blocked",
-            "do not execute models, process PDFs, run OCR, or edit gold/template files",
+            "do not execute models, process PDFs, run OCR, unblock providers, approve private execution, or edit gold/template files",
         ]
     elif incomplete:
         recommendation = "design_review_incomplete"
@@ -286,7 +295,7 @@ def validate_design_review(payload: Any) -> DesignReviewValidationResult:
         actions = [
             "copy the design PR checklist into a future GitHub PR body",
             "request separate approval before any implementation PR",
-            "keep model execution, PDF processing, OCR, and external calls disabled",
+            "keep model execution, private execution, PDF processing, OCR, external calls, model downloads, and registry unblocking disabled",
         ]
     return DesignReviewValidationResult(
         recommendation=recommendation,
@@ -323,7 +332,7 @@ def checklist_markdown(review: dict[str, Any]) -> str:
     lines = [
         "# RateCon Local Provider Design PR Checklist",
         "",
-        "**This checklist is not implementation approval and does not approve model execution.**",
+        "**This checklist is not implementation approval and does not approve model execution, private execution, external calls, OCR, PDF processing, model-weight downloads, or provider-registry unblocking.**",
         "",
         f"- design review recommendation: {recommendation}",
         f"- acceptance criteria count: {criteria_count}",
@@ -332,7 +341,9 @@ def checklist_markdown(review: dict[str, Any]) -> str:
         "",
         "- [ ] Design only; no provider implementation is included.",
         "- [ ] No runtime model execution is approved.",
+        "- [ ] No private execution or provider-registry unblock is approved.",
         "- [ ] No PDF, OCR, or private document processing is approved.",
+        "- [ ] No external calls or model-weight downloads are approved.",
         "- [ ] Implementation requires a separate PR and separate approval.",
         "",
         "## 2. Provider Input Policy",
@@ -340,7 +351,7 @@ def checklist_markdown(review: dict[str, Any]) -> str:
         "- [ ] Fixture-only inputs are used for design validation.",
         "- [ ] No private PDFs are read, attached, processed, or committed.",
         "- [ ] No private raw text is copied into prompts, fixtures, logs, or reports.",
-        "- [ ] No private images are used.",
+        "- [ ] No private images are used, processed, attached, or committed.",
         "",
         "## 3. Provider Output Contract",
         "",
@@ -355,6 +366,7 @@ def checklist_markdown(review: dict[str, Any]) -> str:
         "- [ ] Production and legacy output remain unchanged.",
         "- [ ] Selected stop output remains unchanged.",
         "- [ ] Gold labels and filled hybrid templates are not edited.",
+        "- [ ] Local and cloud model placeholders remain blocked.",
         "",
         "## 5. Benchmark",
         "",
@@ -390,6 +402,7 @@ def checklist_markdown(review: dict[str, Any]) -> str:
         "",
         "- [ ] Do not implement a provider in the design PR.",
         "- [ ] Do not call AI, cloud APIs, local models, OCR, or PDF-processing tools.",
+        "- [ ] Do not unblock local/cloud provider placeholders or approve private execution.",
         "- [ ] Do not download model weights.",
         "- [ ] Do not process private documents.",
         "- [ ] Do not edit gold labels or filled hybrid templates.",

@@ -633,6 +633,7 @@ python scripts/create_ratecon_local_provider_design_review.py ^
 The design review may recommend `design_pr_ready`, but that means only that a
 future design PR can be opened. It does not approve model execution, provider
 implementation, PDF processing, OCR, private document processing, external
-calls, or model weight downloads. Any actual implementation requires a separate
-approved PR and must keep production extraction unchanged, stops
-review-required, and `auto_accept=false`.
+calls, private execution, provider-registry unblocking, or model weight
+downloads. Any actual implementation requires a separate approved PR and must
+keep production extraction unchanged, stops review-required, and
+`auto_accept=false`.

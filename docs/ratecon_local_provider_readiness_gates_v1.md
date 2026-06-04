@@ -164,7 +164,7 @@ After the evidence pack, create the design-review packet with
 `scripts/create_ratecon_local_provider_design_review.py`. The design review
 leads only to a possible future design PR body/checklist. It does not approve a
 provider implementation, model execution, PDF processing, OCR, external calls,
-or private document processing.
+private execution, provider-registry unblocking, or private document processing.
 
 Implementation remains a separate PR and separate approval path. Evidence-pack
 readiness and design-review readiness alone cannot change provider registry

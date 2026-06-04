@@ -128,6 +128,20 @@ class RateConLocalProviderDesignReviewCliTests(unittest.TestCase):
                 redact_default=False,
             )
 
+    def test_cli_main_rejects_when_redaction_is_disabled(self):
+        with self.assertRaises(RateConLocalProviderDesignReviewError):
+            main(
+                [
+                    "--evidence-pack-summary",
+                    str(FIXTURES / "valid_evidence_pack_summary.json"),
+                    "--output-dir",
+                    str(OUTPUT_ROOT / "review"),
+                    "--confirm-private-local-run",
+                    "--redact-default",
+                    "false",
+                ]
+            )
+
 
 if __name__ == "__main__":
     unittest.main()

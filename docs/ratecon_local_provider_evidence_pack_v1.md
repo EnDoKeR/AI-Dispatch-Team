@@ -92,8 +92,9 @@ python scripts/create_ratecon_local_provider_design_review.py ^
 
 The design review can only recommend `design_pr_ready` for a future design PR.
 It cannot approve runtime model execution, private PDF processing, OCR,
-external calls, model weight downloads, or a provider implementation. A future
-actual implementation PR still requires separate approval and must satisfy
+external calls, private execution, provider-registry unblocking, model weight
+downloads, or a provider implementation. A future actual implementation PR
+still requires separate approval and must satisfy
 `docs/ratecon_local_provider_future_implementation_acceptance_criteria_v1.md`.
 
 ## Blocking Conditions
@@ -145,7 +146,7 @@ Do not commit:
 - provider configs containing secrets;
 - local model files or weights;
 - embeddings or vector stores containing private content;
-- readiness/evidence packs containing private values.
+- readiness/evidence/design review packs containing private values.
 
 ## Future Design PR Requirements
 
