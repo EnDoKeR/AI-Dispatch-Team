@@ -103,6 +103,11 @@ approved_constant_modules = {
     "scripts/driver_learning_report.py",
 }
 
+approved_classifier_function_modules = {
+    "app/document_ai/ratecon_rate_money_safety.py",
+    "app/document_ai/ratecon_candidate_context_features.py",
+}
+
 
 def _posix(path):
     return str(path).replace("\\", "/")
@@ -144,6 +149,34 @@ def _guarded_constant_names(path):
     return names
 
 
+def _guarded_classifier_function_names(path):
+    tree = ast.parse(path.read_text(encoding="utf-8-sig"), filename=str(path))
+    names = []
+    guarded_markers = (
+        "money_context",
+        "rate_context",
+        "context_classifier",
+        "safe_total_context",
+        "unsafe_money_context",
+        "payment_instruction_context",
+        "billing_noise_context",
+        "line_item_context",
+    )
+    for node in ast.walk(tree):
+        if not isinstance(node, ast.FunctionDef):
+            continue
+        name = node.name.lower()
+        if name.startswith("_"):
+            continue
+        if name in {"classify_money_context", "classify_rate_candidate_context"}:
+            names.append(node.name)
+        elif name.startswith("is_") and any(marker in name for marker in guarded_markers):
+            names.append(node.name)
+        elif name.startswith("classify_") and "money_context" in name:
+            names.append(node.name)
+    return names
+
+
 class RateconRateMoneyConstantGuardrailTests(unittest.TestCase):
     def test_rate_money_constants_stay_in_documented_modules(self):
         unexpected = []
@@ -160,6 +193,23 @@ class RateconRateMoneyConstantGuardrailTests(unittest.TestCase):
             unexpected,
             "New rate/money/accessorial/source/diagnosis constants must be added "
             "only in canonical, support-policy, or documented compatibility modules.",
+        )
+
+    def test_money_context_classifier_functions_stay_in_documented_modules(self):
+        unexpected = []
+        for path in _iter_python_paths():
+            names = _guarded_classifier_function_names(path)
+            if not names:
+                continue
+            rel_path = _posix(path.relative_to(root))
+            if rel_path not in approved_classifier_function_modules:
+                unexpected.append((rel_path, names))
+
+        self.assertEqual(
+            [],
+            unexpected,
+            "New money-context classifier functions must live in "
+            "ratecon_rate_money_safety.py or documented compatibility wrappers.",
         )
 
     def test_known_rate_money_duplicate_constant_debt_is_pinned(self):

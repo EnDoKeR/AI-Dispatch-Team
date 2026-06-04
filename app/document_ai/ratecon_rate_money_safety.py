@@ -7,6 +7,7 @@ does not change legacy authoritative extraction or production output.
 
 from __future__ import annotations
 
+from dataclasses import dataclass
 import re
 
 
@@ -294,6 +295,16 @@ PER_UNIT_MARKERS = (
     "per unit",
     "rate per",
 )
+
+
+@dataclass(frozen=True)
+class MoneyContextClassification:
+    """Current money-context classifier result for rate/money safety consumers."""
+
+    money_context: str
+    document_region: str
+    rate_safety: str
+    rate_safety_reason: str
 
 
 def _text(value) -> str:
@@ -623,18 +634,157 @@ def _rate_safety(money_context: str, document_region: str, metadata) -> tuple[st
     return RATE_MONEY_UNKNOWN, "money_context_unknown"
 
 
+def classify_money_context(text: str, *, section_hint: str = "", label_hint: str = "") -> MoneyContextClassification:
+    """Classify sanitized text with the current rate/money safety rules."""
+    metadata = {"section_context": section_hint} if _text(section_hint) else {}
+    context = " ".join(
+        _lower(value)
+        for value in [label_hint, text, section_hint]
+        if _text(value)
+    )
+    money_context = _normalize_money_context(metadata, context)
+    document_region = _document_region(metadata, context, money_context)
+    safety, reason = _rate_safety(money_context, document_region, metadata)
+    return MoneyContextClassification(
+        money_context=money_context,
+        document_region=document_region,
+        rate_safety=safety,
+        rate_safety_reason=reason,
+    )
+
+
+def classify_rate_candidate_context(candidate_or_text, *, section_hint: str = "", source: str = "") -> MoneyContextClassification:
+    """Classify a rate candidate or text using the current money-context rules."""
+    if isinstance(candidate_or_text, dict):
+        metadata = _metadata(candidate_or_text)
+        if _text(section_hint) and not metadata.get("section_context"):
+            metadata["section_context"] = section_hint
+        context = _context_text(candidate_or_text, metadata)
+        extra_context = " ".join(
+            _lower(value)
+            for value in [section_hint, source]
+            if _text(value)
+        )
+        if extra_context:
+            context = f"{context} {extra_context}".strip()
+    else:
+        metadata = {"section_context": section_hint} if _text(section_hint) else {}
+        context = " ".join(
+            _lower(value)
+            for value in [candidate_or_text, section_hint, source]
+            if _text(value)
+        )
+    money_context = _normalize_money_context(metadata, context)
+    document_region = _document_region(metadata, context, money_context)
+    safety, reason = _rate_safety(money_context, document_region, metadata)
+    return MoneyContextClassification(
+        money_context=money_context,
+        document_region=document_region,
+        rate_safety=safety,
+        rate_safety_reason=reason,
+    )
+
+
+def classify_context_feature_money_context(metadata, context: str) -> str:
+    """Return the legacy context-feature money context under canonical ownership."""
+    existing = _lower((metadata or {}).get("money_context"))
+    if _has_any(context, get_quick_pay_noise_labels()):
+        return MONEY_CONTEXT_QUICKPAY
+    if _has_any(context, get_rate_deduction_labels()):
+        return MONEY_CONTEXT_DEDUCTION
+    if _has_any(context, get_context_feature_penalty_markers()):
+        return MONEY_CONTEXT_PENALTY
+    if _has_any(context, get_context_feature_fuel_advance_markers()):
+        return MONEY_CONTEXT_FUEL_ADVANCE
+    if _has_any(context, get_accessorial_context_markers()):
+        return MONEY_CONTEXT_ACCESSORIAL
+    if re.search(r"\bfee\b", context):
+        return MONEY_CONTEXT_FEE
+    if _has_any(context, get_billing_instruction_noise_labels()):
+        return MONEY_CONTEXT_PAYMENT_TERMS
+    if _has_any(context, get_context_feature_total_carrier_pay_markers()):
+        return MONEY_CONTEXT_TOTAL_CARRIER_PAY
+    if _has_any(context, get_carrier_freight_pay_context_markers()):
+        return MONEY_CONTEXT_CARRIER_FREIGHT_PAY
+    if _has_any(context, get_context_feature_total_rate_markers()):
+        return MONEY_CONTEXT_TOTAL_RATE
+    if _has_any(context, get_linehaul_total_context_markers()):
+        return MONEY_CONTEXT_LINEHAUL_TOTAL
+    if _has_any(context, get_context_feature_line_item_markers()):
+        return MONEY_CONTEXT_LINE_ITEM_RATE
+    if existing:
+        return existing
+    return MONEY_CONTEXT_UNKNOWN
+
+
+def is_safe_total_rate_context(text: str, *, section_hint: str = "") -> bool:
+    """Return whether text currently classifies as a safe total-rate context."""
+    result = classify_money_context(text, section_hint=section_hint)
+    return result.money_context in SAFE_TOTAL_CONTEXTS and result.rate_safety == RATE_MONEY_SAFE
+
+
+def is_unsafe_money_context(text: str, *, section_hint: str = "") -> bool:
+    """Return whether text currently classifies as unsafe money context."""
+    return classify_money_context(text, section_hint=section_hint).rate_safety == RATE_MONEY_UNSAFE
+
+
+def is_line_item_money_context(text: str, *, section_hint: str = "") -> bool:
+    """Return whether text currently classifies as line-item or per-unit money."""
+    return classify_money_context(text, section_hint=section_hint).money_context in {
+        MONEY_CONTEXT_LINEHAUL_TOTAL,
+        MONEY_CONTEXT_LINE_ITEM_RATE,
+        MONEY_CONTEXT_PER_UNIT_RATE,
+    }
+
+
+def is_payment_instruction_context(text: str, *, section_hint: str = "") -> bool:
+    """Return whether text currently classifies as payment or terms instructions."""
+    result = classify_money_context(text, section_hint=section_hint)
+    return result.document_region in {
+        DOCUMENT_REGION_INSTRUCTIONS,
+        DOCUMENT_REGION_QUICKPAY_TERMS,
+    } or result.money_context in {
+        MONEY_CONTEXT_PAYMENT_TERMS,
+        MONEY_CONTEXT_QUICKPAY,
+    }
+
+
+def is_billing_noise_context(text: str, *, section_hint: str = "") -> bool:
+    """Return whether text currently classifies as billing/payment noise."""
+    result = classify_money_context(text, section_hint=section_hint)
+    return result.money_context in {
+        MONEY_CONTEXT_PAYMENT_TERMS,
+        MONEY_CONTEXT_QUICKPAY,
+    }
+
+
+def get_money_context_classifier_labels():
+    """Return current classifier label groups for docs/tests without mutation."""
+    return {
+        "safe_total_contexts": tuple(sorted(SAFE_TOTAL_CONTEXTS)),
+        "negative_contexts": tuple(sorted(NEGATIVE_CONTEXTS)),
+        "line_item_contexts": (
+            MONEY_CONTEXT_LINEHAUL_TOTAL,
+            MONEY_CONTEXT_LINE_ITEM_RATE,
+            MONEY_CONTEXT_PER_UNIT_RATE,
+        ),
+        "instruction_regions": (
+            DOCUMENT_REGION_INSTRUCTIONS,
+            DOCUMENT_REGION_QUICKPAY_TERMS,
+        ),
+    }
+
+
 def enrich_rate_money_safety(candidate):
     """Return a candidate copy with generic rate safety metadata."""
     if not isinstance(candidate, dict):
         return candidate
     item = dict(candidate)
     metadata = _metadata(item)
-    context = _context_text(item, metadata)
-    money_context = _normalize_money_context(metadata, context)
-    document_region = _document_region(metadata, context, money_context)
-    safety, reason = _rate_safety(money_context, document_region, metadata)
-    metadata["money_context"] = money_context
-    metadata["document_region"] = document_region
+    classification = classify_rate_candidate_context(item)
+    money_context = classification.money_context
+    metadata["money_context"] = classification.money_context
+    metadata["document_region"] = classification.document_region
     metadata["is_total_pay_candidate"] = money_context in SAFE_TOTAL_CONTEXTS or money_context == MONEY_CONTEXT_CARRIER_FREIGHT_PAY
     metadata["is_total_rate_candidate"] = metadata["is_total_pay_candidate"]
     metadata["is_line_item_only"] = money_context in {
@@ -653,10 +803,10 @@ def enrich_rate_money_safety(candidate):
     }
     metadata["is_payment_terms_amount"] = money_context == MONEY_CONTEXT_PAYMENT_TERMS
     metadata["is_accessorial_only"] = money_context == MONEY_CONTEXT_ACCESSORIAL
-    metadata["rate_safety"] = safety
-    metadata["rate_safety_reason"] = reason
-    if reason and not metadata.get("context_penalty_reason"):
-        metadata["context_penalty_reason"] = reason
+    metadata["rate_safety"] = classification.rate_safety
+    metadata["rate_safety_reason"] = classification.rate_safety_reason
+    if classification.rate_safety_reason and not metadata.get("context_penalty_reason"):
+        metadata["context_penalty_reason"] = classification.rate_safety_reason
     item["metadata"] = metadata
     return item
 

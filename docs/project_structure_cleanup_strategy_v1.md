@@ -216,11 +216,19 @@ mapping, or selected-rate ranking profiles. The harness is a behavior pin, not a
 correctness claim; known-debt cases require explicit review before expected
 outputs change.
 
+The next narrow consolidation target centralizes money-context classifier
+helpers in `app/document_ai/ratecon_rate_money_safety.py` while keeping legacy
+context-feature wrapper names and return values. It must run the selected-rate
+snapshot before and after, compare snapshots locally, and leave resolver
+ranking penalties, selected rate output, money-context labels, total-pay
+taxonomy, and accessorial/noise taxonomy unchanged.
+
 Future rate/money consolidation should continue with one narrow target:
 
-- money context classification;
 - resolver rate ranking penalties;
 - forensics diagnosis mapping.
+- selected-rate private aggregate comparison;
+- candidate source/ranking normalization.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
 shadow rates, or use private gold labels as runtime truth as part of ownership
