@@ -476,6 +476,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -497,6 +498,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
         ]
 
@@ -535,6 +537,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             / "measurement_cli"
             / "ratecon_private_report_writers.py"
         )
+        review_export_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_review_exports.py"
+        )
         safety_path = (
             DOCUMENT_AI_PACKAGE
             / "measurement_cli"
@@ -542,7 +549,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         source = "\n".join(
             source_text(source_path)
-            for source_path in [path, parser_path, output_path, report_writer_path, safety_path]
+            for source_path in [
+                path,
+                parser_path,
+                output_path,
+                report_writer_path,
+                review_export_path,
+                safety_path,
+            ]
         )
 
         forbidden_prefixes = [
@@ -556,7 +570,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "easyocr",
             "googleapiclient",
         ]
-        for source_path in [path, parser_path, output_path, report_writer_path, safety_path]:
+        for source_path in [
+            path,
+            parser_path,
+            output_path,
+            report_writer_path,
+            review_export_path,
+            safety_path,
+        ]:
             assert_no_import_prefix(self, source_path, forbidden_prefixes)
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("--write-candidate-coverage", source)
@@ -923,6 +944,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "ratecon_review_workbook.py",
             DOCUMENT_AI_PACKAGE / "review_feedback_import.py",
             DOCUMENT_AI_PACKAGE / "local_review_analysis.py",
@@ -956,6 +978,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py",
             DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "local_review_analysis.py",
             DOCUMENT_AI_PACKAGE / "stop_review_packet.py",
             DOCUMENT_AI_PACKAGE / "stop_review_pattern_classifier.py",
@@ -1027,11 +1050,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         self.assertNotIn("telegram", source)
 
     def test_normalized_stop_review_packets_are_local_only_and_redacted_by_default(self):
-        source = source_text(DOCUMENT_AI_PACKAGE / "stop_review_packet.py")
+        source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py"
+        )
+        compatibility_source = source_text(DOCUMENT_AI_PACKAGE / "stop_review_packet.py")
         output_path_source = source_text(
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
         )
 
+        self.assertIn("ratecon_private_review_exports", compatibility_source)
         self.assertIn("private_ratecon_output_dir", source)
         self.assertIn("stop_review_packet_csv_path", source)
         self.assertIn("stop_review_packet_md_path", source)
