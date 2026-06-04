@@ -13,9 +13,15 @@ from app.document_ai.ratecon_load_table_safety import enrich_table_neighbor_safe
 from app.document_ai.ratecon_rate_money_safety import (
     enrich_rate_money_safety,
     get_carrier_freight_pay_context_markers,
+    get_accessorial_context_markers,
+    get_billing_instruction_noise_labels,
     get_context_feature_line_item_markers,
+    get_context_feature_fuel_advance_markers,
+    get_context_feature_penalty_markers,
     get_context_feature_total_carrier_pay_markers,
     get_context_feature_total_rate_markers,
+    get_quick_pay_noise_labels,
+    get_rate_deduction_labels,
     get_linehaul_total_context_markers,
 )
 
@@ -217,19 +223,19 @@ def _enrich_identifier_candidate(candidate, metadata, context: str) -> None:
 
 def _money_context_from_context(metadata, context: str) -> str:
     existing = _lower(metadata.get("money_context"))
-    if "quickpay" in context or "quick pay" in context:
+    if _has_any(context, get_quick_pay_noise_labels()):
         return MONEY_CONTEXT_QUICKPAY
-    if _has_any(context, ["deduction", "deduct", "chargeback"]):
+    if _has_any(context, get_rate_deduction_labels()):
         return MONEY_CONTEXT_DEDUCTION
-    if _has_any(context, ["tracking hold", "penalty", "tonu", "late fee"]):
+    if _has_any(context, get_context_feature_penalty_markers()):
         return MONEY_CONTEXT_PENALTY
-    if _has_any(context, ["fuel advance", "advance", "comcheck"]):
+    if _has_any(context, get_context_feature_fuel_advance_markers()):
         return MONEY_CONTEXT_FUEL_ADVANCE
-    if _has_any(context, ["detention", "layover", "lumper", "accessorial"]):
+    if _has_any(context, get_accessorial_context_markers()):
         return MONEY_CONTEXT_ACCESSORIAL
     if re.search(r"\bfee\b", context):
         return MONEY_CONTEXT_FEE
-    if _has_any(context, ["payment terms", "net 30", "net30", "days to pay"]):
+    if _has_any(context, get_billing_instruction_noise_labels()):
         return MONEY_CONTEXT_PAYMENT_TERMS
     if _has_any(context, get_context_feature_total_carrier_pay_markers()):
         return MONEY_CONTEXT_TOTAL_CARRIER_PAY

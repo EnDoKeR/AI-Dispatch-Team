@@ -198,13 +198,21 @@ change selected rate output, resolver scoring, thresholds, candidate source
 names, confidence values, field names, schemas, or money-context labels.
 
 Accessorial/noise taxonomy remains intentionally out of scope for the total-pay
-label phase. Future rate/money consolidation should continue with one narrow
-target:
+label phase.
 
-- accessorial/noise label taxonomy;
+The next narrow consolidation target centralizes accessorial/noise/fee/penalty
+label taxonomy in `app/document_ai/ratecon_rate_money_safety.py` while keeping
+legacy resolver, generator, context-feature, layout, and OCR policy constants as
+compatibility aliases. It does not change total-pay taxonomy semantics, selected
+rate output, resolver scoring, thresholds, candidate source names, confidence
+values, field names, schemas, or money-context labels.
+
+Future rate/money consolidation should continue with one narrow target:
+
 - money context classification;
 - resolver rate ranking penalties;
 - forensics diagnosis mapping.
+- selected-rate regression harness.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
 shadow rates, or use private gold labels as runtime truth as part of ownership

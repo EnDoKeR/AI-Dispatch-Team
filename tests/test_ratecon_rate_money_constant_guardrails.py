@@ -19,6 +19,12 @@ guarded_prefixes = (
     "MAIN_RATE_",
     "ACCESSORIAL_",
     "DETENTION_",
+    "LAYOVER_",
+    "LUMPER_",
+    "TONU_",
+    "TRUCK_ORDER_NOT_USED_",
+    "COMCHECK_",
+    "GATE_FEE_",
     "LINE_HAUL_PAY_",
     "LINE_HAUL_",
     "LINEHAUL_",
@@ -27,6 +33,13 @@ guarded_prefixes = (
     "FUEL_ADVANCE_",
     "QUICK_PAY_",
     "QUICKPAY_",
+    "TRACKING_",
+    "ON_TIME_",
+    "LATE_FEE_",
+    "RATE_DEDUCTION_",
+    "PENALTY_",
+    "BILLING_NOISE_",
+    "PAYMENT_TERMS_",
 )
 
 guarded_contains = (
@@ -36,11 +49,26 @@ guarded_contains = (
     "CARRIER_PAY",
     "ACCESSORIAL",
     "DETENTION",
+    "LAYOVER",
+    "LUMPER",
+    "TONU",
+    "COMCHECK",
+    "GATE_FEE",
     "LINEHAUL",
     "LINE_HAUL",
     "FUEL_ADVANCE",
     "QUICKPAY",
     "QUICK_PAY",
+    "TRACKING",
+    "LATE_FEE",
+    "RATE_DEDUCTION",
+    "PENALTY",
+    "BILLING_NOISE",
+    "PAYMENT_TERMS",
+    "_NOISE_LABELS",
+    "_ACCESSORIAL_LABELS",
+    "_FEE_LABELS",
+    "_PENALTY_LABELS",
 )
 
 approved_constant_modules = {
@@ -67,7 +95,11 @@ approved_constant_modules = {
     "app/document_ai/ratecon_review_workbook.py",
     "app/document_ai/ratecon_table_semantics.py",
     "app/document_ai/review_issue_taxonomy.py",
+    "app/document_ai/stop_group_provenance_report.py",
     "app/document_ai/stop_span_extractor.py",
+    "app/document_ai/stop_normalization.py",
+    "app/document_ai/stop_review_pattern_classifier.py",
+    "app/document_ai/private_measurement_pipeline.py",
     "scripts/driver_learning_report.py",
 }
 
@@ -134,7 +166,9 @@ class RateconRateMoneyConstantGuardrailTests(unittest.TestCase):
         summary = analyze_rate_money_safety_ownership(root)
         duplicate_names = {row["constant_name"] for row in summary["duplicate_constants"]}
 
-        self.assertEqual(27, summary["duplicate_constant_count"])
+        self.assertEqual(29, summary["duplicate_constant_count"])
+        self.assertIn("ACCESSORIAL_LABELS", duplicate_names)
+        self.assertIn("RATE_NEGATIVE_LABELS", duplicate_names)
         self.assertIn("FIELD_TOTAL_CARRIER_RATE", duplicate_names)
         self.assertIn("MONEY_CONTEXT_TOTAL_CARRIER_PAY", duplicate_names)
         self.assertIn(

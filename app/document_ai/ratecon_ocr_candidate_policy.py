@@ -16,6 +16,7 @@ from app.document_ai.ratecon_rate_money_safety import (
     RATE_SELECTION_ABSTAIN,
     RATE_SELECTION_ALLOWED,
     enrich_rate_money_safety,
+    get_ocr_unsafe_rate_contexts,
 )
 
 
@@ -50,19 +51,7 @@ _WEAK_OCR_LOAD_HINTS = {
     "vehicle_noise",
     "unknown",
 }
-_UNSAFE_OCR_RATE_CONTEXTS = {
-    "accessorial",
-    "deduction",
-    "fee",
-    "quickpay",
-    "fuel_advance",
-    "comcheck_fee",
-    "tracking_hold",
-    "penalty",
-    "payment_terms_amount",
-    "line_item_rate",
-    "per_unit_rate",
-}
+_UNSAFE_OCR_RATE_CONTEXTS = get_ocr_unsafe_rate_contexts()
 
 
 def _text(value) -> str:

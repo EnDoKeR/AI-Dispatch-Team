@@ -138,6 +138,132 @@ CONTEXT_FEATURE_LINE_ITEM_MARKERS = (
     "per mile",
     "per unit",
 )
+QUICK_PAY_NOISE_LABELS = (
+    "quickpay",
+    "quick pay",
+)
+COMCHECK_FEE_LABELS = (
+    "comcheck",
+    "com check",
+)
+TRACKING_HOLD_LABELS = (
+    "tracking hold",
+    "tracking fee",
+    "holdback",
+)
+FUEL_ADVANCE_LABELS = (
+    "fuel advance",
+    "advance",
+)
+RATE_DEDUCTION_LABELS = (
+    "deduction",
+    "deduct",
+    "chargeback",
+)
+FEE_PENALTY_NOISE_LABELS = (
+    "penalty",
+    "tonu",
+    "truck order not used",
+    "late fee",
+)
+ACCESSORIAL_CONTEXT_MARKERS = (
+    "detention",
+    "layover",
+    "lumper",
+    "accessorial",
+)
+BILLING_INSTRUCTION_NOISE_LABELS = (
+    "payment terms",
+    "net 30",
+    "net30",
+    "days to pay",
+)
+MONEY_CONTEXT_NOISE_MARKERS = (
+    QUICK_PAY_NOISE_LABELS
+    + COMCHECK_FEE_LABELS
+    + TRACKING_HOLD_LABELS
+    + FUEL_ADVANCE_LABELS
+    + RATE_DEDUCTION_LABELS
+    + FEE_PENALTY_NOISE_LABELS
+    + ACCESSORIAL_CONTEXT_MARKERS
+    + BILLING_INSTRUCTION_NOISE_LABELS
+)
+RATE_NEGATIVE_LABELS = (
+    "fuel",
+    "detention",
+    "layover",
+    "lumper",
+    "quickpay",
+    "quick pay",
+    "deduction",
+    "penalty",
+    "tonu",
+    "insurance",
+    "advance",
+    "accessorial",
+)
+ACCESSORIAL_CHARGE_LABELS = (
+    "detention",
+    "layover",
+    "lumper",
+    "tonu",
+    "quick pay",
+    "fuel surcharge",
+    "accessorial",
+    "fee",
+    "penalty",
+    "deduction",
+)
+ACCESSORIAL_LABEL_TYPES = (
+    ("detention", "detention_pay"),
+    ("layover", "layover_pay"),
+    ("lumper", "lumper_pay"),
+    ("tonu", "TONU_pay"),
+    ("truck order not used", "TONU_pay"),
+    ("quick pay", "quick_pay_discount"),
+    ("fuel surcharge", "accessorial"),
+    ("accessorial", "accessorial"),
+    ("fee", "accessorial"),
+    ("penalty", "deduction"),
+    ("deduction", "deduction"),
+)
+LAYOUT_ACCESSORIAL_LABEL_TYPES = (
+    ("tracking bonus", "tracking_bonus"),
+    ("on time bonus", "on_time_bonus"),
+    ("detention", "detention_pay"),
+    ("tonu", "TONU_pay"),
+    ("truck order not used", "TONU_pay"),
+    ("deduction", "deduction"),
+    ("penalty", "deduction"),
+    ("quick pay", "quick_pay_discount"),
+    ("discount", "quick_pay_discount"),
+    ("accessorial", "accessorial"),
+    ("fee", "accessorial"),
+)
+CONTEXT_FEATURE_PENALTY_MARKERS = (
+    "tracking hold",
+    "penalty",
+    "tonu",
+    "late fee",
+)
+CONTEXT_FEATURE_FUEL_ADVANCE_MARKERS = (
+    "fuel advance",
+    "advance",
+    "comcheck",
+)
+OCR_UNSAFE_RATE_CONTEXTS = (
+    MONEY_CONTEXT_ACCESSORIAL,
+    MONEY_CONTEXT_DEDUCTION,
+    MONEY_CONTEXT_FEE,
+    MONEY_CONTEXT_QUICKPAY,
+    MONEY_CONTEXT_FUEL_ADVANCE,
+    MONEY_CONTEXT_COMCHECK_FEE,
+    MONEY_CONTEXT_TRACKING_HOLD,
+    MONEY_CONTEXT_PENALTY,
+    MONEY_CONTEXT_PAYMENT_TERMS,
+    MONEY_CONTEXT_LINE_ITEM_RATE,
+    MONEY_CONTEXT_PER_UNIT_RATE,
+)
 
 SAFE_TOTAL_CONTEXTS = {
     MONEY_CONTEXT_TOTAL_CARRIER_PAY,
@@ -266,6 +392,91 @@ def get_context_feature_line_item_markers():
     return CONTEXT_FEATURE_LINE_ITEM_MARKERS
 
 
+def get_accessorial_charge_labels():
+    """Return legacy accessorial charge labels in stable order."""
+    return ACCESSORIAL_CHARGE_LABELS
+
+
+def get_accessorial_noise_labels():
+    """Return current non-total accessorial/noise markers in stable order."""
+    return MONEY_CONTEXT_NOISE_MARKERS
+
+
+def get_accessorial_label_types():
+    """Return legacy accessorial label-to-value-type mappings."""
+    return ACCESSORIAL_LABEL_TYPES
+
+
+def get_layout_accessorial_label_types():
+    """Return layout accessorial label-to-value-type mappings."""
+    return LAYOUT_ACCESSORIAL_LABEL_TYPES
+
+
+def get_rate_negative_labels():
+    """Return resolver-compatible negative rate labels in stable order."""
+    return RATE_NEGATIVE_LABELS
+
+
+def get_rate_deduction_labels():
+    """Return current deduction/chargeback context markers."""
+    return RATE_DEDUCTION_LABELS
+
+
+def get_quick_pay_noise_labels():
+    """Return current quick-pay context markers."""
+    return QUICK_PAY_NOISE_LABELS
+
+
+def get_fee_penalty_noise_labels():
+    """Return current penalty/TONU/late-fee context markers."""
+    return FEE_PENALTY_NOISE_LABELS
+
+
+def get_billing_instruction_noise_labels():
+    """Return current payment-term/billing noise markers."""
+    return BILLING_INSTRUCTION_NOISE_LABELS
+
+
+def get_money_context_noise_markers():
+    """Return current non-total money-context noise markers."""
+    return MONEY_CONTEXT_NOISE_MARKERS
+
+
+def get_comcheck_fee_labels():
+    """Return current comcheck context markers."""
+    return COMCHECK_FEE_LABELS
+
+
+def get_tracking_hold_labels():
+    """Return current tracking-hold context markers."""
+    return TRACKING_HOLD_LABELS
+
+
+def get_fuel_advance_labels():
+    """Return current fuel-advance context markers."""
+    return FUEL_ADVANCE_LABELS
+
+
+def get_accessorial_context_markers():
+    """Return current accessorial context markers."""
+    return ACCESSORIAL_CONTEXT_MARKERS
+
+
+def get_context_feature_penalty_markers():
+    """Return context-feature compatibility markers for penalties."""
+    return CONTEXT_FEATURE_PENALTY_MARKERS
+
+
+def get_context_feature_fuel_advance_markers():
+    """Return context-feature compatibility markers for fuel advances."""
+    return CONTEXT_FEATURE_FUEL_ADVANCE_MARKERS
+
+
+def get_ocr_unsafe_rate_contexts():
+    """Return OCR policy contexts that remain unsafe/non-total."""
+    return set(OCR_UNSAFE_RATE_CONTEXTS)
+
+
 def is_total_pay_label(text: str) -> bool:
     """Return whether text matches current total-pay/main-rate context markers."""
     return _has_any(_lower(text), get_total_pay_context_markers())
@@ -276,25 +487,60 @@ def is_strong_total_pay_context(text: str) -> bool:
     return _has_any(_lower(text), get_total_pay_strong_labels())
 
 
+def is_accessorial_money_context(text: str) -> bool:
+    """Return whether text matches current accessorial money-context markers."""
+    return _has_any(_lower(text), get_accessorial_context_markers())
+
+
+def is_rate_deduction_or_fee_context(text: str) -> bool:
+    """Return whether text matches current deduction/fee/penalty markers."""
+    context = _lower(text)
+    return (
+        _has_any(context, get_rate_deduction_labels())
+        or _has_any(context, get_comcheck_fee_labels())
+        or _has_any(context, get_tracking_hold_labels())
+        or _has_any(context, get_fuel_advance_labels())
+        or _has_any(context, get_fee_penalty_noise_labels())
+        or bool(re.search(r"\bfee\b", context))
+    )
+
+
+def is_quick_pay_or_billing_noise_context(text: str) -> bool:
+    """Return whether text matches current quick-pay or billing noise markers."""
+    context = _lower(text)
+    return _has_any(context, get_quick_pay_noise_labels()) or _has_any(
+        context,
+        get_billing_instruction_noise_labels(),
+    )
+
+
+def is_non_total_money_noise_context(text: str) -> bool:
+    """Return whether text matches current non-total money noise markers."""
+    context = _lower(text)
+    return _has_any(context, get_money_context_noise_markers()) or bool(
+        re.search(r"\bfee\b", context)
+    )
+
+
 def _normalize_money_context(metadata, context: str) -> str:
     existing = _lower(metadata.get("money_context"))
-    if _has_any(context, ["quickpay", "quick pay"]):
+    if _has_any(context, QUICK_PAY_NOISE_LABELS):
         return MONEY_CONTEXT_QUICKPAY
-    if _has_any(context, ["comcheck", "com check"]):
+    if _has_any(context, COMCHECK_FEE_LABELS):
         return MONEY_CONTEXT_COMCHECK_FEE
-    if _has_any(context, ["tracking hold", "tracking fee", "holdback"]):
+    if _has_any(context, TRACKING_HOLD_LABELS):
         return MONEY_CONTEXT_TRACKING_HOLD
-    if _has_any(context, ["fuel advance", "advance"]):
+    if _has_any(context, FUEL_ADVANCE_LABELS):
         return MONEY_CONTEXT_FUEL_ADVANCE
-    if _has_any(context, ["deduction", "deduct", "chargeback"]):
+    if _has_any(context, RATE_DEDUCTION_LABELS):
         return MONEY_CONTEXT_DEDUCTION
-    if _has_any(context, ["penalty", "tonu", "truck order not used", "late fee"]):
+    if _has_any(context, FEE_PENALTY_NOISE_LABELS):
         return MONEY_CONTEXT_PENALTY
-    if _has_any(context, ["detention", "layover", "lumper", "accessorial"]):
+    if _has_any(context, ACCESSORIAL_CONTEXT_MARKERS):
         return MONEY_CONTEXT_ACCESSORIAL
     if re.search(r"\bfee\b", context):
         return MONEY_CONTEXT_FEE
-    if _has_any(context, ["payment terms", "net 30", "net30", "days to pay"]):
+    if _has_any(context, BILLING_INSTRUCTION_NOISE_LABELS):
         return MONEY_CONTEXT_PAYMENT_TERMS
     if _has_any(context, PER_UNIT_MARKERS):
         return MONEY_CONTEXT_PER_UNIT_RATE

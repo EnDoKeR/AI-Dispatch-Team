@@ -21,6 +21,7 @@ from app.document_ai.ratecon_candidates import (
     FIELD_RATE,
     SOURCE_TABLE_PATTERN_FUTURE,
 )
+from app.document_ai.ratecon_rate_money_safety import get_layout_accessorial_label_types
 
 LAYOUT_RATE_EXTRACTOR_VERSION = "layout_rate_candidates_v1"
 
@@ -53,19 +54,7 @@ MAIN_RATE_LABELS = (
     ("total rate", "total_carrier_pay"),
 )
 
-ACCESSORIAL_LABELS = (
-    ("tracking bonus", "tracking_bonus"),
-    ("on time bonus", "on_time_bonus"),
-    ("detention", "detention_pay"),
-    ("tonu", "TONU_pay"),
-    ("truck order not used", "TONU_pay"),
-    ("deduction", "deduction"),
-    ("penalty", "deduction"),
-    ("quick pay", "quick_pay_discount"),
-    ("discount", "quick_pay_discount"),
-    ("accessorial", "accessorial"),
-    ("fee", "accessorial"),
-)
+ACCESSORIAL_LABELS = get_layout_accessorial_label_types()
 
 
 def _text(value):
