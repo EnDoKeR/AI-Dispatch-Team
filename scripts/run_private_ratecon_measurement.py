@@ -51,6 +51,11 @@ from app.document_ai.measurement_cli.ratecon_private_report_writers import (
     PrivateMeasurementOutputError,
     write_private_ratecon_safe_outputs,
 )
+from app.document_ai.measurement_cli.ratecon_private_review_exports import (
+    private_ratecon_review_export_labels,
+    private_ratecon_review_packet_export_labels,
+    write_private_ratecon_review_packet_exports,
+)
 from app.document_ai.private_measurement_review_export import write_ratecon_review_export
 from app.document_ai.private_measurement_pipeline import measure_private_ratecon_pdf
 from app.document_ai.private_measurement_reports import (
@@ -69,7 +74,6 @@ from app.document_ai.ratecon_shadow_audit import (
     write_ratecon_shadow_audit_artifacts,
 )
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
-from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
 )
@@ -661,23 +665,14 @@ def main(argv=None):
             )
             print(f"safe_outputs_written: {_safe_output_file_labels(output['paths'])}")
         if not args.dry_run and args.write_stop_review_packet:
-            stop_sets = [
-                row.get("normalized_stop_set")
-                for row in report["rows"]
-                if row.get("normalized_stop_set")
-            ]
-            packet = write_stop_review_packet(
-                stop_sets,
+            packet = write_private_ratecon_review_packet_exports(
+                report["rows"],
                 output_dir=output_paths.output_dir,
                 include_private_values_local_only=args.include_private_stop_values_local_only,
             )
             print(
                 "stop_review_packet_written: "
-                f"{{'csv': '{output_file_name(packet['csv'])}', "
-                f"'md': '{output_file_name(packet['md'])}', "
-                f"'row_count': {packet['row_count']}, "
-                f"'include_private_values_local_only': "
-                f"{packet['include_private_values_local_only']}}}"
+                f"{private_ratecon_review_packet_export_labels(packet)}"
             )
         if not args.dry_run and args.write_google_sheet_export:
             export = write_ratecon_review_export(
@@ -686,13 +681,10 @@ def main(argv=None):
                 local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
-            labels = {
-                "csv": output_file_name(export["csv"]),
-                "row_count": export["row_count"],
-            }
-            if export.get("xlsx"):
-                labels["xlsx"] = output_file_name(export["xlsx"])
-            print(f"google_sheet_export_written: {labels}")
+            print(
+                "google_sheet_export_written: "
+                f"{private_ratecon_review_export_labels(export)}"
+            )
         if not args.dry_run and (args.write_review_workbook or args.write_review_csvs):
             review = write_ratecon_review_artifacts(
                 report["rows"],

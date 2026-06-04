@@ -33,7 +33,13 @@ output path helpers and must not run measurement, process PDFs, invoke OCR, call
 models or cloud services, sync Google Sheets, generate review workbooks, or own
 full audit orchestration.
 
-Future phases may move remaining review exporters, audit orchestration, Google
+Phase 3B extracts only simple review/export artifact ownership for local-only
+review packets and related labels. It must preserve existing filenames, schemas,
+and local-only/private-redaction metadata, and it must not run measurement,
+process PDFs, invoke OCR, call models or cloud services, sync Google Sheets,
+generate review workbooks, or own full audit orchestration.
+
+Future phases may move audit orchestration, review workbook generation, Google
 sync wiring, and pipeline orchestration into smaller owners. Each phase must
 preserve CLI flag names, output schemas, safety gates, and measurement behavior
 unless a separate behavior-change PR explicitly approves and tests that change.
