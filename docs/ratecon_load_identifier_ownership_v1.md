@@ -1,0 +1,84 @@
+# RateCon Load Identifier Ownership v1
+
+This document clarifies ownership for RateCon `load_number` candidate
+generation, selected-value resolution, source taxonomy, and diagnostics. This
+PR changes no selected load-number behavior, candidate generation behavior,
+resolver scoring, thresholds, source names, confidence values, schemas,
+private measurement behavior, or evaluator metrics.
+
+## Ownership
+
+`app/document_ai/load_identifier_candidates.py` is the intended canonical owner
+for load identifier candidate taxonomy and policy when current imports allow
+it. It owns typed identifier categories such as broker load number, order
+number, tender ID, PRO number, freight bill number, primary reference, and
+non-primary references.
+
+`app/document_ai/field_candidate_generators.py` may generate load identifier
+candidates, but it should not grow independent load identifier taxonomy long
+term. Generator-visible labels, source names, confidence values, and candidate
+shape remain pinned compatibility behavior.
+
+`app/document_ai/field_candidate_resolver.py` and the legacy
+`app/document_ai/ratecon_field_resolution.py` consume load identifier
+candidates and own selected value choice, resolver status, conflict routing,
+and review flags. They do not own candidate taxonomy.
+
+`app/document_ai/load_identity_forensics.py`,
+`app/document_ai/load_identifier_coverage_audit.py`, and
+`app/document_ai/load_identifier_source_line_audit.py` report diagnostics,
+coverage stages, source-line categories, and safe aggregate counts. They do
+not own canonical candidate taxonomy or selected-value behavior.
+
+Evaluator and private-measurement scripts report load-number outcomes and must
+not own load identifier extraction rules or ranking changes.
+
+## Pinned Behavior
+
+Current behavior is pinned by sanitized regression fixtures and compatibility
+tests. The pinned surface includes:
+
+- primary load/order/tender/PRO/freight-bill style identifiers mapping to
+  `load_number`;
+- PO, BOL, customer, pickup, delivery, appointment, and carrier references
+  remaining non-primary by default;
+- generic references requiring review when selected as primary references;
+- duplicate same-value primary candidates resolving without conflict;
+- conflicting strong primary identifiers requiring review;
+- current source labels, confidence values, status strings, warning codes, and
+  diagnostic labels.
+
+Known-debt fixtures remain pinned, not fixed. Current wrong/missing and
+high-confidence behavior is intentionally preserved.
+
+## Safety Gates
+
+Future load-number behavior changes must run:
+
+1. `tests/test_ratecon_selected_load_regression_harness.py`;
+2. `scripts/compare_ratecon_private_selected_load_aggregates.py` against
+   sanitized fixtures and local private aggregate outputs when explicitly
+   available;
+3. full private gold evaluation only when explicitly requested.
+
+Table/layout pairing improvements must be shadow-only or separately approved.
+Do not change selected load output, source names, confidence values, evaluator
+statuses, or private measurement schemas as part of ownership cleanup.
+
+## Local-Only Audit
+
+`scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text
+inventory only. It refuses to run without `--confirm-local-audit-run`, writes
+only under `.local_outputs/`, and must not import project modules dynamically,
+execute resolver or extraction code, process PDFs, run OCR, call Google/model
+services, or read private/local output directories.
+
+```powershell
+python scripts/audit_ratecon_load_identifier_ownership.py `
+  --repo-root . `
+  --output-dir .local_outputs/ratecon_load_identifier_ownership_audit `
+  --confirm-local-audit-run
+```
+
+This ownership baseline is not a load-number improvement PR and does not claim
+accuracy gains.

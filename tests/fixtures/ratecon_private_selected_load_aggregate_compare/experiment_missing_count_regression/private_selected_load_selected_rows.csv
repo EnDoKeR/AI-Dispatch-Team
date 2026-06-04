@@ -1,0 +1,5 @@
+document_id,field,selected_value,selected_source,selected_confidence,selected_status
+fake-doc-001,load_number,FAKE-LOAD-001,label_pattern,0.95,resolved
+fake-doc-002,load_number,FAKE-LOAD-002,native_layout,0.92,resolved
+fake-doc-003,load_number,FAKE-TABLE-003,native_layout,0.90,resolved
+fake-doc-004,load_number,,label_pattern,0.00,missing
