@@ -2,21 +2,27 @@
 
 import json
 from collections import Counter
-from pathlib import Path
 
 from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     PrivateMeasurementOutputError,
 )
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    DEFAULT_PRIVATE_RATECON_OUTPUT_DIR,
+    STOP_GROUP_PROVENANCE_JSON,
+    STOP_GROUP_PROVENANCE_MD,
+    PrivateRateconOutputPathError,
+    private_ratecon_output_dir,
+    stop_group_provenance_json_path,
+    stop_group_provenance_md_path,
+    validate_default_scoped_output_dir,
+)
 
 
-STOP_GROUP_PROVENANCE_JSON = "stop_group_provenance.json"
-STOP_GROUP_PROVENANCE_MD = "stop_group_provenance_report.md"
 DEFAULT_STOP_GROUP_PROVENANCE_JSON = (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR / STOP_GROUP_PROVENANCE_JSON
+    DEFAULT_PRIVATE_RATECON_OUTPUT_DIR / STOP_GROUP_PROVENANCE_JSON
 )
 DEFAULT_STOP_GROUP_PROVENANCE_MD = (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR / STOP_GROUP_PROVENANCE_MD
+    DEFAULT_PRIVATE_RATECON_OUTPUT_DIR / STOP_GROUP_PROVENANCE_MD
 )
 
 ROOT_CAUSE_ONE_GROUP_PER_CELL = "ONE_GROUP_PER_CELL"
@@ -54,13 +60,14 @@ def _safe_mapping(value):
 
 
 def _normalize_output_dir(output_dir=None, allow_custom_output_dir=False):
-    path = Path(output_dir) if output_dir else DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR
-    if output_dir and not allow_custom_output_dir:
-        default_parts = DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR.parts
-        if path.parts[: len(default_parts)] != default_parts:
-            raise PrivateMeasurementOutputError(
-                "custom output directory requires allow_custom_output_dir=True"
-            )
+    path = private_ratecon_output_dir(output_dir)
+    try:
+        validate_default_scoped_output_dir(
+            output_dir,
+            allow_custom_output_dir=allow_custom_output_dir,
+        )
+    except PrivateRateconOutputPathError as exc:
+        raise PrivateMeasurementOutputError(str(exc))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -260,8 +267,8 @@ def write_stop_group_provenance_report(
     allow_custom_output_dir=False,
 ):
     directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
-    json_path = directory / STOP_GROUP_PROVENANCE_JSON
-    md_path = directory / STOP_GROUP_PROVENANCE_MD
+    json_path = stop_group_provenance_json_path(directory)
+    md_path = stop_group_provenance_md_path(directory)
     payload = build_stop_group_provenance_report_payload(rows)
     json_path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     md_path.write_text(build_stop_group_provenance_markdown(rows), encoding="utf-8")

@@ -18,6 +18,13 @@ own measurement business logic. They must not process PDFs, invoke OCR, call
 models or cloud services, write reports, sync Google Sheets, or read private
 document content.
 
+Phase 2 extracts only output path and filename construction. It centralizes
+stable local artifact names and local-only output path validation so later
+cleanup can move writers without accidentally changing filenames, directories,
+or schemas. The output path module must not create directories, write files,
+process PDFs, invoke OCR, call models or cloud services, sync Google Sheets, or
+own report/audit generation.
+
 Future phases may move report writers, review exporters, audit orchestration,
 Google sync wiring, and pipeline orchestration into smaller owners. Each phase
 must preserve CLI flag names, output schemas, safety gates, and measurement

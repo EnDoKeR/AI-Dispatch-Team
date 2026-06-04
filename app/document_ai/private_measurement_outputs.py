@@ -2,16 +2,26 @@
 
 import csv
 import json
-from pathlib import Path
+
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    DEFAULT_PRIVATE_RATECON_OUTPUT_DIR,
+    SAFE_AGGREGATE_JSON,
+    SAFE_AGGREGATE_MD,
+    SAFE_SUMMARY_CSV,
+    SAFE_SUMMARY_JSON,
+    VALUE_REVIEW_TEMPLATE_CSV,
+    PrivateRateconOutputPathError,
+    private_measurement_aggregate_path,
+    private_measurement_report_path,
+    private_measurement_rows_path,
+    private_measurement_summary_path,
+    private_ratecon_output_dir,
+    validate_default_scoped_output_dir,
+    value_review_template_path,
+)
 
 
-DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR = Path(".local_outputs/private_ratecon_measurement")
-
-SAFE_SUMMARY_JSON = "safe_summary.json"
-SAFE_SUMMARY_CSV = "safe_summary.csv"
-SAFE_AGGREGATE_JSON = "safe_aggregate.json"
-SAFE_AGGREGATE_MD = "safe_aggregate.md"
-VALUE_REVIEW_TEMPLATE_CSV = "value_review_template.csv"
+DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR = DEFAULT_PRIVATE_RATECON_OUTPUT_DIR
 
 SAFE_CSV_COLUMNS = [
     "document_alias",
@@ -119,14 +129,14 @@ class PrivateMeasurementOutputError(ValueError):
 
 
 def _normalize_output_dir(output_dir=None, allow_custom_output_dir=False):
-    path = Path(output_dir) if output_dir else DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR
-
-    if output_dir and not allow_custom_output_dir:
-        default_parts = DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR.parts
-        if path.parts[: len(default_parts)] != default_parts:
-            raise PrivateMeasurementOutputError(
-                "custom output directory requires allow_custom_output_dir=True"
-            )
+    path = private_ratecon_output_dir(output_dir)
+    try:
+        validate_default_scoped_output_dir(
+            output_dir,
+            allow_custom_output_dir=allow_custom_output_dir,
+        )
+    except PrivateRateconOutputPathError as exc:
+        raise PrivateMeasurementOutputError(str(exc))
 
     path.mkdir(parents=True, exist_ok=True)
     return path
@@ -299,14 +309,14 @@ def write_safe_summary_json(rows, aggregate, output_dir=None, allow_custom_outpu
         "aggregate": aggregate or {},
     }
     _assert_safe_payload(payload)
-    path = directory / SAFE_SUMMARY_JSON
+    path = private_measurement_summary_path(directory)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return path
 
 
 def write_safe_summary_csv(rows, output_dir=None, allow_custom_output_dir=False):
     directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
-    path = directory / SAFE_SUMMARY_CSV
+    path = private_measurement_rows_path(directory)
 
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=SAFE_CSV_COLUMNS)
@@ -326,14 +336,14 @@ def write_safe_aggregate_json(aggregate, output_dir=None, allow_custom_output_di
         "aggregate": aggregate or {},
     }
     _assert_safe_payload(payload)
-    path = directory / SAFE_AGGREGATE_JSON
+    path = private_measurement_aggregate_path(directory)
     path.write_text(json.dumps(payload, indent=2, sort_keys=True), encoding="utf-8")
     return path
 
 
 def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=False):
     directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
-    path = directory / SAFE_AGGREGATE_MD
+    path = private_measurement_report_path(directory)
     lines = [
         "# Safe Private RateCon Measurement Aggregate",
         "",
@@ -431,7 +441,7 @@ def write_safe_aggregate_md(aggregate, output_dir=None, allow_custom_output_dir=
 
 def write_value_review_template_csv(rows, output_dir=None, allow_custom_output_dir=False):
     directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
-    path = directory / VALUE_REVIEW_TEMPLATE_CSV
+    path = value_review_template_path(directory)
 
     with path.open("w", newline="", encoding="utf-8") as handle:
         writer = csv.DictWriter(handle, fieldnames=VALUE_REVIEW_TEMPLATE_COLUMNS)

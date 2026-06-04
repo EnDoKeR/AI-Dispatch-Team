@@ -13,8 +13,13 @@ from pathlib import Path
 import re
 
 from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     _normalize_output_dir,
+)
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    RATECON_SHADOW_AUDIT_JSONL,
+    RATECON_SHADOW_AUDIT_SUMMARY_JSON,
+    ratecon_shadow_audit_jsonl_path,
+    ratecon_shadow_summary_json_path,
 )
 from app.document_ai.ratecon_canonical_fields import (
     MAPPING_UNMAPPED,
@@ -44,9 +49,6 @@ from app.document_ai.ratecon_stop_fusion_profile import (
 
 
 RATECON_SHADOW_AUDIT_VERSION = "ratecon_shadow_document_pipeline_audit_v1"
-RATECON_SHADOW_AUDIT_JSONL = "ratecon_shadow_document_pipeline_audit.jsonl"
-RATECON_SHADOW_AUDIT_SUMMARY_JSON = "ratecon_shadow_document_pipeline_summary.json"
-
 LAYER_INGESTION = "ingestion"
 LAYER_TEXT_EXTRACTION = "text_extraction"
 LAYER_CANDIDATE_GENERATION = "candidate_generation"
@@ -4484,18 +4486,15 @@ def write_ratecon_shadow_audit_artifacts(
     output_dir=None,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     safe_records = [record for record in records or [] if isinstance(record, dict)]
-    jsonl_path = output_root / RATECON_SHADOW_AUDIT_JSONL
+    jsonl_path = ratecon_shadow_audit_jsonl_path(output_root)
     with jsonl_path.open("w", encoding="utf-8") as handle:
         for record in safe_records:
             handle.write(json.dumps(record, sort_keys=True) + "\n")
 
     summary = summarize_ratecon_shadow_audit_records(safe_records)
-    summary_path = output_root / RATECON_SHADOW_AUDIT_SUMMARY_JSON
+    summary_path = ratecon_shadow_summary_json_path(output_root)
     summary_path.write_text(
         json.dumps(summary, indent=2, sort_keys=True) + "\n",
         encoding="utf-8",

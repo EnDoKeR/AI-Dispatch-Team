@@ -1,10 +1,14 @@
 """Safe diagnostics contracts for layout provider output quality."""
 
-from pathlib import Path
-
 from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     PrivateMeasurementOutputError,
+)
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    LAYOUT_PROVIDER_DIAGNOSTICS_MD,
+    PrivateRateconOutputPathError,
+    layout_provider_diagnostics_path,
+    private_ratecon_output_dir,
+    validate_default_scoped_output_dir,
 )
 
 
@@ -25,8 +29,6 @@ LAYOUT_QUALITY_BUCKETS = {
 }
 
 LAYOUT_PROVIDER_DIAGNOSTICS_VERSION = "layout_provider_diagnostics_v1"
-LAYOUT_PROVIDER_DIAGNOSTICS_MD = "layout_provider_diagnostics.md"
-
 ISSUE_PROVIDER_NO_TABLES = "provider_no_tables"
 ISSUE_PROVIDER_NO_WORDS = "provider_no_words"
 ISSUE_PROVIDER_HAS_TABLES_BUT_NO_STOP_GROUPS = "provider_has_tables_but_no_stop_groups"
@@ -600,13 +602,18 @@ def _reject_unsafe_diagnostics(diagnostics):
 
 
 def _normalize_output_dir(output_dir=None, allow_custom_output_dir=False):
-    path = Path(output_dir) if output_dir else DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR
-    if output_dir and not allow_custom_output_dir:
-        default_parts = DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR.parts
-        if path.parts[: len(default_parts)] != default_parts:
-            raise PrivateMeasurementOutputError(
-                "custom layout provider diagnostics output directory requires explicit allow flag"
-            )
+    path = private_ratecon_output_dir(output_dir)
+    try:
+        validate_default_scoped_output_dir(
+            output_dir,
+            allow_custom_output_dir=allow_custom_output_dir,
+            error_message=(
+                "custom layout provider diagnostics output directory "
+                "requires explicit allow flag"
+            ),
+        )
+    except PrivateRateconOutputPathError as exc:
+        raise PrivateMeasurementOutputError(str(exc))
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -622,7 +629,7 @@ def write_layout_provider_diagnostics_report(
         _reject_unsafe_diagnostics(item)
 
     directory = _normalize_output_dir(output_dir, allow_custom_output_dir)
-    path = directory / LAYOUT_PROVIDER_DIAGNOSTICS_MD
+    path = layout_provider_diagnostics_path(directory)
     lines = [
         "# Safe Layout Provider Diagnostics",
         "",
