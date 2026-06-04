@@ -512,23 +512,34 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_private_measurement_cli_requires_explicit_confirmation(self):
         path = SCRIPTS / "run_private_ratecon_measurement.py"
-        source = source_text(path)
-
-        assert_no_import_prefix(
-            self,
-            path,
-            [
-                "scripts.import_ratecon",
-                "scripts.read_ratecon",
-                "app.market_intelligence.dispatch_case",
-                "app.market_intelligence.decision_engine",
-                "app.market_intelligence.telegram",
-                "openai",
-                "pytesseract",
-                "easyocr",
-                "googleapiclient",
-            ],
+        parser_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_args.py"
         )
+        safety_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_safety.py"
+        )
+        source = "\n".join(
+            source_text(source_path)
+            for source_path in [path, parser_path, safety_path]
+        )
+
+        forbidden_prefixes = [
+            "scripts.import_ratecon",
+            "scripts.read_ratecon",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.telegram",
+            "openai",
+            "pytesseract",
+            "easyocr",
+            "googleapiclient",
+        ]
+        for source_path in [path, parser_path, safety_path]:
+            assert_no_import_prefix(self, source_path, forbidden_prefixes)
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("--write-candidate-coverage", source)
         self.assertIn("--write-load-identifier-audit", source)
