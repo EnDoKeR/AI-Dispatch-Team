@@ -1,0 +1,26 @@
+{
+  "labels_evaluated": 4,
+  "field_metrics": {
+    "shadow": {
+      "load_number": {
+        "labeled_count": 4,
+        "correct_count": 3,
+        "wrong_count": 1,
+        "missing_count": 1,
+        "precision": 0.75,
+        "recall": 0.75,
+        "high_confidence_wrong_count": 0,
+        "review_required_count": 0
+      }
+    }
+  },
+  "load_number_error_analysis": {
+    "diagnosis_counts": {
+      "selected_table_neighbor_wrong_cell": 1,
+      "selected_nearby_row_wrong_pair": 0,
+      "gold_not_in_candidates": 1,
+      "gold_in_candidates_not_selected": 0,
+      "unknown": 0
+    }
+  }
+}

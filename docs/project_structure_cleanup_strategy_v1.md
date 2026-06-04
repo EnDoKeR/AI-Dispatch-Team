@@ -279,6 +279,15 @@ missing optional private full-corpus baseline inputs and must not run private
 measurement, process PDFs, run OCR, call Google/model/cloud services, edit gold
 labels, or change resolver behavior.
 
+The next behavior-preserving architecture phase establishes load identifier
+ownership and baseline gates. `app/document_ai/load_identifier_candidates.py`
+is documented as the intended canonical owner for load identifier candidate
+taxonomy/policy, while generators emit candidates, resolvers choose selected
+values, and forensics/audit modules report diagnostics. This phase adds a
+sanitized selected-load regression harness and a local-only private aggregate
+`load_number` gate before any future load-ranking, table/layout pairing, or
+candidate-generation behavior changes.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;

@@ -1,0 +1,322 @@
+{
+  "cases": [
+    {
+      "case_id": "explicit_load_number_header",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-001",
+          "identifier_type": "broker_load_number",
+          "value": "FAKE-LOAD-001",
+          "confidence": "HIGH",
+          "label": "Load #",
+          "source": "label_pattern",
+          "page_role": "header"
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-LOAD-001",
+        "selected_source": "label_pattern",
+        "selected_confidence": "HIGH",
+        "selected_label": "Load #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "load_number_top_right",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-002",
+          "identifier_type": "broker_load_number",
+          "value": "FAKE-LOAD-002",
+          "confidence": "HIGH",
+          "label": "Load Number",
+          "source": "native_layout",
+          "metadata": {
+            "document_region": "header",
+            "pairing_method": "same_row_right"
+          }
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-LOAD-002",
+        "selected_source": "native_layout",
+        "selected_confidence": "HIGH",
+        "selected_label": "Load Number",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "order_number_as_load",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-003",
+          "identifier_type": "order_number",
+          "value": "FAKE-ORDER-003",
+          "confidence": "HIGH",
+          "label": "Order #",
+          "source": "label_pattern"
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-ORDER-003",
+        "selected_source": "label_pattern",
+        "selected_confidence": "HIGH",
+        "selected_label": "Order #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "po_number_not_load_when_current_behavior_rejects",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-004",
+          "identifier_type": "po_number",
+          "value": "FAKE-PO-004",
+          "confidence": "HIGH",
+          "label": "PO #",
+          "source": "label_pattern"
+        }
+      ],
+      "expected": {
+        "selected_value": "",
+        "selected_source": "",
+        "selected_confidence": "",
+        "selected_label": "",
+        "status": "missing",
+        "missing": true,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "pro_number_current_behavior_resolves",
+      "known_debt": true,
+      "debt_note": "Current behavior treats PRO number as a primary load identifier; this is pinned, not changed.",
+      "candidates": [
+        {
+          "candidate_id": "load-case-005",
+          "identifier_type": "pro_number",
+          "value": "FAKE-PRO-005",
+          "confidence": "HIGH",
+          "label": "PRO #",
+          "source": "label_pattern"
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-PRO-005",
+        "selected_source": "label_pattern",
+        "selected_confidence": "HIGH",
+        "selected_label": "PRO #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "customer_reference_competes_with_load",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-006a",
+          "identifier_type": "customer_reference",
+          "value": "FAKE-CUST-006",
+          "confidence": "HIGH",
+          "label": "Customer Reference",
+          "source": "label_pattern"
+        },
+        {
+          "candidate_id": "load-case-006b",
+          "identifier_type": "broker_load_number",
+          "value": "FAKE-LOAD-006",
+          "confidence": "HIGH",
+          "label": "Load #",
+          "source": "label_pattern"
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-LOAD-006",
+        "selected_source": "label_pattern",
+        "selected_confidence": "HIGH",
+        "selected_label": "Load #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "table_neighbor_wrong_cell_known_debt",
+      "known_debt": true,
+      "debt_note": "A table-neighbor order candidate can still resolve through the legacy resolver; this is pinned as current behavior.",
+      "candidates": [
+        {
+          "candidate_id": "load-case-007",
+          "identifier_type": "order_number",
+          "value": "FAKE-TABLE-007",
+          "confidence": "HIGH",
+          "label": "Order #",
+          "source": "native_layout",
+          "metadata": {
+            "pairing_method": "table_key_value_row",
+            "table_context_role": "unknown",
+            "table_row_role": "unknown"
+          }
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-TABLE-007",
+        "selected_source": "native_layout",
+        "selected_confidence": "HIGH",
+        "selected_label": "Order #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "nearby_row_wrong_pair_known_debt",
+      "known_debt": true,
+      "debt_note": "A generic nearby-row reference remains review-required; this fixture pins that current behavior.",
+      "candidates": [
+        {
+          "candidate_id": "load-case-008",
+          "identifier_type": "primary_reference",
+          "value": "FAKE-REF-008",
+          "confidence": "MEDIUM",
+          "label": "Ref #",
+          "source": "native_layout",
+          "warnings": [
+            "generic_identifier_requires_review"
+          ],
+          "metadata": {
+            "pairing_method": "nearby_row"
+          }
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-REF-008",
+        "selected_source": "native_layout",
+        "selected_confidence": "MEDIUM",
+        "selected_label": "Ref #",
+        "status": "needs_review",
+        "missing": false,
+        "needs_check": true,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "duplicate_load_candidates_same_value",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-009a",
+          "identifier_type": "broker_load_number",
+          "value": "FAKE-LOAD-009",
+          "confidence": "HIGH",
+          "label": "Load #",
+          "source": "label_pattern"
+        },
+        {
+          "candidate_id": "load-case-009b",
+          "identifier_type": "order_number",
+          "value": "FAKE-LOAD-009",
+          "confidence": "HIGH",
+          "label": "Order #",
+          "source": "label_pattern"
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-LOAD-009",
+        "selected_source": "label_pattern",
+        "selected_confidence": "HIGH",
+        "selected_label": "Load #",
+        "status": "resolved",
+        "missing": false,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "missing_load_number",
+      "known_debt": false,
+      "candidates": [],
+      "expected": {
+        "selected_value": "",
+        "selected_source": "",
+        "selected_confidence": "",
+        "selected_label": "",
+        "status": "missing",
+        "missing": true,
+        "needs_check": false,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "broker_reference_only",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-011",
+          "identifier_type": "primary_reference",
+          "value": "FAKE-REF-011",
+          "confidence": "MEDIUM",
+          "label": "Reference #",
+          "source": "label_pattern",
+          "warnings": [
+            "generic_identifier_requires_review"
+          ]
+        }
+      ],
+      "expected": {
+        "selected_value": "FAKE-REF-011",
+        "selected_source": "label_pattern",
+        "selected_confidence": "MEDIUM",
+        "selected_label": "Reference #",
+        "status": "needs_review",
+        "missing": false,
+        "needs_check": true,
+        "conflict": false
+      }
+    },
+    {
+      "case_id": "barcode_or_footer_number_noise",
+      "known_debt": false,
+      "candidates": [
+        {
+          "candidate_id": "load-case-012",
+          "identifier_type": "unknown_reference",
+          "value": "FAKE-BARCODE-012",
+          "confidence": "LOW",
+          "label": "Barcode",
+          "source": "native_text",
+          "section_role": "footer"
+        }
+      ],
+      "expected": {
+        "selected_value": "",
+        "selected_source": "",
+        "selected_confidence": "",
+        "selected_label": "",
+        "status": "missing",
+        "missing": true,
+        "needs_check": false,
+        "conflict": false
+      }
+    }
+  ]
+}
