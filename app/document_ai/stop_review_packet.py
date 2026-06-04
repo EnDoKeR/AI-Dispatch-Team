@@ -1,18 +1,19 @@
 """Local-only normalized stop review packet writers."""
 
 import csv
-from pathlib import Path
 
-from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    STOP_REVIEW_PACKET_CSV,
+    STOP_REVIEW_PACKET_MD,
+    private_ratecon_output_dir,
+    stop_review_packet_csv_path,
+    stop_review_packet_md_path,
 )
 from app.document_ai.stop_review_pattern_classifier import (
     classify_stop_review_packet_patterns,
 )
 
 
-STOP_REVIEW_PACKET_CSV = "stop_review_packet.csv"
-STOP_REVIEW_PACKET_MD = "stop_review_packet.md"
 LOCAL_PRIVATE_REVIEW_WARNING = (
     "LOCAL PRIVATE REVIEW ONLY - DO NOT COMMIT - DO NOT PASTE INTO CHAT"
 )
@@ -187,14 +188,14 @@ def write_stop_review_packet(
     output_dir=None,
     include_private_values_local_only=False,
 ):
-    output_root = Path(output_dir) if output_dir else DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR
+    output_root = private_ratecon_output_dir(output_dir)
     output_root.mkdir(parents=True, exist_ok=True)
     rows = stop_review_rows(
         stop_sets,
         include_private_values_local_only=include_private_values_local_only,
     )
-    csv_path = output_root / STOP_REVIEW_PACKET_CSV
-    md_path = output_root / STOP_REVIEW_PACKET_MD
+    csv_path = stop_review_packet_csv_path(output_root)
+    md_path = stop_review_packet_md_path(output_root)
     _write_csv(
         csv_path,
         rows,

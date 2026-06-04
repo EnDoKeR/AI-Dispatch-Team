@@ -13,8 +13,33 @@ from app.document_ai.measurement_integrity import (
     summarize_integrity_issues,
 )
 from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     _normalize_output_dir,
+)
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    REVIEW_DOCUMENT_SUMMARY_CSV,
+    REVIEW_FIELD_REVIEW_CSV,
+    REVIEW_RATE_REVIEW_CSV,
+    REVIEW_STOP_REVIEW_CSV,
+    REVIEW_V2_CORE_FIELDS_CSV,
+    REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+    REVIEW_V2_INSTRUCTIONS_CSV,
+    REVIEW_V2_LOAD_IDS_CSV,
+    REVIEW_V2_RATES_CSV,
+    REVIEW_V2_STOPS_CSV,
+    REVIEW_V2_WORKBOOK_XLSX,
+    REVIEW_WORKBOOK_XLSX,
+    review_document_summary_csv_path,
+    review_field_review_csv_path,
+    review_rate_review_csv_path,
+    review_stop_review_csv_path,
+    review_v2_core_fields_csv_path,
+    review_v2_document_summary_csv_path,
+    review_v2_instructions_csv_path,
+    review_v2_load_ids_csv_path,
+    review_v2_rates_csv_path,
+    review_v2_stops_csv_path,
+    review_v2_workbook_path,
+    review_workbook_path,
 )
 from app.document_ai.ratecon_candidates import normalize_list
 from app.document_ai.ratecon_core_field_policy import (
@@ -29,20 +54,6 @@ from app.document_ai.ratecon_core_field_policy import (
     is_field_blocker_for_level,
 )
 
-
-REVIEW_WORKBOOK_XLSX = "ratecon_review_workbook.xlsx"
-REVIEW_DOCUMENT_SUMMARY_CSV = "ratecon_review_document_summary.csv"
-REVIEW_STOP_REVIEW_CSV = "ratecon_review_stop_review.csv"
-REVIEW_FIELD_REVIEW_CSV = "ratecon_review_field_review.csv"
-REVIEW_RATE_REVIEW_CSV = "ratecon_review_rate_review.csv"
-
-REVIEW_V2_WORKBOOK_XLSX = "ratecon_review_v2_workbook.xlsx"
-REVIEW_V2_DOCUMENT_SUMMARY_CSV = "ratecon_review_v2_document_summary.csv"
-REVIEW_V2_CORE_FIELDS_CSV = "ratecon_review_v2_core_fields.csv"
-REVIEW_V2_STOPS_CSV = "ratecon_review_v2_stops.csv"
-REVIEW_V2_RATES_CSV = "ratecon_review_v2_rates.csv"
-REVIEW_V2_LOAD_IDS_CSV = "ratecon_review_v2_load_ids.csv"
-REVIEW_V2_INSTRUCTIONS_CSV = "ratecon_review_v2_instructions.csv"
 
 SHEET_DOCUMENT_SUMMARY = "Document_Summary"
 SHEET_STOP_REVIEW = "Stop_Review"
@@ -1241,10 +1252,7 @@ def write_ratecon_review_csvs(
     include_private_values=False,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     rows_by_sheet = build_ratecon_review_rows(
         measurement_rows,
         local_document_names_by_alias=local_document_names_by_alias,
@@ -1252,29 +1260,29 @@ def write_ratecon_review_csvs(
     )
     csv_specs = {
         "document_summary_csv": (
-            REVIEW_DOCUMENT_SUMMARY_CSV,
+            review_document_summary_csv_path,
             SHEET_DOCUMENT_SUMMARY,
             DOCUMENT_SUMMARY_COLUMNS,
         ),
         "stop_review_csv": (
-            REVIEW_STOP_REVIEW_CSV,
+            review_stop_review_csv_path,
             SHEET_STOP_REVIEW,
             STOP_REVIEW_COLUMNS,
         ),
         "field_review_csv": (
-            REVIEW_FIELD_REVIEW_CSV,
+            review_field_review_csv_path,
             SHEET_FIELD_REVIEW,
             FIELD_REVIEW_COLUMNS,
         ),
         "rate_review_csv": (
-            REVIEW_RATE_REVIEW_CSV,
+            review_rate_review_csv_path,
             SHEET_RATE_REVIEW,
             RATE_REVIEW_COLUMNS,
         ),
     }
     paths = {}
-    for key, (filename, sheet_name, columns) in csv_specs.items():
-        path = output_root / filename
+    for key, (path_builder, sheet_name, columns) in csv_specs.items():
+        path = path_builder(output_root)
         _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
         paths[key] = path
 
@@ -1349,16 +1357,13 @@ def write_ratecon_review_workbook(
     include_private_values=False,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     rows_by_sheet = build_ratecon_review_rows(
         measurement_rows,
         local_document_names_by_alias=local_document_names_by_alias,
         include_private_values=include_private_values,
     )
-    xlsx_path = output_root / REVIEW_WORKBOOK_XLSX
+    xlsx_path = review_workbook_path(output_root)
     xlsx_written = _write_xlsx_if_available(xlsx_path, rows_by_sheet)
     return {
         "xlsx": xlsx_path if xlsx_written else None,
@@ -1380,10 +1385,7 @@ def write_ratecon_review_v2_artifacts(
     write_csvs=True,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     rows_by_sheet = build_ratecon_review_v2_rows(
         measurement_rows,
         local_document_names_by_alias=local_document_names_by_alias,
@@ -1392,44 +1394,44 @@ def write_ratecon_review_v2_artifacts(
     paths = {}
     csv_specs = {
         "instructions_csv": (
-            REVIEW_V2_INSTRUCTIONS_CSV,
+            review_v2_instructions_csv_path,
             SHEET_V2_INSTRUCTIONS,
             V2_INSTRUCTIONS_COLUMNS,
         ),
         "document_summary_csv": (
-            REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+            review_v2_document_summary_csv_path,
             SHEET_V2_DOCUMENT_SUMMARY,
             V2_DOCUMENT_SUMMARY_COLUMNS,
         ),
         "core_fields_csv": (
-            REVIEW_V2_CORE_FIELDS_CSV,
+            review_v2_core_fields_csv_path,
             SHEET_V2_CORE_FIELDS,
             V2_CORE_FIELD_COLUMNS,
         ),
         "stops_csv": (
-            REVIEW_V2_STOPS_CSV,
+            review_v2_stops_csv_path,
             SHEET_V2_STOPS,
             V2_STOP_COLUMNS,
         ),
         "rates_csv": (
-            REVIEW_V2_RATES_CSV,
+            review_v2_rates_csv_path,
             SHEET_V2_RATES,
             V2_RATE_COLUMNS,
         ),
         "load_ids_csv": (
-            REVIEW_V2_LOAD_IDS_CSV,
+            review_v2_load_ids_csv_path,
             SHEET_V2_LOAD_IDS,
             V2_LOAD_ID_COLUMNS,
         ),
     }
     if write_csvs:
-        for key, (filename, sheet_name, columns) in csv_specs.items():
-            path = output_root / filename
+        for key, (path_builder, sheet_name, columns) in csv_specs.items():
+            path = path_builder(output_root)
             _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
             paths[key] = path
     xlsx_written = False
     if write_workbook:
-        xlsx_path = output_root / REVIEW_V2_WORKBOOK_XLSX
+        xlsx_path = review_v2_workbook_path(output_root)
         xlsx_written = _write_v2_xlsx_if_available(xlsx_path, rows_by_sheet)
         if xlsx_written:
             paths["review_v2_workbook_xlsx"] = xlsx_path
@@ -1453,52 +1455,49 @@ def write_ratecon_review_v2_rows_artifacts(
     write_csvs=True,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     rows_by_sheet = rows_by_sheet or {}
     paths = {}
     csv_specs = {
         "instructions_csv": (
-            REVIEW_V2_INSTRUCTIONS_CSV,
+            review_v2_instructions_csv_path,
             SHEET_V2_INSTRUCTIONS,
             V2_INSTRUCTIONS_COLUMNS,
         ),
         "document_summary_csv": (
-            REVIEW_V2_DOCUMENT_SUMMARY_CSV,
+            review_v2_document_summary_csv_path,
             SHEET_V2_DOCUMENT_SUMMARY,
             V2_DOCUMENT_SUMMARY_COLUMNS,
         ),
         "core_fields_csv": (
-            REVIEW_V2_CORE_FIELDS_CSV,
+            review_v2_core_fields_csv_path,
             SHEET_V2_CORE_FIELDS,
             V2_CORE_FIELD_COLUMNS,
         ),
         "stops_csv": (
-            REVIEW_V2_STOPS_CSV,
+            review_v2_stops_csv_path,
             SHEET_V2_STOPS,
             V2_STOP_COLUMNS,
         ),
         "rates_csv": (
-            REVIEW_V2_RATES_CSV,
+            review_v2_rates_csv_path,
             SHEET_V2_RATES,
             V2_RATE_COLUMNS,
         ),
         "load_ids_csv": (
-            REVIEW_V2_LOAD_IDS_CSV,
+            review_v2_load_ids_csv_path,
             SHEET_V2_LOAD_IDS,
             V2_LOAD_ID_COLUMNS,
         ),
     }
     if write_csvs:
-        for key, (filename, sheet_name, columns) in csv_specs.items():
-            path = output_root / filename
+        for key, (path_builder, sheet_name, columns) in csv_specs.items():
+            path = path_builder(output_root)
             _write_csv(path, rows_by_sheet.get(sheet_name, []), columns)
             paths[key] = path
     xlsx_written = False
     if write_workbook:
-        xlsx_path = output_root / REVIEW_V2_WORKBOOK_XLSX
+        xlsx_path = review_v2_workbook_path(output_root)
         xlsx_written = _write_v2_xlsx_if_available(xlsx_path, rows_by_sheet)
         if xlsx_written:
             paths["review_v2_workbook_xlsx"] = xlsx_path
@@ -1528,10 +1527,7 @@ def write_ratecon_review_artifacts(
         local_document_names_by_alias=local_document_names_by_alias,
         include_private_values=include_private_values,
     )
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     paths = {}
     csv_result = None
     if write_csvs:

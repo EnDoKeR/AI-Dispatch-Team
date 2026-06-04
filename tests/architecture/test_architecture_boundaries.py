@@ -517,6 +517,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             / "measurement_cli"
             / "ratecon_private_args.py"
         )
+        output_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_output_paths.py"
+        )
         safety_path = (
             DOCUMENT_AI_PACKAGE
             / "measurement_cli"
@@ -524,7 +529,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
         )
         source = "\n".join(
             source_text(source_path)
-            for source_path in [path, parser_path, safety_path]
+            for source_path in [path, parser_path, output_path, safety_path]
         )
 
         forbidden_prefixes = [
@@ -538,7 +543,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             "easyocr",
             "googleapiclient",
         ]
-        for source_path in [path, parser_path, safety_path]:
+        for source_path in [path, parser_path, output_path, safety_path]:
             assert_no_import_prefix(self, source_path, forbidden_prefixes)
         self.assertIn("--confirm-private-local-run", source)
         self.assertIn("--write-candidate-coverage", source)
@@ -995,9 +1000,13 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_layout_provider_diagnostics_outputs_are_local_only_and_redacted(self):
         source = source_text(DOCUMENT_AI_PACKAGE / "layout_provider_diagnostics.py")
+        output_path_source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
+        )
 
-        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", source)
-        self.assertIn("layout_provider_diagnostics.md", source)
+        self.assertIn("private_ratecon_output_dir", source)
+        self.assertIn("layout_provider_diagnostics_path", source)
+        self.assertIn("layout_provider_diagnostics.md", output_path_source)
         self.assertIn('"raw_text_included": False', source)
         self.assertIn('"private_values_redacted": True', source)
         self.assertNotIn("DispatchCase", source)
@@ -1006,10 +1015,15 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_normalized_stop_review_packets_are_local_only_and_redacted_by_default(self):
         source = source_text(DOCUMENT_AI_PACKAGE / "stop_review_packet.py")
+        output_path_source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
+        )
 
-        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", source)
-        self.assertIn("stop_review_packet.csv", source)
-        self.assertIn("stop_review_packet.md", source)
+        self.assertIn("private_ratecon_output_dir", source)
+        self.assertIn("stop_review_packet_csv_path", source)
+        self.assertIn("stop_review_packet_md_path", source)
+        self.assertIn("stop_review_packet.csv", output_path_source)
+        self.assertIn("stop_review_packet.md", output_path_source)
         self.assertIn("include_private_values_local_only=False", source)
         self.assertIn("LOCAL PRIVATE REVIEW ONLY", source)
         self.assertIn('"raw_text_included": False', source)
@@ -1026,12 +1040,17 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_stop_group_provenance_reports_are_local_only_and_redacted(self):
         contract_source = source_text(DOCUMENT_AI_PACKAGE / "stop_group_provenance.py")
         report_source = source_text(DOCUMENT_AI_PACKAGE / "stop_group_provenance_report.py")
+        output_path_source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
+        )
 
         self.assertIn('"raw_text_included": False', contract_source)
         self.assertIn('"private_values_redacted": True', contract_source)
-        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", report_source)
-        self.assertIn("stop_group_provenance.json", report_source)
-        self.assertIn("stop_group_provenance_report.md", report_source)
+        self.assertIn("DEFAULT_PRIVATE_RATECON_OUTPUT_DIR", report_source)
+        self.assertIn("stop_group_provenance_json_path", report_source)
+        self.assertIn("stop_group_provenance_md_path", report_source)
+        self.assertIn("stop_group_provenance.json", output_path_source)
+        self.assertIn("stop_group_provenance_report.md", output_path_source)
         self.assertIn('"raw_text_saved": False', report_source)
         self.assertIn('"private_values_redacted": True', report_source)
         self.assertNotIn("print(", report_source)
@@ -1042,12 +1061,16 @@ class ArchitectureBoundaryTests(unittest.TestCase):
     def test_stop_pipeline_trace_and_review_export_are_safe(self):
         trace_source = source_text(DOCUMENT_AI_PACKAGE / "stop_pipeline_trace.py")
         export_source = source_text(DOCUMENT_AI_PACKAGE / "private_measurement_review_export.py")
+        output_path_source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
+        )
 
         self.assertIn("passthrough_detected", trace_source)
         self.assertNotIn("print(", trace_source)
-        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", export_source)
-        self.assertIn("ratecon_review_google_sheet.csv", export_source)
-        self.assertIn("ratecon_review_workbook.xlsx", export_source)
+        self.assertIn("review_google_sheet_csv_path", export_source)
+        self.assertIn("review_workbook_path", export_source)
+        self.assertIn("ratecon_review_google_sheet.csv", output_path_source)
+        self.assertIn("ratecon_review_workbook.xlsx", output_path_source)
         self.assertIn('"raw_text_saved": False', export_source)
         self.assertIn('"private_values_redacted": True', export_source)
         self.assertNotIn("print(", export_source)
@@ -1090,6 +1113,9 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
     def test_review_workbook_modules_are_local_only_and_safe(self):
         workbook_source = source_text(DOCUMENT_AI_PACKAGE / "ratecon_review_workbook.py")
+        output_path_source = source_text(
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_output_paths.py"
+        )
         readiness_source = source_text(DOCUMENT_AI_PACKAGE / "extraction_readiness.py")
         integrity_source = source_text(DOCUMENT_AI_PACKAGE / "measurement_integrity.py")
         feedback_source = source_text(DOCUMENT_AI_PACKAGE / "review_feedback_import.py")
@@ -1145,13 +1171,14 @@ class ArchitectureBoundaryTests(unittest.TestCase):
 
         self.assertIn(".local_outputs/", gitignore)
         self.assertIn(".local_private/", gitignore)
-        self.assertIn("DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR", workbook_source)
-        self.assertIn("ratecon_review_workbook.xlsx", workbook_source)
-        self.assertIn("ratecon_review_stop_review.csv", workbook_source)
+        self.assertIn("review_workbook_path", workbook_source)
+        self.assertIn("review_stop_review_csv_path", workbook_source)
+        self.assertIn("ratecon_review_workbook.xlsx", output_path_source)
+        self.assertIn("ratecon_review_stop_review.csv", output_path_source)
         self.assertIn("include_private_values=False", workbook_source)
         self.assertIn('"private_values_printed": False', workbook_source)
         self.assertIn('"raw_text_included": False', workbook_source)
-        self.assertIn("ratecon_review_v2_workbook.xlsx", workbook_source)
+        self.assertIn("ratecon_review_v2_workbook.xlsx", output_path_source)
         self.assertNotIn("print(", workbook_source)
         self.assertNotIn("print(", feedback_source)
         self.assertIn('"private_values_included": False', issue_taxonomy_source)

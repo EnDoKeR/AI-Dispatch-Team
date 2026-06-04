@@ -32,6 +32,11 @@ from app.document_ai.measurement_cli.ratecon_private_args import (
 from app.document_ai.measurement_cli.ratecon_private_config import (
     build_private_ratecon_measurement_config,
 )
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    build_private_ratecon_output_paths,
+    output_file_labels,
+    output_file_name,
+)
 from app.document_ai.measurement_cli.ratecon_private_safety import (
     PrivateRateconMeasurementSafetyError,
     validate_private_ratecon_measurement_config,
@@ -78,10 +83,7 @@ SAFETY_BANNER = (
 
 
 def _safe_output_file_labels(paths):
-    return {
-        key: Path(value).name
-        for key, value in (paths or {}).items()
-    }
+    return output_file_labels(paths)
 
 
 def _print_expected_error(reason):
@@ -576,6 +578,7 @@ def main(argv=None):
         else:
             _print_expected_config_error(str(exc))
         return 2
+    output_paths = build_private_ratecon_output_paths(config)
 
     try:
         policy = build_safe_measurement_output_policy(
@@ -649,7 +652,7 @@ def main(argv=None):
             output = write_private_measurement_outputs(
                 report["rows"],
                 report["aggregate"],
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 write_json=args.write_json,
                 write_csv=args.write_csv,
                 write_md=args.write_md,
@@ -665,13 +668,13 @@ def main(argv=None):
             ]
             packet = write_stop_review_packet(
                 stop_sets,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 include_private_values_local_only=args.include_private_stop_values_local_only,
             )
             print(
                 "stop_review_packet_written: "
-                f"{{'csv': '{Path(packet['csv']).name}', "
-                f"'md': '{Path(packet['md']).name}', "
+                f"{{'csv': '{output_file_name(packet['csv'])}', "
+                f"'md': '{output_file_name(packet['md'])}', "
                 f"'row_count': {packet['row_count']}, "
                 f"'include_private_values_local_only': "
                 f"{packet['include_private_values_local_only']}}}"
@@ -679,21 +682,21 @@ def main(argv=None):
         if not args.dry_run and args.write_google_sheet_export:
             export = write_ratecon_review_export(
                 report["rows"],
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             labels = {
-                "csv": Path(export["csv"]).name,
+                "csv": output_file_name(export["csv"]),
                 "row_count": export["row_count"],
             }
             if export.get("xlsx"):
-                labels["xlsx"] = Path(export["xlsx"]).name
+                labels["xlsx"] = output_file_name(export["xlsx"])
             print(f"google_sheet_export_written: {labels}")
         if not args.dry_run and (args.write_review_workbook or args.write_review_csvs):
             review = write_ratecon_review_artifacts(
                 report["rows"],
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
                 include_private_values=args.include_private_review_values_local_only,
                 write_workbook=args.write_review_workbook,
@@ -730,7 +733,7 @@ def main(argv=None):
             )
             coverage = write_candidate_coverage_artifacts(
                 coverage_analysis,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             aggregate = coverage.get("aggregate", {})
@@ -757,7 +760,7 @@ def main(argv=None):
             )
             load_identifier_audit = write_load_identifier_coverage_artifacts(
                 load_identifier_analysis,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             aggregate = load_identifier_audit.get("aggregate", {})
@@ -793,7 +796,7 @@ def main(argv=None):
             )
             source_line_audit = write_load_identifier_source_line_artifacts(
                 source_line_analysis,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
                 raw=True,
             )
@@ -837,7 +840,7 @@ def main(argv=None):
             )
             rate_forensics = write_rate_forensics_artifacts(
                 rate_forensics_analysis,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
                 raw=True,
             )
@@ -881,7 +884,7 @@ def main(argv=None):
             )
             rate_conflict_audit = write_rate_conflict_audit_artifacts(
                 rate_conflict_analysis,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
                 raw=True,
             )
@@ -920,7 +923,7 @@ def main(argv=None):
             shadow_records = shadow_records_from_rows(report["rows"])
             shadow_audit = write_ratecon_shadow_audit_artifacts(
                 shadow_records,
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             aggregate = shadow_audit.get("aggregate", {})
@@ -967,22 +970,22 @@ def main(argv=None):
         if not args.dry_run and args.write_stop_provenance_report:
             provenance_report = write_stop_group_provenance_report(
                 report["rows"],
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
             print(
                 "stop_provenance_report_written: "
-                f"{{'json': '{Path(provenance_report['json']).name}', "
-                f"'md': '{Path(provenance_report['md']).name}', "
+                f"{{'json': '{output_file_name(provenance_report['json'])}', "
+                f"'md': '{output_file_name(provenance_report['md'])}', "
                 f"'row_count': {provenance_report['row_count']}}}"
             )
         if not args.dry_run and args.layout_diagnostics:
             diagnostics_path = write_layout_provider_diagnostics_report(
                 _diagnostics_from_rows(report["rows"]),
-                output_dir=args.output_dir,
+                output_dir=output_paths.output_dir,
                 allow_custom_output_dir=args.allow_custom_output_dir,
             )
-            print(f"layout_diagnostics_written: {Path(diagnostics_path).name}")
+            print(f"layout_diagnostics_written: {output_file_name(diagnostics_path)}")
     except (
         PrivateMeasurementInputError,
         PrivateMeasurementOutputError,

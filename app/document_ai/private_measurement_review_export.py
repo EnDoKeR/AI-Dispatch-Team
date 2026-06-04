@@ -4,15 +4,17 @@ import csv
 from pathlib import Path
 
 from app.document_ai.private_measurement_outputs import (
-    DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
     _candidate_counts_summary,
     _join,
     _normalize_output_dir,
 )
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    REVIEW_GOOGLE_SHEET_CSV,
+    REVIEW_WORKBOOK_XLSX,
+    review_google_sheet_csv_path,
+    review_workbook_path,
+)
 
-
-REVIEW_WORKBOOK_XLSX = "ratecon_review_workbook.xlsx"
-REVIEW_GOOGLE_SHEET_CSV = "ratecon_review_google_sheet.csv"
 
 REVIEW_EXPORT_COLUMNS = [
     "Folder Order",
@@ -266,16 +268,13 @@ def write_ratecon_review_export(
     local_document_names_by_alias=None,
     allow_custom_output_dir=False,
 ):
-    output_root = _normalize_output_dir(
-        output_dir or DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
-        allow_custom_output_dir=allow_custom_output_dir,
-    )
+    output_root = _normalize_output_dir(output_dir, allow_custom_output_dir)
     export_rows = build_review_export_rows(
         rows,
         local_document_names_by_alias=local_document_names_by_alias,
     )
-    csv_path = output_root / REVIEW_GOOGLE_SHEET_CSV
-    xlsx_path = output_root / REVIEW_WORKBOOK_XLSX
+    csv_path = review_google_sheet_csv_path(output_root)
+    xlsx_path = review_workbook_path(output_root)
     _write_csv(csv_path, export_rows)
     xlsx_written = _write_xlsx_if_available(xlsx_path, export_rows)
 

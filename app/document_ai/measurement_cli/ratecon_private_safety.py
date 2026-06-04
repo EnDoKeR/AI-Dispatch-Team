@@ -1,11 +1,14 @@
 """Preflight safety validation for private RateCon measurement commands."""
 
-from pathlib import Path
-
 from app.document_ai.layout_provider import (
     LayoutProviderDependencyError,
     get_available_layout_providers,
     require_provider_dependency,
+)
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
+    PrivateRateconOutputPathError,
+    command_requests_local_output_write,
+    validate_private_ratecon_output_dir,
 )
 
 
@@ -18,47 +21,18 @@ class PrivateRateconMeasurementSafetyError(ValueError):
         self.style = style
 
 
-def output_dir_is_local_only(output_dir):
-    """Return whether an output path is inside a local-only output area."""
-    path = Path(output_dir)
-    return ".local_outputs" in path.parts
-
-
 def validate_private_output_dir(output_dir, *, allow_custom_output_dir=False):
     """Validate output directory settings without creating directories."""
-    if output_dir_is_local_only(output_dir):
-        return
-    if allow_custom_output_dir:
-        return
-    raise PrivateRateconMeasurementSafetyError(
-        "custom output directory requires allow_custom_output_dir=True",
-        style="expected",
-    )
-
-
-def command_requests_local_output_write(config):
-    """Return whether this command asks the CLI to write local artifacts."""
-    if config.dry_run:
-        return False
-    output_flags = [
-        "write_json",
-        "write_csv",
-        "write_md",
-        "write_value_review_template",
-        "write_stop_review_packet",
-        "write_stop_provenance_report",
-        "write_google_sheet_export",
-        "write_review_workbook",
-        "write_review_csvs",
-        "write_candidate_coverage",
-        "write_load_identifier_audit",
-        "write_load_identifier_source_line_audit",
-        "write_rate_forensics",
-        "write_rate_conflict_audit",
-        "write_ratecon_shadow_audit",
-        "layout_diagnostics",
-    ]
-    return any(getattr(config, flag) for flag in output_flags)
+    try:
+        validate_private_ratecon_output_dir(
+            output_dir,
+            allow_custom_output_dir=allow_custom_output_dir,
+        )
+    except PrivateRateconOutputPathError as exc:
+        raise PrivateRateconMeasurementSafetyError(
+            str(exc),
+            style="expected",
+        )
 
 
 def validate_private_ratecon_measurement_config(config):
