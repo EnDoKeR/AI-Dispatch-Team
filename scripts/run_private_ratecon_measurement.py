@@ -47,9 +47,9 @@ from app.document_ai.private_measurement_inputs import (
     build_safe_aliases,
     discover_private_pdfs,
 )
-from app.document_ai.private_measurement_outputs import (
+from app.document_ai.measurement_cli.ratecon_private_report_writers import (
     PrivateMeasurementOutputError,
-    write_private_measurement_outputs,
+    write_private_ratecon_safe_outputs,
 )
 from app.document_ai.private_measurement_review_export import write_ratecon_review_export
 from app.document_ai.private_measurement_pipeline import measure_private_ratecon_pdf
@@ -649,7 +649,7 @@ def main(argv=None):
                 args.write_value_review_template,
             ]
         ):
-            output = write_private_measurement_outputs(
+            output = write_private_ratecon_safe_outputs(
                 report["rows"],
                 report["aggregate"],
                 output_dir=output_paths.output_dir,

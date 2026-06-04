@@ -19,7 +19,7 @@ from app.document_ai.ocr_provider_contract import (
     OCR_PROVIDER_CHOICES,
 )
 from app.document_ai.pdfplumber_layout_settings import PDFPLUMBER_TABLE_SETTING_PROFILES
-from app.document_ai.private_measurement_outputs import (
+from app.document_ai.measurement_cli.ratecon_private_output_paths import (
     DEFAULT_PRIVATE_MEASUREMENT_OUTPUT_DIR,
 )
 from app.document_ai.ratecon_ocr_candidate_policy import OCR_CANDIDATE_POLICIES

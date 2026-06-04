@@ -25,11 +25,18 @@ or schemas. The output path module must not create directories, write files,
 process PDFs, invoke OCR, call models or cloud services, sync Google Sheets, or
 own report/audit generation.
 
-Future phases may move report writers, review exporters, audit orchestration,
-Google sync wiring, and pipeline orchestration into smaller owners. Each phase
-must preserve CLI flag names, output schemas, safety gates, and measurement
-behavior unless a separate behavior-change PR explicitly approves and tests that
-change.
+Phase 3A extracts only safe report/export writer ownership for the local-only
+private measurement summaries. The writer module owns safe JSON, CSV, Markdown,
+and value-review template output generation while preserving existing filenames,
+schemas, and local-only/private-redaction metadata. It must use the centralized
+output path helpers and must not run measurement, process PDFs, invoke OCR, call
+models or cloud services, sync Google Sheets, generate review workbooks, or own
+full audit orchestration.
+
+Future phases may move remaining review exporters, audit orchestration, Google
+sync wiring, and pipeline orchestration into smaller owners. Each phase must
+preserve CLI flag names, output schemas, safety gates, and measurement behavior
+unless a separate behavior-change PR explicitly approves and tests that change.
 
 Private outputs remain local-only. Generated reports, audits, review workbooks,
 OCR artifacts, model outputs, raw extracted text, gold labels, and local audit
