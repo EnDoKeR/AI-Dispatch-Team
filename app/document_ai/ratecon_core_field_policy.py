@@ -1,7 +1,12 @@
-"""Policy matrix for RateCon review and readiness gating.
+"""Canonical RateCon readiness and critical-field policy owner.
 
-The policy is count/status only. It does not expose private values or invoke any
-business decision layer.
+This module is the single owner for RateCon readiness/critical-field policy:
+extraction-review fields, intake-core fields, dispatch-critical fields, and the
+legacy intake ``CRITICAL_FIELDS`` compatibility list.
+
+The policy is count/status only. It does not expose private values, invoke any
+business decision layer, process PDFs, call OCR, call models, or sync external
+services.
 """
 
 
@@ -97,6 +102,19 @@ DISPATCH_DECISION_FIELDS = (
     "weight",
     "commodity",
     "special_requirement",
+)
+
+LEGACY_CRITICAL_FIELDS = (
+    "document_id",
+    "broker_name",
+    "load_number",
+    "rate",
+    "pickup_location",
+    "pickup_date",
+    "delivery_location",
+    "delivery_date",
+    "commodity",
+    "weight",
 )
 
 KNOWN_POLICY_FIELDS = tuple(
@@ -367,6 +385,36 @@ def get_review_fields_for_readiness(readiness_level, document_context=None):
         if get_field_requirement(field_name, role, document_context)
         == FIELD_REQUIREMENT_REVIEW_REQUIRED
     ]
+
+
+def get_readiness_required_fields():
+    """Return the default intake readiness required fields.
+
+    This is a compatibility-oriented alias for the current intake-core
+    readiness behavior. Use ``get_required_fields_for_readiness`` when a caller
+    needs an explicit readiness role or document context.
+    """
+    return tuple(get_required_fields_for_readiness(FIELD_POLICY_ROLE_INTAKE_CORE))
+
+
+def get_dispatch_critical_fields():
+    """Return the dispatch-decision critical field order."""
+    return tuple(DISPATCH_DECISION_FIELDS)
+
+
+def get_intake_core_fields():
+    """Return the default intake-core required field order."""
+    return tuple(get_required_fields_for_readiness(FIELD_POLICY_ROLE_INTAKE_CORE))
+
+
+def get_extraction_review_fields():
+    """Return the default extraction-review field order."""
+    return tuple(get_review_fields_for_readiness(FIELD_POLICY_ROLE_EXTRACTION_REVIEW))
+
+
+def get_legacy_critical_fields():
+    """Return legacy intake ``CRITICAL_FIELDS`` values in stable order."""
+    return tuple(LEGACY_CRITICAL_FIELDS)
 
 
 def _broker_identity_uncertain(document_context):
