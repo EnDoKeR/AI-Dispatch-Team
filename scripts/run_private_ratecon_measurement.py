@@ -45,12 +45,14 @@ from app.document_ai.measurement_cli.ratecon_private_review_exports import (
     private_ratecon_review_packet_export_labels,
     write_private_ratecon_review_packet_exports,
 )
+from app.document_ai.measurement_cli.ratecon_private_review_workbook import (
+    write_private_ratecon_review_workbook_if_enabled,
+)
 from app.document_ai.private_measurement_review_export import write_ratecon_review_export
 from app.document_ai.private_measurement_pipeline import measure_private_ratecon_pdf
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
-from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
 from app.integrations import google_sheets_review as sheets_review
 
 SAFETY_BANNER = (
@@ -632,39 +634,17 @@ def main(argv=None):
                 "google_sheet_export_written: "
                 f"{private_ratecon_review_export_labels(export)}"
             )
-        if not args.dry_run and (args.write_review_workbook or args.write_review_csvs):
-            review = write_ratecon_review_artifacts(
-                report["rows"],
-                output_dir=output_paths.output_dir,
-                local_document_names_by_alias=report.get("local_document_names_by_alias", {}),
-                include_private_values=args.include_private_review_values_local_only,
-                write_workbook=args.write_review_workbook,
-                write_csvs=args.write_review_csvs,
-                allow_custom_output_dir=args.allow_custom_output_dir,
+        review_workbook_result = write_private_ratecon_review_workbook_if_enabled(
+            report,
+            config,
+            output_paths,
+        )
+        if review_workbook_result is not None:
+            review_rows_by_sheet = review_workbook_result.review_rows_by_sheet
+            print(
+                f"{review_workbook_result.message_label}: "
+                f"{review_workbook_result.payload}"
             )
-            review_rows_by_sheet = review.get("rows_by_sheet", {})
-            labels = {
-                "files": _safe_output_file_labels(review.get("paths", {})),
-                "document_rows": review["summary"].get("document_rows", 0),
-                "stop_review_rows": review["summary"].get("stop_review_rows", 0),
-                "field_review_rows": review["summary"].get("field_review_rows", 0),
-                "rate_review_rows": review["summary"].get("rate_review_rows", 0),
-                "readiness_level_counts": review["summary"].get(
-                    "readiness_level_counts",
-                    {},
-                ),
-                "integrity_issue_counts": review["summary"].get(
-                    "integrity_issue_counts",
-                    {},
-                ),
-                "include_private_values_local_only": review.get(
-                    "include_private_values_local_only",
-                    False,
-                ),
-                "xlsx_written": review.get("xlsx_written", False),
-                "csvs_written": review.get("csvs_written", False),
-            }
-            print(f"review_workbook_export_written: {labels}")
         for audit_result in run_private_ratecon_audit_exports(
             report,
             config,

@@ -45,11 +45,17 @@ from already-parsed flags, but it must not own metric definitions, audit
 algorithms, filenames, schemas, measurement execution, review workbook
 generation, or Google sync wiring.
 
-Future phases may move review workbook generation, Google sync wiring, and
-pipeline orchestration into smaller owners. Each phase must preserve CLI flag
-names, output schemas, output filenames, metric definitions, safety gates, and
-measurement behavior unless a separate behavior-change PR explicitly approves
-and tests that change.
+Phase 3D extracts only review workbook generation ownership. The wrapper module
+may decide whether to call the existing workbook artifact writer based on
+already-parsed flags and may prepare console-safe result labels, but it must not
+rewrite workbook internals, change sheet names, columns, styles, row semantics,
+filenames, schemas, measurement execution, audit metrics, or Google sync wiring.
+
+Future phases may move Google sync wiring and pipeline orchestration into
+smaller owners. Each phase must preserve CLI flag names, output schemas, output
+filenames, workbook layout, metric definitions, safety gates, and measurement
+behavior unless a separate behavior-change PR explicitly approves and tests that
+change.
 
 Private outputs remain local-only. Generated reports, audits, review workbooks,
 OCR artifacts, model outputs, raw extracted text, gold labels, and local audit
