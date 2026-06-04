@@ -11,18 +11,8 @@ import re
 
 from app.document_ai.ratecon_load_table_safety import enrich_table_neighbor_safety
 from app.document_ai.ratecon_rate_money_safety import (
+    classify_context_feature_money_context,
     enrich_rate_money_safety,
-    get_carrier_freight_pay_context_markers,
-    get_accessorial_context_markers,
-    get_billing_instruction_noise_labels,
-    get_context_feature_line_item_markers,
-    get_context_feature_fuel_advance_markers,
-    get_context_feature_penalty_markers,
-    get_context_feature_total_carrier_pay_markers,
-    get_context_feature_total_rate_markers,
-    get_quick_pay_noise_labels,
-    get_rate_deduction_labels,
-    get_linehaul_total_context_markers,
 )
 
 
@@ -222,34 +212,7 @@ def _enrich_identifier_candidate(candidate, metadata, context: str) -> None:
 
 
 def _money_context_from_context(metadata, context: str) -> str:
-    existing = _lower(metadata.get("money_context"))
-    if _has_any(context, get_quick_pay_noise_labels()):
-        return MONEY_CONTEXT_QUICKPAY
-    if _has_any(context, get_rate_deduction_labels()):
-        return MONEY_CONTEXT_DEDUCTION
-    if _has_any(context, get_context_feature_penalty_markers()):
-        return MONEY_CONTEXT_PENALTY
-    if _has_any(context, get_context_feature_fuel_advance_markers()):
-        return MONEY_CONTEXT_FUEL_ADVANCE
-    if _has_any(context, get_accessorial_context_markers()):
-        return MONEY_CONTEXT_ACCESSORIAL
-    if re.search(r"\bfee\b", context):
-        return MONEY_CONTEXT_FEE
-    if _has_any(context, get_billing_instruction_noise_labels()):
-        return MONEY_CONTEXT_PAYMENT_TERMS
-    if _has_any(context, get_context_feature_total_carrier_pay_markers()):
-        return MONEY_CONTEXT_TOTAL_CARRIER_PAY
-    if _has_any(context, get_carrier_freight_pay_context_markers()):
-        return MONEY_CONTEXT_CARRIER_FREIGHT_PAY
-    if _has_any(context, get_context_feature_total_rate_markers()):
-        return MONEY_CONTEXT_TOTAL_RATE
-    if _has_any(context, get_linehaul_total_context_markers()):
-        return MONEY_CONTEXT_LINEHAUL_TOTAL
-    if _has_any(context, get_context_feature_line_item_markers()):
-        return MONEY_CONTEXT_LINE_ITEM_RATE
-    if existing:
-        return existing
-    return MONEY_CONTEXT_UNKNOWN
+    return classify_context_feature_money_context(metadata, context)
 
 
 def _enrich_money_candidate(candidate, metadata, context: str) -> None:

@@ -28,6 +28,14 @@ label consolidation phase, and this accessorial/noise consolidation does not
 change selected rate output, ranking, penalties, diagnostic labels, source
 names, confidence values, field names, money-context labels, or output schemas.
 
+Money-context classifier ownership is centralized in
+`app/document_ai/ratecon_rate_money_safety.py`. Compatibility wrappers preserve
+old function names and return values where context-feature enrichment still
+depends on legacy behavior. This does not change selected rate output, resolver
+ranking behavior, resolver penalty values, money-context labels, diagnostic
+labels, source names, confidence values, field names, or output schemas.
+Known-debt classifier behavior is pinned rather than fixed here.
+
 Candidate generators may emit money candidates, but they should not own
 independent total-pay or accessorial safety taxonomy. Generator-side labels that
 exist today are compatibility debt and must remain pinned until a future
@@ -72,6 +80,7 @@ Current rate/money behavior is pinned by:
 - `tests/test_ratecon_selected_rate_regression_harness.py`
 - `tests/test_ratecon_total_pay_label_taxonomy.py`
 - `tests/test_ratecon_accessorial_noise_label_taxonomy.py`
+- `tests/test_ratecon_money_context_classifier.py`
 - `tests/test_ratecon_rate_money_compatibility_pinning.py`
 - `tests/test_ratecon_rate_money_constant_guardrails.py`
 - `tests/test_ratecon_rate_money_safety_ownership.py`
@@ -90,6 +99,8 @@ Pinned behavior includes:
   sanitized selected-rate behavior.
 - accessorial/noise/fee/penalty labels, compatibility aliases, current
   sanitizer/context classifications, and sanitized selected-rate behavior.
+- money-context classifier labels/statuses, compatibility wrapper behavior, and
+  known-debt classifier outcomes.
 - selected `total_carrier_rate` behavior across sanitized total-pay,
   accessorial/noise, fee/penalty, line-item, per-unit, and missing-total
   candidate combinations.
@@ -124,6 +135,12 @@ Run `tests/test_ratecon_selected_rate_regression_harness.py` before changing
 money context classification, resolver ranking penalties, forensics diagnosis
 mapping, or selected-rate ranking profiles. Any change to the committed expected
 fixture outputs requires explicit review and a clear explanation.
+
+For classifier ownership cleanup, capture a before/after local snapshot with
+`scripts/run_ratecon_selected_rate_regression_snapshot.py` and compare it with
+`scripts/compare_ratecon_selected_rate_regression_snapshots.py`. The compare
+must show unchanged selected values, selected sources, confidence/status fields,
+review flags, and selected money-context metadata before proceeding.
 
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
