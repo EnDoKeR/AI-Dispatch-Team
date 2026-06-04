@@ -1,0 +1,33 @@
+{
+  "labels_evaluated": 4,
+  "field_metrics": {
+    "shadow": {
+      "total_carrier_rate": {
+        "exact_match_count": 2,
+        "field_not_serialized_count": 0,
+        "high_confidence_but_wrong_count": 0,
+        "labeled_count": 4,
+        "missing_count": 0,
+        "normalized_match_count": 1,
+        "precision": 0.75,
+        "recall": 0.75,
+        "source_not_available_count": 0,
+        "uncertain_count": 0,
+        "wrong_value_count": 1
+      }
+    }
+  },
+  "rate_error_analysis": {
+    "gold_total_in_candidates_not_selected": 0,
+    "wrong_reason_counts": {
+      "selected_wrong_money_context": 0,
+      "unknown": 1
+    }
+  },
+  "residual_wrong_rate_forensics": {
+    "diagnosis_counts": {
+      "gold_total_in_candidates_not_selected": 0,
+      "selected_safe_total_but_gold_differs": 0
+    }
+  }
+}

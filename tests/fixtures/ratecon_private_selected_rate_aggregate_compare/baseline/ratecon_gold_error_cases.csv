@@ -1,0 +1,2 @@
+document_id,system,field,status,confidence,source,money_context,rate_safety,error_reason
+DOC_A,shadow,total_carrier_rate,wrong,0.88,sanitized_total,safe_total,selected_safe_total,unknown
