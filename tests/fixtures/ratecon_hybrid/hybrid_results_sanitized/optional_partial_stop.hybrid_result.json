@@ -1,0 +1,29 @@
+{
+  "schema_version": "ratecon_hybrid_extraction_result_v1",
+  "document_id": "DOC_FIXTURE_PARTIAL_STOP",
+  "file_name_or_label": "fixture_optional_partial_stop.pdf",
+  "document_type": "rate_confirmation",
+  "model_provider": "manual",
+  "model_name": "sanitized_fixture_manual",
+  "private_local_only": true,
+  "fields": {
+    "load_number": {"value": "FIXLOAD-1005", "confidence": 0.86, "requires_human_review": true, "evidence_ids": ["ev_load"]},
+    "total_carrier_rate": {"value": "1250.00", "currency": "USD", "confidence": 0.85, "requires_human_review": true, "evidence_ids": ["ev_rate"]},
+    "pickup_stops": [
+      {"schema_version": "ratecon_hybrid_stop_v1", "role": "pickup", "stop_index": 1, "facility": null, "address": null, "city": "Partial Pickup City", "state": "PP", "zip": null, "date": null, "time": null, "appointment_window": null, "raw_text_local_only": null, "evidence_page": 1, "evidence_bbox": null, "confidence": 0.72, "requires_human_review": true, "auto_accept": false, "evidence_ids": ["ev_pickup"]}
+    ],
+    "delivery_stops": [
+      {"schema_version": "ratecon_hybrid_stop_v1", "role": "delivery", "stop_index": 1, "facility": null, "address": null, "city": "Partial Delivery City", "state": "PD", "zip": null, "date": null, "time": null, "appointment_window": null, "raw_text_local_only": null, "evidence_page": 1, "evidence_bbox": null, "confidence": 0.72, "requires_human_review": true, "auto_accept": false, "evidence_ids": ["ev_delivery"]}
+    ]
+  },
+  "evidence": [
+    {"evidence_id": "ev_load", "field": "load_number", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture load evidence>", "source": "model"},
+    {"evidence_id": "ev_rate", "field": "total_carrier_rate", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture rate evidence>", "source": "model"},
+    {"evidence_id": "ev_pickup", "field": "pickup_stops[0]", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture pickup evidence>", "source": "model"},
+    {"evidence_id": "ev_delivery", "field": "delivery_stops[0]", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture delivery evidence>", "source": "model"}
+  ],
+  "confidence": {"overall": 0.76, "load_number": 0.86, "total_carrier_rate": 0.85, "pickup_stops": 0.72, "delivery_stops": 0.72},
+  "requires_human_review": true,
+  "review_reasons": ["fixture_partial_stop_review_required"],
+  "validator_results": {"stop_consistency_gate": {"status": "review_required"}}
+}

@@ -18,6 +18,17 @@ from app.document_ai.layout_provider_contract import (
     empty_layout_provider_summary,
     normalize_shadow_layout_provider,
 )
+from app.document_ai.ocr_provider_contract import (
+    OCR_PROVIDER_NONE,
+    OCR_PROVIDER_TESSERACT,
+    OCR_STATUS_PARTIAL,
+    OCR_STATUS_SUCCESS,
+    empty_ocr_provider_result,
+    normalize_ocr_dpi,
+    normalize_ocr_page_mode,
+    normalize_ocr_provider,
+    safe_ocr_provider_summary,
+)
 from app.document_ai.pdf_triage import triage_document
 
 
@@ -248,6 +259,7 @@ def build_document_extraction_artifact(
     triage=None,
     layout_provider_summary=None,
     layout_artifact=None,
+    ocr_provider_result=None,
 ):
     normalized_pages = [
         build_document_page_artifact(
@@ -278,6 +290,11 @@ def build_document_extraction_artifact(
             else empty_layout_provider_summary()
         ),
         "layout_artifact": layout_artifact if isinstance(layout_artifact, dict) else {},
+        "ocr_provider_result": (
+            ocr_provider_result
+            if isinstance(ocr_provider_result, dict)
+            else empty_ocr_provider_result()
+        ),
         "artifact_version": DOCUMENT_EXTRACTION_ARTIFACT_VERSION,
         "raw_text_included": bool(computed_full_text),
         "line_count": sum(len(page["lines"]) for page in normalized_pages),
@@ -331,6 +348,98 @@ def _merge_native_and_layout_pages(native_pages, layout_pages):
     return [by_page[key] for key in sorted(by_page)]
 
 
+def _ocr_result_pages(ocr_result):
+    pages = []
+    for page in (ocr_result or {}).get("pages", []) or []:
+        if not isinstance(page, dict) or not _text(page.get("text")).strip():
+            continue
+        pages.append(
+            build_document_page_artifact(
+                page_number=page.get("page_number", 0),
+                text=page.get("text", ""),
+                source=SOURCE_OCR,
+            )
+        )
+    return pages
+
+
+def _ocr_document_classification_diagnostic(ocr_result):
+    pages = (ocr_result or {}).get("pages", []) or []
+    text = "\n".join(
+        _text(page.get("text"))
+        for page in pages
+        if isinstance(page, dict) and _text(page.get("text")).strip()
+    ).lower()
+    has_ratecon_signal = any(
+        token in text
+        for token in [
+            "rate confirmation",
+            "load confirmation",
+            "carrier load tender",
+            "carrier rate",
+            "tender",
+        ]
+    )
+    has_bol_pod_signal = any(
+        token in text
+        for token in [
+            "bill of lading",
+            "proof of delivery",
+            "delivery receipt",
+            " bol ",
+            "pod",
+        ]
+    )
+    if has_bol_pod_signal and not has_ratecon_signal:
+        document_type = "non_rate_confirmation"
+        skip_reason = "bol_pod_or_delivery_document"
+    elif has_ratecon_signal:
+        document_type = "rate_confirmation"
+        skip_reason = ""
+    elif text:
+        document_type = "unknown"
+        skip_reason = ""
+    else:
+        document_type = "unknown"
+        skip_reason = "ocr_text_unavailable"
+    return {
+        "document_type": document_type,
+        "skip_reason": skip_reason,
+        "rate_confirmation_signal": has_ratecon_signal,
+        "bol_pod_signal": has_bol_pod_signal,
+        "ocr_text_available": bool(text),
+        "raw_text_included": False,
+    }
+
+
+def _merge_ocr_pages(base_pages, ocr_pages):
+    by_page = {
+        int(page.get("page_number") or index): dict(page)
+        for index, page in enumerate(base_pages or [], start=1)
+    }
+    for ocr_page in ocr_pages or []:
+        page_number = int(ocr_page.get("page_number") or 0)
+        if page_number not in by_page:
+            merged = dict(ocr_page)
+            merged["ocr_text_present"] = True
+            by_page[page_number] = merged
+            continue
+        merged = dict(by_page[page_number])
+        native_text = _text(merged.get("text"))
+        ocr_text = _text(ocr_page.get("text"))
+        if native_text and ocr_text and ocr_text not in native_text:
+            merged["native_text"] = native_text
+            merged["text"] = f"{native_text}\n{ocr_text}"
+        elif ocr_text and not native_text:
+            merged["text"] = ocr_text
+        merged["lines"] = list(merged.get("lines", []) or []) + list(
+            ocr_page.get("lines", []) or []
+        )
+        merged["ocr_text_present"] = bool(ocr_text)
+        by_page[page_number] = merged
+    return [by_page[key] for key in sorted(by_page)]
+
+
 def _layout_provider_result(path, provider_name, document_id, table_settings_profile, strict):
     provider = normalize_shadow_layout_provider(provider_name)
     if provider == PROVIDER_NATIVE_TEXT:
@@ -362,6 +471,32 @@ def _layout_provider_result(path, provider_name, document_id, table_settings_pro
     return provider_result
 
 
+def _ocr_provider_result(path, provider_name, triage, page_mode, dpi, strict):
+    provider = normalize_ocr_provider(provider_name)
+    if provider == OCR_PROVIDER_NONE:
+        return empty_ocr_provider_result(provider_requested=provider)
+    try:
+        from app.document_ai.tesseract_ocr_provider import extract_tesseract_ocr
+
+        return extract_tesseract_ocr(
+            path,
+            triage_result=triage,
+            page_mode=normalize_ocr_page_mode(page_mode),
+            dpi=normalize_ocr_dpi(dpi),
+            strict=strict,
+            provider_requested=provider,
+        )
+    except Exception:
+        if strict:
+            raise
+        return {
+            **empty_ocr_provider_result(provider_requested=provider),
+            "provider_name": OCR_PROVIDER_TESSERACT,
+            "status": "failed",
+            "errors": ["ocr_provider_exception"],
+        }
+
+
 def _load_pypdf_reader():
     module = import_module("pypdf")
     return module.PdfReader
@@ -390,12 +525,15 @@ def extract_document_artifact_from_pdf(
     layout_provider_name=PROVIDER_NATIVE_TEXT,
     table_settings_profile="default",
     strict_layout_provider=False,
+    ocr_provider_name=OCR_PROVIDER_NONE,
+    ocr_pages="ocr_required",
+    ocr_dpi=200,
+    strict_ocr=False,
 ):
     """Build an in-memory document artifact from a local PDF.
 
-    This uses the current native-text dependency boundary. OCR is not invoked.
-    Layout bboxes are intentionally optional: downstream code can consume
-    ``full_text`` today and page/line slots can accept bbox/word/table data later.
+    This uses native text by default. Optional OCR remains shadow-only and is
+    invoked only when a non-``none`` OCR provider is explicitly requested.
     """
     triage = triage_result if isinstance(triage_result, dict) else triage_document(
         path,
@@ -407,6 +545,8 @@ def extract_document_artifact_from_pdf(
     provider_requested = normalize_shadow_layout_provider(layout_provider_name)
     layout_provider_summary = empty_layout_provider_summary(provider_requested)
     layout_artifact = {}
+    ocr_provider = normalize_ocr_provider(ocr_provider_name)
+    ocr_result = empty_ocr_provider_result(provider_requested=ocr_provider)
 
     if not file_path.exists() or file_path.suffix.lower() != ".pdf":
         return build_document_extraction_artifact(
@@ -415,6 +555,7 @@ def extract_document_artifact_from_pdf(
             source=SOURCE_UNKNOWN,
             triage=triage,
             layout_provider_summary=layout_provider_summary,
+            ocr_provider_result=ocr_result,
         )
 
     try:
@@ -431,6 +572,7 @@ def extract_document_artifact_from_pdf(
             source=SOURCE_UNKNOWN,
             triage=triage,
             layout_provider_summary=layout_provider_summary,
+            ocr_provider_result=ocr_result,
         )
 
     for index, page in enumerate(pdf_pages, start=1):
@@ -476,17 +618,42 @@ def extract_document_artifact_from_pdf(
             table_settings_profile=provider_result.get("table_settings_profile", table_settings_profile),
         )
 
+    base_has_text_before_ocr = any(_text(page.get("text")) for page in pages)
+    ocr_result = _ocr_provider_result(
+        file_path,
+        ocr_provider,
+        triage,
+        ocr_pages,
+        ocr_dpi,
+        strict_ocr,
+    )
+    ocr_pages_artifact = _ocr_result_pages(ocr_result)
+    if ocr_pages_artifact and ocr_result.get("status") in {
+        OCR_STATUS_SUCCESS,
+        OCR_STATUS_PARTIAL,
+    }:
+        pages = _merge_ocr_pages(pages, ocr_pages_artifact)
+
+    has_ocr_text = bool(ocr_pages_artifact)
+    source = (
+        SOURCE_HYBRID
+        if has_ocr_text and base_has_text_before_ocr
+        else SOURCE_OCR
+        if has_ocr_text
+        else layout_provider_summary.get("provider_used")
+        if layout_provider_summary.get("status") == STATUS_SUCCESS
+        else SOURCE_NATIVE
+        if any(page["text"].strip() for page in pages)
+        else SOURCE_UNKNOWN
+    )
     return build_document_extraction_artifact(
         document_id=triage.get("document_id", document_id or ""),
         pages=pages,
-        source=(
-            layout_provider_summary.get("provider_used")
-            if layout_provider_summary.get("status") == STATUS_SUCCESS
-            else SOURCE_NATIVE if any(page["text"].strip() for page in pages) else SOURCE_UNKNOWN
-        ),
+        source=source,
         triage=triage,
         layout_provider_summary=layout_provider_summary,
         layout_artifact=layout_artifact,
+        ocr_provider_result=ocr_result,
     )
 
 
@@ -502,4 +669,10 @@ def artifact_summary(artifact):
         "full_text_length": len(full_text or ""),
         "full_text_present": bool(str(full_text or "").strip()),
         "layout_provider_summary": (artifact or {}).get("layout_provider_summary", {}),
+        "ocr_provider_summary": safe_ocr_provider_summary(
+            (artifact or {}).get("ocr_provider_result", {})
+        ),
+        "ocr_document_classification": _ocr_document_classification_diagnostic(
+            (artifact or {}).get("ocr_provider_result", {})
+        ),
     }

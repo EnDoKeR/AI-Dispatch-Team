@@ -1,0 +1,29 @@
+{
+  "schema_version": "ratecon_hybrid_extraction_result_v1",
+  "document_id": "DOC_FIXTURE_AUTO_ACCEPT",
+  "file_name_or_label": "fixture_auto_accept_violation.pdf",
+  "document_type": "rate_confirmation",
+  "model_provider": "manual",
+  "model_name": "sanitized_fixture_manual",
+  "private_local_only": true,
+  "fields": {
+    "load_number": {"value": "FIXLOAD-1004", "confidence": 0.9, "requires_human_review": true, "evidence_ids": ["ev_load"]},
+    "total_carrier_rate": {"value": "1950.00", "currency": "USD", "confidence": 0.9, "requires_human_review": true, "evidence_ids": ["ev_rate"]},
+    "pickup_stops": [
+      {"schema_version": "ratecon_hybrid_stop_v1", "role": "pickup", "stop_index": 1, "facility": null, "address": null, "city": "Policy City", "state": "PC", "zip": null, "date": "04/07/2026", "time": null, "appointment_window": null, "raw_text_local_only": null, "evidence_page": 1, "evidence_bbox": null, "confidence": 0.9, "requires_human_review": true, "auto_accept": true, "evidence_ids": ["ev_pickup"]}
+    ],
+    "delivery_stops": [
+      {"schema_version": "ratecon_hybrid_stop_v1", "role": "delivery", "stop_index": 1, "facility": null, "address": null, "city": "Review City", "state": "RC", "zip": null, "date": "04/08/2026", "time": null, "appointment_window": null, "raw_text_local_only": null, "evidence_page": 1, "evidence_bbox": null, "confidence": 0.9, "requires_human_review": true, "auto_accept": false, "evidence_ids": ["ev_delivery"]}
+    ]
+  },
+  "evidence": [
+    {"evidence_id": "ev_load", "field": "load_number", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture load evidence>", "source": "model"},
+    {"evidence_id": "ev_rate", "field": "total_carrier_rate", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture rate evidence>", "source": "model"},
+    {"evidence_id": "ev_pickup", "field": "pickup_stops[0]", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture pickup evidence>", "source": "model"},
+    {"evidence_id": "ev_delivery", "field": "delivery_stops[0]", "page": 1, "bbox": null, "text_excerpt_redacted": "<redacted fixture delivery evidence>", "source": "model"}
+  ],
+  "confidence": {"overall": 0.9, "load_number": 0.9, "total_carrier_rate": 0.9, "pickup_stops": 0.9, "delivery_stops": 0.9},
+  "requires_human_review": true,
+  "review_reasons": ["fixture_auto_accept_violation"],
+  "validator_results": {"no_auto_accept_gate": {"status": "failed"}}
+}

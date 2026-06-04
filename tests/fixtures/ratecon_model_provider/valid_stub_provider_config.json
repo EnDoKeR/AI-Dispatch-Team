@@ -1,0 +1,13 @@
+{
+  "allow_external_calls": false,
+  "allow_image_input": false,
+  "allow_ocr_processing": false,
+  "allow_pdf_processing": false,
+  "allow_private_value_copy": false,
+  "allow_raw_text_input": false,
+  "output_redaction_default": true,
+  "private_local_only": true,
+  "provider_name": "stub_empty_v1",
+  "run_id": "fixture_stub_run",
+  "schema_version": "ratecon_model_provider_config_v1"
+}

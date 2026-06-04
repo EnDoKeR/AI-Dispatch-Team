@@ -4,6 +4,7 @@ from app.document_ai.field_candidate_generators import (
     GENERATOR_HEADER_LOAD_IDENTITY,
     LOAD_CANDIDATE_PROFILE_BASELINE,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
     _header_load_identity_generator,
     generate_field_candidates,
@@ -189,6 +190,52 @@ class HeaderLoadIdentityCandidateGeneratorTests(unittest.TestCase):
             any(
                 (candidate.get("metadata") or {}).get("table_neighbor_demoted_from_load_number")
                 for candidate in safety["candidates"]
+            )
+        )
+
+    def test_table_abstention_profile_is_explicit_and_preserves_recall_generator(self):
+        artifact = _artifact(["TQL RATE CONFIRMATION FOR PO# 36979531"])
+
+        experiment = generate_field_candidates(
+            artifact,
+            include_legacy_final_candidates=False,
+            load_candidate_profile=LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
+        )
+
+        self.assertTrue(
+            [
+                summary
+                for summary in experiment["generator_summaries"]
+                if summary["generator_name"] == GENERATOR_HEADER_LOAD_IDENTITY
+            ]
+        )
+
+    def test_table_abstention_profile_demotes_ambiguous_multi_id_table_neighbor(self):
+        artifact = _layout_artifact(
+            ["LOAD CONFIRMATION"],
+            [
+                ["Load #", "Reference #", "BAD123"],
+            ],
+        )
+
+        abstain = generate_field_candidates(
+            artifact,
+            include_legacy_final_candidates=False,
+            load_candidate_profile=LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
+        )
+
+        self.assertFalse(
+            [
+                candidate
+                for candidate in abstain["candidates"]
+                if candidate["field"] == "load_number"
+                and (candidate.get("metadata") or {}).get("table_cell_candidate")
+            ]
+        )
+        self.assertTrue(
+            any(
+                (candidate.get("metadata") or {}).get("table_neighbor_abstained")
+                for candidate in abstain["candidates"]
             )
         )
 

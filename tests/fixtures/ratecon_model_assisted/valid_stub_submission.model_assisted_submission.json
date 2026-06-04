@@ -1,0 +1,84 @@
+{
+  "created_at": "2026-06-04T00:00:00+00:00",
+  "input_policy": {
+    "images_included": false,
+    "ocr_processed": false,
+    "pdf_processed": false,
+    "private_local_only": true,
+    "raw_text_included": false
+  },
+  "provider": {
+    "external_call_made": false,
+    "model_name": null,
+    "model_version": null,
+    "offline_only": true,
+    "provider_name": "fixture_no_model_stub",
+    "provider_type": "stub"
+  },
+  "result": {
+    "confidence": {
+      "delivery_stops": 0.0,
+      "load_number": 0.0,
+      "overall": 0.0,
+      "pickup_stops": 0.0,
+      "total_carrier_rate": 0.0
+    },
+    "document_id": "DOC_FIXTURE_PERFECT",
+    "document_type": "rate_confirmation",
+    "evidence": [],
+    "fields": {
+      "delivery_stops": [],
+      "load_number": {
+        "confidence": 0.0,
+        "evidence_ids": [],
+        "requires_human_review": true,
+        "value": null
+      },
+      "pickup_stops": [],
+      "total_carrier_rate": {
+        "confidence": 0.0,
+        "currency": "USD",
+        "evidence_ids": [],
+        "requires_human_review": true,
+        "value": null
+      }
+    },
+    "model_name": "fixture_no_model_stub_v1",
+    "model_provider": "local_stub",
+    "private_local_only": true,
+    "requires_human_review": true,
+    "review_reasons": [
+      "fixture_unfilled",
+      "phase_1_no_auto_accept"
+    ],
+    "schema_version": "ratecon_hybrid_extraction_result_v1",
+    "validator_results": {
+      "confidence_review_gate": {
+        "status": "review_required"
+      },
+      "critical_field_gate": {
+        "status": "not_evaluated"
+      },
+      "document_classification_gate": {
+        "status": "not_evaluated"
+      },
+      "evidence_gate": {
+        "status": "not_evaluated"
+      },
+      "no_auto_accept_gate": {
+        "status": "passed"
+      },
+      "stop_consistency_gate": {
+        "status": "review_required"
+      }
+    }
+  },
+  "run_id": "fixture_stub_run",
+  "safety": {
+    "auto_accept_disabled": true,
+    "no_private_values_in_default_logs": true,
+    "stops_review_required": true
+  },
+  "schema_version": "ratecon_model_assisted_submission_v1",
+  "submission_id": "fixture_valid_stub_submission"
+}

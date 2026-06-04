@@ -1,0 +1,100 @@
+{
+  "confidence": {
+    "delivery_stops": 0.0,
+    "load_number": 0.0,
+    "overall": 0.0,
+    "pickup_stops": 0.0,
+    "total_carrier_rate": 0.0
+  },
+  "document_id": "DOC_FIXTURE_PERFECT",
+  "document_type": "rate_confirmation",
+  "evidence": [],
+  "fields": {
+    "delivery_stops": [
+      {
+        "address": null,
+        "appointment_window": null,
+        "auto_accept": false,
+        "city": null,
+        "confidence": 0.0,
+        "evidence_bbox": null,
+        "evidence_ids": [],
+        "evidence_page": null,
+        "facility": null,
+        "raw_text_local_only": null,
+        "requires_human_review": true,
+        "role": "delivery",
+        "schema_version": "ratecon_hybrid_stop_v1",
+        "state": null,
+        "stop_index": 1,
+        "time": null,
+        "zip": null,
+        "date": null
+      }
+    ],
+    "load_number": {
+      "confidence": 0.0,
+      "evidence_ids": [],
+      "requires_human_review": true,
+      "value": null
+    },
+    "pickup_stops": [
+      {
+        "address": null,
+        "appointment_window": null,
+        "auto_accept": false,
+        "city": null,
+        "confidence": 0.0,
+        "evidence_bbox": null,
+        "evidence_ids": [],
+        "evidence_page": null,
+        "facility": null,
+        "raw_text_local_only": null,
+        "requires_human_review": true,
+        "role": "pickup",
+        "schema_version": "ratecon_hybrid_stop_v1",
+        "state": null,
+        "stop_index": 1,
+        "time": null,
+        "zip": null,
+        "date": null
+      }
+    ],
+    "total_carrier_rate": {
+      "confidence": 0.0,
+      "currency": "USD",
+      "evidence_ids": [],
+      "requires_human_review": true,
+      "value": null
+    }
+  },
+  "model_name": "fixture_template_v1",
+  "model_provider": "local_stub",
+  "private_local_only": true,
+  "requires_human_review": true,
+  "review_reasons": [
+    "fixture_unfilled",
+    "phase_1_no_auto_accept"
+  ],
+  "schema_version": "ratecon_hybrid_extraction_result_v1",
+  "validator_results": {
+    "confidence_review_gate": {
+      "status": "review_required"
+    },
+    "critical_field_gate": {
+      "status": "not_evaluated"
+    },
+    "document_classification_gate": {
+      "status": "not_evaluated"
+    },
+    "evidence_gate": {
+      "status": "not_evaluated"
+    },
+    "no_auto_accept_gate": {
+      "status": "passed"
+    },
+    "stop_consistency_gate": {
+      "status": "review_required"
+    }
+  }
+}

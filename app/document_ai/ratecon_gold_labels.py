@@ -98,19 +98,47 @@ REFERENCE_TYPES = {
 
 SYSTEM_LEGACY = "legacy"
 SYSTEM_SHADOW = "shadow"
+SYSTEM_SHADOW_SELECTED_STOP = "shadow_selected_stop"
 SYSTEM_SHADOW_CANDIDATE_BEST = "shadow_candidate_best"
 SYSTEM_SHADOW_BEST_INDEPENDENT = "shadow_best_independent_candidate"
 SYSTEM_SHADOW_BEST_LAYOUT = "shadow_best_layout_candidate"
+SYSTEM_SHADOW_BEST_STRUCTURED_STOP = "shadow_best_structured_stop_candidate"
+SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP = "shadow_best_dispatch_usable_stop_candidate"
+SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP = "shadow_best_ocr_column_stop_candidate"
+SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP = "shadow_best_native_layout_stop_candidate"
+SYSTEM_SHADOW_STOP_REVIEW_DRAFT = "shadow_stop_review_draft"
+SYSTEM_SHADOW_REVIEW_FUSED_STOPS = "review_fused_stops"
 SYSTEM_LEGACY_FALLBACK_CANDIDATE = "legacy_fallback_candidate"
+SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE = "legacy_fallback_stop_candidate"
 
 EVALUATION_SYSTEMS = (
     SYSTEM_LEGACY,
     SYSTEM_SHADOW,
+    SYSTEM_SHADOW_SELECTED_STOP,
     SYSTEM_SHADOW_CANDIDATE_BEST,
     SYSTEM_SHADOW_BEST_INDEPENDENT,
     SYSTEM_SHADOW_BEST_LAYOUT,
+    SYSTEM_SHADOW_BEST_STRUCTURED_STOP,
+    SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
+    SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP,
+    SYSTEM_SHADOW_STOP_REVIEW_DRAFT,
+    SYSTEM_SHADOW_REVIEW_FUSED_STOPS,
     SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+    SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE,
 )
+
+STOP_DIAGNOSTIC_SYSTEMS = (
+    SYSTEM_SHADOW_SELECTED_STOP,
+    SYSTEM_SHADOW_BEST_STRUCTURED_STOP,
+    SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    SYSTEM_SHADOW_BEST_OCR_COLUMN_STOP,
+    SYSTEM_SHADOW_BEST_NATIVE_LAYOUT_STOP,
+    SYSTEM_LEGACY_FALLBACK_STOP_CANDIDATE,
+)
+
+STOP_DRAFT_SYSTEMS = (SYSTEM_SHADOW_STOP_REVIEW_DRAFT,)
+STOP_FUSION_SYSTEMS = (SYSTEM_SHADOW_REVIEW_FUSED_STOPS,)
 
 STATUS_EXACT = "correct_exact"
 STATUS_NORMALIZED_MATCH = "correct_normalized"
@@ -129,6 +157,10 @@ STATUS_LEGACY_EXTRACTOR_MISSING = "legacy_extractor_missing"
 STATUS_SHADOW_COMPONENT_NOT_SERIALIZED = "shadow_component_not_serialized"
 STATUS_SHADOW_REDACTED_NOT_COMPARABLE = "shadow_redacted_not_comparable"
 STATUS_SHADOW_EXTRACTOR_MISSING = "shadow_extractor_missing"
+STATUS_UNSUPPORTED_UNPARSED_LOCATION = "unsupported_unparsed_location"
+STATUS_SELECTED_PARTIAL_NOT_COMPARABLE = "selected_partial_not_comparable"
+STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS = "selected_partial_missing_required_components"
+STATUS_TRUE_EXTRACTOR_MISSING = "true_extractor_missing"
 STATUS_PREDICTION_UNAVAILABLE = STATUS_SOURCE_NOT_AVAILABLE
 
 SOURCE_AVAILABILITY_STATUSES = {
@@ -141,12 +173,17 @@ SOURCE_AVAILABILITY_STATUSES = {
     STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
     STATUS_SHADOW_REDACTED_NOT_COMPARABLE,
     STATUS_SHADOW_EXTRACTOR_MISSING,
+    STATUS_UNSUPPORTED_UNPARSED_LOCATION,
+    STATUS_SELECTED_PARTIAL_NOT_COMPARABLE,
+    STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS,
+    STATUS_TRUE_EXTRACTOR_MISSING,
 }
 
 EXTRACTOR_MISSING_STATUSES = {
     STATUS_MISSING,
     STATUS_LEGACY_EXTRACTOR_MISSING,
     STATUS_SHADOW_EXTRACTOR_MISSING,
+    STATUS_TRUE_EXTRACTOR_MISSING,
 }
 
 ADJ_LEGACY_CORRECT_SHADOW_WRONG = "legacy_correct_shadow_wrong"
@@ -188,6 +225,16 @@ def _text(value) -> str:
 
 def _lower(value) -> str:
     return _text(value).lower()
+
+
+def _safe_money_amount(value):
+    text = _text(value).upper().replace("USD", "").replace("$", "").replace(",", "").strip()
+    if not text:
+        return None
+    try:
+        return Decimal(text)
+    except (InvalidOperation, ValueError):
+        return None
 
 
 def _safe_bool(value) -> bool:
@@ -239,11 +286,22 @@ def safe_value_shape(value) -> dict:
     digits = sum(1 for char in text if char.isdigit())
     letters = sum(1 for char in text if char.isalpha())
     lowered = text.lower()
+    amount = _safe_money_amount(text)
+    if amount is None:
+        magnitude = "unknown"
+    elif amount < 500:
+        magnitude = "small"
+    elif amount < 5000:
+        magnitude = "medium"
+    else:
+        magnitude = "large"
     return {
         "type": "string",
         "length": len(text),
         "has_digits": bool(digits),
         "has_letters": bool(letters),
+        "has_currency_symbol": "$" in text,
+        "amount_magnitude_band": magnitude,
         "looks_like_date": bool(digits and ("/" in text or "-" in text) and len(text) <= 16),
         "looks_like_money": "$" in text or bool(digits and "." in text),
         "looks_like_phone": digits >= 10 and any(char in text for char in ["(", ")", "-"]),
@@ -545,9 +603,57 @@ def normalize_date(value) -> str:
 
 
 def normalize_time(value) -> str:
-    text = _lower(value)
-    text = re.sub(r"\s+", "", text)
-    return text
+    original = _lower(value)
+    if not original:
+        return ""
+    text = original.replace("–", "-").replace("—", "-")
+    text = re.sub(
+        r"\b(?:appt|appointment|fcfs|time|window|hours|shipping/receiving|shipping|receiving)\b",
+        " ",
+        text,
+    )
+    tokens = re.findall(
+        r"\b\d{1,2}:\d{2}\s*(?:am|pm)?\b|\b\d{3,4}\s*(?:am|pm)?\b",
+        text,
+    )
+    normalized = [_normalize_time_token(token) for token in tokens]
+    normalized = [token for token in normalized if token]
+    if len(normalized) >= 2:
+        return f"{normalized[0]}-{normalized[1]}"
+    if len(normalized) == 1:
+        return normalized[0]
+    if "fcfs" in original:
+        return "fcfs"
+    return re.sub(r"\s+", "", original)
+
+
+def _normalize_time_token(value) -> str:
+    text = re.sub(r"\s+", "", _lower(value))
+    ampm = ""
+    match_ampm = re.search(r"(am|pm)$", text)
+    if match_ampm:
+        ampm = match_ampm.group(1)
+        text = text[: -len(ampm)]
+    digits = re.sub(r"\D+", "", text)
+    if ":" in text:
+        parts = text.split(":", 1)
+        hour = _safe_int(parts[0])
+        minute = _safe_int(re.sub(r"\D+", "", parts[1])[:2])
+    elif len(digits) in {3, 4}:
+        hour = _safe_int(digits[:-2])
+        minute = _safe_int(digits[-2:])
+    elif len(digits) in {1, 2}:
+        hour = _safe_int(digits)
+        minute = 0
+    else:
+        return ""
+    if ampm == "pm" and hour < 12:
+        hour += 12
+    elif ampm == "am" and hour == 12:
+        hour = 0
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return ""
+    return f"{hour:02d}:{minute:02d}"
 
 
 def normalize_location_component(value) -> str:
@@ -1076,6 +1182,9 @@ def _empty_metric():
         "field_not_serialized_count": 0,
         "redacted_not_comparable_count": 0,
         "unsupported_value_type_count": 0,
+        "unsupported_unparsed_location_count": 0,
+        "selected_partial_not_comparable_count": 0,
+        "selected_partial_missing_required_components_count": 0,
         "wrong_value_count": 0,
         "conflict_count": 0,
         "low_confidence_but_correct_count": 0,
@@ -1115,6 +1224,12 @@ def _update_metric(metric, comparison):
         metric["redacted_not_comparable_count"] += 1
     elif status == STATUS_UNSUPPORTED_VALUE_TYPE:
         metric["unsupported_value_type_count"] += 1
+    elif status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        metric["unsupported_unparsed_location_count"] += 1
+    elif status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        metric["selected_partial_not_comparable_count"] += 1
+    elif status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS:
+        metric["selected_partial_missing_required_components_count"] += 1
     if confidence is not None:
         if confidence < 0.70 and _status_correct(status):
             metric["low_confidence_but_correct_count"] += 1
@@ -1332,6 +1447,8 @@ def _classify_error_reason(field_name, system_name, prediction, comparisons):
         if _candidate_group_correct(comparisons, SYSTEM_SHADOW_CANDIDATE_BEST):
             return "gold_total_in_candidates_not_selected"
         context = _text(metadata.get("money_context")).lower()
+        if context == "per_unit_rate" or metadata.get("is_per_unit_rate"):
+            return "selected_per_unit_rate_instead_of_total"
         if context in {"linehaul", "linehaul_total", "line_item_rate"}:
             return "selected_linehaul_instead_of_total"
         if context == "accessorial":
@@ -1346,7 +1463,12 @@ def _classify_error_reason(field_name, system_name, prediction, comparisons):
             return "selected_tracking_hold_or_penalty"
         if context == "payment_terms_amount":
             return "selected_payment_terms_amount"
-        if context and context != "total_rate" and context != "carrier_pay":
+        if context in {"total_rate", "total_cost", "total_carrier_pay", "estimated_rate_to_truck", "agreed_rate_total"}:
+            method = _text(metadata.get("pairing_method"))
+            if method.startswith("table_"):
+                return "selected_wrong_table_cell"
+            return "selected_wrong_money_context"
+        if context and context != "carrier_pay":
             return "selected_wrong_money_context"
         return "unknown"
     return ""
@@ -1361,6 +1483,21 @@ def _candidate_group_has_correct(comparison_index, document_id, field_name):
     ]:
         row = comparison_index.get((document_id, field_name, system_name), {}) or {}
         if _status_correct(row.get("status")) or _status_partial(row.get("status")):
+            return True
+    return False
+
+
+def _candidate_group_correct_with_metadata(comparison_index, document_id, field_name, predicate):
+    for system_name in [
+        SYSTEM_SHADOW_CANDIDATE_BEST,
+        SYSTEM_SHADOW_BEST_INDEPENDENT,
+        SYSTEM_SHADOW_BEST_LAYOUT,
+        SYSTEM_LEGACY_FALLBACK_CANDIDATE,
+    ]:
+        row = comparison_index.get((document_id, field_name, system_name), {}) or {}
+        if not (_status_correct(row.get("status")) or _status_partial(row.get("status"))):
+            continue
+        if predicate(row):
             return True
     return False
 
@@ -1398,15 +1535,42 @@ def _load_value_hashes(gold_values):
     return hashes
 
 
+def _money_value_matches(candidate_value, gold_value) -> bool:
+    candidate_normalized = normalize_money(candidate_value)
+    gold_normalized = normalize_money(gold_value)
+    return bool(candidate_normalized and gold_normalized and candidate_normalized == gold_normalized)
+
+
+def _money_value_hashes(gold_value):
+    import hashlib
+
+    normalized = normalize_money(gold_value)
+    if not normalized:
+        return set()
+    return {hashlib.sha256(normalized.encode("utf-8")).hexdigest()}
+
+
 def _load_inventory(record):
     payload = _private_eval_values(record)
     inventory = payload.get("load_identity_candidate_inventory", [])
     return inventory if isinstance(inventory, list) else []
 
 
+def _rate_inventory(record):
+    payload = _private_eval_values(record)
+    inventory = payload.get("rate_money_candidate_inventory", [])
+    return inventory if isinstance(inventory, list) else []
+
+
 def _load_visibility_probe(record):
     payload = _private_eval_values(record)
     probe = payload.get("load_visibility_probe", {})
+    return probe if isinstance(probe, dict) else {}
+
+
+def _rate_visibility_probe(record):
+    payload = _private_eval_values(record)
+    probe = payload.get("rate_visibility_probe", {})
     return probe if isinstance(probe, dict) else {}
 
 
@@ -1430,6 +1594,141 @@ def _load_visibility_status(record, gold_hashes):
         "visible_in_layout_words": bool(gold_hashes & _hash_set(probe, "layout_word_token_hashes")),
         "visible_in_layout_tables": bool(gold_hashes & _hash_set(probe, "layout_table_token_hashes")),
         "visibility_available": True,
+    }
+
+
+def _rate_visibility_status(record, gold_hashes):
+    probe = _rate_visibility_probe(record)
+    if not probe:
+        return {
+            "visible_in_full_text": False,
+            "visible_in_lines": False,
+            "visible_in_layout_words": False,
+            "visible_in_layout_tables": False,
+            "visibility_available": False,
+        }
+    return {
+        "visible_in_full_text": bool(gold_hashes & _hash_set(probe, "full_text_money_hashes")),
+        "visible_in_lines": bool(gold_hashes & _hash_set(probe, "line_money_hashes")),
+        "visible_in_layout_words": bool(gold_hashes & _hash_set(probe, "layout_word_money_hashes")),
+        "visible_in_layout_tables": bool(gold_hashes & _hash_set(probe, "layout_table_money_hashes")),
+        "visibility_available": True,
+    }
+
+
+def _rate_inventory_matching_gold(record, gold_value):
+    return [
+        item
+        for item in _rate_inventory(record)
+        if isinstance(item, dict) and _money_value_matches(item.get("value"), gold_value)
+    ]
+
+
+def _rate_inventory_context(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return _text(metadata.get("money_context")) or "unknown"
+
+
+def _rate_inventory_safety(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return _text(metadata.get("rate_safety")) or "unknown"
+
+
+def _rate_inventory_metadata(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item, dict) else {}
+    return metadata if isinstance(metadata, dict) else {}
+
+
+def _rate_context_group(money_context):
+    context = _text(money_context)
+    if context == "total_carrier_pay":
+        return "total_carrier_pay"
+    if context == "carrier_freight_pay":
+        return "carrier_freight_pay"
+    if context in {"linehaul", "linehaul_total", "line_item_rate"}:
+        return "linehaul"
+    if context in {"total_rate", "total_cost", "agreed_rate_total"}:
+        return "grand_total"
+    if context == "estimated_rate_to_truck":
+        return "estimated_rate_to_truck"
+    return "other"
+
+
+def _empty_rate_context_value_summary():
+    return {
+        "present": False,
+        "nonblank": False,
+        "matches_gold": False,
+        "matches_shadow": False,
+        "value_count": 0,
+        "nonblank_value_count": 0,
+    }
+
+
+def _rate_context_value_summary(record, gold_value="", selected_value=""):
+    groups = {
+        "total_carrier_pay": _empty_rate_context_value_summary(),
+        "carrier_freight_pay": _empty_rate_context_value_summary(),
+        "linehaul": _empty_rate_context_value_summary(),
+        "grand_total": _empty_rate_context_value_summary(),
+        "estimated_rate_to_truck": _empty_rate_context_value_summary(),
+    }
+    for item in _rate_inventory(record):
+        if not isinstance(item, dict):
+            continue
+        group = _rate_context_group(_rate_inventory_context(item))
+        if group not in groups:
+            continue
+        value = item.get("value")
+        normalized = normalize_money(value)
+        bucket = groups[group]
+        bucket["present"] = True
+        bucket["value_count"] += 1
+        if normalized:
+            bucket["nonblank"] = True
+            bucket["nonblank_value_count"] += 1
+        if _money_value_matches(value, gold_value):
+            bucket["matches_gold"] = True
+        if _money_value_matches(value, selected_value):
+            bucket["matches_shadow"] = True
+    return groups
+
+
+def _rate_candidate_summary(record):
+    inventory = [item for item in _rate_inventory(record) if isinstance(item, dict)]
+    context_counts = Counter()
+    safe = risky = unsafe = unknown = 0
+    amount_count = 0
+    for item in inventory:
+        amount_count += 1
+        context = _rate_inventory_context(item)
+        safety = _rate_inventory_safety(item)
+        context_counts[context] += 1
+        if safety == "safe":
+            safe += 1
+        elif safety == "risky":
+            risky += 1
+        elif safety == "unsafe":
+            unsafe += 1
+        else:
+            unknown += 1
+    return {
+        "safe_total_candidates": safe,
+        "risky_total_candidates": risky,
+        "unsafe_money_candidates": unsafe,
+        "unknown_money_candidates": unknown,
+        "candidate_amount_count": amount_count,
+        "candidate_context_counts": dict(context_counts.most_common()),
+    }
+
+
+def _gold_rate_visible_in_artifact(record, gold_value):
+    visibility = _rate_visibility_status(record, _money_value_hashes(gold_value))
+    return {
+        "visible_in_text": visibility["visible_in_full_text"] or visibility["visible_in_lines"],
+        "visible_in_layout": visibility["visible_in_layout_words"] or visibility["visible_in_layout_tables"],
+        "visible_in_table": visibility["visible_in_layout_tables"],
+        "visibility_available": visibility["visibility_available"],
     }
 
 
@@ -1611,6 +1910,9 @@ def _build_rate_error_analysis(comparison_rows):
         "missing_count": len(missing_rows),
         "gold_total_in_candidates_not_selected": gold_in_candidates,
         "gold_total_not_in_candidates": len(wrong_rows) + len(missing_rows) - gold_in_candidates,
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
         "wrong_reason_counts": dict(
             Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
         ),
@@ -1623,9 +1925,526 @@ def _build_rate_error_analysis(comparison_rows):
         "wrong_by_money_context": dict(
             Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
         ),
+        "wrong_by_rate_safety": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in wrong_rows).most_common()
+        ),
         "wrong_by_section_context": dict(
             Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
         ),
+    }
+
+
+def _build_rate_wrong_case_summary(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    cases = []
+    for row in wrong_rows:
+        document_id = _text(row.get("document_id"))
+        same_table = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_TOTAL_CARRIER_RATE,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and bool(_text(row.get("table_index"))),
+        )
+        same_page = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_TOTAL_CARRIER_RATE,
+            lambda candidate_row: _text(candidate_row.get("page"))
+            == _text(row.get("page"))
+            and bool(_text(row.get("page"))),
+        )
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "field": FIELD_TOTAL_CARRIER_RATE,
+                "selected_candidate": {
+                    "source": _text(row.get("source")),
+                    "parser_name": _text(row.get("parser_name")),
+                    "pairing_method": _text(row.get("pairing_method")),
+                    "confidence": _safe_float(row.get("confidence")),
+                    "quality_band": _quality_band_from_confidence(row.get("confidence")),
+                    "money_context": _text(row.get("money_context")),
+                    "document_region": _text(row.get("document_region")),
+                    "section_context": _text(row.get("section_context")),
+                    "rate_safety": _text(row.get("rate_safety")),
+                    "rate_safety_reason": _text(row.get("rate_safety_reason")),
+                    "is_total_pay_candidate": bool(row.get("is_total_pay_candidate")),
+                    "is_line_item_only": bool(row.get("is_line_item_only")),
+                    "is_per_unit_rate": bool(row.get("is_per_unit_rate")),
+                    "is_deduction_or_penalty": bool(row.get("is_deduction_or_penalty")),
+                    "is_payment_terms_amount": bool(row.get("is_payment_terms_amount")),
+                    "value_shape": dict(row.get("value_shape") or {}),
+                },
+                "gold_candidate_visibility": {
+                    "gold_total_in_any_candidate": _candidate_group_has_correct(
+                        index,
+                        document_id,
+                        FIELD_TOTAL_CARRIER_RATE,
+                    ),
+                    "gold_total_in_same_table": same_table,
+                    "gold_total_in_same_page": same_page,
+                    "gold_total_requires_ocr": False,
+                },
+                "diagnosis": row.get("error_reason") or "unknown",
+            }
+        )
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "reason_counts": dict(
+            Counter(row.get("error_reason") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_money_context": dict(
+            Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "gold_total_in_candidates_not_selected": sum(
+            1
+            for row in wrong_rows
+            if _candidate_group_has_correct(
+                index,
+                row.get("document_id", ""),
+                FIELD_TOTAL_CARRIER_RATE,
+            )
+        ),
+        "gold_total_not_in_candidates": sum(
+            1
+            for row in wrong_rows
+            if not _candidate_group_has_correct(
+                index,
+                row.get("document_id", ""),
+                FIELD_TOTAL_CARRIER_RATE,
+            )
+        ),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _comparison_index(comparison_rows):
+    return {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+
+
+def _rate_gold_in_selected_group(index, document_id, selected_row):
+    selected_source = _text(selected_row.get("source"))
+    selected_parser = _text(selected_row.get("parser_name"))
+    return _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: (
+            bool(selected_source)
+            and _text(candidate_row.get("source")) == selected_source
+        )
+        or (
+            bool(selected_parser)
+            and _text(candidate_row.get("parser_name")) == selected_parser
+        ),
+    )
+
+
+def _rate_matching_contexts(record, gold_value):
+    return {
+        _rate_inventory_context(item)
+        for item in _rate_inventory_matching_gold(record, gold_value)
+        if isinstance(item, dict)
+    }
+
+
+def _rate_context_summary_for_wrong_case(record, gold_value, selected_value):
+    summary = _rate_context_value_summary(record, gold_value, selected_value)
+    return {
+        "total_carrier_pay_value_present": summary["total_carrier_pay"]["nonblank"],
+        "total_carrier_pay_value_blank": (
+            summary["total_carrier_pay"]["present"]
+            and not summary["total_carrier_pay"]["nonblank"]
+        ),
+        "carrier_freight_pay_value_present": summary["carrier_freight_pay"]["nonblank"],
+        "total_carrier_pay_matches_gold": summary["total_carrier_pay"]["matches_gold"],
+        "carrier_freight_pay_matches_gold": summary["carrier_freight_pay"]["matches_gold"],
+        "candidate_values_summary": summary,
+    }
+
+
+def _classify_residual_wrong_rate(row, record, gold_field, index):
+    document_id = _text(row.get("document_id"))
+    gold_value = _gold_scalar_value(gold_field)
+    selected = _shadow_prediction(record, FIELD_TOTAL_CARRIER_RATE)
+    selected_value = _prediction_value(selected)
+    selected_context = _text(row.get("money_context")) or "unknown"
+    matching_contexts = _rate_matching_contexts(record, gold_value)
+    context_summary = _rate_context_value_summary(record, gold_value, selected_value)
+    summary = _rate_candidate_summary(record)
+    triage = record.get("triage", {}) if isinstance(record, dict) else {}
+    visibility = _gold_rate_visible_in_artifact(record, gold_value)
+    if _money_value_matches(selected_value, gold_value):
+        return "selected_same_amount_but_normalization_failed"
+    if _gold_uncertain(gold_field):
+        return "selected_amount_correct_but_gold_uncertain"
+    if selected_context == "carrier_freight_pay" and "total_carrier_pay" in matching_contexts:
+        return "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay"
+    if (
+        selected_context == "total_carrier_pay"
+        and "carrier_freight_pay" in matching_contexts
+        and context_summary["total_carrier_pay"]["nonblank"]
+    ):
+        return "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay"
+    if selected_context in {"linehaul", "linehaul_total", "line_item_rate"} and matching_contexts:
+        return "selected_linehaul_but_gold_uses_grand_total"
+    if selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    } and matching_contexts & {"linehaul", "linehaul_total", "line_item_rate"}:
+        return "selected_grand_total_but_gold_uses_linehaul"
+    if _candidate_group_has_correct(index, document_id, FIELD_TOTAL_CARRIER_RATE):
+        return "gold_total_in_candidates_not_selected"
+    if summary.get("safe_total_candidates", 0) > 1 and selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+        "carrier_freight_pay",
+    }:
+        return "multiple_valid_totals_ambiguous"
+    if triage.get("ocr_required") and not matching_contexts and not (
+        visibility["visible_in_text"] or visibility["visible_in_layout"]
+    ):
+        return "gold_total_requires_ocr"
+    if selected_context in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    }:
+        return "selected_safe_total_but_gold_differs"
+    if not matching_contexts:
+        return "gold_total_not_in_candidates"
+    return "unknown"
+
+
+def _rate_wrong_case_payload(row, record, gold_field, index):
+    document_id = _text(row.get("document_id"))
+    gold_value = _gold_scalar_value(gold_field)
+    selected = _shadow_prediction(record, FIELD_TOTAL_CARRIER_RATE)
+    selected_value = _prediction_value(selected)
+    same_table = _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: _text(candidate_row.get("table_index"))
+        == _text(row.get("table_index"))
+        and bool(_text(row.get("table_index"))),
+    )
+    same_page = _candidate_group_correct_with_metadata(
+        index,
+        document_id,
+        FIELD_TOTAL_CARRIER_RATE,
+        lambda candidate_row: _text(candidate_row.get("page"))
+        == _text(row.get("page"))
+        and bool(_text(row.get("page"))),
+    )
+    return {
+        "file_name": _text(row.get("file_name")),
+        "document_id": document_id,
+        "gold_label_status": _text(row.get("label_status")) or LABEL_LABELED,
+        "selected_rate": {
+            "source": _text(row.get("source")),
+            "parser_name": _text(row.get("parser_name")),
+            "confidence": _safe_float(row.get("confidence")),
+            "quality_band": _quality_band_from_confidence(row.get("confidence")),
+            "money_context": _text(row.get("money_context")),
+            "rate_safety": _text(row.get("rate_safety")),
+            "document_region": _text(row.get("document_region")),
+            "section_context": _text(row.get("section_context")),
+            "pairing_method": _text(row.get("pairing_method")),
+            "value_shape": {
+                "looks_like_money": bool((row.get("value_shape") or {}).get("looks_like_money")),
+                "has_currency_symbol": bool(
+                    (row.get("value_shape") or {}).get("has_currency_symbol")
+                ),
+                "amount_magnitude_band": _text(
+                    (row.get("value_shape") or {}).get("amount_magnitude_band")
+                )
+                or "unknown",
+            },
+        },
+        "gold_visibility": {
+            "gold_total_in_any_candidate": _candidate_group_has_correct(
+                index,
+                document_id,
+                FIELD_TOTAL_CARRIER_RATE,
+            ),
+            "gold_total_in_selected_candidate_group": _rate_gold_in_selected_group(
+                index,
+                document_id,
+                row,
+            ),
+            "gold_total_in_same_table": same_table,
+            "gold_total_in_same_page": same_page,
+            "gold_total_requires_ocr": bool(
+                (record.get("triage", {}) if isinstance(record, dict) else {}).get(
+                    "ocr_required"
+                )
+            )
+            and not _rate_inventory_matching_gold(record, gold_value),
+        },
+        "all_plausible_rate_candidate_summary": _rate_candidate_summary(record),
+        "rate_context_value_summary": _rate_context_summary_for_wrong_case(
+            record,
+            gold_value,
+            selected_value,
+        ),
+        "diagnosis": _classify_residual_wrong_rate(row, record, gold_field, index),
+    }
+
+
+def _build_residual_wrong_rate_forensics(comparison_rows, gold_labels, audit_index):
+    index = _comparison_index(comparison_rows)
+    label_by_document = {
+        _text(label.get("document_id")): label
+        for label in gold_labels or []
+        if _text(label.get("document_id"))
+    }
+    wrong_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") == STATUS_WRONG_VALUE
+    ]
+    cases = []
+    diagnoses = Counter()
+    for row in wrong_rows:
+        label = label_by_document.get(_text(row.get("document_id")), {}) or {}
+        gold = label.get("gold", {}) or {}
+        gold_field = gold.get(FIELD_TOTAL_CARRIER_RATE, {})
+        record = _find_record(label, audit_index)
+        case = _rate_wrong_case_payload(row, record, gold_field, index)
+        diagnoses[case["diagnosis"]] += 1
+        cases.append(case)
+    return {
+        "wrong_selected_count": len(wrong_rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "wrong_by_money_context": dict(
+            Counter(row.get("money_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_rate_safety": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_section_context": dict(
+            Counter(row.get("section_context") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "wrong_by_pairing_method": dict(
+            Counter(row.get("pairing_method") or "unknown" for row in wrong_rows).most_common()
+        ),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _gold_consistency_reason(case):
+    diagnosis = _text(case.get("diagnosis"))
+    selected = case.get("selected_rate", {}) or {}
+    plausible = case.get("all_plausible_rate_candidate_summary", {}) or {}
+    value_summary = (case.get("rate_context_value_summary", {}) or {}).get(
+        "candidate_values_summary",
+        {},
+    ) or {}
+    total_pay = value_summary.get("total_carrier_pay", {}) or {}
+    carrier_freight = value_summary.get("carrier_freight_pay", {}) or {}
+    if diagnosis == "selected_same_amount_but_normalization_failed":
+        return "selected_and_gold_are_same_after_normalization"
+    if diagnosis == "selected_total_carrier_pay_but_gold_uses_carrier_freight_pay":
+        if total_pay.get("nonblank") and not total_pay.get("matches_gold"):
+            return "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+        return "unknown"
+    if diagnosis == "selected_carrier_freight_pay_but_gold_uses_total_carrier_pay":
+        if not total_pay.get("nonblank") and carrier_freight.get("nonblank"):
+            return "gold_uses_total_carrier_pay_but_total_blank_and_carrier_freight_pay_present"
+        return "unknown"
+    if diagnosis == "selected_grand_total_but_gold_uses_linehaul":
+        return "gold_uses_linehaul_but_document_has_explicit_total"
+    if diagnosis == "multiple_valid_totals_ambiguous" or plausible.get("safe_total_candidates", 0) > 1:
+        return "ambiguous_multiple_totals"
+    if diagnosis == "selected_safe_total_but_gold_differs" and selected.get("money_context") in {
+        "total_carrier_pay",
+        "total_rate",
+        "total_cost",
+        "estimated_rate_to_truck",
+        "agreed_rate_total",
+    }:
+        return "gold_uses_rate_table_amount_but_document_total_differs"
+    if diagnosis == "gold_total_not_in_candidates":
+        return "gold_total_not_visible_in_document_artifact"
+    return "unknown"
+
+
+def _build_gold_rate_consistency_audit(residual_wrong_summary):
+    cases = list((residual_wrong_summary or {}).get("cases", []) or [])
+    reasons = Counter()
+    suspect_count = 0
+    uncertain_count = 0
+    matches_selected = 0
+    not_visible = 0
+    recommend_review = 0
+    review_cases = []
+    for case in cases:
+        reason = _gold_consistency_reason(case)
+        reasons[reason] += 1
+        if case.get("gold_label_status") == "uncertain":
+            uncertain_count += 1
+        if reason == "selected_and_gold_are_same_after_normalization":
+            matches_selected += 1
+        if reason == "gold_total_not_visible_in_document_artifact":
+            not_visible += 1
+        if reason != "unknown":
+            suspect_count += 1
+            recommend_review += 1
+            review_cases.append(
+                {
+                    "file_name": _text(case.get("file_name")),
+                    "document_id": _text(case.get("document_id")),
+                    "suspect_reason": reason,
+                    "diagnosis": _text(case.get("diagnosis")),
+                    "private_values_printed": False,
+                }
+            )
+    return {
+        "cases_checked": len(cases),
+        "gold_label_suspect_count": suspect_count,
+        "gold_label_uncertain_count": uncertain_count,
+        "gold_rate_matches_selected_but_marked_wrong_count": matches_selected,
+        "gold_rate_not_visible_in_artifact_count": not_visible,
+        "recommend_human_review_count": recommend_review,
+        "suspect_reasons": dict(reasons.most_common()),
+        "review_cases": review_cases,
+        "gold_files_modified": False,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _classify_missing_rate(label, record, row):
+    gold = label.get("gold", {}) if isinstance(label, dict) else {}
+    gold_field = gold.get(FIELD_TOTAL_CARRIER_RATE, {})
+    gold_value = _gold_scalar_value(gold_field)
+    if _gold_uncertain(gold_field):
+        return "gold_label_uncertain"
+    triage = record.get("triage", {}) if isinstance(record, dict) else {}
+    matching = _rate_inventory_matching_gold(record, gold_value)
+    if matching:
+        if any(
+            (_rate_inventory_metadata(item).get("rate_abstained"))
+            or (_rate_inventory_metadata(item).get("rate_demoted_from_total_carrier_rate"))
+            for item in matching
+        ):
+            return "rate_in_candidate_but_abstained"
+        return "unknown"
+    visibility = _gold_rate_visible_in_artifact(record, gold_value)
+    if visibility["visible_in_text"]:
+        return "rate_visible_in_text_but_no_candidate"
+    if visibility["visible_in_layout"]:
+        return "rate_visible_in_layout_but_no_candidate"
+    if triage.get("ocr_required"):
+        return "rate_requires_ocr"
+    inventory = [item for item in _rate_inventory(record) if isinstance(item, dict)]
+    if inventory:
+        safeties = {_rate_inventory_safety(item) for item in inventory}
+        if safeties <= {"unsafe"}:
+            return "only_unsafe_money_candidates"
+        if safeties <= {"unknown"}:
+            return "only_unknown_money_context_candidates"
+    if row.get("label_status") == LABEL_SKIPPED:
+        return "skipped_non_rc"
+    return "rate_not_in_artifact_text"
+
+
+def _build_missing_rate_forensics(comparison_rows, gold_labels, audit_index):
+    row_by_document = {
+        _text(row.get("document_id")): row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("status") in EXTRACTOR_MISSING_STATUSES
+    }
+    cases = []
+    reasons = Counter()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        document_id = _text(label.get("document_id"))
+        row = row_by_document.get(document_id)
+        if not row:
+            continue
+        record = _find_record(label, audit_index)
+        reason = _classify_missing_rate(label, record, row)
+        reasons[reason] += 1
+        gold_value = _gold_scalar_value((label.get("gold", {}) or {}).get(FIELD_TOTAL_CARRIER_RATE, {}))
+        visibility = _gold_rate_visible_in_artifact(record, gold_value)
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "reason": reason,
+                "gold_rate_visible_in_text": visibility["visible_in_text"],
+                "gold_rate_visible_in_layout": visibility["visible_in_layout"],
+                "candidate_amount_count": _rate_candidate_summary(record).get("candidate_amount_count", 0),
+                "private_values_printed": False,
+            }
+        )
+    return {
+        "missing_count": len(cases),
+        "reason_counts": dict(reasons.most_common()),
+        "gold_rate_visible_in_text_but_not_candidate": reasons.get(
+            "rate_visible_in_text_but_no_candidate",
+            0,
+        ),
+        "gold_rate_visible_in_layout_but_not_candidate": reasons.get(
+            "rate_visible_in_layout_but_no_candidate",
+            0,
+        ),
+        "gold_rate_in_candidate_but_abstained": reasons.get(
+            "rate_in_candidate_but_abstained",
+            0,
+        ),
+        "rate_requires_ocr": reasons.get("rate_requires_ocr", 0),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
     }
 
 
@@ -1710,6 +2529,392 @@ def _build_load_table_neighbor_error_summary(comparison_rows):
     }
 
 
+def _classify_remaining_table_neighbor_wrong(row, comparison_index):
+    safety = _text(row.get("table_neighbor_safety"))
+    table_context = _text(row.get("table_context_role"))
+    table_row = _text(row.get("table_row_role"))
+    penalty = _text(row.get("table_neighbor_penalty_reason"))
+    document_id = _text(row.get("document_id"))
+    if _candidate_group_has_correct(comparison_index, document_id, FIELD_LOAD_NUMBER):
+        return "table_neighbor_safe_but_gold_elsewhere"
+    if row.get("status") in EXTRACTOR_MISSING_STATUSES:
+        return "table_neighbor_gold_not_in_candidates"
+    if safety == "unknown":
+        return "table_neighbor_unknown_context_selected"
+    if table_row in {"stop_reference_row", "pickup_delivery_ref_row"} or penalty in {
+        "stop_reference_row",
+        "pickup_delivery_reference_row",
+        "reference_label",
+        "reference_table",
+        "po_outside_header_load_info",
+    }:
+        return "table_neighbor_should_be_reference_not_load"
+    if penalty == "multi_value_row":
+        return "table_neighbor_needs_row_geometry"
+    if penalty == "table_neighbor_missing_header_context" or table_context == "unknown":
+        return "table_neighbor_needs_column_header_geometry"
+    if table_context in {"rate_table", "carrier_contact_table", "signature_footer"}:
+        return "table_neighbor_needs_table_boundary_refinement"
+    if safety == "safe":
+        if table_context and table_context not in {"header_load_info", "unknown"}:
+            return "table_neighbor_safe_but_wrong_header_context"
+        return "table_neighbor_safe_but_wrong_value_cell"
+    return "unknown"
+
+
+def _quality_band_from_confidence(confidence):
+    value = _safe_float(confidence)
+    if value is None:
+        return "unknown"
+    if value >= 0.80:
+        return "high"
+    if value >= 0.60:
+        return "medium"
+    return "weak"
+
+
+def _row_value_shape_summary(row):
+    return {
+        "neighbor_cell_count": _safe_int(row.get("neighbor_cell_count")),
+        "id_like_cell_count_in_row": _safe_int(row.get("id_like_cell_count_in_row")),
+        "load_label_cell_count_in_row": _safe_int(row.get("load_label_cell_count_in_row")),
+        "reference_label_cell_count_in_row": _safe_int(
+            row.get("reference_label_cell_count_in_row")
+        ),
+        "stop_label_cell_count_in_row": _safe_int(row.get("stop_label_cell_count_in_row")),
+        "money_like_cell_count_in_row": _safe_int(row.get("money_like_cell_count_in_row")),
+    }
+
+
+def _classify_table_neighbor_value_cell_diagnosis(row, comparison_index):
+    document_id = _text(row.get("document_id"))
+    if _candidate_group_has_correct(comparison_index, document_id, FIELD_LOAD_NUMBER):
+        return "gold_value_elsewhere_in_text_candidate"
+    summary = _row_value_shape_summary(row)
+    reference_labels = summary["reference_label_cell_count_in_row"]
+    stop_labels = summary["stop_label_cell_count_in_row"]
+    load_labels = summary["load_label_cell_count_in_row"]
+    id_like = summary["id_like_cell_count_in_row"]
+    penalty = _text(row.get("table_neighbor_penalty_reason"))
+    pairing_method = _text(row.get("pairing_method"))
+    table_row = _text(row.get("table_row_role"))
+    if row.get("status") in EXTRACTOR_MISSING_STATUSES:
+        return "no_gold_candidate"
+    if table_row == "header" and pairing_method == "table_key_value_row":
+        return "label_value_alignment_unclear"
+    if reference_labels or stop_labels:
+        return "ambiguous_multi_id_row" if load_labels else "wrong_value_cell"
+    if id_like >= 2:
+        return "ambiguous_multi_id_row"
+    if penalty in {"table_neighbor_missing_header_context", "multi_value_row"}:
+        return "label_value_alignment_unclear"
+    if _text(row.get("table_context_role")) == "unknown":
+        return "table_fragmentation"
+    return "wrong_value_cell"
+
+
+def _build_load_table_neighbor_value_cell_forensics(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+        and row.get("error_reason") == "selected_table_neighbor_wrong_cell"
+    ]
+    diagnoses = Counter()
+    cases = []
+    for row in rows:
+        document_id = _text(row.get("document_id"))
+        diagnosis = _classify_table_neighbor_value_cell_diagnosis(row, index)
+        diagnoses[diagnosis] += 1
+        same_table = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_LOAD_NUMBER,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and bool(_text(row.get("table_index"))),
+        )
+        same_row = _candidate_group_correct_with_metadata(
+            index,
+            document_id,
+            FIELD_LOAD_NUMBER,
+            lambda candidate_row: _text(candidate_row.get("table_index"))
+            == _text(row.get("table_index"))
+            and _text(candidate_row.get("row_index")) == _text(row.get("row_index"))
+            and bool(_text(row.get("row_index"))),
+        )
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": document_id,
+                "field": FIELD_LOAD_NUMBER,
+                "selected_candidate": {
+                    "source": _text(row.get("source")),
+                    "parser_name": _text(row.get("parser_name")),
+                    "pairing_method": _text(row.get("pairing_method")),
+                    "confidence": _safe_float(row.get("confidence")),
+                    "quality_band": _quality_band_from_confidence(row.get("confidence")),
+                    "value_shape": dict(row.get("value_shape") or {}),
+                    "table_context_role": _text(row.get("table_context_role")),
+                    "table_row_role": _text(row.get("table_row_role")),
+                    "table_neighbor_safety": _text(row.get("table_neighbor_safety")),
+                    "row_value_shape_summary": _row_value_shape_summary(row),
+                    "neighbor_cell_count": _safe_int(row.get("neighbor_cell_count")),
+                    "id_like_cell_count_in_row": _safe_int(row.get("id_like_cell_count_in_row")),
+                    "load_label_cell_count_in_row": _safe_int(
+                        row.get("load_label_cell_count_in_row")
+                    ),
+                    "reference_label_cell_count_in_row": _safe_int(
+                        row.get("reference_label_cell_count_in_row")
+                    ),
+                    "stop_label_cell_count_in_row": _safe_int(
+                        row.get("stop_label_cell_count_in_row")
+                    ),
+                    "money_like_cell_count_in_row": _safe_int(
+                        row.get("money_like_cell_count_in_row")
+                    ),
+                },
+                "gold_candidate_visibility": {
+                    "gold_in_any_candidate": _candidate_group_has_correct(
+                        index,
+                        document_id,
+                        FIELD_LOAD_NUMBER,
+                    ),
+                    "gold_in_same_table": same_table,
+                    "gold_in_same_row": same_row,
+                    "gold_in_same_page": _candidate_group_correct_with_metadata(
+                        index,
+                        document_id,
+                        FIELD_LOAD_NUMBER,
+                        lambda candidate_row: _text(candidate_row.get("page"))
+                        == _text(row.get("page"))
+                        and bool(_text(row.get("page"))),
+                    ),
+                    "gold_requires_ocr": False,
+                },
+                "diagnosis": diagnosis,
+            }
+        )
+    return {
+        "wrong_table_neighbor_count": len(rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_remaining_table_neighbor_wrong_summary(comparison_rows):
+    index = {
+        (row.get("document_id", ""), row.get("field", ""), row.get("system", "")): row
+        for row in comparison_rows
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("status") == STATUS_WRONG_VALUE
+        and row.get("error_reason") == "selected_table_neighbor_wrong_cell"
+    ]
+    reasons = Counter()
+    safety_counts = Counter()
+    for row in rows:
+        reasons[_classify_remaining_table_neighbor_wrong(row, index)] += 1
+        safety_counts[_text(row.get("table_neighbor_safety")) or "unknown"] += 1
+    needs_geometry = sum(
+        count
+        for reason, count in reasons.items()
+        if reason
+        in {
+            "table_neighbor_needs_row_geometry",
+            "table_neighbor_needs_column_header_geometry",
+            "table_neighbor_needs_table_boundary_refinement",
+        }
+    )
+    return {
+        "count": len(rows),
+        "reason_counts": dict(reasons.most_common()),
+        "safe_count": safety_counts.get("safe", 0),
+        "risky_count": safety_counts.get("risky", 0),
+        "unknown_count": safety_counts.get("unknown", 0),
+        "gold_elsewhere_count": reasons.get("table_neighbor_safe_but_gold_elsewhere", 0),
+        "needs_geometry_count": needs_geometry,
+        "should_be_reference_count": reasons.get(
+            "table_neighbor_should_be_reference_not_load",
+            0,
+        ),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _unique_audit_records(indexed):
+    seen = set()
+    records = []
+    for record in (indexed or {}).values():
+        marker = id(record)
+        if marker in seen:
+            continue
+        seen.add(marker)
+        records.append(record)
+    return records
+
+
+def _load_inventory_abstention_rows(audit_records):
+    rows = []
+    for record in audit_records or []:
+        payload = _private_eval_values(record)
+        inventory = (
+            payload.get("load_identity_candidate_inventory", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        for item in inventory or []:
+            if not isinstance(item, dict):
+                continue
+            metadata = (
+                item.get("metadata_summary", {})
+                if isinstance(item.get("metadata_summary"), dict)
+                else {}
+            )
+            abstained = bool(metadata.get("table_neighbor_abstained"))
+            demoted = bool(metadata.get("table_neighbor_demoted_from_load_number"))
+            if not (abstained or demoted):
+                continue
+            rows.append(
+                {
+                    "system": "load_identity_candidate_inventory",
+                    "field": _text(item.get("field")),
+                    "table_neighbor_abstained": abstained,
+                    "table_neighbor_demoted_from_load_number": demoted,
+                    "table_neighbor_abstention_reason": _text(
+                        metadata.get("table_neighbor_abstention_reason")
+                        or metadata.get("table_neighbor_penalty_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                }
+            )
+    return rows
+
+
+def _build_table_neighbor_abstention_summary(comparison_rows, audit_records=None):
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("field") == FIELD_LOAD_NUMBER
+        and row.get("table_neighbor_abstained")
+        and row.get("system")
+        in {
+            SYSTEM_SHADOW,
+            SYSTEM_SHADOW_CANDIDATE_BEST,
+            SYSTEM_SHADOW_BEST_INDEPENDENT,
+            SYSTEM_SHADOW_BEST_LAYOUT,
+        }
+    ]
+    inventory_rows = _load_inventory_abstention_rows(audit_records)
+    rows = rows + inventory_rows
+    return {
+        "abstained_candidate_count": len(rows),
+        "demoted_from_load_number_count": sum(
+            1 for row in rows if row.get("table_neighbor_demoted_from_load_number")
+        ),
+        "reason_counts": dict(
+            Counter(row.get("table_neighbor_abstention_reason") or "unknown" for row in rows).most_common()
+        ),
+        "selection_policy_counts": dict(
+            Counter(row.get("selection_policy") or "unknown" for row in rows).most_common()
+        ),
+        "by_system": dict(Counter(row.get("system") or "unknown" for row in rows).most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _rate_inventory_abstention_rows(audit_records):
+    rows = []
+    for record in audit_records or []:
+        payload = _private_eval_values(record)
+        inventory = (
+            payload.get("rate_money_candidate_inventory", [])
+            if isinstance(payload, dict)
+            else []
+        )
+        for item in inventory or []:
+            if not isinstance(item, dict):
+                continue
+            metadata = (
+                item.get("metadata_summary", {})
+                if isinstance(item.get("metadata_summary"), dict)
+                else {}
+            )
+            abstained = bool(metadata.get("rate_abstained"))
+            demoted = bool(metadata.get("rate_demoted_from_total_carrier_rate"))
+            if not (abstained or demoted):
+                continue
+            rows.append(
+                {
+                    "system": "rate_money_candidate_inventory",
+                    "field": _text(item.get("field")),
+                    "rate_abstained": abstained,
+                    "rate_demoted_from_total_carrier_rate": demoted,
+                    "rate_abstention_reason": _text(
+                        metadata.get("rate_abstention_reason")
+                        or metadata.get("rate_safety_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                    "money_context": _text(metadata.get("money_context")),
+                    "rate_safety": _text(metadata.get("rate_safety")),
+                }
+            )
+    return rows
+
+
+def _build_rate_abstention_summary(comparison_rows, audit_records=None):
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("rate_abstained")
+        and row.get("system")
+        in {
+            SYSTEM_SHADOW,
+            SYSTEM_SHADOW_CANDIDATE_BEST,
+            SYSTEM_SHADOW_BEST_INDEPENDENT,
+            SYSTEM_SHADOW_BEST_LAYOUT,
+        }
+    ]
+    inventory_rows = _rate_inventory_abstention_rows(audit_records)
+    rows = rows + inventory_rows
+    return {
+        "abstained_candidate_count": len(rows),
+        "demoted_from_total_carrier_rate_count": sum(
+            1 for row in rows if row.get("rate_demoted_from_total_carrier_rate")
+        ),
+        "reason_counts": dict(
+            Counter(row.get("rate_abstention_reason") or "unknown" for row in rows).most_common()
+        ),
+        "selection_policy_counts": dict(
+            Counter(row.get("selection_policy") or "unknown" for row in rows).most_common()
+        ),
+        "money_context_counts": dict(
+            Counter(row.get("money_context") or "unknown" for row in rows).most_common()
+        ),
+        "rate_safety_counts": dict(
+            Counter(row.get("rate_safety") or "unknown" for row in rows).most_common()
+        ),
+        "by_system": dict(Counter(row.get("system") or "unknown" for row in rows).most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
 def _ocr_backlog_doc_type(triage, artifact):
     if triage.get("ocr_required"):
         return "scanned"
@@ -1726,7 +2931,7 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
     docs = []
     for label in gold_labels or []:
         status = _text(label.get("label_status")) or LABEL_UNLABELED
-        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+        if status == LABEL_UNLABELED:
             continue
         record = _find_record(label, audit_index)
         if not isinstance(record, dict):
@@ -1738,15 +2943,27 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
             and _safe_int(artifact.get("word_count")) <= 0
         )
         gold = label.get("gold", {}) or {}
+        skipped_non_rc = status == LABEL_SKIPPED
         gold_load_known = bool(_gold_load_values(gold.get(FIELD_LOAD_NUMBER, {})))
         gold_rate_known = bool(_gold_scalar_value(gold.get(FIELD_TOTAL_CARRIER_RATE, {})))
-        if not text_blocked and not triage.get("ocr_required"):
+        gold_stop_known = bool(gold.get(FIELD_PICKUP_STOPS)) or bool(
+            gold.get(FIELD_DELIVERY_STOPS)
+        )
+        if not skipped_non_rc and not text_blocked and not triage.get("ocr_required"):
             continue
         fields = []
         if gold_load_known:
             fields.append(FIELD_LOAD_NUMBER)
         if gold_rate_known:
             fields.append(FIELD_TOTAL_CARRIER_RATE)
+        if gold_stop_known:
+            fields.append("stops")
+        if skipped_non_rc:
+            route = "document_classification"
+        elif triage.get("ocr_required"):
+            route = "ocr"
+        else:
+            route = "manual_review"
         docs.append(
             {
                 "document_id": _text(label.get("document_id")),
@@ -1759,20 +2976,1628 @@ def _build_ocr_vision_backlog_summary(gold_labels, audit_index):
                 ),
                 "gold_load_known": gold_load_known,
                 "gold_rate_known": gold_rate_known,
+                "gold_stop_known": gold_stop_known,
+                "evaluated_rate_confirmation": not skipped_non_rc,
+                "skipped_non_rate_confirmation": skipped_non_rc,
                 "fields_missing_due_to_text_extraction": fields,
-                "recommended_route": "ocr" if triage.get("ocr_required") else "manual_review",
+                "recommended_route": route,
                 "raw_value_printed": False,
             }
         )
+    route_counts = dict(Counter(doc["recommended_route"] for doc in docs).most_common())
     return {
+        "overall_docs": len(docs),
+        "evaluated_rc_docs": sum(1 for doc in docs if doc.get("evaluated_rate_confirmation")),
+        "skipped_non_rc_docs": sum(1 for doc in docs if doc.get("skipped_non_rate_confirmation")),
+        "load_blocked_docs": sum(
+            1
+            for doc in docs
+            if FIELD_LOAD_NUMBER in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "rate_blocked_docs": sum(
+            1
+            for doc in docs
+            if FIELD_TOTAL_CARRIER_RATE
+            in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "stop_blocked_docs": sum(
+            1
+            for doc in docs
+            if "stops" in set(doc.get("fields_missing_due_to_text_extraction") or [])
+        ),
+        "recommended_next_route_counts": {
+            "ocr": route_counts.get("ocr", 0),
+            "vision_model": route_counts.get("vision_model", 0),
+            "manual_review": route_counts.get("manual_review", 0),
+            "document_classification": route_counts.get("document_classification", 0),
+        },
         "ocr_or_vision_required_doc_count": len(docs),
         "pdf_type_counts": dict(Counter(doc["pdf_type"] for doc in docs).most_common()),
-        "recommended_route_counts": dict(
-            Counter(doc["recommended_route"] for doc in docs).most_common()
-        ),
+        "recommended_route_counts": route_counts,
         "documents": docs,
         "ocr_run": False,
         "ai_cloud_used": False,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _candidate_source_is_ocr(item):
+    if not isinstance(item, dict):
+        return False
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    return _text(item.get("source")) == "ocr" or bool(metadata.get("ocr_candidate"))
+
+
+def _gold_load_matches_candidate(item, gold):
+    values = _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {}) if isinstance(gold, dict) else {})
+    if not values or not isinstance(item, dict):
+        return False
+    return _load_value_matches(item.get("value"), values)
+
+
+def _gold_rate_matches_candidate(item, gold):
+    value = _gold_scalar_value(gold.get(FIELD_TOTAL_CARRIER_RATE, {}) if isinstance(gold, dict) else {})
+    if not value or not isinstance(item, dict):
+        return False
+    return _money_value_matches(item.get("value"), value)
+
+
+def _build_ocr_gold_eval_summary(gold_labels, audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    provider_status_counts = Counter()
+    document_type_counts = Counter()
+    skip_reason_counts = Counter()
+    candidate_total = 0
+    candidates_by_field = Counter()
+    candidates_by_generator = Counter()
+    for record in records:
+        artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+        ocr_summary = artifact.get("ocr_provider_summary", {}) or {}
+        if ocr_summary:
+            provider_status_counts[
+                f"requested:{_text(ocr_summary.get('provider_requested')) or 'none'}"
+            ] += 1
+            provider_status_counts[
+                f"used:{_text(ocr_summary.get('provider_used')) or 'none'}"
+            ] += 1
+            provider_status_counts[
+                f"status:{_text(ocr_summary.get('status')) or 'skipped'}"
+            ] += 1
+        classification = artifact.get("ocr_document_classification", {}) or {}
+        if classification:
+            document_type_counts[
+                _text(classification.get("document_type")) or "unknown"
+            ] += 1
+            skip_reason = _text(classification.get("skip_reason"))
+            if skip_reason:
+                skip_reason_counts[skip_reason] += 1
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        candidate_total += _safe_int(candidate_summary.get("ocr_candidates_total"))
+        candidates_by_field.update(candidate_summary.get("ocr_candidates_by_field", {}) or {})
+        candidates_by_generator.update(
+            candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        )
+
+    load_matches = 0
+    rate_matches = 0
+    stop_evidence_docs = set()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        record = _find_record(label, audit_index)
+        if not isinstance(record, dict) or not record:
+            continue
+        gold = label.get("gold", {}) or {}
+        if any(
+            _candidate_source_is_ocr(item) and _gold_load_matches_candidate(item, gold)
+            for item in _load_inventory(record)
+        ):
+            load_matches += 1
+        if any(
+            _candidate_source_is_ocr(item) and _gold_rate_matches_candidate(item, gold)
+            for item in _rate_inventory(record)
+        ):
+            rate_matches += 1
+        for stop_field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+            prediction = _shadow_prediction(record, stop_field)
+            if isinstance(prediction, dict) and _prediction_source_name(prediction) == "ocr":
+                stop_evidence_docs.add(_text(label.get("document_id")))
+
+    shadow_rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in CRITICAL_FIELDS
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    ]
+    ocr_selected_rows = [
+        row for row in shadow_rows if _text(row.get("source")) == "ocr" and row.get("predicted")
+    ]
+    ocr_correct_rows = [row for row in ocr_selected_rows if _status_correct(row.get("status"))]
+    ocr_partial_rows = [row for row in ocr_selected_rows if _status_partial(row.get("status"))]
+    ocr_wrong_rows = [
+        row for row in ocr_selected_rows if row.get("status") == STATUS_WRONG_VALUE
+    ]
+    missing_by_field = Counter(
+        row.get("field")
+        for row in shadow_rows
+        if row.get("status") in EXTRACTOR_MISSING_STATUSES
+    )
+    return {
+        "provider_status_counts": dict(provider_status_counts.most_common()),
+        "ocr_candidates_total": candidate_total,
+        "ocr_candidates_by_field": dict(candidates_by_field.most_common()),
+        "ocr_candidates_by_generator": dict(candidates_by_generator.most_common()),
+        "ocr_gold_load_in_candidates": load_matches,
+        "ocr_gold_rate_in_candidates": rate_matches,
+        "ocr_gold_stop_evidence_docs": len(stop_evidence_docs),
+        "ocr_selected_predictions": len(ocr_selected_rows),
+        "ocr_resolved_docs": len(
+            {
+                _text(row.get("document_id"))
+                for row in ocr_correct_rows + ocr_partial_rows
+                if _text(row.get("document_id"))
+            }
+        ),
+        "ocr_still_missing_docs": len(
+            {
+                _text(row.get("document_id"))
+                for row in shadow_rows
+                if row.get("status") in EXTRACTOR_MISSING_STATUSES
+                and _text(row.get("document_id"))
+            }
+        ),
+        "ocr_wrong_predictions": len(ocr_wrong_rows),
+        "load_missing_current": missing_by_field.get(FIELD_LOAD_NUMBER, 0),
+        "rate_missing_current": missing_by_field.get(FIELD_TOTAL_CARRIER_RATE, 0),
+        "stop_missing_current": missing_by_field.get(FIELD_PICKUP_STOPS, 0)
+        + missing_by_field.get(FIELD_DELIVERY_STOPS, 0),
+        "document_type_counts": dict(document_type_counts.most_common()),
+        "skip_reason_counts": dict(skip_reason_counts.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _record_ocr_status(record):
+    artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+    summary = artifact.get("ocr_provider_summary", {}) or {}
+    return _text(summary.get("status")) or "skipped"
+
+
+def _record_has_ocr_text(record):
+    artifact = record.get("artifact_summary", {}) if isinstance(record, dict) else {}
+    summary = artifact.get("ocr_provider_summary", {}) or {}
+    return _safe_int(summary.get("ocr_text_page_count")) > 0
+
+
+def _ocr_load_inventory(record):
+    return [
+        item
+        for item in _load_inventory(record)
+        if isinstance(item, dict) and _candidate_source_is_ocr(item)
+    ]
+
+
+def _ocr_rate_inventory(record):
+    return [
+        item
+        for item in _rate_inventory(record)
+        if isinstance(item, dict) and _candidate_source_is_ocr(item)
+    ]
+
+
+def _ocr_load_gap_diagnosis(record, gold, gold_hashes):
+    if not isinstance(record, dict) or not record:
+        return "unknown"
+    artifact = record.get("artifact_summary", {}) or {}
+    classification = artifact.get("ocr_document_classification", {}) or {}
+    if _text(classification.get("document_type")) == "non_rate_confirmation":
+        return "skipped_non_rc"
+    if not _record_has_ocr_text(record):
+        return "ocr_text_missing"
+    visibility = _load_visibility_status(record, gold_hashes)
+    gold_in_ocr = visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+    if not gold_in_ocr:
+        return "gold_not_in_ocr_text"
+    selected = _shadow_prediction(record, FIELD_LOAD_NUMBER)
+    if (
+        isinstance(selected, dict)
+        and _prediction_source_name(selected) == "ocr"
+        and _load_value_matches(
+            selected.get("value"),
+            _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {})),
+        )
+    ):
+        return "ocr_load_candidate_selected"
+    inventory = _ocr_load_inventory(record)
+    if any(_gold_load_matches_candidate(item, gold) for item in inventory):
+        return "resolver_excluded_ocr"
+    if inventory:
+        return "value_shape_rejected"
+    candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+        "ocr_candidate_summary",
+        {},
+    )
+    if _safe_int(candidate_summary.get("ocr_candidates_total")) > 0:
+        return "label_hit_no_candidate"
+    return "ocr_text_present_not_scanned"
+
+
+def _build_ocr_load_candidate_gap_summary(gold_labels, audit_index):
+    docs = []
+    reasons = Counter()
+    totals = Counter()
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        record = _find_record(label, audit_index)
+        if not isinstance(record, dict) or not record:
+            continue
+        ocr_status = _record_ocr_status(record)
+        if ocr_status not in {"success", "partial"} and not _record_has_ocr_text(record):
+            continue
+        gold = label.get("gold", {}) or {}
+        gold_values = _gold_load_values(gold.get(FIELD_LOAD_NUMBER, {}))
+        gold_hashes = _load_value_hashes(gold_values)
+        visibility = _load_visibility_status(record, gold_hashes)
+        inventory = _ocr_load_inventory(record)
+        matching = [item for item in inventory if _gold_load_matches_candidate(item, gold)]
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        by_field = candidate_summary.get("ocr_candidates_by_field", {}) or {}
+        by_generator = candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        diagnosis = _ocr_load_gap_diagnosis(record, gold, gold_hashes)
+        reasons[diagnosis] += 1
+        totals["ocr_docs"] += 1
+        totals["evaluated_rc_ocr_docs"] += 1
+        totals["gold_load_in_ocr_text"] += int(
+            visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+        )
+        totals["ocr_load_label_hits"] += sum(
+            1
+            for item in inventory
+            if (_rate_inventory_metadata(item) or {}).get("header_load_identity_candidate")
+        )
+        totals["ocr_load_candidates_emitted"] += _safe_int(by_field.get(FIELD_LOAD_NUMBER))
+        selected = _shadow_prediction(record, FIELD_LOAD_NUMBER)
+        totals["ocr_load_candidates_selected"] += int(
+            isinstance(selected, dict)
+            and _prediction_source_name(selected) == "ocr"
+            and bool(_text(selected.get("value")))
+        )
+        docs.append(
+            {
+                "file_name": _text(label.get("file_name")),
+                "document_id": _text(label.get("document_id")),
+                "ocr_status": ocr_status,
+                "gold_load_status": "uncertain"
+                if _gold_uncertain(gold.get(FIELD_LOAD_NUMBER, {}))
+                else "labeled",
+                "gold_load_in_ocr_text": bool(
+                    visibility["visible_in_full_text"] or visibility["visible_in_lines"]
+                ),
+                "gold_load_in_ocr_lines": bool(visibility["visible_in_lines"]),
+                "gold_load_in_ocr_candidates": bool(matching),
+                "ocr_load_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get(
+                        "header_load_identity_candidate"
+                    )
+                ),
+                "ocr_header_load_label_hits": _safe_int(
+                    by_generator.get("header_load_identity_candidate_generator")
+                ),
+                "ocr_order_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get("id_type_hint")
+                    == "order"
+                ),
+                "ocr_po_label_hits": sum(
+                    1
+                    for item in inventory
+                    if (_rate_inventory_metadata(item) or {}).get("id_type_hint") == "po"
+                ),
+                "ocr_candidate_rejection_reasons": {},
+                "ocr_artifact_merge_status": {
+                    "ocr_text_attached": _record_has_ocr_text(record),
+                    "ocr_lines_attached": _record_has_ocr_text(record),
+                    "candidate_generators_scanned_ocr": bool(
+                        _safe_int(candidate_summary.get("ocr_candidates_total"))
+                    ),
+                },
+                "diagnosis": diagnosis,
+                "private_values_printed": False,
+                "raw_text_printed": False,
+            }
+        )
+    return {
+        "ocr_docs": totals.get("ocr_docs", 0),
+        "evaluated_rc_ocr_docs": totals.get("evaluated_rc_ocr_docs", 0),
+        "gold_load_in_ocr_text": totals.get("gold_load_in_ocr_text", 0),
+        "ocr_load_label_hits": totals.get("ocr_load_label_hits", 0),
+        "ocr_load_candidates_emitted": totals.get("ocr_load_candidates_emitted", 0),
+        "ocr_load_candidates_selected": totals.get("ocr_load_candidates_selected", 0),
+        "gap_reason_counts": dict(reasons.most_common()),
+        "documents": docs,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _ocr_rate_diagnosis(row, record, gold):
+    if _status_correct(row.get("status")):
+        return "ocr_correct_total"
+    context = _text(row.get("money_context")) or "unknown"
+    safety = _text(row.get("rate_safety")) or "unknown"
+    if row.get("status") != STATUS_WRONG_VALUE:
+        return "unknown"
+    if context in {"accessorial", "deduction", "fee", "quickpay", "fuel_advance", "tracking_hold", "penalty"}:
+        return "ocr_accessorial_or_penalty"
+    if context == "payment_terms_amount":
+        return "ocr_terms_amount"
+    if safety in {"risky", "unknown"}:
+        return "ocr_ambiguous_total" if safety == "risky" else "ocr_wrong_money_context"
+    if not any(_gold_rate_matches_candidate(item, gold) for item in _ocr_rate_inventory(record)):
+        return "ocr_gold_not_in_text"
+    return "ocr_wrong_money_context"
+
+
+def _build_ocr_rate_selection_summary(gold_labels, audit_index, comparison_rows):
+    labels_by_doc = {
+        _text(label.get("document_id")): label
+        for label in gold_labels or []
+        if _text(label.get("document_id"))
+    }
+    rows = [
+        row
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and row.get("predicted")
+        and _text(row.get("source")) == "ocr"
+    ]
+    diagnoses = Counter()
+    safety = Counter()
+    contexts = Counter()
+    cases = []
+    for row in rows:
+        label = labels_by_doc.get(_text(row.get("document_id")), {}) or {}
+        record = _find_record(label, audit_index)
+        gold = label.get("gold", {}) or {}
+        diagnosis = _ocr_rate_diagnosis(row, record, gold)
+        diagnoses[diagnosis] += 1
+        contexts[_text(row.get("money_context")) or "unknown"] += 1
+        safety[_text(row.get("rate_safety")) or "unknown"] += 1
+        cases.append(
+            {
+                "file_name": _text(row.get("file_name")),
+                "document_id": _text(row.get("document_id")),
+                "selected_from_ocr": True,
+                "ocr_rate_candidate_context": _text(row.get("money_context")) or "unknown",
+                "ocr_rate_safety": _text(row.get("rate_safety")) or "unknown",
+                "gold_rate_in_ocr_candidates": any(
+                    _gold_rate_matches_candidate(item, gold)
+                    for item in _ocr_rate_inventory(record)
+                ),
+                "diagnosis": diagnosis,
+                "private_values_printed": False,
+            }
+        )
+    wrong_rows = [row for row in rows if row.get("status") == STATUS_WRONG_VALUE]
+    return {
+        "ocr_selected_rate_count": len(rows),
+        "ocr_wrong_rate_count": len(wrong_rows),
+        "diagnosis_counts": dict(diagnoses.most_common()),
+        "ocr_rate_safety_counts": dict(safety.most_common()),
+        "ocr_rate_context_counts": dict(contexts.most_common()),
+        "high_confidence_wrong_count": sum(
+            1 for row in wrong_rows if _safe_float(row.get("confidence")) >= 0.90
+        ),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_ocr_accessorial_noise_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    by_section = Counter()
+    candidate_count = 0
+    demoted = 0
+    for record in records:
+        candidate_summary = (record.get("candidate_summary", {}) or {}).get(
+            "ocr_candidate_summary",
+            {},
+        )
+        candidate_count += _safe_int(
+            candidate_summary.get("ocr_accessorial_candidate_count")
+        )
+        demoted += _safe_int(candidate_summary.get("ocr_accessorial_deduped_or_demoted"))
+        by_section.update(candidate_summary.get("ocr_accessorial_by_section", {}) or {})
+    used_in_rate = sum(
+        1
+        for row in comparison_rows
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") == FIELD_TOTAL_CARRIER_RATE
+        and _text(row.get("source")) == "ocr"
+        and _text(row.get("money_context")) in {"accessorial", "deduction", "quickpay", "penalty", "fee"}
+    )
+    return {
+        "ocr_accessorial_candidate_count": candidate_count,
+        "ocr_accessorial_by_section": dict(by_section.most_common()),
+        "ocr_accessorial_used_in_rate_selection": used_in_rate,
+        "ocr_accessorial_deduped_or_demoted": demoted,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _stop_component_keys():
+    return [
+        "facility",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "date",
+        "time",
+        "appointment_window",
+    ]
+
+
+def _component_field_for_stop(field_name):
+    if field_name == FIELD_PICKUP_STOPS:
+        return {
+            "location": FIELD_PICKUP_LOCATION,
+            "date": FIELD_PICKUP_DATE,
+            "time": FIELD_PICKUP_TIME,
+        }
+    return {
+        "location": FIELD_DELIVERY_LOCATION,
+        "date": FIELD_DELIVERY_DATE,
+        "time": FIELD_DELIVERY_TIME,
+    }
+
+
+def _stop_source_bucket(row):
+    source = _text(row.get("source")) or "unknown"
+    parser = _text(row.get("parser_name")).lower()
+    if source == "ocr":
+        return "ocr"
+    if source == "native_layout" and "table" in parser:
+        return "pdfplumber_table"
+    if source == "native_layout":
+        return "native_layout"
+    if source in {"native_text", "regex"}:
+        return "native_text"
+    if "legacy" in parser or source == "legacy_parser":
+        return "legacy_fallback"
+    return source or "unknown"
+
+
+def _stop_wrong_reason(row):
+    issues = set(row.get("issues") or [])
+    if row.get("stop_role") and row.get("field") == FIELD_PICKUP_STOPS and row.get("stop_role") == "delivery":
+        return "pickup_delivery_swapped"
+    if row.get("stop_role") and row.get("field") == FIELD_DELIVERY_STOPS and row.get("stop_role") == "pickup":
+        return "pickup_delivery_swapped"
+    if "wrong_role" in issues:
+        return "wrong_role"
+    if "wrong_stop_count" in issues:
+        return "wrong_stop_count"
+    if "wrong_date" in issues:
+        return "wrong_date"
+    if "wrong_time" in issues:
+        return "wrong_time"
+    if any(issue in issues for issue in ["wrong_city", "wrong_state", "wrong_zip"]):
+        return "wrong_city_state"
+    if any(issue in issues for issue in ["wrong_facility", "wrong_address", "wrong_location"]):
+        return "wrong_location"
+    if row.get("source") == "ocr":
+        return "ocr_line_misaligned"
+    if _text(row.get("pairing_method")).startswith("table_"):
+        return "table_row_misaligned"
+    if row.get("status") == STATUS_PARTIAL_MATCH:
+        return "partial_selected_as_complete"
+    return "unknown"
+
+
+def _stop_missing_reason(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "serialized_gap"
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "unsupported_unparsed_location"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        return "selected_partial_not_comparable"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
+    if source_status == STATUS_UNSUPPORTED_VALUE_TYPE:
+        return "unsupported_structured_value"
+    if row.get("stop_abstained"):
+        return "candidate_abstained"
+    if row.get("source") == "ocr":
+        return "ocr_text_present_not_scanned"
+    if status in EXTRACTOR_MISSING_STATUSES:
+        return "no_stop_candidate"
+    return "unknown"
+
+
+def _empty_stop_forensics(field_name):
+    return {
+        "field": field_name,
+        "evaluated_docs": 0,
+        "exact_match": 0,
+        "partial_match": 0,
+        "wrong": 0,
+        "missing": 0,
+        "serialized_gap": 0,
+        "role_swapped_count": 0,
+        "order_ambiguous_count": 0,
+        "component_status_counts": {key: {} for key in _stop_component_keys()},
+        "source_counts": {
+            "native_text": 0,
+            "native_layout": 0,
+            "pdfplumber_table": 0,
+            "ocr": 0,
+            "legacy_fallback": 0,
+        },
+        "wrong_reason_counts": {},
+        "missing_reason_counts": {},
+    }
+
+
+def _build_stop_component_forensics_summary(comparison_rows, audit_index=None):
+    summary = {
+        FIELD_PICKUP_STOPS: _empty_stop_forensics(FIELD_PICKUP_STOPS),
+        FIELD_DELIVERY_STOPS: _empty_stop_forensics(FIELD_DELIVERY_STOPS),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    rows_by_field = defaultdict(list)
+    for row in comparison_rows or []:
+        if row.get("system") == SYSTEM_SHADOW:
+            rows_by_field[row.get("field")].append(row)
+
+    for stop_field in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        payload = summary[stop_field]
+        wrong_reasons = Counter()
+        missing_reasons = Counter()
+        source_counts = Counter()
+        for row in rows_by_field.get(stop_field, []):
+            status = row.get("status")
+            if status in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                continue
+            payload["evaluated_docs"] += 1
+            if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}:
+                payload["exact_match"] += 1
+            elif status == STATUS_PARTIAL_MATCH:
+                payload["partial_match"] += 1
+                wrong_reasons[_stop_wrong_reason(row)] += 1
+            elif status == STATUS_WRONG_VALUE:
+                payload["wrong"] += 1
+                reason = _stop_wrong_reason(row)
+                wrong_reasons[reason] += 1
+                if reason == "pickup_delivery_swapped":
+                    payload["role_swapped_count"] += 1
+            elif status in EXTRACTOR_MISSING_STATUSES or status in SOURCE_AVAILABILITY_STATUSES:
+                payload["missing"] += 1
+                reason = _stop_missing_reason(row)
+                missing_reasons[reason] += 1
+                if reason == "serialized_gap":
+                    payload["serialized_gap"] += 1
+            if row.get("predicted"):
+                source_counts[_stop_source_bucket(row)] += 1
+            if "wrong_stop_count" in set(row.get("issues") or []):
+                payload["order_ambiguous_count"] += 1
+
+        component_fields = _component_field_for_stop(stop_field)
+        component_map = {
+            "facility": "location",
+            "address": "location",
+            "city": "location",
+            "state": "location",
+            "zip": "location",
+            "date": "date",
+            "time": "time",
+            "appointment_window": "time",
+        }
+        for component, derived_name in component_map.items():
+            field = component_fields[derived_name]
+            counts = Counter(
+                row.get("status") or "unknown"
+                for row in rows_by_field.get(field, [])
+                if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+            )
+            payload["component_status_counts"][component] = dict(counts.most_common())
+
+        for key in payload["source_counts"]:
+            payload["source_counts"][key] = source_counts.get(key, 0)
+        for key, value in source_counts.items():
+            if key not in payload["source_counts"]:
+                payload["source_counts"][key] = value
+        payload["wrong_reason_counts"] = dict(wrong_reasons.most_common())
+        payload["missing_reason_counts"] = dict(missing_reasons.most_common())
+    return summary
+
+
+def _empty_stop_usability():
+    return {
+        "exact_complete": 0,
+        "dispatch_usable": 0,
+        "useful_partial": 0,
+        "useful_partial_location_only": 0,
+        "unsupported_unparsed_location": 0,
+        "selected_partial_not_comparable": 0,
+        "selected_partial_missing_required_components": 0,
+        "unsafe_wrong": 0,
+        "missing_review_required": 0,
+        "serialized_gap": 0,
+    }
+
+
+STOP_GOLD_COMPLETENESS_COMPONENTS = (
+    "facility",
+    "address",
+    "city",
+    "state",
+    "zip",
+    "date",
+    "time",
+    "appointment_window",
+)
+
+
+def _empty_stop_gold_completeness_bucket():
+    return {
+        "docs_checked": 0,
+        "docs_with_gold_stops": 0,
+        "docs_without_gold_stops": 0,
+        "stops_checked": 0,
+        "component_present_counts": {
+            component: 0 for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+        },
+        "component_missing_counts": {
+            component: 0 for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+        },
+        "complete_for_exact": 0,
+        "complete_for_dispatch_usable": 0,
+        "incomplete_for_dispatch_usable": 0,
+    }
+
+
+def _gold_stop_component_presence(stop):
+    stop = stop if isinstance(stop, dict) else {}
+    return {
+        component: bool(_text(stop.get(component)))
+        for component in STOP_GOLD_COMPLETENESS_COMPONENTS
+    }
+
+
+def _gold_stop_complete_for_dispatch_usable(presence):
+    has_city_state = bool(presence.get("city") and presence.get("state"))
+    has_location = bool(
+        has_city_state or presence.get("address") or presence.get("facility")
+    )
+    return bool(has_location and presence.get("date"))
+
+
+def _gold_stop_complete_for_exact(presence):
+    return bool(
+        _gold_stop_complete_for_dispatch_usable(presence)
+        and (presence.get("time") or presence.get("appointment_window"))
+    )
+
+
+def build_stop_gold_completeness_summary(gold_labels):
+    summary = {
+        "pickup": _empty_stop_gold_completeness_bucket(),
+        "delivery": _empty_stop_gold_completeness_bucket(),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    for label in gold_labels or []:
+        status = _text(label.get("label_status")) or LABEL_UNLABELED
+        if status in {LABEL_UNLABELED, LABEL_SKIPPED}:
+            continue
+        gold = label.get("gold", {}) if isinstance(label.get("gold"), dict) else {}
+        for field_name, role in [
+            (FIELD_PICKUP_STOPS, "pickup"),
+            (FIELD_DELIVERY_STOPS, "delivery"),
+        ]:
+            bucket = summary[role]
+            bucket["docs_checked"] += 1
+            stops = gold.get(field_name, []) if isinstance(gold.get(field_name), list) else []
+            stops = [stop for stop in stops if isinstance(stop, dict)]
+            if stops:
+                bucket["docs_with_gold_stops"] += 1
+            else:
+                bucket["docs_without_gold_stops"] += 1
+            for stop in stops:
+                presence = _gold_stop_component_presence(stop)
+                bucket["stops_checked"] += 1
+                for component, present in presence.items():
+                    target = (
+                        "component_present_counts"
+                        if present
+                        else "component_missing_counts"
+                    )
+                    bucket[target][component] += 1
+                if _gold_stop_complete_for_exact(presence):
+                    bucket["complete_for_exact"] += 1
+                if _gold_stop_complete_for_dispatch_usable(presence):
+                    bucket["complete_for_dispatch_usable"] += 1
+                else:
+                    bucket["incomplete_for_dispatch_usable"] += 1
+    return summary
+
+
+def _component_status_map(comparison_rows, system_name=SYSTEM_SHADOW):
+    by_doc_field = {}
+    for row in comparison_rows or []:
+        if row.get("system") != system_name:
+            continue
+        field = row.get("field")
+        if field not in STOP_COMPONENT_FIELDS:
+            continue
+        by_doc_field[(row.get("document_id"), row.get("file_hash"), field)] = row
+    return by_doc_field
+
+
+def _component_row_status(component_rows, row, component_field):
+    component = component_rows.get(
+        (row.get("document_id"), row.get("file_hash"), component_field),
+        {},
+    )
+    return _text(component.get("status"))
+
+
+def _component_correct(status):
+    return status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}
+
+
+def _component_available(status):
+    return _component_correct(status) or status == STATUS_PARTIAL_MATCH
+
+
+def _stop_component_fields_for_role(stop_field):
+    if stop_field == FIELD_PICKUP_STOPS:
+        return {
+            "location": FIELD_PICKUP_LOCATION,
+            "date": FIELD_PICKUP_DATE,
+            "time": FIELD_PICKUP_TIME,
+        }
+    return {
+        "location": FIELD_DELIVERY_LOCATION,
+        "date": FIELD_DELIVERY_DATE,
+        "time": FIELD_DELIVERY_TIME,
+    }
+
+
+def _stop_usability_tier(row, component_rows):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status in {STATUS_EXACT, STATUS_NORMALIZED_MATCH}:
+        return "exact_complete"
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "unsupported_unparsed_location"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        if row.get("has_location") and not (row.get("has_date") or row.get("has_time")):
+            return "useful_partial_location_only"
+        return "selected_partial_not_comparable"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "serialized_gap"
+    if status in EXTRACTOR_MISSING_STATUSES or status in SOURCE_AVAILABILITY_STATUSES:
+        return "missing_review_required"
+    fields = _stop_component_fields_for_role(row.get("field"))
+    location_status = _component_row_status(component_rows, row, fields["location"])
+    date_status = _component_row_status(component_rows, row, fields["date"])
+    time_status = _component_row_status(component_rows, row, fields["time"])
+    issues = set(row.get("issues") or [])
+    wrong_location = any(
+        issue in issues
+        for issue in [
+            "wrong_facility",
+            "wrong_address",
+            "wrong_city",
+            "wrong_state",
+            "wrong_zip",
+            "wrong_location",
+        ]
+    )
+    wrong_date = "wrong_date" in issues
+    wrong_role = "wrong_role" in issues or _stop_wrong_reason(row) == "pickup_delivery_swapped"
+    if wrong_location or wrong_date or wrong_role:
+        return "unsafe_wrong"
+    if row.get("dispatch_usable"):
+        return "dispatch_usable"
+    if _component_correct(location_status) and _component_correct(date_status):
+        return "dispatch_usable"
+    if any(_component_available(value) for value in [location_status, date_status, time_status]):
+        return "useful_partial"
+    if status == STATUS_PARTIAL_MATCH:
+        return "useful_partial"
+    return "unsafe_wrong"
+
+
+def _build_stop_usability_summary(comparison_rows):
+    component_rows = _component_status_map(comparison_rows, SYSTEM_SHADOW)
+    summary = {
+        "pickup": _empty_stop_usability(),
+        "delivery": _empty_stop_usability(),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+    for row in comparison_rows or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        field = row.get("field")
+        if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+            continue
+        role = "pickup" if field == FIELD_PICKUP_STOPS else "delivery"
+        tier = _stop_usability_tier(row, component_rows)
+        summary[role][tier] += 1
+    return summary
+
+
+def _annotate_stop_usability_tiers(comparison_rows):
+    for system_name in EVALUATION_SYSTEMS:
+        component_rows = _component_status_map(comparison_rows, system_name)
+        for row in comparison_rows or []:
+            if row.get("system") != system_name:
+                continue
+            if row.get("field") not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+                continue
+            if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                row["stop_usability_tier"] = "not_compared"
+                row["dispatch_usability_tier"] = "not_compared"
+                row["gold_dispatch_usable_match"] = None
+            else:
+                tier = _stop_usability_tier(
+                    row,
+                    component_rows,
+                )
+                row["stop_usability_tier"] = tier
+                row["dispatch_usability_tier"] = tier
+                if tier in {"exact_complete", "dispatch_usable"}:
+                    row["gold_dispatch_usable_match"] = True
+                elif tier in {
+                    "useful_partial",
+                    "useful_partial_location_only",
+                    "unsupported_unparsed_location",
+                    "selected_partial_not_comparable",
+                    "selected_partial_missing_required_components",
+                    "unsafe_wrong",
+                }:
+                    row["gold_dispatch_usable_match"] = False
+                else:
+                    row["gold_dispatch_usable_match"] = None
+            row["candidate_has_dispatch_components"] = bool(
+                row.get("candidate_has_dispatch_components") or row.get("dispatch_usable")
+            )
+            if not row.get("candidate_review_tier"):
+                if row.get("candidate_has_dispatch_components"):
+                    row["candidate_review_tier"] = "complete_candidate"
+                elif row.get("has_location") or row.get("has_date") or row.get("has_time"):
+                    row["candidate_review_tier"] = "useful_partial_candidate"
+                else:
+                    row["candidate_review_tier"] = "unknown"
+            if (
+                row.get("candidate_has_dispatch_components")
+                and row.get("dispatch_usability_tier") == "unsafe_wrong"
+            ):
+                row["dispatch_usability_note"] = (
+                    "candidate_has_dispatch_components is structural only; "
+                    "gold_dispatch_usable_match is false for this row."
+                )
+    return comparison_rows
+
+
+def _build_stop_gold_consistency_audit(comparison_rows):
+    component_rows = _component_status_map(comparison_rows)
+    reasons = Counter()
+    cases_checked = 0
+    suspect_count = 0
+    normalization_issue_count = 0
+    gold_incomplete_count = 0
+    manual_review_needed = 0
+    for row in comparison_rows or []:
+        if row.get("system") != SYSTEM_SHADOW:
+            continue
+        field = row.get("field")
+        if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        status = row.get("status")
+        if status in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+            continue
+        if status not in {STATUS_PARTIAL_MATCH, STATUS_WRONG_VALUE}:
+            continue
+        cases_checked += 1
+        tier = _stop_usability_tier(row, component_rows)
+        issues = set(row.get("issues") or [])
+        if tier == "dispatch_usable":
+            reasons["selected_contains_correct_dispatch_components"] += 1
+            suspect_count += 1
+            manual_review_needed += 1
+            if any(issue in issues for issue in ["missing_facility", "missing_address"]):
+                reasons["facility_optional_mismatch" if "missing_facility" in issues else "address_optional_mismatch"] += 1
+                gold_incomplete_count += 1
+            if "missing_zip" in issues:
+                reasons["zip_missing_but_city_state_correct"] += 1
+                gold_incomplete_count += 1
+        elif tier == "useful_partial":
+            reasons["gold_incomplete"] += 1
+            gold_incomplete_count += 1
+            manual_review_needed += 1
+        elif "wrong_date" in issues:
+            reasons["true_wrong_date"] += 1
+        elif any(issue in issues for issue in ["wrong_city", "wrong_state", "wrong_zip", "wrong_address", "wrong_facility"]):
+            reasons["true_wrong_location"] += 1
+        elif "wrong_role" in issues or _stop_wrong_reason(row) == "pickup_delivery_swapped":
+            reasons["true_wrong_role"] += 1
+        else:
+            reasons["unknown"] += 1
+            manual_review_needed += 1
+
+    return {
+        "cases_checked": cases_checked,
+        "suspect_count": suspect_count,
+        "normalization_issue_count": normalization_issue_count,
+        "gold_incomplete_count": gold_incomplete_count,
+        "manual_review_needed": manual_review_needed,
+        "reason_counts": dict(reasons.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_stop_group_usability_metrics(comparison_rows, systems):
+    systems = tuple(systems or [])
+    summary = {}
+    for system_name in systems:
+        component_rows = _component_status_map(comparison_rows, system_name)
+        system_payload = {
+            "pickup": _empty_stop_usability(),
+            "delivery": _empty_stop_usability(),
+        }
+        for row in comparison_rows or []:
+            if row.get("system") != system_name:
+                continue
+            field = row.get("field")
+            if field not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+                continue
+            if row.get("status") in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}:
+                continue
+            role = "pickup" if field == FIELD_PICKUP_STOPS else "delivery"
+            system_payload[role][_stop_usability_tier(row, component_rows)] += 1
+        summary[system_name] = system_payload
+    summary["private_values_printed"] = False
+    summary["raw_text_printed"] = False
+    return summary
+
+
+def _build_stop_candidate_group_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_DIAGNOSTIC_SYSTEMS)
+
+
+def _build_stop_draft_profile_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_DRAFT_SYSTEMS)
+
+
+def _build_stop_fusion_profile_metrics(comparison_rows):
+    return _build_stop_group_usability_metrics(comparison_rows, STOP_FUSION_SYSTEMS)
+
+
+def _consistent_role_metrics(bucket):
+    bucket = bucket or {}
+    detailed = {
+        "exact_complete": int(bucket.get("exact_complete", 0) or 0),
+        "dispatch_usable": int(bucket.get("dispatch_usable", 0) or 0),
+        "useful_partial": int(bucket.get("useful_partial", 0) or 0),
+        "location_only_partial": int(bucket.get("useful_partial_location_only", 0) or 0),
+        "date_only_partial": int(bucket.get("useful_partial_date_only", 0) or 0),
+        "time_only_partial": int(bucket.get("useful_partial_time_only", 0) or 0),
+        "unsafe_wrong": int(bucket.get("unsafe_wrong", 0) or 0),
+        "missing_review_required": int(bucket.get("missing_review_required", 0) or 0),
+        "serialized_gap": int(bucket.get("serialized_gap", 0) or 0),
+    }
+    detailed["denominator"] = sum(detailed.values())
+    partial = (
+        detailed["dispatch_usable"]
+        + detailed["useful_partial"]
+        + detailed["location_only_partial"]
+        + detailed["date_only_partial"]
+        + detailed["time_only_partial"]
+    )
+    compressed = {
+        "exact": detailed["exact_complete"],
+        "partial": partial,
+        "wrong": detailed["unsafe_wrong"],
+        "missing": detailed["missing_review_required"] + detailed["serialized_gap"],
+        "denominator": detailed["denominator"],
+    }
+    return {"detailed": detailed, "compressed": compressed}
+
+
+def _consistent_group_metrics(group_metrics, system_name):
+    system_payload = (group_metrics or {}).get(system_name, {}) or {}
+    return {
+        "pickup": _consistent_role_metrics(system_payload.get("pickup", {})),
+        "delivery": _consistent_role_metrics(system_payload.get("delivery", {})),
+    }
+
+
+def _build_stop_metrics_consistent_summary(comparison_rows):
+    selected = {"shadow": {
+        "pickup": _empty_stop_usability(),
+        "delivery": _empty_stop_usability(),
+    }}
+    selected["shadow"] = {
+        role: bucket
+        for role, bucket in _build_stop_usability_summary(comparison_rows).items()
+        if role in {"pickup", "delivery"}
+    }
+    draft_metrics = _build_stop_draft_profile_metrics(comparison_rows)
+    fusion_metrics = _build_stop_fusion_profile_metrics(comparison_rows)
+    return {
+        "selected": _consistent_group_metrics(selected, "shadow"),
+        "draft": {
+            system_name: _consistent_group_metrics(draft_metrics, system_name)
+            for system_name in STOP_DRAFT_SYSTEMS
+        },
+        "fusion": {
+            system_name: _consistent_group_metrics(fusion_metrics, system_name)
+            for system_name in STOP_FUSION_SYSTEMS
+        },
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _serialization_gap_classification(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    if status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED and source_status != STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return ""
+    explicit_reason = _text(row.get("serialization_gap_reason"))
+    if explicit_reason:
+        return explicit_reason
+    if _text(row.get("stop_selection_policy")) == "abstain" or row.get("stop_abstained"):
+        return "selected_stop_really_missing"
+    if row.get("system") == SYSTEM_SHADOW and (
+        row.get("has_location") or row.get("has_date") or row.get("has_time")
+    ):
+        return "resolver_selected_summary_lost_structured_value"
+    if row.get("assembled_from_column_geometry"):
+        return "selected_candidate_components_exist_but_not_joined_to_selected"
+    if row.get("candidate_has_dispatch_components") or row.get("dispatch_usable"):
+        return "private_eval_sidecar_missing_components"
+    if row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return "selected_stop_value_is_string_placeholder"
+    return "unknown"
+
+
+def _build_stop_serialization_gap_summary(comparison_rows):
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and (
+            row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    system_counts = Counter()
+    for row in rows:
+        classification = _serialization_gap_classification(row)
+        reason_counts[classification or "unknown"] += 1
+        field_counts[_text(row.get("field")) or "unknown"] += 1
+        system_counts[_text(row.get("system")) or "unknown"] += 1
+        row["serialization_gap_classification"] = classification
+    return {
+        "serialized_gap_count": len(rows),
+        "classification_counts": dict(reason_counts.most_common()),
+        "field_counts": dict(field_counts.most_common()),
+        "system_counts": dict(system_counts.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _build_selected_stop_serialization_gap_summary(comparison_rows):
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        and (
+            row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    cases = []
+    for row in rows:
+        classification = _serialization_gap_classification(row) or "unknown"
+        reason_counts[classification] += 1
+        field = _text(row.get("field")) or "unknown"
+        field_counts[field] += 1
+        row["serialization_gap_classification"] = classification
+        cases.append(
+            {
+                "document_id": _text(row.get("document_id")),
+                "file_name": _text(row.get("file_name")),
+                "field": field,
+                "source": _text(row.get("source")),
+                "parser_name": _text(row.get("parser_name")),
+                "pairing_method": _text(row.get("pairing_method")),
+                "stop_role": _text(row.get("stop_role")),
+                "stop_index": row.get("stop_index"),
+                "candidate_has_dispatch_components": bool(
+                    row.get("candidate_has_dispatch_components")
+                ),
+                "has_location": bool(row.get("has_location")),
+                "has_date": bool(row.get("has_date")),
+                "has_time": bool(row.get("has_time")),
+                "serialization_gap_reason": classification,
+                "fix_status": (
+                    "true_missing"
+                    if classification == "selected_stop_really_missing"
+                    else "needs_private_eval_serialization"
+                ),
+            }
+        )
+    true_missing_count = reason_counts.get("selected_stop_really_missing", 0)
+    fixable_count = len(rows) - true_missing_count - reason_counts.get("unknown", 0)
+    return {
+        "total": len(rows),
+        "pickup": field_counts.get(FIELD_PICKUP_STOPS, 0),
+        "delivery": field_counts.get(FIELD_DELIVERY_STOPS, 0),
+        "reason_counts": dict(reason_counts.most_common()),
+        "fixable_count": fixable_count,
+        "true_missing_count": true_missing_count,
+        "remaining_after_fix": len(rows),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _sidecar_gap_reason_for_row(row):
+    status = _text(row.get("status"))
+    source_status = _text(row.get("source_status"))
+    explicit_reason = (
+        _text(row.get("sidecar_gap_classification"))
+        or _text(row.get("sidecar_gap_reason"))
+        or _text(row.get("serialization_gap_classification"))
+        or _text(row.get("serialization_gap_reason"))
+    )
+    if explicit_reason:
+        return explicit_reason
+    if status == STATUS_UNSUPPORTED_UNPARSED_LOCATION or source_status == STATUS_UNSUPPORTED_UNPARSED_LOCATION:
+        return "selected_value_has_unstructured_location_text_only"
+    if status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE or source_status == STATUS_SELECTED_PARTIAL_NOT_COMPARABLE:
+        return "selected_value_has_placeholder_only_no_component"
+    if (
+        status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+        or source_status == STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS
+    ):
+        return "selected_partial_missing_required_components"
+    if status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED or source_status == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED:
+        return _serialization_gap_classification(row) or "unknown"
+    return ""
+
+
+def _build_remaining_sidecar_component_gap_summary(comparison_rows):
+    trace_statuses = {
+        STATUS_SHADOW_COMPONENT_NOT_SERIALIZED,
+        STATUS_UNSUPPORTED_UNPARSED_LOCATION,
+        STATUS_SELECTED_PARTIAL_NOT_COMPARABLE,
+        STATUS_SELECTED_PARTIAL_MISSING_REQUIRED_COMPONENTS,
+    }
+    rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        and (
+            row.get("status") in trace_statuses
+            or row.get("source_status") in trace_statuses
+        )
+    ]
+    reason_counts = Counter()
+    field_counts = Counter()
+    recoverable = 0
+    unsupported_selected_partial = 0
+    true_missing = 0
+    unknown = 0
+    cases = []
+    for row in rows:
+        reason = _sidecar_gap_reason_for_row(row) or "unknown"
+        reason_counts[reason] += 1
+        field = _text(row.get("field")) or "unknown"
+        field_counts[field] += 1
+        if reason in {
+            "sidecar_can_recover_component_by_candidate_id",
+            "sidecar_can_recover_component_by_structured_metadata",
+            "sidecar_can_recover_component_by_field_role_stop_index",
+            "selected_value_has_unstructured_location_text_only",
+        }:
+            recoverable += 1
+        elif reason in {
+            "selected_value_has_placeholder_only_no_component",
+            "unsupported_selected_partial",
+            "selected_partial_not_comparable",
+            "selected_partial_missing_required_components",
+        }:
+            unsupported_selected_partial += 1
+        elif reason in {"selected_stop_really_missing", "selected_stop_really_missing_review_required"}:
+            true_missing += 1
+        elif reason == "unknown":
+            unknown += 1
+        cases.append(
+            {
+                "document_id": _text(row.get("document_id")),
+                "file_name": _text(row.get("file_name")),
+                "field": field,
+                "source": _text(row.get("source")),
+                "parser_name": _text(row.get("parser_name")),
+                "pairing_method": _text(row.get("pairing_method")),
+                "stop_role": _text(row.get("stop_role")),
+                "stop_index": row.get("stop_index"),
+                "status": _text(row.get("status")),
+                "source_status": _text(row.get("source_status")),
+                "has_location": bool(row.get("has_location")),
+                "has_date": bool(row.get("has_date")),
+                "has_time": bool(row.get("has_time")),
+                "sidecar_gap_reason": reason,
+            }
+        )
+    return {
+        "total": len(rows),
+        "pickup": field_counts.get(FIELD_PICKUP_STOPS, 0),
+        "delivery": field_counts.get(FIELD_DELIVERY_STOPS, 0),
+        "recoverable": recoverable,
+        "unsupported_selected_partial": unsupported_selected_partial,
+        "true_missing": true_missing,
+        "unknown": unknown,
+        "reason_counts": dict(reason_counts.most_common()),
+        "cases": cases,
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _stop_inventory(record):
+    payload = _private_eval_values(record)
+    return (
+        payload.get("stop_component_candidate_inventory", [])
+        if isinstance(payload, dict)
+        else []
+    )
+
+
+def _is_ocr_stop_inventory_item(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    return _text(item.get("source")) == "ocr" or bool(metadata.get("ocr_candidate"))
+
+
+def _ocr_stop_not_selected_reason(item):
+    metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+    if metadata.get("stop_abstained"):
+        return _text(metadata.get("stop_abstention_reason")) or "candidate_abstained"
+    if _text(metadata.get("stop_selection_policy")) == "partial_review":
+        return _text(metadata.get("stop_abstention_reason")) or "partial_review"
+    if not metadata.get("structured_stop_candidate"):
+        return "not_assembled_structured_stop"
+    if metadata.get("ambiguous_stop_candidate"):
+        return "ambiguous_stop_candidate"
+    return "resolver_excluded_ocr"
+
+
+def _build_ocr_stop_evidence_gap_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    docs_with_ocr = [
+        record
+        for record in records
+        if _record_ocr_status(record) in {"success", "partial"} or _record_has_ocr_text(record)
+    ]
+    ocr_items = []
+    for record in docs_with_ocr:
+        for item in _stop_inventory(record):
+            if isinstance(item, dict) and _is_ocr_stop_inventory_item(item):
+                ocr_items.append(item)
+    selected_rows = [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == SYSTEM_SHADOW
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("predicted")
+        and _text(row.get("source")) == "ocr"
+    ]
+    candidates_by_field = Counter(_text(item.get("field")) for item in ocr_items)
+    structured = [
+        item
+        for item in ocr_items
+        if _text(item.get("field")) in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+    ]
+    selected_by_field = Counter(_text(row.get("field")) for row in selected_rows)
+    rejected = []
+    for item in ocr_items:
+        field_name = _text(item.get("field"))
+        if field_name not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            rejected.append(item)
+            continue
+        if selected_by_field.get(field_name, 0) > 0:
+            selected_by_field[field_name] -= 1
+        else:
+            rejected.append(item)
+    rejection_reasons = Counter(_ocr_stop_not_selected_reason(item) for item in rejected)
+    alignment_status_counts = Counter()
+    alignment_warning_counts = Counter()
+    alignment_policy_counts = Counter()
+    geometry_status_counts = Counter()
+    geometry_warning_counts = Counter()
+    geometry_available_counts = Counter()
+    column_status_counts = Counter()
+    column_warning_counts = Counter()
+    geometry_structured = 0
+    column_structured = 0
+    column_dispatch_usable = 0
+    for item in ocr_items:
+        metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+        status = _text(metadata.get("stop_alignment_status"))
+        if status:
+            alignment_status_counts[status] += 1
+        policy = _text(metadata.get("stop_selection_policy"))
+        if policy:
+            alignment_policy_counts[policy] += 1
+        warnings = metadata.get("stop_alignment_warnings") or []
+        if isinstance(warnings, str):
+            warnings = [warnings] if warnings else []
+        for warning in warnings if isinstance(warnings, list) else []:
+            if _text(warning):
+                alignment_warning_counts[_text(warning)] += 1
+        geometry_available_counts[str(bool(metadata.get("geometry_available"))).lower()] += 1
+        geometry_status = _text(metadata.get("stop_geometry_status"))
+        if geometry_status:
+            geometry_status_counts[geometry_status] += 1
+        geometry_warnings = metadata.get("stop_geometry_warnings") or []
+        if isinstance(geometry_warnings, str):
+            geometry_warnings = [geometry_warnings] if geometry_warnings else []
+        for warning in geometry_warnings if isinstance(geometry_warnings, list) else []:
+            if _text(warning):
+                geometry_warning_counts[_text(warning)] += 1
+        if (
+            metadata.get("structured_stop_candidate")
+            and metadata.get("geometry_available")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_block"
+        ):
+            geometry_structured += 1
+        column_status = _text(metadata.get("stop_column_status"))
+        if column_status:
+            column_status_counts[column_status] += 1
+        column_warnings = metadata.get("stop_column_warnings") or []
+        if isinstance(column_warnings, str):
+            column_warnings = [column_warnings] if column_warnings else []
+        for warning in column_warnings if isinstance(column_warnings, list) else []:
+            if _text(warning):
+                column_warning_counts[_text(warning)] += 1
+        if (
+            metadata.get("structured_stop_candidate")
+            and metadata.get("assembled_from_column_geometry")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+        ):
+            column_structured += 1
+            if metadata.get("dispatch_usable"):
+                column_dispatch_usable += 1
+    return {
+        "ocr_docs": len(docs_with_ocr),
+        "ocr_pickup_location_candidates": candidates_by_field.get(FIELD_PICKUP_LOCATION, 0),
+        "ocr_pickup_date_candidates": candidates_by_field.get(FIELD_PICKUP_DATE, 0),
+        "ocr_pickup_time_candidates": candidates_by_field.get(FIELD_PICKUP_TIME, 0),
+        "ocr_delivery_location_candidates": candidates_by_field.get(FIELD_DELIVERY_LOCATION, 0),
+        "ocr_delivery_date_candidates": candidates_by_field.get(FIELD_DELIVERY_DATE, 0),
+        "ocr_delivery_time_candidates": candidates_by_field.get(FIELD_DELIVERY_TIME, 0),
+        "ocr_structured_stop_candidates": len(structured),
+        "ocr_stop_candidates_selected": len(selected_rows),
+        "ocr_stop_candidates_rejected": max(0, len(ocr_items) - len(selected_rows)),
+        "rejection_reason_counts": dict(rejection_reasons.most_common()),
+        "alignment_status_counts": dict(alignment_status_counts.most_common()),
+        "alignment_warning_counts": dict(alignment_warning_counts.most_common()),
+        "alignment_policy_counts": dict(alignment_policy_counts.most_common()),
+        "geometry_available_counts": dict(geometry_available_counts.most_common()),
+        "geometry_status_counts": dict(geometry_status_counts.most_common()),
+        "geometry_warning_counts": dict(geometry_warning_counts.most_common()),
+        "ocr_geometry_structured_stop_candidates": geometry_structured,
+        "column_status_counts": dict(column_status_counts.most_common()),
+        "column_warning_counts": dict(column_warning_counts.most_common()),
+        "ocr_geometry_column_structured_stop_candidates": column_structured,
+        "ocr_geometry_column_dispatch_usable_candidates": column_dispatch_usable,
+        "candidate_field_counts": dict(candidates_by_field.most_common()),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _resolver_handoff_candidates(record):
+    shadow = record.get("shadow", {}) if isinstance(record, dict) else {}
+    traces = shadow.get("resolver_decision_traces", {}) if isinstance(shadow, dict) else {}
+    if not traces:
+        traces = record.get("resolver_decision_traces", {}) if isinstance(record, dict) else {}
+    rows = []
+    for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        trace = traces.get(field_name, {}) if isinstance(traces, dict) else {}
+        for item in trace.get("dispatch_usable_handoff_candidates", []) or []:
+            if isinstance(item, dict):
+                rows.append(dict(item))
+    return rows
+
+
+def _dispatch_inventory_candidates(record):
+    rows = []
+    for item in _stop_inventory(record):
+        if not isinstance(item, dict):
+            continue
+        metadata = item.get("metadata_summary", {}) if isinstance(item.get("metadata_summary"), dict) else {}
+        if not (
+            metadata.get("dispatch_usable")
+            and metadata.get("assembled_from_column_geometry")
+            and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+        ):
+            continue
+        rows.append(item)
+    return rows
+
+
+def _candidate_group_rows(comparison_rows, system_name):
+    return [
+        row
+        for row in comparison_rows or []
+        if row.get("system") == system_name
+        and row.get("field") in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}
+        and row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    ]
+
+
+def _build_dispatch_usable_handoff_summary(audit_index, comparison_rows):
+    records = _unique_audit_records(audit_index)
+    inventory_count = 0
+    kept_after_dedupe = 0
+    resolver_eligible = 0
+    resolver_selected = 0
+    serialized_for_eval = 0
+    compared_to_gold = 0
+    serialized_gap_count = 0
+    handoff_failure_stage_counts = Counter()
+    not_selected_reason_counts = Counter()
+    evaluator_status_counts = Counter()
+    cases = []
+    draft_rows = _candidate_group_rows(
+        comparison_rows,
+        SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    )
+    predicted_group_rows = [row for row in draft_rows if row.get("predicted")]
+    serialized_for_eval = len(predicted_group_rows)
+    compared_to_gold = len(
+        [
+            row
+            for row in predicted_group_rows
+            if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+        ]
+    )
+    serialized_gap_count = len(
+        [
+            row
+            for row in predicted_group_rows
+            if row.get("status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+            or row.get("source_status") == STATUS_SHADOW_COMPONENT_NOT_SERIALIZED
+        ]
+    )
+    evaluator_status_counts = Counter(
+        _text(row.get("status")) or "unknown" for row in predicted_group_rows
+    )
+    component_rows = _component_status_map(
+        comparison_rows,
+        SYSTEM_SHADOW_BEST_DISPATCH_USABLE_STOP,
+    )
+    evaluator_usability_tier_counts = Counter(
+        _text(row.get("stop_usability_tier"))
+        or _stop_usability_tier(row, component_rows)
+        for row in predicted_group_rows
+        if row.get("status") not in {STATUS_UNLABELED, STATUS_GOLD_UNCERTAIN}
+    )
+    for record in records:
+        inv_rows = _dispatch_inventory_candidates(record)
+        trace_rows = _resolver_handoff_candidates(record)
+        inventory_count += len(inv_rows)
+        kept_after_dedupe += len(trace_rows)
+        for trace in trace_rows:
+            field_name = trace.get("field")
+            stage = _text(trace.get("handoff_failure_stage")) or "unknown"
+            if trace.get("resolver_eligible"):
+                resolver_eligible += 1
+            if trace.get("resolver_selected"):
+                resolver_selected += 1
+            handoff_failure_stage_counts[stage] += 1
+            reason = _text(trace.get("resolver_not_selected_reason"))
+            if reason:
+                not_selected_reason_counts[reason] += 1
+            cases.append(
+                {
+                    "candidate_id": _text(trace.get("candidate_id")),
+                    "field": _text(field_name),
+                    "source": _text(trace.get("source")),
+                    "generator_name": _text(trace.get("generator_name")),
+                    "pairing_method": _text(trace.get("pairing_method")),
+                    "dispatch_usable": bool(trace.get("dispatch_usable")),
+                    "component_completeness": _safe_float(trace.get("component_completeness")),
+                    "role": _text(trace.get("role")),
+                    "has_location": bool(trace.get("has_location")),
+                    "has_date": bool(trace.get("has_date")),
+                    "has_time_or_window": bool(trace.get("has_time_or_window")),
+                    "dedupe_status": _text(trace.get("dedupe_status")) or "unknown",
+                    "resolver_eligible": bool(trace.get("resolver_eligible")),
+                    "resolver_score": trace.get("resolver_score"),
+                    "resolver_selected": bool(trace.get("resolver_selected")),
+                    "resolver_not_selected_reason": reason,
+                    "review_gate_status": _text(trace.get("review_gate_status")),
+                    "serialized_for_eval": False,
+                    "evaluator_status": "see_candidate_group_metrics",
+                    "handoff_failure_stage": stage,
+                }
+            )
+    return {
+        "dispatch_usable_candidates": inventory_count,
+        "kept_after_dedupe": kept_after_dedupe,
+        "resolver_eligible": resolver_eligible,
+        "resolver_selected": resolver_selected,
+        "serialized_for_eval": serialized_for_eval,
+        "compared_to_gold": compared_to_gold,
+        "handoff_failure_stage_counts": dict(handoff_failure_stage_counts.most_common()),
+        "not_selected_reason_counts": dict(not_selected_reason_counts.most_common()),
+        "evaluator_status_counts": dict(evaluator_status_counts.most_common()),
+        "evaluator_usability_tier_counts": dict(
+            evaluator_usability_tier_counts.most_common()
+        ),
+        "status_vs_usability_note": (
+            "evaluator_status_counts are raw field comparison statuses; "
+            "evaluator_usability_tier_counts classify the same rows by dispatch usability."
+        ),
+        "serialized_gap_count": serialized_gap_count,
+        "gold_incomplete_count": _safe_int(
+            (_build_stop_gold_consistency_audit(comparison_rows) or {}).get(
+                "gold_incomplete_count"
+            )
+        ),
+        "cases": cases,
         "private_values_printed": False,
         "raw_text_printed": False,
     }
@@ -1829,7 +4654,9 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                 metadata = _prediction_metadata(prediction)
                 row = {
                     "document_id": _text(label.get("document_id")),
+                    "file_name": _text(label.get("file_name")),
                     "file_hash": _text(label.get("file_hash")),
+                    "label_status": status,
                     "system": system_name,
                     "field": field_name,
                     "status": comparison["status"],
@@ -1838,17 +4665,143 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
                     "predicted": comparison.get("predicted", False),
                     "source_status": source_status,
                     "source": _prediction_source_name(prediction),
+                    "parser_name": _text((prediction or {}).get("parser_name"))
+                    if isinstance(prediction, dict)
+                    else "",
+                    "page": _text((prediction or {}).get("page"))
+                    if isinstance(prediction, dict)
+                    else "",
+                    "value_shape": dict((prediction or {}).get("value_shape") or {})
+                    if isinstance(prediction, dict)
+                    else safe_value_shape(_prediction_value(prediction)),
                     "pairing_method": _text(metadata.get("pairing_method")),
                     "section_context": _text(metadata.get("section_context")),
                     "document_region": _text(metadata.get("document_region")),
                     "id_type_hint": _text(metadata.get("id_type_hint")),
                     "money_context": _text(metadata.get("money_context")),
+                    "rate_safety": _text(metadata.get("rate_safety")),
+                    "rate_safety_reason": _text(metadata.get("rate_safety_reason")),
+                    "rate_abstained": bool(metadata.get("rate_abstained")),
+                    "rate_abstention_reason": _text(
+                        metadata.get("rate_abstention_reason")
+                    ),
+                    "rate_demoted_from_total_carrier_rate": bool(
+                        metadata.get("rate_demoted_from_total_carrier_rate")
+                    ),
+                    "stop_role": _text(metadata.get("stop_role")),
+                    "has_location": bool(metadata.get("has_location")),
+                    "has_date": bool(metadata.get("has_date")),
+                    "has_time": bool(metadata.get("has_time")),
+                    "has_facility": bool(metadata.get("has_facility")),
+                    "has_address": bool(metadata.get("has_address")),
+                    "stop_structure_status": _text(metadata.get("stop_structure_status")),
+                    "stop_selection_policy": _text(metadata.get("stop_selection_policy")),
+                    "stop_abstained": bool(metadata.get("stop_abstained")),
+                    "stop_abstention_reason": _text(metadata.get("stop_abstention_reason")),
+                    "stop_alignment_status": _text(metadata.get("stop_alignment_status")),
+                    "stop_geometry_status": _text(metadata.get("stop_geometry_status")),
+                    "stop_column_status": _text(metadata.get("stop_column_status")),
+                    "stop_alignment_warnings": list(
+                        metadata.get("stop_alignment_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_alignment_warnings"), list)
+                    else [],
+                    "stop_geometry_warnings": list(
+                        metadata.get("stop_geometry_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_geometry_warnings"), list)
+                    else [],
+                    "stop_column_warnings": list(
+                        metadata.get("stop_column_warnings") or []
+                    )
+                    if isinstance(metadata.get("stop_column_warnings"), list)
+                    else [],
+                    "assembled_from_column_geometry": bool(
+                        metadata.get("assembled_from_column_geometry")
+                    ),
+                    "row_boundary_confidence": _safe_float(
+                        metadata.get("row_boundary_confidence")
+                    ),
+                    "column_alignment_confidence": _safe_float(
+                        metadata.get("column_alignment_confidence")
+                    ),
+                    "dispatch_usable": bool(metadata.get("dispatch_usable")),
+                    "candidate_has_dispatch_components": bool(
+                        metadata.get("candidate_has_dispatch_components")
+                        or metadata.get("dispatch_usable")
+                    ),
+                    "candidate_review_tier": _text(
+                        metadata.get("candidate_review_tier")
+                    ),
+                    "serialization_gap_reason": _text(
+                        metadata.get("serialization_gap_reason")
+                        or (
+                            prediction.get("serialization_gap_reason")
+                            if isinstance(prediction, dict)
+                            else ""
+                        )
+                    ),
+                    "sidecar_gap_reason": _text(metadata.get("sidecar_gap_reason")),
+                    "sidecar_gap_classification": _text(
+                        metadata.get("sidecar_gap_classification")
+                    ),
+                    "raw_location_text_local_only_present": bool(
+                        metadata.get("raw_location_text_local_only_present")
+                    ),
+                    "unparsed_location_text_local_only_present": bool(
+                        metadata.get("unparsed_location_text_local_only_present")
+                    ),
+                    "unsupported_selected_partial": bool(
+                        metadata.get("unsupported_selected_partial")
+                    ),
+                    "role_confidence": _safe_float(metadata.get("role_confidence")),
+                    "component_completeness": _safe_float(
+                        metadata.get("component_completeness")
+                    ),
                     "table_context_role": _text(metadata.get("table_context_role")),
                     "table_row_role": _text(metadata.get("table_row_role")),
                     "table_neighbor_safety": _text(metadata.get("table_neighbor_safety")),
                     "table_neighbor_penalty_reason": _text(
                         metadata.get("table_neighbor_penalty_reason")
                     ),
+                    "table_neighbor_abstained": bool(
+                        metadata.get("table_neighbor_abstained")
+                    ),
+                    "table_neighbor_abstention_reason": _text(
+                        metadata.get("table_neighbor_abstention_reason")
+                    ),
+                    "selection_policy": _text(metadata.get("selection_policy")),
+                    "table_index": _text(metadata.get("table_index")),
+                    "row_index": _text(metadata.get("row_index")),
+                    "label_cell_index": _text(metadata.get("label_cell_index")),
+                    "value_cell_index": _text(metadata.get("value_cell_index")),
+                    "neighbor_cell_count": _safe_int(metadata.get("neighbor_cell_count")),
+                    "id_like_cell_count_in_row": _safe_int(
+                        metadata.get("id_like_cell_count_in_row")
+                        or metadata.get("table_row_identifier_like_cell_count")
+                    ),
+                    "load_label_cell_count_in_row": _safe_int(
+                        metadata.get("load_label_cell_count_in_row")
+                    ),
+                    "reference_label_cell_count_in_row": _safe_int(
+                        metadata.get("reference_label_cell_count_in_row")
+                    ),
+                    "stop_label_cell_count_in_row": _safe_int(
+                        metadata.get("stop_label_cell_count_in_row")
+                    ),
+                    "money_like_cell_count_in_row": _safe_int(
+                        metadata.get("money_like_cell_count_in_row")
+                    ),
+                    "is_total_pay_candidate": bool(metadata.get("is_total_pay_candidate")),
+                    "is_line_item_only": bool(metadata.get("is_line_item_only")),
+                    "is_per_unit_rate": bool(metadata.get("is_per_unit_rate")),
+                    "is_deduction_or_penalty": bool(
+                        metadata.get("is_deduction_or_penalty")
+                    ),
+                    "is_payment_terms_amount": bool(
+                        metadata.get("is_payment_terms_amount")
+                    ),
+                    "is_accessorial_only": bool(metadata.get("is_accessorial_only")),
                     "error_reason": _classify_error_reason(
                         field_name,
                         system_name,
@@ -1894,6 +4847,7 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         )
         doc_result["recommended_action"] = action_counts.most_common(1)[0][0] if action_counts else ACTION_MORE_GOLD
         document_rows.append(doc_result)
+    _annotate_stop_usability_tiers(comparison_rows)
     finalized = {
         system_name: {
             field_name: _finalize_metric(metric)
@@ -1916,6 +4870,11 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         )
         for field_name in [FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE]
     }
+    residual_wrong_rate_forensics = _build_residual_wrong_rate_forensics(
+        comparison_rows,
+        gold_labels,
+        indexed,
+    )
     return {
         "schema_version": "ratecon_gold_evaluation_v1",
         "labels_loaded": len(gold_labels or []),
@@ -1937,7 +4896,31 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "load_table_neighbor_error_summary": _build_load_table_neighbor_error_summary(
             comparison_rows,
         ),
+        "load_table_neighbor_value_cell_forensics": (
+            _build_load_table_neighbor_value_cell_forensics(comparison_rows)
+        ),
+        "remaining_table_neighbor_wrong_summary": _build_remaining_table_neighbor_wrong_summary(
+            comparison_rows,
+        ),
+        "table_neighbor_abstention_summary": _build_table_neighbor_abstention_summary(
+            comparison_rows,
+            _unique_audit_records(indexed),
+        ),
         "rate_error_analysis": _build_rate_error_analysis(comparison_rows),
+        "rate_wrong_case_summary": _build_rate_wrong_case_summary(comparison_rows),
+        "residual_wrong_rate_forensics": residual_wrong_rate_forensics,
+        "gold_rate_consistency_audit": _build_gold_rate_consistency_audit(
+            residual_wrong_rate_forensics,
+        ),
+        "missing_rate_forensics": _build_missing_rate_forensics(
+            comparison_rows,
+            gold_labels,
+            indexed,
+        ),
+        "rate_abstention_summary": _build_rate_abstention_summary(
+            comparison_rows,
+            _unique_audit_records(indexed),
+        ),
         "load_candidate_recall_summary": _build_load_candidate_recall_summary(
             gold_labels,
             indexed,
@@ -1945,6 +4928,64 @@ def evaluate_ratecon_against_gold(gold_labels, audit_records) -> dict:
         "ocr_vision_backlog_summary": _build_ocr_vision_backlog_summary(
             gold_labels,
             indexed,
+        ),
+        "ocr_gold_eval_summary": _build_ocr_gold_eval_summary(
+            gold_labels,
+            indexed,
+            comparison_rows,
+        ),
+        "ocr_load_candidate_gap_summary": _build_ocr_load_candidate_gap_summary(
+            gold_labels,
+            indexed,
+        ),
+        "ocr_rate_selection_summary": _build_ocr_rate_selection_summary(
+            gold_labels,
+            indexed,
+            comparison_rows,
+        ),
+        "ocr_accessorial_noise_summary": _build_ocr_accessorial_noise_summary(
+            indexed,
+            comparison_rows,
+        ),
+        "stop_component_forensics_summary": _build_stop_component_forensics_summary(
+            comparison_rows,
+            indexed,
+        ),
+        "stop_usability_summary": _build_stop_usability_summary(comparison_rows),
+        "stop_gold_consistency_audit": _build_stop_gold_consistency_audit(
+            comparison_rows,
+        ),
+        "stop_gold_completeness_summary": build_stop_gold_completeness_summary(
+            gold_labels,
+        ),
+        "stop_serialization_gap_summary": _build_stop_serialization_gap_summary(
+            comparison_rows,
+        ),
+        "selected_stop_serialization_gap_summary": _build_selected_stop_serialization_gap_summary(
+            comparison_rows,
+        ),
+        "remaining_sidecar_component_gap_summary": _build_remaining_sidecar_component_gap_summary(
+            comparison_rows,
+        ),
+        "stop_candidate_group_metrics": _build_stop_candidate_group_metrics(
+            comparison_rows,
+        ),
+        "stop_draft_profile_metrics": _build_stop_draft_profile_metrics(
+            comparison_rows,
+        ),
+        "stop_fusion_profile_metrics": _build_stop_fusion_profile_metrics(
+            comparison_rows,
+        ),
+        "stop_metrics_consistent_summary": _build_stop_metrics_consistent_summary(
+            comparison_rows,
+        ),
+        "dispatch_usable_handoff_summary": _build_dispatch_usable_handoff_summary(
+            indexed,
+            comparison_rows,
+        ),
+        "ocr_stop_evidence_gap_summary": _build_ocr_stop_evidence_gap_summary(
+            indexed,
+            comparison_rows,
         ),
         "document_metrics": document_rows,
         "comparison_rows": comparison_rows,

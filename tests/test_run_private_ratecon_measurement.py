@@ -294,6 +294,84 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
             "header_recall_table_safety_v1",
         )
 
+    def test_cli_accepts_field_scoped_shadow_ranking_flags(self):
+        fake_report = {"rows": [], "aggregate": {}, "document_count": 0}
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ) as build_report:
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--ratecon-shadow-load-ranking-profile",
+                        "header_recall_table_safety_v1",
+                        "--ratecon-shadow-rate-ranking-profile",
+                        "gold_diagnostic_v1",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_load_ranking_profile"],
+            "header_recall_table_safety_v1",
+        )
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_rate_ranking_profile"],
+            "gold_diagnostic_v1",
+        )
+
+    def test_cli_accepts_shadow_load_abstention_profile(self):
+        fake_report = {"rows": [], "aggregate": {}, "document_count": 0}
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ) as build_report:
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--ratecon-shadow-load-ranking-profile",
+                        "header_recall_table_abstain_v1",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_load_ranking_profile"],
+            "header_recall_table_abstain_v1",
+        )
+
+    def test_cli_accepts_shadow_rate_money_abstention_profile(self):
+        fake_report = {"rows": [], "aggregate": {}, "document_count": 0}
+        with tempfile.TemporaryDirectory() as output_dir:
+            with patch(
+                "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
+                return_value=fake_report,
+            ) as build_report:
+                exit_code = main(
+                    [
+                        "--input-dir",
+                        output_dir,
+                        "--confirm-private-local-run",
+                        "--ratecon-shadow-document-pipeline",
+                        "--ratecon-shadow-rate-ranking-profile",
+                        "money_abstain_v1",
+                    ]
+                )
+
+        self.assertEqual(exit_code, 0)
+        self.assertEqual(
+            build_report.call_args.kwargs["ratecon_shadow_rate_ranking_profile"],
+            "money_abstain_v1",
+        )
+
     def test_cli_enable_layout_fusion_requires_layout_candidates(self):
         temp, root = self._fake_pdf_dir(count=1)
         self.addCleanup(temp.cleanup)

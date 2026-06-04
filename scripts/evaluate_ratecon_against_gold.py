@@ -167,10 +167,50 @@ def _error_case_rows(evaluation):
                 "document_region": row.get("document_region", ""),
                 "id_type_hint": row.get("id_type_hint", ""),
                 "money_context": row.get("money_context", ""),
+                "rate_safety": row.get("rate_safety", ""),
+                "rate_safety_reason": row.get("rate_safety_reason", ""),
+                "rate_abstained": row.get("rate_abstained", ""),
+                "rate_abstention_reason": row.get("rate_abstention_reason", ""),
+                "rate_demoted_from_total_carrier_rate": row.get(
+                    "rate_demoted_from_total_carrier_rate",
+                    "",
+                ),
+                "stop_role": row.get("stop_role", ""),
+                "has_location": row.get("has_location", ""),
+                "has_date": row.get("has_date", ""),
+                "has_time": row.get("has_time", ""),
+                "stop_selection_policy": row.get("stop_selection_policy", ""),
+                "stop_abstained": row.get("stop_abstained", ""),
+                "stop_abstention_reason": row.get("stop_abstention_reason", ""),
+                "stop_usability_tier": row.get("stop_usability_tier", ""),
+                "dispatch_usability_tier": row.get("dispatch_usability_tier", ""),
+                "candidate_has_dispatch_components": row.get(
+                    "candidate_has_dispatch_components",
+                    "",
+                ),
+                "gold_dispatch_usable_match": row.get("gold_dispatch_usable_match", ""),
+                "candidate_review_tier": row.get("candidate_review_tier", ""),
+                "dispatch_usability_note": row.get("dispatch_usability_note", ""),
+                "serialization_gap_reason": row.get(
+                    "serialization_gap_reason",
+                    "",
+                ),
+                "serialization_gap_classification": row.get(
+                    "serialization_gap_classification",
+                    "",
+                ),
+                "role_confidence": row.get("role_confidence", ""),
+                "component_completeness": row.get("component_completeness", ""),
                 "table_context_role": row.get("table_context_role", ""),
                 "table_row_role": row.get("table_row_role", ""),
                 "table_neighbor_safety": row.get("table_neighbor_safety", ""),
                 "table_neighbor_penalty_reason": row.get("table_neighbor_penalty_reason", ""),
+                "table_neighbor_abstained": row.get("table_neighbor_abstained", ""),
+                "table_neighbor_abstention_reason": row.get(
+                    "table_neighbor_abstention_reason",
+                    "",
+                ),
+                "selection_policy": row.get("selection_policy", ""),
                 "error_reason": row.get("error_reason", ""),
             }
         )
@@ -254,8 +294,55 @@ def _markdown_report(evaluation):
         + json.dumps(evaluation.get("load_table_neighbor_error_summary", {}) or {}, sort_keys=True)
     )
     lines.append(
+        "load_table_neighbor_value_cell_forensics: "
+        + json.dumps(
+            evaluation.get("load_table_neighbor_value_cell_forensics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "remaining_table_neighbor_wrong_summary: "
+        + json.dumps(
+            evaluation.get("remaining_table_neighbor_wrong_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "table_neighbor_abstention_summary: "
+        + json.dumps(
+            evaluation.get("table_neighbor_abstention_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
         "rate_error_analysis: "
         + json.dumps(evaluation.get("rate_error_analysis", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "rate_wrong_case_summary: "
+        + json.dumps(evaluation.get("rate_wrong_case_summary", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "residual_wrong_rate_forensics: "
+        + json.dumps(
+            evaluation.get("residual_wrong_rate_forensics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "gold_rate_consistency_audit: "
+        + json.dumps(
+            evaluation.get("gold_rate_consistency_audit", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "missing_rate_forensics: "
+        + json.dumps(evaluation.get("missing_rate_forensics", {}) or {}, sort_keys=True)
+    )
+    lines.append(
+        "rate_abstention_summary: "
+        + json.dumps(evaluation.get("rate_abstention_summary", {}) or {}, sort_keys=True)
     )
     lines.extend(["", "## Load Candidate Recall", ""])
     recall = dict(evaluation.get("load_candidate_recall_summary", {}) or {})
@@ -265,6 +352,120 @@ def _markdown_report(evaluation):
     backlog = dict(evaluation.get("ocr_vision_backlog_summary", {}) or {})
     backlog.pop("documents", None)
     lines.append("ocr_vision_backlog_summary: " + json.dumps(backlog, sort_keys=True))
+    lines.append(
+        "ocr_gold_eval_summary: "
+        + json.dumps(evaluation.get("ocr_gold_eval_summary", {}) or {}, sort_keys=True)
+    )
+    load_gap = dict(evaluation.get("ocr_load_candidate_gap_summary", {}) or {})
+    load_gap.pop("documents", None)
+    lines.append(
+        "ocr_load_candidate_gap_summary: "
+        + json.dumps(load_gap, sort_keys=True)
+    )
+    rate_selection = dict(evaluation.get("ocr_rate_selection_summary", {}) or {})
+    rate_selection.pop("cases", None)
+    lines.append(
+        "ocr_rate_selection_summary: "
+        + json.dumps(rate_selection, sort_keys=True)
+    )
+    lines.append(
+        "ocr_accessorial_noise_summary: "
+        + json.dumps(
+            evaluation.get("ocr_accessorial_noise_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.extend(["", "## Stop Component Forensics", ""])
+    lines.append(
+        "stop_component_forensics_summary: "
+        + json.dumps(
+            evaluation.get("stop_component_forensics_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_usability_summary: "
+        + json.dumps(
+            evaluation.get("stop_usability_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_gold_consistency_audit: "
+        + json.dumps(
+            evaluation.get("stop_gold_consistency_audit", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_gold_completeness_summary: "
+        + json.dumps(
+            evaluation.get("stop_gold_completeness_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_serialization_gap_summary: "
+        + json.dumps(
+            evaluation.get("stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "selected_stop_serialization_gap_summary: "
+        + json.dumps(
+            evaluation.get("selected_stop_serialization_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "dispatch_usable_handoff_summary: "
+        + json.dumps(
+            {
+                key: value
+                for key, value in (
+                    evaluation.get("dispatch_usable_handoff_summary", {}) or {}
+                ).items()
+                if key != "cases"
+            },
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_candidate_group_metrics: "
+        + json.dumps(
+            evaluation.get("stop_candidate_group_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_draft_profile_metrics: "
+        + json.dumps(
+            evaluation.get("stop_draft_profile_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_fusion_profile_metrics: "
+        + json.dumps(
+            evaluation.get("stop_fusion_profile_metrics", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "stop_metrics_consistent_summary: "
+        + json.dumps(
+            evaluation.get("stop_metrics_consistent_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
+    lines.append(
+        "ocr_stop_evidence_gap_summary: "
+        + json.dumps(
+            evaluation.get("ocr_stop_evidence_gap_summary", {}) or {},
+            sort_keys=True,
+        )
+    )
     lines.extend(["", "## Calibration", ""])
     calibration = evaluation.get("confidence_calibration", {}) or {}
     for field_name in EVALUATION_FIELDS:
@@ -375,10 +576,35 @@ def evaluate_and_write(
             "document_region",
             "id_type_hint",
             "money_context",
+            "rate_safety",
+            "rate_safety_reason",
+            "rate_abstained",
+            "rate_abstention_reason",
+            "rate_demoted_from_total_carrier_rate",
+            "stop_role",
+            "has_location",
+            "has_date",
+            "has_time",
+            "stop_selection_policy",
+            "stop_abstained",
+            "stop_abstention_reason",
+            "stop_usability_tier",
+            "dispatch_usability_tier",
+            "candidate_has_dispatch_components",
+            "gold_dispatch_usable_match",
+            "candidate_review_tier",
+            "dispatch_usability_note",
+            "serialization_gap_reason",
+            "serialization_gap_classification",
+            "role_confidence",
+            "component_completeness",
             "table_context_role",
             "table_row_role",
             "table_neighbor_safety",
             "table_neighbor_penalty_reason",
+            "table_neighbor_abstained",
+            "table_neighbor_abstention_reason",
+            "selection_policy",
             "error_reason",
         ],
         _error_case_rows(evaluation),

@@ -1,0 +1,20 @@
+{
+  "schema_version": "ratecon_hybrid_extraction_result_v1",
+  "document_id": "DOC_FIXTURE_NON_RC",
+  "file_name_or_label": "fixture_non_rc_bol_pod.pdf",
+  "document_type": "bol_pod",
+  "model_provider": "manual",
+  "model_name": "sanitized_fixture_manual",
+  "private_local_only": true,
+  "fields": {
+    "load_number": {"value": null, "confidence": 0.0, "requires_human_review": true, "evidence_ids": []},
+    "total_carrier_rate": {"value": null, "currency": "USD", "confidence": 0.0, "requires_human_review": true, "evidence_ids": []},
+    "pickup_stops": [],
+    "delivery_stops": []
+  },
+  "evidence": [],
+  "confidence": {"overall": 0.85, "load_number": 0.0, "total_carrier_rate": 0.0, "pickup_stops": 0.0, "delivery_stops": 0.0},
+  "requires_human_review": true,
+  "review_reasons": ["non_rate_confirmation_filtered"],
+  "validator_results": {"document_classification_gate": {"status": "filtered_non_rc"}}
+}

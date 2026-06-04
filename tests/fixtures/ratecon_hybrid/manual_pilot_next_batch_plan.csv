@@ -1,0 +1,6 @@
+document_id,file_name,suggested_pattern,difficulty,reason_selected,expected_fields_to_fill,notes_for_reviewer
+DOC_FIXTURE_MISSING_EVIDENCE,fixture_missing_evidence.pdf,sanitized_missing_evidence,medium,include evidence-gate fixture,document_type; load_number; total_carrier_rate; pickup_stops; delivery_stops; evidence,keep stops review_required=true and auto_accept=false
+DOC_FIXTURE_UNSAFE_WRONG_STOP,fixture_unsafe_wrong_stop.pdf,sanitized_unsafe_wrong_stop,hard,include unsafe stop fixture,document_type; load_number; total_carrier_rate; pickup_stops; delivery_stops; evidence,keep stops review_required=true and auto_accept=false
+DOC_FIXTURE_AUTO_ACCEPT,fixture_auto_accept_violation.pdf,sanitized_auto_accept_violation,hard,include auto-accept policy fixture,document_type; load_number; total_carrier_rate; pickup_stops; delivery_stops; evidence,keep stops review_required=true and auto_accept=false
+DOC_FIXTURE_NON_RC,fixture_non_rc_bol_pod.pdf,city_level_or_non_rc,classification,include non-RC/BOL/POD classification coverage,document_type,keep stops review_required=true and auto_accept=false
+DOC_FIXTURE_PARTIAL_STOP,fixture_optional_partial_stop.pdf,sanitized_optional_partial_stop,medium,include partial stop review fixture,document_type; load_number; total_carrier_rate; pickup_stops; delivery_stops; evidence,keep stops review_required=true and auto_accept=false

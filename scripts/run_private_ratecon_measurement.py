@@ -32,6 +32,11 @@ from app.document_ai.layout_provider_diagnostics import (
 )
 from app.document_ai.pdfplumber_layout_settings import PDFPLUMBER_TABLE_SETTING_PROFILES
 from app.document_ai.layout_provider_contract import SHADOW_LAYOUT_PROVIDER_CHOICES
+from app.document_ai.ocr_provider_contract import (
+    OCR_PAGE_MODE_CHOICES,
+    OCR_PROVIDER_CHOICES,
+)
+from app.document_ai.ratecon_ocr_candidate_policy import OCR_CANDIDATE_POLICIES
 from app.document_ai.private_measurement import build_safe_measurement_output_policy
 from app.document_ai.private_measurement_inputs import (
     PrivateMeasurementInputError,
@@ -61,8 +66,18 @@ from app.document_ai.ratecon_shadow_audit import (
     write_ratecon_shadow_audit_artifacts,
 )
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
-from app.document_ai.field_candidate_resolver import RANKING_PROFILES
-from app.document_ai.field_candidate_generators import LOAD_CANDIDATE_PROFILES
+from app.document_ai.field_candidate_resolver import (
+    LOAD_RANKING_PROFILES,
+    RANKING_PROFILES,
+    RATE_RANKING_PROFILES,
+    STOP_RANKING_PROFILES,
+)
+from app.document_ai.field_candidate_generators import (
+    LOAD_CANDIDATE_PROFILES,
+    STOP_CANDIDATE_PROFILES,
+)
+from app.document_ai.ratecon_stop_draft_profile import STOP_DRAFT_PROFILES
+from app.document_ai.ratecon_stop_fusion_profile import STOP_FUSION_PROFILES
 from app.document_ai.stop_review_packet import write_stop_review_packet
 from app.document_ai.stop_group_provenance_report import (
     write_stop_group_provenance_report,
@@ -165,6 +180,17 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_table_profile="default",
     ratecon_shadow_ranking_profile="baseline",
     ratecon_shadow_load_candidate_profile="baseline",
+    ratecon_shadow_load_ranking_profile=None,
+    ratecon_shadow_rate_ranking_profile=None,
+    ratecon_shadow_ocr_provider="none",
+    ratecon_shadow_ocr_pages="ocr_required",
+    ratecon_shadow_ocr_dpi=200,
+    ratecon_shadow_ocr_candidate_policy="baseline",
+    ratecon_shadow_stop_candidate_profile="baseline",
+    ratecon_shadow_stop_ranking_profile="baseline",
+    ratecon_shadow_stop_draft_profile="none",
+    ratecon_shadow_stop_fusion_profile="none",
+    strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
@@ -203,6 +229,17 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_table_profile=ratecon_shadow_table_profile,
             ratecon_shadow_ranking_profile=ratecon_shadow_ranking_profile,
             ratecon_shadow_load_candidate_profile=ratecon_shadow_load_candidate_profile,
+            ratecon_shadow_load_ranking_profile=ratecon_shadow_load_ranking_profile,
+            ratecon_shadow_rate_ranking_profile=ratecon_shadow_rate_ranking_profile,
+            ratecon_shadow_ocr_provider=ratecon_shadow_ocr_provider,
+            ratecon_shadow_ocr_pages=ratecon_shadow_ocr_pages,
+            ratecon_shadow_ocr_dpi=ratecon_shadow_ocr_dpi,
+            ratecon_shadow_ocr_candidate_policy=ratecon_shadow_ocr_candidate_policy,
+            ratecon_shadow_stop_candidate_profile=ratecon_shadow_stop_candidate_profile,
+            ratecon_shadow_stop_ranking_profile=ratecon_shadow_stop_ranking_profile,
+            ratecon_shadow_stop_draft_profile=ratecon_shadow_stop_draft_profile,
+            ratecon_shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
+            strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
         )
         for path in pdfs
@@ -637,8 +674,119 @@ def main(argv=None):
             "preserves current candidate generation; header_recall_v1 enables "
             "a local gold-recall experiment for generic document header/title "
             "load identifiers; header_recall_table_safety_v1 also applies "
-            "generic table-neighbor safety metadata/penalties."
+            "generic table-neighbor safety metadata/penalties; "
+            "header_recall_table_abstain_v1 conservatively abstains from "
+            "ambiguous table-neighbor load selections."
         ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-load-ranking-profile",
+        default=None,
+        choices=sorted(LOAD_RANKING_PROFILES),
+        help=(
+            "Shadow-only field-scoped load_number ranking/candidate profile. "
+            "When set to a header_recall* profile, it also drives the "
+            "corresponding load candidate generation profile. If omitted, "
+            "the legacy broad --ratecon-shadow-ranking-profile behavior is "
+            "preserved."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-rate-ranking-profile",
+        default=None,
+        choices=sorted(RATE_RANKING_PROFILES),
+        help=(
+            "Shadow-only field-scoped total_carrier_rate ranking profile. "
+            "money_abstain_v1 applies local-only money-context abstention. "
+            "If omitted, the legacy broad --ratecon-shadow-ranking-profile "
+            "behavior is preserved."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-provider",
+        default="none",
+        choices=OCR_PROVIDER_CHOICES,
+        help=(
+            "Shadow-only optional local OCR provider. Default none preserves "
+            "current behavior; auto/tesseract never use cloud services."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-pages",
+        default="ocr_required",
+        choices=OCR_PAGE_MODE_CHOICES,
+        help="Shadow-only OCR page selection mode.",
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-dpi",
+        default=200,
+        type=int,
+        choices=[150, 200, 300],
+        help="Shadow-only OCR render DPI when local OCR is explicitly enabled.",
+    )
+    parser.add_argument(
+        "--ratecon-shadow-ocr-candidate-policy",
+        default="baseline",
+        choices=sorted(OCR_CANDIDATE_POLICIES),
+        help=(
+            "Shadow-only OCR candidate selection policy. "
+            "fill_missing_strict_v1 keeps OCR diagnostic and only lets safe OCR "
+            "candidates fill missing load/rate fields."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-stop-candidate-profile",
+        default="baseline",
+        choices=sorted(STOP_CANDIDATE_PROFILES),
+        help=(
+            "Shadow-only pickup/delivery stop candidate assembly profile. "
+            "ocr_block_assembly_v1 emits structured OCR stop block candidates "
+            "without changing default behavior; ocr_geometry_block_v1 uses "
+            "optional OCR TSV geometry when available; ocr_geometry_column_v1 "
+            "uses TSV row/column bands for stop table reconstruction."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-stop-ranking-profile",
+        default="baseline",
+        choices=sorted(STOP_RANKING_PROFILES),
+        help=(
+            "Shadow-only pickup/delivery stop selection profile. "
+            "stop_component_strict_v1 conservatively abstains from ambiguous "
+            "or weakly role-scoped structured stop candidates; "
+            "stop_alignment_strict_v1 additionally gates OCR stop block "
+            "candidates by component alignment; stop_geometry_strict_v1 "
+            "requires geometry role/boundary evidence for OCR geometry stops; "
+            "stop_column_strict_v1 requires row/column evidence for OCR "
+            "column-reconstructed stops."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-stop-draft-profile",
+        default="none",
+        choices=sorted(STOP_DRAFT_PROFILES),
+        help=(
+            "Shadow-only stop review draft profile. "
+            "dispatch_usable_review_v1 serializes dispatch-usable stop "
+            "candidates into a separate review-required draft group without "
+            "changing selected shadow or legacy output."
+        ),
+    )
+    parser.add_argument(
+        "--ratecon-shadow-stop-fusion-profile",
+        default="none",
+        choices=sorted(STOP_FUSION_PROFILES),
+        help=(
+            "Shadow-only stop fusion review profile. review_safe_v1 emits "
+            "only high-provenance review-required fused stop drafts into a "
+            "separate private-eval group; selected shadow and legacy output "
+            "remain unchanged."
+        ),
+    )
+    parser.add_argument(
+        "--strict-ratecon-shadow-ocr",
+        action="store_true",
+        help="Fail cleanly when explicit shadow OCR cannot run.",
     )
     parser.add_argument(
         "--ratecon-shadow-use-legacy-final-candidates",
@@ -850,6 +998,17 @@ def main(argv=None):
             ratecon_shadow_table_profile=args.ratecon_shadow_table_profile,
             ratecon_shadow_ranking_profile=args.ratecon_shadow_ranking_profile,
             ratecon_shadow_load_candidate_profile=args.ratecon_shadow_load_candidate_profile,
+            ratecon_shadow_load_ranking_profile=args.ratecon_shadow_load_ranking_profile,
+            ratecon_shadow_rate_ranking_profile=args.ratecon_shadow_rate_ranking_profile,
+            ratecon_shadow_ocr_provider=args.ratecon_shadow_ocr_provider,
+            ratecon_shadow_ocr_pages=args.ratecon_shadow_ocr_pages,
+            ratecon_shadow_ocr_dpi=args.ratecon_shadow_ocr_dpi,
+            ratecon_shadow_ocr_candidate_policy=args.ratecon_shadow_ocr_candidate_policy,
+            ratecon_shadow_stop_candidate_profile=args.ratecon_shadow_stop_candidate_profile,
+            ratecon_shadow_stop_ranking_profile=args.ratecon_shadow_stop_ranking_profile,
+            ratecon_shadow_stop_draft_profile=args.ratecon_shadow_stop_draft_profile,
+            ratecon_shadow_stop_fusion_profile=args.ratecon_shadow_stop_fusion_profile,
+            strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
         )
 

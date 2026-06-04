@@ -1,0 +1,5 @@
+{
+  "provider_config_status": "invalid",
+  "reason": "sanitized invalid provider config fixture",
+  "schema_version": "ratecon_local_provider_config_summary_fixture_v1"
+}
