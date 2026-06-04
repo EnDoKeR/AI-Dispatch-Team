@@ -60,6 +60,21 @@ cloud/model integrations are out of scope.
 - `cloud_model`: future only, rejected in this phase unless a later explicit
   privacy-approved flag is added.
 
+## Provider Adapter Registry
+
+Provider experiments must go through the disabled-by-default adapter registry.
+The current registry exposes:
+
+- `stub_empty_v1`: the only runnable provider in this phase;
+- `manual_baseline_reference_v1`: reference-only comparison metadata;
+- `local_model_placeholder_v1`: blocked until a later explicit local-only PR;
+- `cloud_model_placeholder_v1`: blocked until explicit privacy approval and a
+  later PR.
+
+Use `scripts/ratecon_model_provider_cli.py list-providers` to inspect provider
+status and `validate-config` before any dry-run planning. The provider registry
+does not execute models.
+
 ## Privacy Rules
 
 - No private PDFs or raw extracted text are committed.

@@ -27,6 +27,11 @@ from app.document_ai.ratecon_model_assisted_contract import (  # noqa: E402
     build_model_assisted_submission,
     validate_model_assisted_submission,
 )
+from app.document_ai.ratecon_model_provider_contract import default_provider_config  # noqa: E402
+from app.document_ai.ratecon_model_provider_registry import (  # noqa: E402
+    get_provider_descriptor,
+    validate_provider_selection,
+)
 
 
 DEFAULT_OUTPUT_DIR = Path(".local_outputs/private_ratecon_model_assisted_stub_outputs")
@@ -47,6 +52,12 @@ def _text(value: Any) -> str:
 def _read_json(path: Path) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
     return payload if isinstance(payload, dict) else {}
+
+
+def _load_provider_config(path: Path | None) -> dict[str, Any]:
+    if not path:
+        return default_provider_config("stub_empty_v1", "model_assisted_stub_run_v1")
+    return _read_json(_repo_relative(path))
 
 
 def _write_json(path: Path, payload: dict[str, Any]) -> None:
@@ -136,6 +147,7 @@ def create_model_assisted_stub_outputs(
     output_dir: Path = DEFAULT_OUTPUT_DIR,
     fixture_mode: bool = False,
     provider_type: str = "stub",
+    provider_config: Path | None = None,
     copy_manual_template_shape: bool = False,
     include_private_values_local_only: bool = False,
     max_docs: int | None = None,
@@ -144,6 +156,13 @@ def create_model_assisted_stub_outputs(
         raise ModelAssistedStubOutputError("Only provider-type stub is supported in this scaffold.")
     if not is_under_local_outputs(output_dir, REPO_ROOT):
         raise ModelAssistedStubOutputError("Output directory must be under .local_outputs.")
+    config = _load_provider_config(provider_config)
+    validation = validate_provider_selection(config)
+    if not validation.valid:
+        raise ModelAssistedStubOutputError("; ".join(validation.errors))
+    descriptor = get_provider_descriptor(str(config.get("provider_name") or ""))
+    if descriptor.provider_name != "stub_empty_v1":
+        raise ModelAssistedStubOutputError("Only stub_empty_v1 can generate stub submissions in this phase.")
     resolved_output = _repo_relative(output_dir)
     resolved_output.mkdir(parents=True, exist_ok=True)
     paths = _template_paths(templates_dir, fixture_mode)
@@ -162,10 +181,18 @@ def create_model_assisted_stub_outputs(
         submission = build_model_assisted_submission(
             result,
             submission_id=f"stub_{_safe_file_stem(document_id)}",
-            run_id="model_assisted_stub_run_v1",
+            run_id=_text(config.get("run_id")) or "model_assisted_stub_run_v1",
             provider_type="stub",
-            provider_name="local_no_model_stub",
+            provider_name=descriptor.provider_name,
         )
+        submission["provider_registry"] = {
+            "provider_name": descriptor.provider_name,
+            "provider_status": descriptor.status,
+            "safety_gate_results": list(validation.safety_gates),
+            "external_call_made": False,
+            "pdf_processed": False,
+            "ocr_processed": False,
+        }
         validation = validate_model_assisted_submission(submission, strict_hybrid=False)
         if not validation.valid:
             invalid_count += 1
@@ -181,6 +208,8 @@ def create_model_assisted_stub_outputs(
                 "ocr_attempted": "false",
                 "private_values_included": str(bool(include_private_values_local_only)).lower(),
                 "valid_contract": str(validation.valid).lower(),
+                "provider_name": descriptor.provider_name,
+                "provider_status": descriptor.status,
             }
         )
     with (resolved_output / "model_assisted_stub_index.csv").open("w", newline="", encoding="utf-8") as handle:
@@ -197,6 +226,9 @@ def create_model_assisted_stub_outputs(
         "ocr_attempted": False,
         "ai_model_invocation_attempted": False,
         "private_values_included": bool(include_private_values_local_only),
+        "provider_name": descriptor.provider_name,
+        "provider_status": descriptor.status,
+        "safety_gate_count": len(validate_provider_selection(config).safety_gates),
     }
     _write_json(resolved_output / "model_assisted_stub_summary.json", summary)
     readme = """# RateCon Model-Assisted Stub Outputs
@@ -219,6 +251,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--fixture-mode", action="store_true")
     parser.add_argument("--provider-type", default="stub")
+    parser.add_argument("--provider-config", type=Path, default=None)
     parser.add_argument("--copy-manual-template-shape", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
     parser.add_argument("--max-docs", type=int, default=None)
@@ -235,6 +268,7 @@ def main(argv: list[str] | None = None) -> int:
         output_dir=args.output_dir,
         fixture_mode=args.fixture_mode,
         provider_type=args.provider_type,
+        provider_config=args.provider_config,
         copy_manual_template_shape=args.copy_manual_template_shape,
         include_private_values_local_only=args.include_private_values_local_only,
         max_docs=args.max_docs,

@@ -538,6 +538,38 @@ Treat the manual baseline as the quality floor. A model-assisted result that
 matches the baseline is still review-only: stops remain `requires_human_review`
 and `auto_accept=false`.
 
+## Provider Adapter Dry Run
+
+Before any future provider experiment, inspect the disabled-by-default provider
+registry:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py list-providers
+```
+
+Validate a safe stub config:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py validate-config ^
+  --config tests/fixtures/ratecon_model_provider/valid_stub_provider_config.json ^
+  --confirm-private-local-run
+```
+
+Write a dry-run plan:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py dry-run ^
+  --config tests/fixtures/ratecon_model_provider/valid_stub_provider_config.json ^
+  --templates-dir tests/fixtures/ratecon_model_assisted ^
+  --output-dir .local_outputs/ratecon_model_provider_dry_run_fixture ^
+  --confirm-private-local-run
+```
+
+The provider CLI writes only a plan and safety gate report. It does not execute
+a provider, call a model, process PDFs, OCR, or read private document text.
+Only `stub_empty_v1` is runnable in this phase. Local and cloud model
+placeholders are intentionally blocked.
+
 ## Files That Must Never Be Committed
 
 Do not commit:
