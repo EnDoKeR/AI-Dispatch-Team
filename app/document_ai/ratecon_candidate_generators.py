@@ -33,6 +33,10 @@ from app.document_ai.ratecon_candidates import (
     build_candidate_extraction_result,
     build_field_candidate,
 )
+from app.document_ai.ratecon_rate_money_safety import (
+    get_total_pay_heading_labels,
+    get_total_pay_label_types,
+)
 
 
 MONEY_PATTERN = re.compile(
@@ -43,30 +47,8 @@ MONEY_PATTERN = re.compile(
     re.IGNORECASE,
 )
 
-STRONG_RATE_LABELS = (
-    "carrier pay",
-    "total rate",
-    "agreed amount",
-    "linehaul",
-    "line haul",
-    "total carrier rate",
-    "total carrier pay",
-    "total charge",
-    "freight charge",
-    "rate",
-)
-STRONG_RATE_LABEL_TYPES = (
-    ("total carrier pay", "total_carrier_pay"),
-    ("total carrier rate", "total_carrier_pay"),
-    ("carrier pay", "total_carrier_pay"),
-    ("total rate", "total_carrier_pay"),
-    ("agreed amount", "agreed_amount"),
-    ("linehaul", "linehaul"),
-    ("line haul", "linehaul"),
-    ("total charge", "total_charge"),
-    ("freight charge", "total_charge"),
-    ("rate", "unknown_money"),
-)
+STRONG_RATE_LABELS = get_total_pay_heading_labels()
+STRONG_RATE_LABEL_TYPES = get_total_pay_label_types()
 
 ACCESSORIAL_LABELS = (
     "detention",

@@ -10,7 +10,14 @@ from __future__ import annotations
 import re
 
 from app.document_ai.ratecon_load_table_safety import enrich_table_neighbor_safety
-from app.document_ai.ratecon_rate_money_safety import enrich_rate_money_safety
+from app.document_ai.ratecon_rate_money_safety import (
+    enrich_rate_money_safety,
+    get_carrier_freight_pay_context_markers,
+    get_context_feature_line_item_markers,
+    get_context_feature_total_carrier_pay_markers,
+    get_context_feature_total_rate_markers,
+    get_linehaul_total_context_markers,
+)
 
 
 FIELD_LOAD_NUMBER = "load_number"
@@ -224,15 +231,15 @@ def _money_context_from_context(metadata, context: str) -> str:
         return MONEY_CONTEXT_FEE
     if _has_any(context, ["payment terms", "net 30", "net30", "days to pay"]):
         return MONEY_CONTEXT_PAYMENT_TERMS
-    if _has_any(context, ["total carrier pay", "amount due to carrier", "carrier total", "to truck"]):
+    if _has_any(context, get_context_feature_total_carrier_pay_markers()):
         return MONEY_CONTEXT_TOTAL_CARRIER_PAY
-    if _has_any(context, ["carrier freight pay", "freight pay"]):
+    if _has_any(context, get_carrier_freight_pay_context_markers()):
         return MONEY_CONTEXT_CARRIER_FREIGHT_PAY
-    if _has_any(context, ["total cost", "total rate", "agreed rate total", "estimated rate"]):
+    if _has_any(context, get_context_feature_total_rate_markers()):
         return MONEY_CONTEXT_TOTAL_RATE
-    if _has_any(context, ["linehaul total", "line haul total", "freight charge total"]):
+    if _has_any(context, get_linehaul_total_context_markers()):
         return MONEY_CONTEXT_LINEHAUL_TOTAL
-    if _has_any(context, ["linehaul", "line haul", "per mile", "per unit"]):
+    if _has_any(context, get_context_feature_line_item_markers()):
         return MONEY_CONTEXT_LINE_ITEM_RATE
     if existing:
         return existing

@@ -14,6 +14,12 @@ accessorial/noise, deduction, quick-pay, fuel-advance, payment-terms,
 line-item, and total-vs-line-item safety policy must be coordinated there or in
 an explicitly documented support-policy module.
 
+The total-pay/main-rate label taxonomy is centralized in
+`app/document_ai/ratecon_rate_money_safety.py`. Compatibility aliases preserve
+the existing resolver and legacy generator constant names and values. This does
+not change selected rate output, resolver ranking behavior, candidate source
+names, confidence values, field names, or output schemas.
+
 Candidate generators may emit money candidates, but they should not own
 independent total-pay or accessorial safety taxonomy. Generator-side labels that
 exist today are compatibility debt and must remain pinned until a future
@@ -46,10 +52,15 @@ Compatibility surfaces include:
 Do not delete or consolidate these surfaces without a separate narrow PR and
 behavior-pinning evidence.
 
+Accessorial/noise label taxonomy remains intentionally separate compatibility
+debt. Do not consolidate detention, quick-pay, fuel-advance, fee, deduction, or
+other non-total labels in the same PR as total-pay taxonomy work.
+
 ## Behavior Pinning Status
 
 Current rate/money behavior is pinned by:
 
+- `tests/test_ratecon_total_pay_label_taxonomy.py`
 - `tests/test_ratecon_rate_money_compatibility_pinning.py`
 - `tests/test_ratecon_rate_money_constant_guardrails.py`
 - `tests/test_ratecon_rate_money_safety_ownership.py`
@@ -64,6 +75,8 @@ Pinned behavior includes:
 - forensics category and source-section classifications;
 - conflict-audit diagnosis and recommended-fix labels;
 - compatibility imports and duplicate constant count.
+- total-pay/main-rate labels, context markers, compatibility aliases, and
+  sanitized selected-rate behavior.
 
 ## Future Consolidation Requirements
 
@@ -77,6 +90,10 @@ Any future rate/money consolidation requires tests proving:
   behavior-change PR;
 - same output schemas and filenames;
 - no production output changes by default.
+
+Future total-pay label changes must include selected-rate regression tests and
+measurement/evaluation evidence before changing ranking, safety classification,
+or candidate metadata behavior.
 
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime

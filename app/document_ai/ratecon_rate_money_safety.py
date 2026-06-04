@@ -51,6 +51,94 @@ DOCUMENT_REGION_QUICKPAY_TERMS = "quickpay_terms"
 DOCUMENT_REGION_FOOTER = "footer_signature"
 DOCUMENT_REGION_UNKNOWN = "unknown"
 
+TOTAL_CARRIER_PAY_CONTEXT_MARKERS = (
+    "total carrier pay",
+    "amount due to carrier",
+    "carrier total",
+)
+ESTIMATED_RATE_TO_TRUCK_CONTEXT_MARKERS = (
+    "estimated rate to truck",
+    "estimated rate (to truck)",
+    "to truck",
+)
+AGREED_RATE_TOTAL_CONTEXT_MARKERS = (
+    "agreed rate total",
+    "agreed amount total",
+)
+CARRIER_FREIGHT_PAY_CONTEXT_MARKERS = (
+    "carrier freight pay",
+    "freight pay",
+)
+LINEHAUL_TOTAL_CONTEXT_MARKERS = (
+    "linehaul total",
+    "line haul total",
+    "freight charge total",
+)
+TOTAL_COST_CONTEXT_MARKERS = ("total cost",)
+TOTAL_RATE_CONTEXT_MARKERS = (
+    "total rate-usd",
+    "total rate usd",
+    "total rate",
+)
+TOTAL_PAY_CONTEXT_MARKERS = (
+    TOTAL_CARRIER_PAY_CONTEXT_MARKERS
+    + ESTIMATED_RATE_TO_TRUCK_CONTEXT_MARKERS
+    + AGREED_RATE_TOTAL_CONTEXT_MARKERS
+    + CARRIER_FREIGHT_PAY_CONTEXT_MARKERS
+    + LINEHAUL_TOTAL_CONTEXT_MARKERS
+    + TOTAL_COST_CONTEXT_MARKERS
+    + TOTAL_RATE_CONTEXT_MARKERS
+)
+TOTAL_PAY_STRONG_LABELS = (
+    "total carrier pay",
+    "total carrier rate",
+    "carrier pay",
+    "total rate",
+    "agreed amount",
+)
+LEGACY_MAIN_RATE_LABELS = (
+    "carrier pay",
+    "total rate",
+    "agreed amount",
+    "linehaul",
+    "line haul",
+    "total carrier rate",
+    "total carrier pay",
+    "total charge",
+    "freight charge",
+    "rate",
+)
+LEGACY_MAIN_RATE_LABEL_TYPES = (
+    ("total carrier pay", "total_carrier_pay"),
+    ("total carrier rate", "total_carrier_pay"),
+    ("carrier pay", "total_carrier_pay"),
+    ("total rate", "total_carrier_pay"),
+    ("agreed amount", "agreed_amount"),
+    ("linehaul", "linehaul"),
+    ("line haul", "linehaul"),
+    ("total charge", "total_charge"),
+    ("freight charge", "total_charge"),
+    ("rate", "unknown_money"),
+)
+CONTEXT_FEATURE_TOTAL_CARRIER_PAY_MARKERS = (
+    "total carrier pay",
+    "amount due to carrier",
+    "carrier total",
+    "to truck",
+)
+CONTEXT_FEATURE_TOTAL_RATE_MARKERS = (
+    "total cost",
+    "total rate",
+    "agreed rate total",
+    "estimated rate",
+)
+CONTEXT_FEATURE_LINE_ITEM_MARKERS = (
+    "linehaul",
+    "line haul",
+    "per mile",
+    "per unit",
+)
+
 SAFE_TOTAL_CONTEXTS = {
     MONEY_CONTEXT_TOTAL_CARRIER_PAY,
     MONEY_CONTEXT_TOTAL_RATE,
@@ -123,6 +211,71 @@ def _has_any(text: str, markers) -> bool:
     return any(marker in text for marker in markers)
 
 
+def get_total_pay_positive_labels():
+    """Return canonical total-pay/main-rate context markers in stable order."""
+    return TOTAL_PAY_CONTEXT_MARKERS
+
+
+def get_total_pay_strong_labels():
+    """Return resolver-compatible strong total-pay labels in stable order."""
+    return TOTAL_PAY_STRONG_LABELS
+
+
+def get_total_pay_heading_labels():
+    """Return legacy main-rate heading labels in stable order."""
+    return LEGACY_MAIN_RATE_LABELS
+
+
+def get_total_pay_context_markers():
+    """Return canonical context markers used by money-context classification."""
+    return TOTAL_PAY_CONTEXT_MARKERS
+
+
+def get_legacy_main_rate_label_types():
+    """Return legacy generator label-to-value-type mappings in stable order."""
+    return LEGACY_MAIN_RATE_LABEL_TYPES
+
+
+def get_total_pay_label_types():
+    """Return legacy-compatible total-pay label-to-value-type mappings."""
+    return get_legacy_main_rate_label_types()
+
+
+def get_carrier_freight_pay_context_markers():
+    """Return carrier-freight-pay context markers in stable order."""
+    return CARRIER_FREIGHT_PAY_CONTEXT_MARKERS
+
+
+def get_linehaul_total_context_markers():
+    """Return linehaul-total context markers in stable order."""
+    return LINEHAUL_TOTAL_CONTEXT_MARKERS
+
+
+def get_context_feature_total_carrier_pay_markers():
+    """Return context-feature compatibility markers for total carrier pay."""
+    return CONTEXT_FEATURE_TOTAL_CARRIER_PAY_MARKERS
+
+
+def get_context_feature_total_rate_markers():
+    """Return context-feature compatibility markers for total rate context."""
+    return CONTEXT_FEATURE_TOTAL_RATE_MARKERS
+
+
+def get_context_feature_line_item_markers():
+    """Return context-feature compatibility markers for line-item rates."""
+    return CONTEXT_FEATURE_LINE_ITEM_MARKERS
+
+
+def is_total_pay_label(text: str) -> bool:
+    """Return whether text matches current total-pay/main-rate context markers."""
+    return _has_any(_lower(text), get_total_pay_context_markers())
+
+
+def is_strong_total_pay_context(text: str) -> bool:
+    """Return whether text matches current resolver strong total-pay labels."""
+    return _has_any(_lower(text), get_total_pay_strong_labels())
+
+
 def _normalize_money_context(metadata, context: str) -> str:
     existing = _lower(metadata.get("money_context"))
     if _has_any(context, ["quickpay", "quick pay"]):
@@ -145,21 +298,21 @@ def _normalize_money_context(metadata, context: str) -> str:
         return MONEY_CONTEXT_PAYMENT_TERMS
     if _has_any(context, PER_UNIT_MARKERS):
         return MONEY_CONTEXT_PER_UNIT_RATE
-    if _has_any(context, ["total carrier pay", "amount due to carrier", "carrier total"]):
+    if _has_any(context, TOTAL_CARRIER_PAY_CONTEXT_MARKERS):
         return MONEY_CONTEXT_TOTAL_CARRIER_PAY
-    if _has_any(context, ["estimated rate to truck", "estimated rate (to truck)", "to truck"]):
+    if _has_any(context, ESTIMATED_RATE_TO_TRUCK_CONTEXT_MARKERS):
         return MONEY_CONTEXT_ESTIMATED_RATE_TO_TRUCK
-    if _has_any(context, ["agreed rate total", "agreed amount total"]):
+    if _has_any(context, AGREED_RATE_TOTAL_CONTEXT_MARKERS):
         return MONEY_CONTEXT_AGREED_RATE_TOTAL
-    if _has_any(context, ["carrier freight pay", "freight pay"]):
+    if _has_any(context, CARRIER_FREIGHT_PAY_CONTEXT_MARKERS):
         return MONEY_CONTEXT_CARRIER_FREIGHT_PAY
-    if _has_any(context, ["linehaul total", "line haul total", "freight charge total"]):
+    if _has_any(context, LINEHAUL_TOTAL_CONTEXT_MARKERS):
         return MONEY_CONTEXT_LINEHAUL_TOTAL
     if _has_any(context, ["linehaul", "line haul"]):
         return MONEY_CONTEXT_LINE_ITEM_RATE
-    if _has_any(context, ["total cost"]):
+    if _has_any(context, TOTAL_COST_CONTEXT_MARKERS):
         return MONEY_CONTEXT_TOTAL_COST
-    if _has_any(context, ["total rate-usd", "total rate usd", "total rate"]):
+    if _has_any(context, TOTAL_RATE_CONTEXT_MARKERS):
         return MONEY_CONTEXT_TOTAL_RATE
     if existing in {"carrier_pay", "total_carrier_pay"}:
         return MONEY_CONTEXT_TOTAL_CARRIER_PAY

@@ -191,9 +191,16 @@ Current ownership policy:
   tests until a future narrow consolidation PR.
 
 Do not consolidate duplicate rate/money constants without behavior-pinning
-tests. Future rate/money consolidation should start with one narrow target:
+tests. The first narrow consolidation target centralizes total-pay/main-rate
+label taxonomy in `app/document_ai/ratecon_rate_money_safety.py` while keeping
+legacy resolver and generator constants as compatibility aliases. It does not
+change selected rate output, resolver scoring, thresholds, candidate source
+names, confidence values, field names, schemas, or money-context labels.
 
-- total-pay label taxonomy;
+Accessorial/noise taxonomy remains intentionally out of scope for the total-pay
+label phase. Future rate/money consolidation should continue with one narrow
+target:
+
 - accessorial/noise label taxonomy;
 - money context classification;
 - resolver rate ranking penalties;
