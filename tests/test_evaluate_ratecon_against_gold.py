@@ -15,6 +15,7 @@ from app.document_ai.ratecon_gold_labels import (
     FIELD_LOAD_NUMBER,
     FIELD_TOTAL_CARRIER_RATE,
     LABEL_LABELED,
+    LABEL_SKIPPED,
     SYSTEM_LEGACY,
     SYSTEM_SHADOW,
     SYSTEM_SHADOW_BEST_INDEPENDENT,
@@ -446,6 +447,541 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(summary["by_table_neighbor_safety"]["unsafe"], 1)
         self.assertFalse(summary["private_values_printed"])
 
+    def test_remaining_table_neighbor_wrong_summary_classifies_geometry_and_reference(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "WRONG-STOP-REF",
+                    "confidence": 0.88,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_context_role": "stop_table",
+                        "table_row_role": "pickup_delivery_ref_row",
+                        "table_neighbor_safety": "unsafe",
+                        "table_neighbor_penalty_reason": "pickup_delivery_reference_row",
+                        "id_type_hint": "load",
+                    },
+                },
+            }
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["remaining_table_neighbor_wrong_summary"]
+
+        self.assertEqual(summary["count"], 1)
+        self.assertEqual(summary["unknown_count"], 0)
+        self.assertEqual(summary["should_be_reference_count"], 1)
+        self.assertEqual(
+            summary["reason_counts"]["table_neighbor_should_be_reference_not_load"],
+            1,
+        )
+
+    def test_table_neighbor_value_cell_forensics_uses_safe_counts(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "WRONG-TABLE-ID",
+                    "confidence": 0.88,
+                    "source": "native_layout",
+                    "parser_name": "layout_load_pairing",
+                    "page": 1,
+                    "value_shape": {
+                        "length": 14,
+                        "has_digits": False,
+                        "has_letters": True,
+                        "looks_like_date": False,
+                        "looks_like_money": False,
+                        "looks_like_phone": False,
+                        "looks_like_address": False,
+                    },
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_context_role": "header_load_info",
+                        "table_row_role": "load_id_row",
+                        "table_neighbor_safety": "safe",
+                        "id_type_hint": "load",
+                        "table_index": 1,
+                        "row_index": 2,
+                        "neighbor_cell_count": 4,
+                        "id_like_cell_count_in_row": 2,
+                        "load_label_cell_count_in_row": 1,
+                        "reference_label_cell_count_in_row": 1,
+                    },
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["load_table_neighbor_value_cell_forensics"]
+
+        self.assertEqual(summary["wrong_table_neighbor_count"], 1)
+        self.assertEqual(summary["diagnosis_counts"]["ambiguous_multi_id_row"], 1)
+        case = summary["cases"][0]
+        self.assertEqual(case["selected_candidate"]["neighbor_cell_count"], 4)
+        self.assertEqual(case["selected_candidate"]["id_like_cell_count_in_row"], 2)
+        self.assertNotIn("WRONG-TABLE-ID", json.dumps(summary))
+        self.assertFalse(summary["private_values_printed"])
+
+    def test_table_neighbor_abstention_summary_counts_private_eval_candidates(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "load_identity_candidate_inventory": [
+                {
+                    "field": "reference_numbers",
+                    "value": "ABSTAINED-ID",
+                    "confidence": 0.35,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "pairing_method": "table_key_value_row",
+                        "table_neighbor_abstained": True,
+                        "table_neighbor_demoted_from_load_number": True,
+                        "table_neighbor_abstention_reason": (
+                            "table_neighbor_multi_id_unclear_alignment"
+                        ),
+                        "selection_policy": "abstain",
+                    },
+                },
+            ],
+            "shadow_selected": {
+                FIELD_LOAD_NUMBER: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["table_neighbor_abstention_summary"]
+
+        self.assertEqual(summary["abstained_candidate_count"], 1)
+        self.assertEqual(summary["demoted_from_load_number_count"], 1)
+        self.assertEqual(
+            summary["reason_counts"]["table_neighbor_multi_id_unclear_alignment"],
+            1,
+        )
+        self.assertEqual(summary["selection_policy_counts"]["abstain"], 1)
+        self.assertEqual(summary["by_system"]["load_identity_candidate_inventory"], 1)
+        self.assertNotIn("ABSTAINED-ID", json.dumps(summary))
+
+    def test_rate_wrong_case_summary_uses_safe_money_context(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "150.00",
+                    "confidence": 0.92,
+                    "source": "native_layout",
+                    "parser_name": "layout_rate_pairing",
+                    "page": 1,
+                    "metadata_summary": {
+                        "money_context": "quickpay",
+                        "document_region": "quickpay_terms",
+                        "rate_safety": "unsafe",
+                        "rate_safety_reason": "quickpay",
+                        "is_deduction_or_penalty": True,
+                        "pairing_method": "table_row",
+                    },
+                }
+            }
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["rate_wrong_case_summary"]
+
+        self.assertEqual(summary["wrong_selected_count"], 1)
+        self.assertEqual(summary["reason_counts"]["selected_quickpay_fee"], 1)
+        self.assertEqual(summary["wrong_by_money_context"]["quickpay"], 1)
+        self.assertEqual(summary["high_confidence_wrong_count"], 1)
+        self.assertNotIn("150.00", json.dumps(summary))
+        self.assertFalse(summary["private_values_printed"])
+
+    def test_rate_abstention_summary_counts_private_eval_inventory(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "rate_money_candidate_inventory": [
+                {
+                    "field": "accessorial_term",
+                    "value": "2.50",
+                    "confidence": 0.35,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "money_context": "per_unit_rate",
+                        "rate_safety": "unsafe",
+                        "rate_abstained": True,
+                        "rate_demoted_from_total_carrier_rate": True,
+                        "rate_abstention_reason": "per_unit_rate",
+                        "selection_policy": "abstain",
+                    },
+                }
+            ],
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["rate_abstention_summary"]
+
+        self.assertEqual(summary["abstained_candidate_count"], 1)
+        self.assertEqual(summary["demoted_from_total_carrier_rate_count"], 1)
+        self.assertEqual(summary["reason_counts"]["per_unit_rate"], 1)
+        self.assertEqual(summary["money_context_counts"]["per_unit_rate"], 1)
+        self.assertEqual(summary["rate_safety_counts"]["unsafe"], 1)
+        self.assertEqual(summary["by_system"]["rate_money_candidate_inventory"], 1)
+        self.assertNotIn("2.50", json.dumps(summary))
+
+    def test_residual_wrong_rate_forensics_selected_safe_total_gold_differs(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2600.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2500.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "parser_name": "document_text_candidate_extractor",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                        "document_region": "payment_summary",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["residual_wrong_rate_forensics"]
+
+        self.assertEqual(summary["wrong_selected_count"], 1)
+        self.assertEqual(
+            summary["diagnosis_counts"]["selected_safe_total_but_gold_differs"],
+            1,
+        )
+        case = summary["cases"][0]
+        self.assertEqual(case["all_plausible_rate_candidate_summary"]["safe_total_candidates"], 1)
+        self.assertFalse(case["gold_visibility"]["gold_total_in_any_candidate"])
+        self.assertNotIn("2500.00", json.dumps(summary))
+        self.assertNotIn("2600.00", json.dumps(summary))
+
+    def test_residual_wrong_rate_forensics_gold_total_in_candidates_not_selected(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2400.00",
+                    "confidence": 0.86,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "unknown",
+                        "rate_safety": "unknown",
+                    },
+                }
+            },
+            "shadow_candidate_best": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2500.00",
+                    "confidence": 0.75,
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "source": "native_layout",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["residual_wrong_rate_forensics"]
+
+        self.assertEqual(summary["wrong_selected_count"], 1)
+        self.assertEqual(
+            summary["diagnosis_counts"]["gold_total_in_candidates_not_selected"],
+            1,
+        )
+        self.assertTrue(summary["cases"][0]["gold_visibility"]["gold_total_in_any_candidate"])
+
+    def test_gold_rate_consistency_audit_flags_ambiguous_totals(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2600.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2500.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2700.00",
+                    "metadata_summary": {
+                        "money_context": "total_rate",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertEqual(audit["cases_checked"], 1)
+        self.assertEqual(audit["gold_label_suspect_count"], 1)
+        self.assertEqual(audit["suspect_reasons"]["ambiguous_multiple_totals"], 1)
+        self.assertFalse(audit["gold_files_modified"])
+
+    def test_gold_rate_consistency_audit_does_not_flag_blank_total_pay_label(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2200.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2300.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2200.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertNotIn(
+            "gold_uses_carrier_freight_pay_but_total_carrier_pay_present",
+            audit["suspect_reasons"],
+        )
+        case = result["residual_wrong_rate_forensics"]["cases"][0]
+        self.assertFalse(
+            case["rate_context_value_summary"]["total_carrier_pay_value_present"]
+        )
+        self.assertTrue(case["rate_context_value_summary"]["total_carrier_pay_value_blank"])
+
+    def test_gold_rate_consistency_audit_flags_nonblank_total_pay_difference(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2500.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2400.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2400.00",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertEqual(audit["gold_label_suspect_count"], 1)
+        self.assertEqual(
+            audit["suspect_reasons"][
+                "gold_uses_carrier_freight_pay_but_total_carrier_pay_present"
+            ],
+            1,
+        )
+
+    def test_gold_rate_consistency_audit_ignores_equal_total_and_freight_pay(self):
+        label = self._gold_label()
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2500.00"
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "2600.00",
+                    "confidence": 0.92,
+                    "source": "native_text",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                }
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "total_carrier_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+                {
+                    "field": FIELD_TOTAL_CARRIER_RATE,
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "carrier_freight_pay",
+                        "rate_safety": "safe",
+                    },
+                },
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        audit = result["gold_rate_consistency_audit"]
+
+        self.assertNotIn(
+            "gold_uses_carrier_freight_pay_but_total_carrier_pay_present",
+            audit["suspect_reasons"],
+        )
+
+    def test_missing_rate_forensics_detects_candidate_abstained(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+            "rate_money_candidate_inventory": [
+                {
+                    "field": "accessorial_term",
+                    "value": "2500.00",
+                    "metadata_summary": {
+                        "money_context": "unknown",
+                        "rate_safety": "unknown",
+                        "rate_abstained": True,
+                        "rate_demoted_from_total_carrier_rate": True,
+                    },
+                }
+            ],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["missing_rate_forensics"]
+
+        self.assertEqual(summary["missing_count"], 1)
+        self.assertEqual(summary["reason_counts"]["rate_in_candidate_but_abstained"], 1)
+        self.assertEqual(summary["gold_rate_in_candidate_but_abstained"], 1)
+        self.assertNotIn("2500.00", json.dumps(summary))
+
+    def test_missing_rate_forensics_detects_visible_text_no_candidate(self):
+        label = self._gold_label()
+        record = self._audit_record()
+        record["private_eval_values"] = {
+            "shadow_selected": {
+                FIELD_TOTAL_CARRIER_RATE: {
+                    "value": "",
+                    "confidence": 0.0,
+                    "source_status": "extractor_missing",
+                },
+            },
+            "rate_visibility_probe": {
+                "schema_version": "ratecon_rate_visibility_probe_v1",
+                "full_text_money_hashes": [
+                    hashlib.sha256("2500.00".encode("utf-8")).hexdigest()
+                ],
+            },
+            "rate_money_candidate_inventory": [],
+        }
+
+        result = evaluate_ratecon_against_gold([label], [record])
+        summary = result["missing_rate_forensics"]
+
+        self.assertEqual(summary["missing_count"], 1)
+        self.assertEqual(summary["reason_counts"]["rate_visible_in_text_but_no_candidate"], 1)
+        self.assertEqual(summary["gold_rate_visible_in_text_but_not_candidate"], 1)
+
     def test_ocr_vision_backlog_counts_low_text_without_running_ocr(self):
         label = self._gold_label()
         record = self._audit_record()
@@ -466,9 +1002,49 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         backlog = result["ocr_vision_backlog_summary"]
 
         self.assertEqual(backlog["ocr_or_vision_required_doc_count"], 1)
+        self.assertEqual(backlog["overall_docs"], 1)
+        self.assertEqual(backlog["evaluated_rc_docs"], 1)
+        self.assertEqual(backlog["skipped_non_rc_docs"], 0)
+        self.assertEqual(backlog["load_blocked_docs"], 1)
+        self.assertEqual(backlog["rate_blocked_docs"], 1)
+        self.assertEqual(backlog["stop_blocked_docs"], 1)
+        self.assertEqual(backlog["recommended_next_route_counts"]["ocr"], 1)
         self.assertEqual(backlog["pdf_type_counts"]["scanned"], 1)
         self.assertFalse(backlog["ocr_run"])
         self.assertFalse(backlog["ai_cloud_used"])
+
+    def test_ocr_vision_backlog_separates_skipped_non_ratecon(self):
+        skipped = self._gold_label()
+        skipped["document_id"] = "DOC-29"
+        skipped["file_name"] = "LoadConfirmation29.pdf"
+        skipped["label_status"] = LABEL_SKIPPED
+        skipped["skip_reason"] = "not_rate_confirmation"
+        record = self._audit_record()
+        record["document_id"] = "RATECON_029"
+        record["file_name"] = "LoadConfirmation29.pdf"
+        record["triage"] = {
+            "ocr_required": False,
+            "pdf_type": "low_text",
+            "page_count": 1,
+            "native_text_token_count": 2,
+        }
+        record["artifact_summary"] = {
+            "full_text_present": False,
+            "word_count": 0,
+            "table_count": 0,
+            "layout_provider_summary": {"status": "partial"},
+        }
+
+        result = evaluate_ratecon_against_gold([skipped], [record])
+        backlog = result["ocr_vision_backlog_summary"]
+
+        self.assertEqual(backlog["overall_docs"], 1)
+        self.assertEqual(backlog["evaluated_rc_docs"], 0)
+        self.assertEqual(backlog["skipped_non_rc_docs"], 1)
+        self.assertEqual(
+            backlog["recommended_next_route_counts"]["document_classification"],
+            1,
+        )
 
     def test_confidence_calibration_counts_low_confidence_correct(self):
         result = evaluate_ratecon_against_gold([self._gold_label()], [self._audit_record()])
@@ -601,6 +1177,11 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "missing_count": 0,
                 "gold_total_in_candidates_not_selected": 1,
             },
+            "rate_abstention_summary": {
+                "abstained_candidate_count": 0,
+                "reason_counts": {},
+                "money_context_counts": {},
+            },
             "load_candidate_recall_summary": {
                 "evaluated_docs": 1,
                 "gold_load_in_any_candidate": 0,
@@ -648,6 +1229,11 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "missing_count": 0,
                 "gold_total_in_candidates_not_selected": 0,
             },
+            "rate_abstention_summary": {
+                "abstained_candidate_count": 2,
+                "reason_counts": {"per_unit_rate": 2},
+                "money_context_counts": {"per_unit_rate": 2},
+            },
             "load_candidate_recall_summary": {
                 "evaluated_docs": 1,
                 "gold_load_in_any_candidate": 1,
@@ -684,6 +1270,10 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
         self.assertEqual(
             comparison["rate_profile_safety_summary"]["wrong_delta"],
             -1,
+        )
+        self.assertEqual(
+            comparison["rate_abstention_delta"]["delta"]["abstained_candidate_count"],
+            2,
         )
 
     def test_compare_profiles_reports_all_configurations(self):
@@ -725,6 +1315,15 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                     "wrong_table_neighbor_count": table_wrong,
                     "reason_counts": {"table_neighbor_from_stop_reference_row": table_wrong},
                 },
+                "table_neighbor_abstention_summary": {
+                    "abstained_candidate_count": table_wrong,
+                    "reason_counts": {"table_neighbor_multi_id_unclear_alignment": table_wrong},
+                },
+                "rate_abstention_summary": {
+                    "abstained_candidate_count": max(0, 15 - rate_correct),
+                    "reason_counts": {"per_unit_rate": max(0, 15 - rate_correct)},
+                    "money_context_counts": {"per_unit_rate": max(0, 15 - rate_correct)},
+                },
                 "rate_error_analysis": {"wrong_reason_counts": {}},
             }
 
@@ -749,6 +1348,18 @@ class EvaluateRateconAgainstGoldTests(unittest.TestCase):
                 "correct_count"
             ],
             2,
+        )
+        self.assertEqual(
+            comparison["deltas_from_first_profile"]["combined"][
+                "table_neighbor_abstention"
+            ]["abstained_candidate_count"],
+            -2,
+        )
+        self.assertEqual(
+            comparison["deltas_from_first_profile"]["combined"]["rate_abstention"][
+                "abstained_candidate_count"
+            ],
+            -2,
         )
 
 

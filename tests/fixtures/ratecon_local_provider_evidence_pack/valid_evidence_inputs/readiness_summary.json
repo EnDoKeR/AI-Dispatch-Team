@@ -1,0 +1,17 @@
+{
+  "ai_model_invocation_attempted": false,
+  "blocking_reasons": [],
+  "external_api_calls_attempted": false,
+  "experiment_id": "fixture_only_readiness_plan",
+  "future_local_provider_requires_separate_pr": true,
+  "ocr_attempted": false,
+  "pdf_processing_attempted": false,
+  "provider_config_valid": true,
+  "provider_name": "stub_empty_v1",
+  "provider_readiness_status": "fixture_only_plan_valid",
+  "provider_type": "stub",
+  "schema_version": "ratecon_local_provider_readiness_summary_v1",
+  "status": "fixture_only_plan_valid",
+  "valid": true,
+  "warnings": []
+}

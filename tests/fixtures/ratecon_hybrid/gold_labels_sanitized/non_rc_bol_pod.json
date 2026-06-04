@@ -1,0 +1,22 @@
+{
+  "schema_version": "ratecon_gold_label_v1",
+  "document_id": "DOC_FIXTURE_NON_RC",
+  "file_hash": "fixturehashnonrc000000000000000000005",
+  "file_name": "fixture_non_rc_bol_pod.pdf",
+  "label_status": "partial",
+  "skip_reason": null,
+  "gold": {
+    "document_type": "bol_pod",
+    "broker_name": {"value": null, "uncertain": false, "notes": ""},
+    "carrier_name": {"value": null, "uncertain": false, "notes": ""},
+    "load_number": {"value": null, "alternate_acceptable_values": [], "uncertain": false, "notes": ""},
+    "total_carrier_rate": {"value": null, "currency": "USD", "uncertain": false, "notes": ""},
+    "pickup_stops": [],
+    "delivery_stops": [],
+    "equipment_type": {"value": null, "uncertain": false, "notes": ""},
+    "commodity": {"value": null, "uncertain": false, "notes": ""},
+    "weight": {"value": null, "unit": "", "uncertain": false, "notes": ""},
+    "reference_numbers": []
+  },
+  "labeler": {"name": null, "labeled_at": null, "review_notes": "Synthetic non-RC fixture."}
+}

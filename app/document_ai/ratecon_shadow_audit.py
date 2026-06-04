@@ -33,6 +33,14 @@ from app.document_ai.structured_stop_values import (
     FIELD_PICKUP_STOPS,
     normalize_stop_candidate_value,
 )
+from app.document_ai.ratecon_stop_draft_profile import (
+    STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
+    STOP_DRAFT_PROFILE_NONE,
+)
+from app.document_ai.ratecon_stop_fusion_profile import (
+    STOP_FUSION_PROFILE_NONE,
+    STOP_FUSION_PROFILE_REVIEW_SAFE_V1,
+)
 
 
 RATECON_SHADOW_AUDIT_VERSION = "ratecon_shadow_document_pipeline_audit_v1"
@@ -403,6 +411,8 @@ def _sanitize_triage(triage, include_file_name=False, include_file_hash=False):
 def _artifact_summary(debug):
     summary = (debug or {}).get("artifact_summary", {}) or {}
     layout_summary = summary.get("layout_provider_summary", {}) or {}
+    ocr_summary = summary.get("ocr_provider_summary", {}) or {}
+    ocr_classification = summary.get("ocr_document_classification", {}) or {}
     return {
         "source": _text(summary.get("source")),
         "page_count": _safe_int(summary.get("page_count")),
@@ -426,6 +436,31 @@ def _artifact_summary(debug):
             "table_settings_profile": _text(layout_summary.get("table_settings_profile")),
             "warnings": _safe_list(layout_summary.get("warnings")),
             "errors": _safe_list(layout_summary.get("errors")),
+        },
+        "ocr_provider_summary": {
+            "provider_requested": _text(ocr_summary.get("provider_requested")),
+            "provider_used": _text(ocr_summary.get("provider_used")),
+            "available": _safe_bool(ocr_summary.get("available")),
+            "status": _text(ocr_summary.get("status")),
+            "pages_attempted": _safe_int(ocr_summary.get("pages_attempted")),
+            "pages_ocr_success": _safe_int(ocr_summary.get("pages_ocr_success")),
+            "ocr_text_page_count": _safe_int(ocr_summary.get("ocr_text_page_count")),
+            "ocr_word_count": _safe_int(ocr_summary.get("ocr_word_count")),
+            "ocr_line_count": _safe_int(ocr_summary.get("ocr_line_count")),
+            "page_status_counts": dict(ocr_summary.get("page_status_counts") or {}),
+            "warnings": _safe_list(ocr_summary.get("warnings")),
+            "errors": _safe_list(ocr_summary.get("errors")),
+            "raw_text_included": False,
+        },
+        "ocr_document_classification": {
+            "document_type": _text(ocr_classification.get("document_type")),
+            "skip_reason": _text(ocr_classification.get("skip_reason")),
+            "rate_confirmation_signal": _safe_bool(
+                ocr_classification.get("rate_confirmation_signal")
+            ),
+            "bol_pod_signal": _safe_bool(ocr_classification.get("bol_pod_signal")),
+            "ocr_text_available": _safe_bool(ocr_classification.get("ocr_text_available")),
+            "raw_text_included": False,
         },
     }
 
@@ -466,6 +501,10 @@ def build_candidate_summary(candidates, generator_summaries=None):
     quality_by_field = defaultdict(Counter)
     quality_reasons = defaultdict(Counter)
     duplicate_identities = Counter()
+    ocr_candidates_by_field = Counter()
+    ocr_candidates_by_generator = Counter()
+    ocr_accessorial_by_section = Counter()
+    ocr_accessorial_deduped_or_demoted = 0
     seen_identities = set()
     independent_fields = set()
     fallback_fields = set()
@@ -554,6 +593,19 @@ def build_candidate_summary(candidates, generator_summaries=None):
                 independent_fields.add(field_name)
         by_source[source] += 1
         by_generator[generator] += 1
+        if source == "ocr" or metadata.get("ocr_candidate"):
+            ocr_candidates_by_field[field_name or "unknown"] += 1
+            ocr_candidates_by_generator[generator] += 1
+            if field_name == "accessorial_term" or metadata.get("ocr_accessorial_diagnostic_only"):
+                ocr_accessorial_by_section[
+                    _text(metadata.get("document_region"))
+                    or _text(metadata.get("section_context"))
+                    or "unknown"
+                ] += 1
+                if metadata.get("rate_demoted_from_total_carrier_rate") or metadata.get(
+                    "ocr_rate_abstained"
+                ):
+                    ocr_accessorial_deduped_or_demoted += 1
         if diagnostic_fallback:
             fallback_count += 1
         else:
@@ -973,6 +1025,15 @@ def build_candidate_summary(candidates, generator_summaries=None):
                 field: dict(sorted(counter.items()))
                 for field, counter in sorted(quality_reasons.items())
             },
+        },
+        "ocr_candidate_summary": {
+            "ocr_candidates_total": sum(ocr_candidates_by_field.values()),
+            "ocr_candidates_by_field": dict(sorted(ocr_candidates_by_field.items())),
+            "ocr_candidates_by_generator": dict(sorted(ocr_candidates_by_generator.items())),
+            "ocr_accessorial_candidate_count": sum(ocr_accessorial_by_section.values()),
+            "ocr_accessorial_by_section": dict(sorted(ocr_accessorial_by_section.items())),
+            "ocr_accessorial_deduped_or_demoted": ocr_accessorial_deduped_or_demoted,
+            "raw_text_included": False,
         },
     }
 
@@ -1423,6 +1484,7 @@ def _metadata_eval_summary(metadata):
     metadata = metadata if isinstance(metadata, dict) else {}
     safe_keys = [
         "id_type_hint",
+        "candidate_id",
         "label_strength",
         "canonical_mapping_strength",
         "money_context",
@@ -1441,10 +1503,24 @@ def _metadata_eval_summary(metadata):
         "table_neighbor_safety",
         "table_neighbor_penalty_reason",
         "table_neighbor_demoted_from_load_number",
+        "table_neighbor_abstained",
+        "table_neighbor_abstention_reason",
+        "selection_policy",
+        "review_required",
         "table_semantic_kind",
         "table_row_identifier_like_cell_count",
+        "neighbor_cell_count",
+        "id_like_cell_count_in_row",
+        "load_label_cell_count_in_row",
+        "reference_label_cell_count_in_row",
+        "stop_label_cell_count_in_row",
+        "money_like_cell_count_in_row",
         "stop_role",
+        "stop_index",
+        "source_generator_name",
         "structured_stop_candidate",
+        "assembled_from_stop_block",
+        "stop_block_component_candidate",
         "partial_stop_candidate",
         "ambiguous_stop_candidate",
         "has_location",
@@ -1454,6 +1530,58 @@ def _metadata_eval_summary(metadata):
         "has_address",
         "structure_status",
         "stop_structure_status",
+        "stop_abstained",
+        "stop_abstention_reason",
+        "stop_selection_policy",
+        "role_confidence",
+        "component_completeness",
+        "stop_profile_adjustments",
+        "stop_alignment_score",
+        "stop_alignment_status",
+        "stop_alignment_warnings",
+        "stop_geometry_score",
+        "stop_geometry_status",
+        "stop_geometry_warnings",
+        "stop_column_score",
+        "stop_column_status",
+        "stop_column_warnings",
+        "assembled_from_column_geometry",
+        "row_boundary_confidence",
+        "column_alignment_confidence",
+        "dispatch_usable",
+        "geometry_available",
+        "component_bboxes_available",
+        "block_boundary_confidence",
+        "has_clear_horizontal_boundary",
+        "has_clear_role_anchor",
+        "has_date_time_column",
+        "has_location_column",
+        "component_alignment",
+        "geometry_block_type",
+        "component_line_offsets",
+        "line_span",
+        "block_type",
+        "page",
+        "page_number",
+        "line_index",
+        "line_id",
+        "reading_order_index",
+        "bbox",
+        "component_bboxes",
+        "source_page",
+        "source_line_index",
+        "source_line_id",
+        "page_line_status",
+        "source_lineage",
+        "component_sources",
+        "dedupe_lineage",
+        "merged_provenance",
+        "fusion_safety",
+        "fusion_reason",
+        "fusion_blocked_reasons",
+        "fusion_profile",
+        "fusion_inputs",
+        "auto_accept",
         "document_region",
         "is_document_title_or_header_id",
         "is_stop_level_reference",
@@ -1464,9 +1592,26 @@ def _metadata_eval_summary(metadata):
         "context_penalty_reason",
         "context_feature_load_identity_candidate",
         "is_total_pay_candidate",
+        "is_total_rate_candidate",
         "is_line_item_only",
+        "is_per_unit_rate",
         "is_deduction_or_penalty",
         "is_payment_terms_amount",
+        "is_accessorial_only",
+        "rate_safety",
+        "rate_safety_reason",
+        "rate_abstained",
+        "rate_abstention_reason",
+        "rate_demoted_from_total_carrier_rate",
+        "rate_candidate_profile_adjustments",
+        "ocr_candidate_policy",
+        "ocr_candidate_policy_reason",
+        "ocr_candidate_policy_adjustments",
+        "ocr_load_promoted_to_load_number",
+        "ocr_rate_safety",
+        "ocr_rate_abstained",
+        "ocr_rate_abstention_reason",
+        "ocr_accessorial_diagnostic_only",
         "ranking_profile",
         "ranking_adjustment_total",
         "ranking_adjustments",
@@ -1475,22 +1620,147 @@ def _metadata_eval_summary(metadata):
         "gold_recall_debug",
         "load_candidate_profile",
         "load_candidate_profile_adjustments",
+        "ocr_candidate",
+        "ocr_provider",
+        "serialization_gap_reason",
+        "sidecar_gap_reason",
+        "sidecar_gap_classification",
+        "raw_location_text_local_only_present",
+        "unparsed_location_text_local_only_present",
+        "unsupported_selected_partial",
+        "selected_value_was_placeholder_only",
     ]
-    return {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
+    payload = {key: _json_safe(metadata.get(key)) for key in safe_keys if key in metadata}
+    if "dispatch_usable" in metadata and "candidate_has_dispatch_components" not in payload:
+        payload["candidate_has_dispatch_components"] = bool(metadata.get("dispatch_usable"))
+    if "candidate_review_tier" not in payload:
+        if metadata.get("stop_abstained") or _text(metadata.get("stop_selection_policy")) == "abstain":
+            payload["candidate_review_tier"] = "unsafe_candidate"
+        elif metadata.get("dispatch_usable"):
+            payload["candidate_review_tier"] = "complete_candidate"
+        elif metadata.get("has_location") or metadata.get("has_date") or metadata.get("has_time"):
+            payload["candidate_review_tier"] = "useful_partial_candidate"
+        elif metadata.get("structured_stop_candidate"):
+            payload["candidate_review_tier"] = "weak_candidate"
+    return payload
 
 
 def _has_real_stop_component(stop):
     if not isinstance(stop, dict):
         return False
-    for key in ["facility", "address", "city", "state", "zip", "date", "time", "appointment_window"]:
+    for key in [
+        "facility",
+        "address",
+        "city",
+        "state",
+        "zip",
+        "date",
+        "time",
+        "appointment_window",
+        "raw_location_text_local_only",
+        "unparsed_location_text_local_only",
+    ]:
         value = _text(stop.get(key))
         if value and value != "__present__":
             return True
     return False
 
 
-def _private_stop_prediction(value, field_name, confidence=0.0, source="", parser_name="", metadata=None):
+def _is_stop_placeholder_text(value):
+    text = _text(value).lower()
+    if not text:
+        return False
+    return bool(
+        re.fullmatch(
+            r"(pickup|delivery)_stop_(complete|partial|useful_partial|missing)",
+            text,
+        )
+    )
+
+
+def _stops_have_only_presence_markers(stops):
+    seen_marker = False
+    for stop in stops or []:
+        if not isinstance(stop, dict):
+            continue
+        for key in [
+            "facility",
+            "address",
+            "city",
+            "state",
+            "zip",
+            "date",
+            "time",
+            "appointment_window",
+        ]:
+            value = _text(stop.get(key))
+            if value == "__present__":
+                seen_marker = True
+            elif value:
+                return False
+    return seen_marker
+
+
+def _unstructured_location_stop(value, field_name, metadata, confidence, source, normalized):
+    if not isinstance(value, str):
+        return None
+    text = _text(value)
+    if not text or _is_stop_placeholder_text(text):
+        return None
+    if not metadata.get("has_location"):
+        return None
+    role = _text(metadata.get("stop_role"))
+    if not role:
+        role = "pickup" if field_name == "pickup_stops" else "delivery"
+    stop = {
+        "role": role,
+        "stop_index": metadata.get("stop_index") or 1,
+        "facility": "",
+        "address": "",
+        "city": "",
+        "state": "",
+        "zip": "",
+        "date": "",
+        "time": "",
+        "appointment_window": "",
+        "raw_location_text_local_only": text,
+        "unparsed_location_text_local_only": text,
+        "confidence": round(float(confidence or 0.0), 3),
+        "source": _text(source),
+        "structure_status": _text(normalized.get("structure_status")),
+    }
+    return stop
+
+
+def _stop_prediction_gap_reason(value, metadata, normalized):
     metadata = metadata if isinstance(metadata, dict) else {}
+    stops = normalized.get("stops", []) if isinstance(normalized, dict) else []
+    policy = _text(metadata.get("stop_selection_policy"))
+    if metadata.get("stop_abstained") or policy == "abstain":
+        return "selected_stop_really_missing"
+    if not stops:
+        return "selected_stop_value_is_empty_dict_or_list"
+    if metadata.get("has_location") or metadata.get("has_date") or metadata.get("has_time"):
+        if (
+            metadata.get("selected_value_was_placeholder_only")
+            or (isinstance(value, str) and _is_stop_placeholder_text(value))
+            or _stops_have_only_presence_markers(stops)
+        ):
+            return "selected_value_has_placeholder_only_no_component"
+        if metadata.get("has_location") and not (metadata.get("has_date") or metadata.get("has_time")):
+            return "unsupported_selected_partial"
+        if metadata.get("has_date") or metadata.get("has_time"):
+            return "selected_partial_missing_required_components"
+        return "private_eval_sidecar_missing_components"
+    if isinstance(value, str) and _text(value):
+        return "selected_stop_value_is_string_placeholder"
+    if isinstance(value, (dict, list, tuple)):
+        return "selected_stop_value_is_empty_dict_or_list"
+    return "unknown"
+
+
+def _private_stop_prediction(value, field_name, confidence=0.0, source="", parser_name="", metadata=None):
+    metadata = dict(metadata) if isinstance(metadata, dict) else {}
     normalized = normalize_stop_candidate_value(value, field_name, metadata)
     stops = [
         {
@@ -1504,6 +1774,12 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
             "date": _text(stop.get("date")),
             "time": _text(stop.get("time")),
             "appointment_window": _text(stop.get("appointment_window")),
+            "raw_location_text_local_only": _text(
+                stop.get("raw_location_text_local_only")
+            ),
+            "unparsed_location_text_local_only": _text(
+                stop.get("unparsed_location_text_local_only")
+            ),
             "confidence": round(float(confidence or 0.0), 3),
             "source": _text(source),
             "structure_status": _text(normalized.get("structure_status")),
@@ -1511,17 +1787,57 @@ def _private_stop_prediction(value, field_name, confidence=0.0, source="", parse
         for stop in normalized.get("stops", []) or []
         if isinstance(stop, dict)
     ]
+    component_values_serialized = bool(any(_has_real_stop_component(stop) for stop in stops))
+    if stops and not component_values_serialized:
+        local_stop = _unstructured_location_stop(
+            value,
+            field_name,
+            metadata,
+            confidence,
+            source,
+            normalized,
+        )
+        if local_stop:
+            stops = [local_stop]
+            component_values_serialized = True
+            metadata["raw_location_text_local_only_present"] = True
+            metadata["unparsed_location_text_local_only_present"] = True
+            metadata["unsupported_selected_partial"] = True
+    gap_reason = ""
+    source_status = ""
+    if stops and not component_values_serialized:
+        gap_reason = _stop_prediction_gap_reason(value, metadata, normalized)
+        metadata["serialization_gap_reason"] = gap_reason
+        metadata["sidecar_gap_reason"] = gap_reason
+        metadata["sidecar_gap_classification"] = gap_reason
     payload = {
-        "value": stops if any(_has_real_stop_component(stop) for stop in stops) else "",
+        "value": stops if component_values_serialized else "",
         "confidence": round(float(confidence or 0.0), 3),
         "source": _text(source),
         "parser_name": _text(parser_name),
         "structure_status": _text(normalized.get("structure_status")),
-        "component_values_serialized": bool(any(_has_real_stop_component(stop) for stop in stops)),
+        "component_values_serialized": component_values_serialized,
         "metadata_summary": _metadata_eval_summary(metadata),
     }
-    if stops and not payload["component_values_serialized"]:
-        payload["source_status"] = "shadow_component_not_serialized"
+    if _text(metadata.get("candidate_id")):
+        payload["candidate_id"] = _text(metadata.get("candidate_id"))
+    if gap_reason:
+        payload["serialization_gap_reason"] = gap_reason
+        if gap_reason == "selected_stop_really_missing":
+            source_status = "shadow_extractor_missing"
+        elif gap_reason in {
+            "selected_value_has_placeholder_only_no_component",
+            "unsupported_selected_partial",
+        }:
+            source_status = "selected_partial_not_comparable"
+        elif gap_reason == "selected_partial_missing_required_components":
+            source_status = "selected_partial_missing_required_components"
+        else:
+            source_status = "shadow_component_not_serialized"
+    elif component_values_serialized and metadata.get("unsupported_selected_partial"):
+        payload["source_status"] = "unsupported_unparsed_location"
+    if source_status:
+        payload["source_status"] = source_status
     return payload
 
 
@@ -1536,7 +1852,7 @@ def _candidate_eval_prediction(candidate, field_name):
         private_components = candidate.get("_private_eval_stop_components")
         if private_components:
             value = private_components
-        return _private_stop_prediction(
+        prediction = _private_stop_prediction(
             value,
             field_name,
             confidence=confidence,
@@ -1544,12 +1860,18 @@ def _candidate_eval_prediction(candidate, field_name):
             parser_name=parser_name,
             metadata=metadata,
         )
+        if _text(metadata.get("candidate_id")):
+            prediction["candidate_id"] = _text(metadata.get("candidate_id"))
+        prediction["page"] = candidate.get("page", "")
+        prediction["bbox"] = _json_safe(candidate.get("bbox"))
+        return prediction
     return {
         "value": _json_safe(value),
         "normalized_value": _json_safe(candidate.get("normalized_value")),
         "confidence": confidence,
         "source": source,
         "parser_name": parser_name,
+        "page": candidate.get("page", ""),
         "label": _text(candidate.get("label")),
         "value_shape": value_shape(value),
         "metadata_summary": _metadata_eval_summary(metadata),
@@ -1563,15 +1885,37 @@ def _candidate_matches_selected(candidate, selected, field_name):
         return False
     metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
     selected_metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    candidate_id = _text(metadata.get("candidate_id"))
+    selected_candidate_id = _text(selected_metadata.get("candidate_id"))
+    if candidate_id or selected_candidate_id:
+        if candidate_id and selected_candidate_id and candidate_id == selected_candidate_id:
+            return True
+        if candidate_id and selected_candidate_id and candidate_id != selected_candidate_id:
+            return False
     if _text(candidate.get("parser_name")) != _text(selected.get("parser_name")):
         return False
     if _text(candidate.get("source")) != _text(selected.get("source")):
         return False
+    candidate_page = _text(candidate.get("page"))
+    selected_page = _text(selected.get("page"))
+    if candidate_page and selected_page and candidate_page != selected_page:
+        return False
     candidate_value = _text(candidate.get("normalized_value") or candidate.get("value"))
     selected_value = _text(selected.get("normalized_value") or selected.get("value"))
-    if candidate_value and selected_value and candidate_value != selected_value:
+    if (
+        candidate_value
+        and selected_value
+        and candidate_value != selected_value
+        and not (
+            field_name in PRIVATE_EVAL_STOP_FIELDS
+            and (
+                metadata.get("structured_stop_candidate")
+                or selected_metadata.get("structured_stop_candidate")
+            )
+        )
+    ):
         return False
-    for key in ["pairing_method", "table_index", "row_index", "stop_role"]:
+    for key in ["pairing_method", "table_index", "row_index", "stop_role", "stop_index"]:
         left = _text(metadata.get(key))
         right = _text(selected_metadata.get(key))
         if left and right and left != right:
@@ -1593,9 +1937,11 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
     resolution = resolution if isinstance(resolution, dict) else {}
     selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
     metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else {}
+    if not metadata and isinstance(resolution.get("metadata"), dict):
+        metadata = resolution.get("metadata")
     confidence = round(float(resolution.get("confidence") or selected.get("confidence") or 0.0), 3)
     source = _text(selected.get("source") or resolution.get("source"))
-    parser_name = _text(selected.get("parser_name"))
+    parser_name = _text(selected.get("parser_name") or resolution.get("parser_name"))
     if field_name in PRIVATE_EVAL_STOP_FIELDS:
         private_candidate = _private_selected_candidate(
             resolution,
@@ -1605,6 +1951,9 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
         if private_candidate.get("_private_eval_stop_components"):
             selected = private_candidate
             metadata = selected.get("metadata") if isinstance(selected.get("metadata"), dict) else metadata
+            metadata = dict(metadata) if isinstance(metadata, dict) else {}
+            if _is_stop_placeholder_text(selected.get("value")):
+                metadata["selected_value_was_placeholder_only"] = True
             source = _text(selected.get("source") or source)
             parser_name = _text(selected.get("parser_name") or parser_name)
             value = selected.get("_private_eval_stop_components")
@@ -1616,7 +1965,7 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
             value = selected.get("value")
         else:
             value = selected.get("value") if selected else resolution.get("value")
-        return _private_stop_prediction(
+        prediction = _private_stop_prediction(
             value,
             field_name,
             confidence=confidence,
@@ -1624,6 +1973,11 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
             parser_name=parser_name,
             metadata=metadata,
         )
+        if _text(metadata.get("candidate_id")):
+            prediction["candidate_id"] = _text(metadata.get("candidate_id"))
+        prediction["page"] = selected.get("page", "") if selected else resolution.get("page", "")
+        prediction["bbox"] = _json_safe(selected.get("bbox")) if selected else None
+        return prediction
     value = resolution.get("value")
     if value in ["", None] and selected:
         value = selected.get("value")
@@ -1633,6 +1987,7 @@ def _resolved_eval_prediction(resolution, field_name, candidates=None):
         "confidence": confidence,
         "source": source,
         "parser_name": parser_name,
+        "page": selected.get("page", "") if selected else resolution.get("page", ""),
         "label": _text(selected.get("label")),
         "value_shape": value_shape(value),
         "metadata_summary": _metadata_eval_summary(metadata),
@@ -1664,6 +2019,31 @@ def _candidate_is_fallback(candidate):
     return bool(metadata.get("diagnostic_fallback") or metadata.get("not_independent_candidate"))
 
 
+def _candidate_is_structured_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(metadata.get("structured_stop_candidate"))
+
+
+def _candidate_is_dispatch_usable_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(metadata.get("dispatch_usable"))
+
+
+def _candidate_is_ocr_column_stop(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    return bool(
+        metadata.get("assembled_from_column_geometry")
+        and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row"
+    )
+
+
+def _candidate_is_native_layout_stop(candidate):
+    return _candidate_is_layout(candidate) and _candidate_field(candidate) in {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+    }
+
+
 def _candidate_rank(candidate):
     metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
     score = float((candidate or {}).get("confidence") or 0.0)
@@ -1675,6 +2055,10 @@ def _candidate_rank(candidate):
         metadata.get("has_date") or metadata.get("has_time")
     ):
         score += 0.04
+    if metadata.get("dispatch_usable"):
+        score += 0.06
+    if metadata.get("assembled_from_column_geometry"):
+        score += 0.03
     if _candidate_is_fallback(candidate):
         score -= 0.08
     return score
@@ -1691,6 +2075,237 @@ def _best_candidate(candidates, field_name, predicate=None):
     if not field_candidates:
         return None
     return sorted(field_candidates, key=_candidate_rank, reverse=True)[0]
+
+
+def _stop_draft_reason(raw_resolved, field_name, candidate):
+    resolution = raw_resolved.get(field_name, {}) if isinstance(raw_resolved, dict) else {}
+    if not isinstance(resolution, dict) or not _text(resolution.get("value")):
+        return "selected_missing"
+    selected = resolution.get("selected_candidate") if isinstance(resolution.get("selected_candidate"), dict) else {}
+    if not selected:
+        return "selected_serialized_gap"
+    if not _candidate_matches_selected(candidate, selected, field_name):
+        return "dispatch_usable_candidate_not_selected"
+    return "selected_serialized_gap"
+
+
+def _draft_stop_prediction(candidate, field_name, raw_resolved, stop_draft_profile):
+    prediction = _candidate_eval_prediction(candidate, field_name)
+    metadata = dict(prediction.get("metadata_summary") or {})
+    metadata.update(
+        {
+            "review_required": True,
+            "draft_profile": stop_draft_profile,
+            "draft_reason": _stop_draft_reason(raw_resolved, field_name, candidate),
+        }
+    )
+    prediction["metadata_summary"] = metadata
+    prediction["source"] = "shadow_stop_draft"
+    prediction["review_required"] = True
+    prediction["draft_reason"] = metadata["draft_reason"]
+    return prediction
+
+
+def _build_stop_review_draft(raw_resolved, candidates, stop_draft_profile):
+    if stop_draft_profile != STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1:
+        return {}
+    payload = {}
+    for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        candidate = _best_candidate(
+            candidates,
+            field_name,
+            predicate=lambda item: _candidate_is_dispatch_usable_stop(item)
+            and _candidate_is_ocr_column_stop(item),
+        )
+        if candidate:
+            payload[field_name] = _draft_stop_prediction(
+                candidate,
+                field_name,
+                raw_resolved,
+                stop_draft_profile,
+            )
+    return payload
+
+
+def _list_metadata_values(value):
+    if isinstance(value, list):
+        return [_text(item) for item in value if _text(item)]
+    if _text(value):
+        return [_text(value)]
+    return []
+
+
+def _safe_metadata_float(value):
+    try:
+        return float(value or 0.0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _candidate_page_line_or_geometry_available(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    for key in ["page", "page_number", "bbox", "component_bboxes"]:
+        value = metadata.get(key)
+        if value is not None and value != "" and value != {}:
+            return True
+    if any(metadata.get(key) not in {None, ""} for key in ["line_index", "source_line_index", "reading_order_index"]):
+        return True
+    line_span = metadata.get("line_span")
+    if isinstance(line_span, dict) and any(line_span.get(key) not in {None, ""} for key in ["start", "start_line_index", "line_start"]):
+        return True
+    component_offsets = metadata.get("component_line_offsets")
+    if isinstance(component_offsets, dict) and any(value not in {None, ""} for value in component_offsets.values()):
+        return True
+    return False
+
+
+def _candidate_stop_warning_text(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    warnings = []
+    for key in [
+        "stop_alignment_warnings",
+        "stop_geometry_warnings",
+        "stop_column_warnings",
+        "warnings",
+        "stop_abstention_reason",
+        "document_region",
+        "section_context",
+    ]:
+        warnings.extend(_list_metadata_values(metadata.get(key)))
+    return " ".join(warnings).lower()
+
+
+def _stop_fusion_safety_for_candidate(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    if _candidate_field(candidate) not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+        return "fusion_not_possible", ["source_not_linked_to_role"]
+    role = _text(metadata.get("stop_role") or metadata.get("role"))
+    if role not in {"pickup", "delivery"}:
+        return "fusion_not_possible", ["source_not_linked_to_role"]
+    if metadata.get("stop_abstained") or _text(metadata.get("stop_selection_policy")) == "abstain":
+        return "fusion_unsafe", [_text(metadata.get("stop_abstention_reason")) or "source_not_linked_to_role"]
+    warning_text = _candidate_stop_warning_text(candidate)
+    if any(token in warning_text for token in ["payment", "instruction", "footer", "terms"]):
+        return "fusion_unsafe", ["unsafe_source_payment_instruction"]
+    if "reference" in warning_text:
+        return "fusion_unsafe", ["reference_text_source"]
+    if not (metadata.get("has_location") and (metadata.get("has_date") or metadata.get("has_time"))):
+        return "fusion_not_possible", ["missing_page_line_or_geometry"]
+    if not _candidate_page_line_or_geometry_available(candidate):
+        return "fusion_risky", ["missing_page_line_or_geometry"]
+    conflict_tokens = [
+        "multiple_dates",
+        "multiple_locations",
+        "multiple_times",
+        "date_time_outside_row",
+        "location_outside_row",
+        "payment_overlap",
+        "instructions_overlap",
+        "footer_overlap",
+        "row_boundary_unclear",
+        "ambiguous",
+    ]
+    for token in conflict_tokens:
+        if token in warning_text:
+            reason = {
+                "multiple_dates": "multiple_dates",
+                "multiple_locations": "multiple_locations",
+                "multiple_times": "multiple_times",
+                "payment_overlap": "unsafe_source_payment_instruction",
+                "instructions_overlap": "unsafe_source_payment_instruction",
+                "footer_overlap": "unsafe_source_payment_instruction",
+                "row_boundary_unclear": "no_proximity_evidence",
+                "ambiguous": "no_proximity_evidence",
+            }.get(token, "no_proximity_evidence")
+            return "fusion_risky", [reason]
+    if metadata.get("assembled_from_column_geometry") and _text(metadata.get("pairing_method")) == "ocr_geometry_column_row":
+        if _safe_metadata_float(metadata.get("row_boundary_confidence")) >= 0.70 and _safe_metadata_float(metadata.get("column_alignment_confidence")) >= 0.70:
+            return "fusion_safe", []
+        return "fusion_risky", ["no_proximity_evidence"]
+    if metadata.get("geometry_available") or metadata.get("component_bboxes_available"):
+        return "fusion_safe", []
+    return "fusion_risky", ["no_proximity_evidence"]
+
+
+def _stop_fusion_safety_summary(candidates):
+    status_counts = {}
+    blocked_reason_counts = {}
+    for candidate in candidates or []:
+        if _candidate_field(candidate) not in {FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS}:
+            continue
+        status, reasons = _stop_fusion_safety_for_candidate(candidate)
+        status_counts[status] = status_counts.get(status, 0) + 1
+        for reason in reasons or ["none"]:
+            blocked_reason_counts[reason] = blocked_reason_counts.get(reason, 0) + 1
+    for status in ["fusion_safe", "fusion_risky", "fusion_unsafe", "fusion_not_possible"]:
+        status_counts.setdefault(status, 0)
+    return {
+        "status_counts": dict(sorted(status_counts.items())),
+        "blocked_reason_counts": dict(sorted(blocked_reason_counts.items())),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+    }
+
+
+def _fusion_inputs_for_candidate(candidate):
+    metadata = (candidate or {}).get("metadata") if isinstance((candidate or {}).get("metadata"), dict) else {}
+    candidate_id = _text(metadata.get("candidate_id"))
+    source = _text((candidate or {}).get("source"))
+    inputs = []
+    for component, present in [
+        ("location", metadata.get("has_location")),
+        ("date", metadata.get("has_date")),
+        ("time", metadata.get("has_time")),
+    ]:
+        if present:
+            inputs.append(
+                {
+                    "component": component,
+                    "candidate_id": candidate_id,
+                    "source": source,
+                }
+            )
+    return inputs
+
+
+def _fusion_stop_prediction(candidate, field_name, stop_fusion_profile):
+    prediction = _candidate_eval_prediction(candidate, field_name)
+    metadata = dict(prediction.get("metadata_summary") or {})
+    metadata.update(
+        {
+            "fusion_profile": stop_fusion_profile,
+            "fusion_safety": "fusion_safe",
+            "fusion_reason": "same_role_high_provenance_candidate",
+            "fusion_inputs": _fusion_inputs_for_candidate(candidate),
+            "review_required": True,
+            "auto_accept": False,
+        }
+    )
+    prediction["metadata_summary"] = metadata
+    prediction["source"] = "shadow_stop_fusion"
+    prediction["review_required"] = True
+    prediction["auto_accept"] = False
+    prediction["fusion_safety"] = "fusion_safe"
+    return prediction
+
+
+def _build_review_fused_stops(candidates, stop_fusion_profile):
+    if stop_fusion_profile != STOP_FUSION_PROFILE_REVIEW_SAFE_V1:
+        return {}
+    payload = {}
+    for field_name in [FIELD_PICKUP_STOPS, FIELD_DELIVERY_STOPS]:
+        candidate = _best_candidate(
+            candidates,
+            field_name,
+            predicate=lambda item: _stop_fusion_safety_for_candidate(item)[0] == "fusion_safe",
+        )
+        if candidate:
+            payload[field_name] = _fusion_stop_prediction(
+                candidate,
+                field_name,
+                stop_fusion_profile,
+            )
+    return payload
 
 
 def _stops_from_private_stop_set(stop_set, role):
@@ -1797,6 +2412,24 @@ def _load_probe_hash(value):
     return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
+def _normalize_money_probe_value(value):
+    text = _text(value).upper().replace("USD", "")
+    text = text.replace("$", "").replace(",", "").strip()
+    if not text:
+        return ""
+    try:
+        return str(Decimal(text).quantize(Decimal("0.01")))
+    except (InvalidOperation, ValueError):
+        return ""
+
+
+def _money_probe_hash(value):
+    normalized = _normalize_money_probe_value(value)
+    if not normalized:
+        return ""
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
+
+
 def _identifier_like_tokens(text):
     tokens = set()
     for raw in re.findall(r"[A-Za-z0-9][A-Za-z0-9_./-]{2,}", _text(text)):
@@ -1816,7 +2449,21 @@ def _token_hashes_from_texts(texts):
     return sorted(hashes)
 
 
-def _load_visibility_probe(artifact):
+def _money_token_hashes_from_texts(texts):
+    hashes = set()
+    money_pattern = re.compile(
+        r"(?:\$|USD\s*)?\b\d{1,3}(?:,\d{3})*(?:\.\d{2})?\b|\b\d+(?:\.\d{2})\b",
+        re.IGNORECASE,
+    )
+    for text in texts or []:
+        for token in money_pattern.findall(_text(text)):
+            digest = _money_probe_hash(token)
+            if digest:
+                hashes.add(digest)
+    return sorted(hashes)
+
+
+def _artifact_text_buckets(artifact):
     artifact = artifact if isinstance(artifact, dict) else {}
     pages = artifact.get("pages", []) or []
     full_texts = [artifact.get("full_text", "")]
@@ -1845,11 +2492,47 @@ def _load_visibility_probe(artifact):
                     for cell in row.get("cells", []) or []
                 )
     return {
+        "full_texts": full_texts,
+        "line_texts": line_texts,
+        "word_texts": word_texts,
+        "table_texts": table_texts,
+    }
+
+
+def _load_visibility_probe(artifact):
+    artifact = artifact if isinstance(artifact, dict) else {}
+    buckets = _artifact_text_buckets(artifact)
+    full_texts = buckets["full_texts"]
+    line_texts = buckets["line_texts"]
+    word_texts = buckets["word_texts"]
+    table_texts = buckets["table_texts"]
+    return {
         "schema_version": "ratecon_load_visibility_probe_v1",
         "full_text_token_hashes": _token_hashes_from_texts(full_texts),
         "line_token_hashes": _token_hashes_from_texts(line_texts),
         "layout_word_token_hashes": _token_hashes_from_texts(word_texts),
         "layout_table_token_hashes": _token_hashes_from_texts(table_texts),
+        "has_full_text": bool(_text(artifact.get("full_text"))),
+        "has_lines": bool(line_texts),
+        "has_layout_words": bool(word_texts),
+        "has_layout_tables": bool(table_texts),
+        "raw_text_included": False,
+    }
+
+
+def _rate_visibility_probe(artifact):
+    artifact = artifact if isinstance(artifact, dict) else {}
+    buckets = _artifact_text_buckets(artifact)
+    full_texts = buckets["full_texts"]
+    line_texts = buckets["line_texts"]
+    word_texts = buckets["word_texts"]
+    table_texts = buckets["table_texts"]
+    return {
+        "schema_version": "ratecon_rate_visibility_probe_v1",
+        "full_text_money_hashes": _money_token_hashes_from_texts(full_texts),
+        "line_money_hashes": _money_token_hashes_from_texts(line_texts),
+        "layout_word_money_hashes": _money_token_hashes_from_texts(word_texts),
+        "layout_table_money_hashes": _money_token_hashes_from_texts(table_texts),
         "has_full_text": bool(_text(artifact.get("full_text"))),
         "has_lines": bool(line_texts),
         "has_layout_words": bool(word_texts),
@@ -1891,12 +2574,113 @@ def _load_identity_candidate_inventory(candidates):
     return inventory
 
 
+def _rate_money_candidate_inventory(candidates):
+    inventory = []
+    for candidate in candidates or []:
+        if _candidate_field(candidate) not in {"total_carrier_rate", "accessorial_term"}:
+            continue
+        metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+        if not (
+            _candidate_field(candidate) == "total_carrier_rate"
+            or metadata.get("rate_abstained")
+            or metadata.get("rate_demoted_from_total_carrier_rate")
+            or metadata.get("rate_safety")
+        ):
+            continue
+        value = candidate.get("normalized_value") or candidate.get("value")
+        inventory.append(
+            {
+                "field": _candidate_field(candidate),
+                "value": _json_safe(value),
+                "value_hash": _money_probe_hash(value),
+                "confidence": round(float(candidate.get("confidence") or 0.0), 3),
+                "source": _text(candidate.get("source")),
+                "parser_name": _text(candidate.get("parser_name")),
+                "metadata_summary": _metadata_eval_summary(metadata),
+                "independent": not _candidate_is_fallback(candidate),
+                "layout_based": _candidate_is_layout(candidate),
+                "table_based": bool(
+                    metadata.get("table_cell_candidate")
+                    or _text(metadata.get("pairing_method")).startswith("table_")
+                ),
+                "legacy_fallback": _candidate_is_fallback(candidate),
+            }
+        )
+    return inventory
+
+
+def _stop_component_candidate_inventory(candidates):
+    inventory = []
+    stop_fields = {
+        FIELD_PICKUP_STOPS,
+        FIELD_DELIVERY_STOPS,
+        "pickup_location",
+        "pickup_date",
+        "pickup_time",
+        "delivery_location",
+        "delivery_date",
+        "delivery_time",
+    }
+    for index, candidate in enumerate(candidates or [], start=1):
+        field_name = _candidate_field(candidate)
+        if field_name not in stop_fields:
+            continue
+        metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+        value = candidate.get("normalized_value") or candidate.get("value")
+        inventory.append(
+            {
+                "candidate_id": _text(metadata.get("candidate_id")) or f"{field_name}:inventory:{index}",
+                "field": field_name,
+                "value": _json_safe(value),
+                "confidence": round(float(candidate.get("confidence") or 0.0), 3),
+                "source": _text(candidate.get("source")),
+                "parser_name": _text(candidate.get("parser_name")),
+                "role": _text(metadata.get("stop_role") or metadata.get("role")),
+                "stop_index": metadata.get("stop_index") or 1,
+                "component_type": _text(metadata.get("component_type")),
+                "page": (
+                    candidate.get("page")
+                    or metadata.get("page")
+                    or metadata.get("page_number")
+                    or metadata.get("source_page")
+                ),
+                "line_index": (
+                    metadata.get("line_index")
+                    or metadata.get("source_line_index")
+                    or metadata.get("reading_order_index")
+                ),
+                "bbox": _json_safe(
+                    candidate.get("bbox")
+                    or metadata.get("bbox")
+                    or metadata.get("component_bboxes")
+                ),
+                "page_line_status": _text(metadata.get("page_line_status")),
+                "source_lineage": _json_safe(metadata.get("source_lineage") or []),
+                "component_sources": _json_safe(metadata.get("component_sources") or {}),
+                "dedupe_lineage": _json_safe(metadata.get("dedupe_lineage") or []),
+                "merged_provenance": _json_safe(metadata.get("merged_provenance") or []),
+                "metadata_summary": _metadata_eval_summary(metadata),
+                "value_shape": value_shape(value),
+                "independent": not _candidate_is_fallback(candidate),
+                "layout_based": _candidate_is_layout(candidate),
+                "table_based": bool(
+                    metadata.get("table_cell_candidate")
+                    or _text(metadata.get("pairing_method")).startswith("table_")
+                ),
+                "legacy_fallback": _candidate_is_fallback(candidate),
+            }
+        )
+    return inventory
+
+
 def build_private_eval_values(
     raw_resolved=None,
     candidates=None,
     legacy_summary=None,
     private_eval_context=None,
     private_eval_artifact=None,
+    stop_draft_profile=STOP_DRAFT_PROFILE_NONE,
+    stop_fusion_profile=STOP_FUSION_PROFILE_NONE,
 ):
     raw_resolved = raw_resolved if isinstance(raw_resolved, dict) else {}
     candidates = [candidate for candidate in candidates or [] if isinstance(candidate, dict)]
@@ -1908,11 +2692,24 @@ def build_private_eval_values(
         ),
         "shadow_selected": {},
         "shadow_candidate_best": {},
+        "shadow_selected_stop": {},
+        "shadow_best_structured_stop_candidate": {},
+        "shadow_best_dispatch_usable_stop_candidate": {},
+        "shadow_best_ocr_column_stop_candidate": {},
+        "shadow_best_native_layout_stop_candidate": {},
+        "shadow_stop_review_draft": {},
+        "review_fused_stops": {},
+        "stop_fusion_safety_summary": {},
+        "stop_fusion_profile": stop_fusion_profile,
         "shadow_best_independent_candidate": {},
         "shadow_best_layout_candidate": {},
         "legacy_fallback_candidate": {},
+        "legacy_fallback_stop_candidate": {},
         "load_identity_candidate_inventory": [],
+        "rate_money_candidate_inventory": [],
+        "stop_component_candidate_inventory": [],
         "load_visibility_probe": _load_visibility_probe(private_eval_artifact),
+        "rate_visibility_probe": _rate_visibility_probe(private_eval_artifact),
         "raw_text_included": False,
         "evidence_text_included": False,
     }
@@ -1923,6 +2720,8 @@ def build_private_eval_values(
                 field_name,
                 candidates=candidates,
             )
+            if field_name in PRIVATE_EVAL_STOP_FIELDS:
+                payload["shadow_selected_stop"][field_name] = payload["shadow_selected"][field_name]
         for group_name, predicate in [
             ("shadow_candidate_best", None),
             ("shadow_best_independent_candidate", lambda candidate: not _candidate_is_fallback(candidate)),
@@ -1932,7 +2731,30 @@ def build_private_eval_values(
             candidate = _best_candidate(candidates, field_name, predicate=predicate)
             if candidate:
                 payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+        if field_name in PRIVATE_EVAL_STOP_FIELDS:
+            for group_name, predicate in [
+                ("shadow_best_structured_stop_candidate", _candidate_is_structured_stop),
+                ("shadow_best_dispatch_usable_stop_candidate", _candidate_is_dispatch_usable_stop),
+                ("shadow_best_ocr_column_stop_candidate", _candidate_is_ocr_column_stop),
+                ("shadow_best_native_layout_stop_candidate", _candidate_is_native_layout_stop),
+                ("legacy_fallback_stop_candidate", _candidate_is_fallback),
+            ]:
+                candidate = _best_candidate(candidates, field_name, predicate=predicate)
+                if candidate:
+                    payload[group_name][field_name] = _candidate_eval_prediction(candidate, field_name)
+    payload["shadow_stop_review_draft"] = _build_stop_review_draft(
+        raw_resolved,
+        candidates,
+        stop_draft_profile,
+    )
+    payload["review_fused_stops"] = _build_review_fused_stops(
+        candidates,
+        stop_fusion_profile,
+    )
+    payload["stop_fusion_safety_summary"] = _stop_fusion_safety_summary(candidates)
     payload["load_identity_candidate_inventory"] = _load_identity_candidate_inventory(candidates)
+    payload["rate_money_candidate_inventory"] = _rate_money_candidate_inventory(candidates)
+    payload["stop_component_candidate_inventory"] = _stop_component_candidate_inventory(candidates)
     return payload
 
 
@@ -2620,6 +3442,20 @@ def build_ratecon_shadow_audit_record(
             "review_gate_trace": review_gate_trace,
             "ranking_profile": _text(debug.get("ranking_profile")),
             "load_candidate_profile": _text(debug.get("load_candidate_profile")),
+            "requested_load_candidate_profile": _text(
+                debug.get("requested_load_candidate_profile")
+            ),
+            "load_ranking_profile": _text(debug.get("load_ranking_profile")),
+            "rate_ranking_profile": _text(debug.get("rate_ranking_profile")),
+            "ocr_candidate_policy": _text(debug.get("ocr_candidate_policy")),
+            "stop_candidate_profile": _text(debug.get("stop_candidate_profile")),
+            "stop_ranking_profile": _text(debug.get("stop_ranking_profile")),
+            "stop_draft_profile": _text(debug.get("stop_draft_profile")),
+            "stop_fusion_profile": _text(debug.get("stop_fusion_profile")),
+            "field_ranking_profiles": dict(debug.get("field_ranking_profiles") or {}),
+            "field_scoped_ranking_enabled": bool(
+                debug.get("field_scoped_ranking_enabled")
+            ),
         },
         "triage": triage,
         "artifact_summary": artifact,
@@ -2639,6 +3475,8 @@ def build_ratecon_shadow_audit_record(
             legacy_summary=legacy_summary,
             private_eval_context=private_eval_context,
             private_eval_artifact=debug.get("private_eval_artifact"),
+            stop_draft_profile=_text(debug.get("stop_draft_profile")) or STOP_DRAFT_PROFILE_NONE,
+            stop_fusion_profile=_text(debug.get("stop_fusion_profile")) or STOP_FUSION_PROFILE_NONE,
         )
     return record
 
@@ -2851,6 +3689,16 @@ def summarize_ratecon_shadow_audit_records(records):
     section_context_totals = Counter()
     layout_provider_counts = Counter()
     layout_provider_totals = Counter()
+    ocr_provider_counts = Counter()
+    ocr_provider_totals = Counter()
+    ocr_warning_counts = Counter()
+    ocr_error_counts = Counter()
+    ocr_candidate_totals = Counter()
+    ocr_candidates_by_field = Counter()
+    ocr_candidates_by_generator = Counter()
+    ocr_accessorial_by_section = Counter()
+    ocr_classification_counts = Counter()
+    ocr_classification_skip_reasons = Counter()
     table_totals = Counter()
     table_header_roles = Counter()
     table_row_roles = Counter()
@@ -3059,6 +3907,74 @@ def summarize_ratecon_shadow_audit_records(records):
                 "table_cell_count",
             ]:
                 layout_provider_totals[key] += _safe_int(layout_summary.get(key))
+        ocr_summary = artifact.get("ocr_provider_summary", {}) or {}
+        if ocr_summary:
+            requested = _text(ocr_summary.get("provider_requested")) or "none"
+            used = _text(ocr_summary.get("provider_used")) or "none"
+            status = _text(ocr_summary.get("status")) or "skipped"
+            ocr_provider_counts[f"requested:{requested}"] += 1
+            ocr_provider_counts[f"used:{used}"] += 1
+            ocr_provider_counts[f"status:{status}"] += 1
+            if ocr_summary.get("available"):
+                ocr_provider_counts["available:true"] += 1
+            else:
+                ocr_provider_counts["available:false"] += 1
+            if requested != "none" and status != "skipped":
+                ocr_provider_totals["docs_attempted"] += 1
+            if status == "success":
+                ocr_provider_totals["docs_ocr_success"] += 1
+            elif status == "partial":
+                ocr_provider_totals["docs_ocr_partial"] += 1
+            elif status == "failed":
+                ocr_provider_totals["docs_ocr_failed"] += 1
+            elif status == "unavailable":
+                ocr_provider_totals["docs_ocr_unavailable"] += 1
+            if _safe_int(ocr_summary.get("ocr_text_page_count")) > 0:
+                ocr_provider_totals["ocr_text_doc_count"] += 1
+            if ocr_summary.get("ocr_geometry_available"):
+                ocr_provider_totals["ocr_geometry_doc_count"] += 1
+            for key in [
+                "pages_attempted",
+                "pages_ocr_success",
+                "ocr_text_page_count",
+                "ocr_word_count",
+                "ocr_line_count",
+                "ocr_geometry_page_count",
+                "ocr_word_box_count",
+                "ocr_line_box_count",
+            ]:
+                ocr_provider_totals[key] += _safe_int(ocr_summary.get(key))
+            for warning in _safe_list(ocr_summary.get("warnings")):
+                ocr_warning_counts[warning] += 1
+            for error in _safe_list(ocr_summary.get("errors")):
+                ocr_error_counts[error] += 1
+        ocr_classification = artifact.get("ocr_document_classification", {}) or {}
+        if ocr_classification:
+            ocr_classification_counts[
+                _text(ocr_classification.get("document_type")) or "unknown"
+            ] += 1
+            skip_reason = _text(ocr_classification.get("skip_reason"))
+            if skip_reason:
+                ocr_classification_skip_reasons[skip_reason] += 1
+        ocr_candidate_summary = candidate_summary.get("ocr_candidate_summary", {}) or {}
+        ocr_candidate_totals["ocr_candidates_total"] += _safe_int(
+            ocr_candidate_summary.get("ocr_candidates_total")
+        )
+        ocr_candidates_by_field.update(
+            ocr_candidate_summary.get("ocr_candidates_by_field", {}) or {}
+        )
+        ocr_candidates_by_generator.update(
+            ocr_candidate_summary.get("ocr_candidates_by_generator", {}) or {}
+        )
+        ocr_candidate_totals["ocr_accessorial_candidate_count"] += _safe_int(
+            ocr_candidate_summary.get("ocr_accessorial_candidate_count")
+        )
+        ocr_candidate_totals["ocr_accessorial_deduped_or_demoted"] += _safe_int(
+            ocr_candidate_summary.get("ocr_accessorial_deduped_or_demoted")
+        )
+        ocr_accessorial_by_section.update(
+            ocr_candidate_summary.get("ocr_accessorial_by_section", {}) or {}
+        )
         table_summary = candidate_summary.get("table_extraction_summary", {}) or {}
         for key, value in (table_summary or {}).items():
             if isinstance(value, dict):
@@ -3247,6 +4163,47 @@ def summarize_ratecon_shadow_audit_records(records):
             "ocr_required_count": ocr_required_count,
             "low_text_count": low_text_count,
             "native_text_suspicious_count": suspicious_count,
+        },
+        "ocr_provider_summary": {
+            "provider_status_counts": dict(ocr_provider_counts.most_common()),
+            "docs_attempted": ocr_provider_totals.get("docs_attempted", 0),
+            "docs_ocr_success": ocr_provider_totals.get("docs_ocr_success", 0),
+            "docs_ocr_partial": ocr_provider_totals.get("docs_ocr_partial", 0),
+            "docs_ocr_failed": ocr_provider_totals.get("docs_ocr_failed", 0),
+            "docs_ocr_unavailable": ocr_provider_totals.get("docs_ocr_unavailable", 0),
+            "pages_attempted": ocr_provider_totals.get("pages_attempted", 0),
+            "pages_ocr_success": ocr_provider_totals.get("pages_ocr_success", 0),
+            "ocr_text_doc_count": ocr_provider_totals.get("ocr_text_doc_count", 0),
+            "ocr_text_page_count": ocr_provider_totals.get("ocr_text_page_count", 0),
+            "ocr_word_count": ocr_provider_totals.get("ocr_word_count", 0),
+            "ocr_line_count": ocr_provider_totals.get("ocr_line_count", 0),
+            "ocr_geometry_doc_count": ocr_provider_totals.get("ocr_geometry_doc_count", 0),
+            "ocr_geometry_page_count": ocr_provider_totals.get("ocr_geometry_page_count", 0),
+            "ocr_word_box_count": ocr_provider_totals.get("ocr_word_box_count", 0),
+            "ocr_line_box_count": ocr_provider_totals.get("ocr_line_box_count", 0),
+            "warnings": dict(ocr_warning_counts.most_common()),
+            "errors": dict(ocr_error_counts.most_common()),
+            "raw_text_printed": False,
+        },
+        "ocr_candidate_summary": {
+            "ocr_candidates_total": ocr_candidate_totals.get("ocr_candidates_total", 0),
+            "ocr_candidates_by_field": dict(ocr_candidates_by_field.most_common()),
+            "ocr_candidates_by_generator": dict(ocr_candidates_by_generator.most_common()),
+            "ocr_accessorial_candidate_count": ocr_candidate_totals.get(
+                "ocr_accessorial_candidate_count",
+                0,
+            ),
+            "ocr_accessorial_by_section": dict(ocr_accessorial_by_section.most_common()),
+            "ocr_accessorial_deduped_or_demoted": ocr_candidate_totals.get(
+                "ocr_accessorial_deduped_or_demoted",
+                0,
+            ),
+            "raw_text_printed": False,
+        },
+        "ocr_document_classification_summary": {
+            "document_type_counts": dict(ocr_classification_counts.most_common()),
+            "skip_reason_counts": dict(ocr_classification_skip_reasons.most_common()),
+            "raw_text_printed": False,
         },
         "candidate_coverage": candidate_coverage,
         "candidate_generation": {

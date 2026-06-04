@@ -363,6 +363,47 @@ def _page_span(evidence_items):
     return pages
 
 
+def _source_ref_from_evidence(item, component_type=""):
+    metadata = item.get("metadata") if isinstance(item.get("metadata"), dict) else {}
+    page = item.get("page", "")
+    line_index = item.get("line_index", "")
+    return {
+        "candidate_id": _text(metadata.get("candidate_id")),
+        "source": _text(item.get("source")),
+        "parser_name": _text(item.get("parser_name")),
+        "generator_name": _text(metadata.get("source_generator_name") or metadata.get("generator_name")),
+        "page": page,
+        "line_index": line_index,
+        "bbox": item.get("bbox"),
+        "role": item.get("role", ""),
+        "stop_index": metadata.get("stop_index") or 1,
+        "component_type": component_type or item.get("evidence_type", ""),
+        "safety_status": "safe",
+        "provenance_status": (
+            "complete"
+            if page not in {None, ""} and line_index not in {None, ""}
+            else "page_line_unavailable_from_source"
+        ),
+    }
+
+
+def _component_sources_from_evidence(evidence_items):
+    component_sources = defaultdict(list)
+    mapping = {
+        EVIDENCE_FACILITY: "facility",
+        EVIDENCE_ADDRESS: "address",
+        EVIDENCE_CITY_STATE_ZIP: "city_state_zip",
+        EVIDENCE_DATE: "date",
+        EVIDENCE_TIME: "time",
+        EVIDENCE_APPOINTMENT_WINDOW: "appointment_window",
+    }
+    for item in evidence_items or []:
+        component = mapping.get(item.get("evidence_type"))
+        if component:
+            component_sources[component].append(_source_ref_from_evidence(item, component))
+    return {key: value for key, value in component_sources.items() if value}
+
+
 def _is_ambiguous(evidence_items):
     by_type = defaultdict(set)
     for item in evidence_items:
@@ -411,13 +452,21 @@ def _stop_candidate_from_evidence(role, evidence_items, proximity_metadata=None)
         appointment_window=_first_value(evidence_items, [EVIDENCE_APPOINTMENT_WINDOW]),
         evidence_items=[
             {
+                "candidate_id": (item.get("metadata") or {}).get("candidate_id", ""),
                 "role": item.get("role", ""),
                 "evidence_type": item.get("evidence_type", ""),
                 "page": item.get("page", ""),
                 "line_index": item.get("line_index", ""),
+                "bbox": item.get("bbox"),
                 "source": item.get("source", ""),
                 "parser_name": item.get("parser_name", ""),
                 "confidence": item.get("confidence", 0.0),
+                "metadata": {
+                    "candidate_id": (item.get("metadata") or {}).get("candidate_id", ""),
+                    "generator_name": (item.get("metadata") or {}).get("generator_name", ""),
+                    "source_generator_name": (item.get("metadata") or {}).get("source_generator_name", ""),
+                    "stop_index": (item.get("metadata") or {}).get("stop_index", 1),
+                },
             }
             for item in evidence_items
         ],
@@ -429,6 +478,11 @@ def _stop_candidate_from_evidence(role, evidence_items, proximity_metadata=None)
             "has_date": has_date,
             "has_time": has_time,
             "page_span": _page_span(evidence_items),
+            "component_sources": _component_sources_from_evidence(evidence_items),
+            "source_lineage": [
+                _source_ref_from_evidence(item, item.get("evidence_type", ""))
+                for item in evidence_items
+            ],
             "partial_only": not (has_location and has_date),
             "ambiguous_stop_candidate": ambiguous,
             **dict(proximity_metadata or {}),

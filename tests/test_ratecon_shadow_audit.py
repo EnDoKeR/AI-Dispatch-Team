@@ -29,6 +29,7 @@ from app.document_ai.ratecon_shadow_audit import (
     LAYER_TEXT_EXTRACTION,
     assign_failure_attribution,
     build_candidate_summary,
+    build_private_eval_values,
     build_legacy_summary_from_resolution,
     build_load_number_selection_summary,
     build_ratecon_shadow_audit_record,
@@ -80,6 +81,43 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertEqual(comparison["load_number"], COMPARISON_DIFFERENT)
         self.assertEqual(comparison["total_carrier_rate"], COMPARISON_LEGACY_ONLY)
         self.assertEqual(comparison["carrier_name"], COMPARISON_SHADOW_ONLY)
+
+    def test_private_eval_values_include_hashed_rate_visibility_probe(self):
+        payload = build_private_eval_values(
+            raw_resolved={},
+            candidates=[],
+            private_eval_artifact={
+                "full_text": "Total Carrier Pay $2,500.00",
+                "pages": [
+                    {
+                        "lines": [{"text": "Total Carrier Pay $2,500.00"}],
+                        "words": [{"text": "$2,500.00"}],
+                        "tables": [
+                            {
+                                "rows": [
+                                    {
+                                        "cells": [
+                                            {"text": "Total Carrier Pay"},
+                                            {"text": "$2,500.00"},
+                                        ]
+                                    }
+                                ]
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+
+        probe = payload["rate_visibility_probe"]
+
+        self.assertEqual(probe["schema_version"], "ratecon_rate_visibility_probe_v1")
+        self.assertTrue(probe["full_text_money_hashes"])
+        self.assertTrue(probe["line_money_hashes"])
+        self.assertTrue(probe["layout_word_money_hashes"])
+        self.assertTrue(probe["layout_table_money_hashes"])
+        self.assertNotIn("2500", json.dumps(probe))
+        self.assertNotIn("$2,500.00", json.dumps(probe))
 
     def test_failure_attribution_low_text_and_missing_candidates(self):
         result = assign_failure_attribution(
@@ -248,6 +286,48 @@ class RateConShadowAuditTests(unittest.TestCase):
         self.assertFalse(record["private_values_included"])
         self.assertFalse(record["private_eval_values_included"])
         self.assertNotIn("private_eval_values", record)
+
+    def test_build_shadow_audit_record_includes_field_scoped_profile_names(self):
+        shadow_result = {
+            "final_output": {},
+            "needs_review": True,
+            "review_reasons": [],
+            "debug": {
+                "triage": {"pdf_type": "born_digital", "page_count": 1},
+                "artifact_summary": {"page_count": 1, "full_text_present": True},
+                "candidates": [],
+                "resolved_fields": {},
+                "ranking_profile": "baseline",
+                "load_candidate_profile": "header_recall_table_safety_v1",
+                "requested_load_candidate_profile": "baseline",
+                "load_ranking_profile": "header_recall_table_safety_v1",
+                "rate_ranking_profile": "gold_diagnostic_v1",
+                "field_ranking_profiles": {
+                    "load_number": "header_recall_table_safety_v1",
+                    "total_carrier_rate": "gold_diagnostic_v1",
+                },
+                "field_scoped_ranking_enabled": True,
+            },
+        }
+
+        record = build_ratecon_shadow_audit_record(
+            "RATECON_001",
+            "fake.pdf",
+            shadow_result,
+            legacy_summary={},
+            include_values=False,
+        )
+
+        self.assertEqual(
+            record["shadow"]["load_ranking_profile"],
+            "header_recall_table_safety_v1",
+        )
+        self.assertEqual(record["shadow"]["rate_ranking_profile"], "gold_diagnostic_v1")
+        self.assertTrue(record["shadow"]["field_scoped_ranking_enabled"])
+        self.assertEqual(
+            record["shadow"]["field_ranking_profiles"]["total_carrier_rate"],
+            "gold_diagnostic_v1",
+        )
 
     def test_build_shadow_audit_record_includes_private_eval_values_only_when_requested(self):
         shadow_result = {

@@ -1,0 +1,581 @@
+import csv
+import io
+import json
+import shutil
+import unittest
+from contextlib import redirect_stderr
+from pathlib import Path
+
+from app.document_ai.ratecon_gold_labels import (
+    FIELD_DELIVERY_STOPS,
+    FIELD_LOAD_NUMBER,
+    FIELD_PICKUP_STOPS,
+    FIELD_TOTAL_CARRIER_RATE,
+    LABEL_LABELED,
+    LABEL_PARTIAL,
+    build_gold_label_template,
+)
+from app.document_ai.ratecon_hybrid_contract import build_hybrid_result_template
+from scripts.run_ratecon_hybrid_benchmark import (
+    HybridBenchmarkError,
+    main,
+    run_hybrid_benchmark,
+)
+
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+
+
+class RateConHybridBenchmarkRunnerTests(unittest.TestCase):
+    def setUp(self):
+        self.root = REPO_ROOT / ".local_outputs" / "test_ratecon_hybrid_benchmark"
+        shutil.rmtree(self.root, ignore_errors=True)
+        self.gold_dir = self.root / "gold"
+        self.results_dir = self.root / "results"
+        self.output_dir = self.root / "benchmark"
+        self.gold_dir.mkdir(parents=True)
+        self.results_dir.mkdir(parents=True)
+
+    def tearDown(self):
+        shutil.rmtree(self.root, ignore_errors=True)
+
+    def _gold_label(self):
+        label = build_gold_label_template(document_id="DOC-1", file_hash="hash123")
+        label["label_status"] = LABEL_LABELED
+        label["gold"][FIELD_LOAD_NUMBER]["value"] = "LOAD-123"
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "2500.00"
+        label["gold"]["broker_name"]["value"] = "Broker Co"
+        label["gold"]["carrier_name"]["value"] = "Carrier Co"
+        label["gold"][FIELD_PICKUP_STOPS] = [
+            {
+                "stop_index": 1,
+                "facility": None,
+                "address": None,
+                "city": "Dallas",
+                "state": "TX",
+                "zip": None,
+                "date": "01/02/2026",
+                "time": None,
+                "appointment_window": None,
+                "uncertain": False,
+                "notes": "",
+            }
+        ]
+        label["gold"][FIELD_DELIVERY_STOPS] = [
+            {
+                "stop_index": 1,
+                "facility": None,
+                "address": None,
+                "city": "Houston",
+                "state": "TX",
+                "zip": None,
+                "date": "01/03/2026",
+                "time": None,
+                "appointment_window": None,
+                "uncertain": False,
+                "notes": "",
+            }
+        ]
+        return label
+
+    def _write_gold(self):
+        (self.gold_dir / "doc1.gold.json").write_text(
+            json.dumps(self._gold_label()),
+            encoding="utf-8",
+        )
+
+    def _valid_result(self):
+        result = build_hybrid_result_template("DOC-1")
+        result["evidence"] = [
+            {
+                "evidence_id": "ev_load",
+                "field": "load_number",
+                "page": 1,
+                "bbox": None,
+                "text_excerpt_redacted": "<redacted>",
+                "source": "model",
+            },
+            {
+                "evidence_id": "ev_rate",
+                "field": "total_carrier_rate",
+                "page": 1,
+                "bbox": None,
+                "text_excerpt_redacted": "<redacted>",
+                "source": "model",
+            },
+            {
+                "evidence_id": "ev_pick",
+                "field": "pickup_stops[0]",
+                "page": 1,
+                "bbox": None,
+                "text_excerpt_redacted": "<redacted>",
+                "source": "model",
+            },
+            {
+                "evidence_id": "ev_del",
+                "field": "delivery_stops[0]",
+                "page": 1,
+                "bbox": None,
+                "text_excerpt_redacted": "<redacted>",
+                "source": "model",
+            },
+        ]
+        result["fields"]["load_number"] = {
+            "value": "load123",
+            "confidence": 0.91,
+            "requires_human_review": True,
+            "evidence_ids": ["ev_load"],
+        }
+        result["fields"]["total_carrier_rate"] = {
+            "value": "$2,500.00",
+            "currency": "USD",
+            "confidence": 0.88,
+            "requires_human_review": True,
+            "evidence_ids": ["ev_rate"],
+        }
+        result["fields"]["pickup_stops"][0].update(
+            {
+                "city": "Dallas",
+                "date": "2026-01-02",
+                "confidence": 0.82,
+                "evidence_ids": ["ev_pick"],
+            }
+        )
+        result["fields"]["delivery_stops"][0].update(
+            {
+                "city": "Austin",
+                "state": "TX",
+                "date": "2026-01-03",
+                "confidence": 0.84,
+                "evidence_ids": ["ev_del"],
+            }
+        )
+        return result
+
+    def _write_result(self, result):
+        (self.results_dir / "doc1.hybrid_result.json").write_text(
+            json.dumps(result),
+            encoding="utf-8",
+        )
+
+    def _write_label(self, label):
+        (self.gold_dir / "doc1.gold.json").write_text(
+            json.dumps(label),
+            encoding="utf-8",
+        )
+
+    def _multi_stop_gold_label(self):
+        label = build_gold_label_template(document_id="DOC-MULTI", file_hash="hash-multi")
+        label["label_status"] = LABEL_PARTIAL
+        label["gold"][FIELD_LOAD_NUMBER]["value"] = "LOAD-MULTI"
+        label["gold"][FIELD_TOTAL_CARRIER_RATE]["value"] = "1000.00"
+        label["gold"][FIELD_PICKUP_STOPS] = [
+            {
+                "stop_index": 1,
+                "facility": "Pickup One",
+                "address": "1 Origin Rd",
+                "city": "Origin",
+                "state": "TX",
+                "zip": "75001",
+                "date": "05/27/2026",
+                "time": "0700",
+                "appointment_window": None,
+                "uncertain": False,
+                "notes": "",
+            }
+        ]
+        label["gold"][FIELD_DELIVERY_STOPS] = [
+            {
+                "stop_index": 1,
+                "facility": "Delivery One",
+                "address": "100 First Ave",
+                "city": "Denver",
+                "state": "CO",
+                "zip": "80239",
+                "date": "05/28/2026",
+                "time": "0830",
+                "appointment_window": None,
+                "uncertain": False,
+                "notes": "",
+            },
+            {
+                "stop_index": 2,
+                "facility": "Delivery Two",
+                "address": "200 Second St",
+                "city": "Denver",
+                "state": "CO",
+                "zip": "80216",
+                "date": "05/28/2026",
+                "time": None,
+                "appointment_window": "0800-1200",
+                "uncertain": False,
+                "notes": "",
+            },
+        ]
+        return label
+
+    def _multi_stop_result(self, delivery_stops):
+        result = build_hybrid_result_template("DOC-MULTI")
+        result["file_hash"] = "hash-multi"
+        result["evidence"] = [
+            {"evidence_id": "ev_load", "field": FIELD_LOAD_NUMBER, "page": 1, "bbox": None, "text_excerpt_redacted": "<redacted>", "source": "model"},
+            {"evidence_id": "ev_rate", "field": FIELD_TOTAL_CARRIER_RATE, "page": 1, "bbox": None, "text_excerpt_redacted": "<redacted>", "source": "model"},
+            {"evidence_id": "ev_pick", "field": "pickup_stops[0]", "page": 1, "bbox": None, "text_excerpt_redacted": "<redacted>", "source": "model"},
+            {"evidence_id": "ev_del_1", "field": "delivery_stops[0]", "page": 1, "bbox": None, "text_excerpt_redacted": "<redacted>", "source": "model"},
+            {"evidence_id": "ev_del_2", "field": "delivery_stops[1]", "page": 1, "bbox": None, "text_excerpt_redacted": "<redacted>", "source": "model"},
+        ]
+        result["fields"][FIELD_LOAD_NUMBER] = {
+            "value": "LOAD-MULTI",
+            "confidence": 0.9,
+            "requires_human_review": True,
+            "evidence_ids": ["ev_load"],
+        }
+        result["fields"][FIELD_TOTAL_CARRIER_RATE] = {
+            "value": "1000.00",
+            "currency": "USD",
+            "confidence": 0.9,
+            "requires_human_review": True,
+            "evidence_ids": ["ev_rate"],
+        }
+        result["fields"][FIELD_PICKUP_STOPS] = [
+            {
+                **result["fields"][FIELD_PICKUP_STOPS][0],
+                "facility": "Pickup One",
+                "address": "1 Origin Rd",
+                "city": "Origin",
+                "state": "TX",
+                "zip": "75001",
+                "date": "2026-05-27",
+                "time": "07:00",
+                "confidence": 0.9,
+                "evidence_ids": ["ev_pick"],
+            }
+        ]
+        result["fields"][FIELD_DELIVERY_STOPS] = delivery_stops
+        return result
+
+    def _delivery_stop_one(self, *, stop_index=1, time="08:30", window=None, city="Denver"):
+        return {
+            "schema_version": "ratecon_hybrid_stop_v1",
+            "role": "delivery",
+            "stop_index": stop_index,
+            "facility": "Delivery One",
+            "address": "100 First Ave",
+            "city": city,
+            "state": "CO",
+            "zip": "80239",
+            "date": "2026-05-28",
+            "time": time,
+            "appointment_window": window,
+            "raw_text_local_only": None,
+            "evidence_page": None,
+            "evidence_bbox": None,
+            "confidence": 0.9,
+            "requires_human_review": True,
+            "auto_accept": False,
+            "evidence_ids": ["ev_del_1"],
+        }
+
+    def _delivery_stop_two(self, *, stop_index=2, time=None, window="08:00-12:00"):
+        return {
+            "schema_version": "ratecon_hybrid_stop_v1",
+            "role": "delivery",
+            "stop_index": stop_index,
+            "facility": "Delivery Two",
+            "address": "200 Second St",
+            "city": "Denver",
+            "state": "CO",
+            "zip": "80216",
+            "date": "2026-05-28",
+            "time": time,
+            "appointment_window": window,
+            "raw_text_local_only": None,
+            "evidence_page": None,
+            "evidence_bbox": None,
+            "confidence": 0.9,
+            "requires_human_review": True,
+            "auto_accept": False,
+            "evidence_ids": ["ev_del_2"],
+        }
+
+    def _run_multi_stop_benchmark(self, delivery_stops):
+        self._write_label(self._multi_stop_gold_label())
+        self._write_result(self._multi_stop_result(delivery_stops))
+        return run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            write_review_packets=True,
+        )
+
+    def test_refuses_without_confirm_private_local_run(self):
+        with redirect_stderr(io.StringIO()):
+            with self.assertRaises(SystemExit) as context:
+                main(
+                    [
+                        "--hybrid-results-dir",
+                        str(self.results_dir),
+                        "--gold-dir",
+                        str(self.gold_dir),
+                    ]
+                )
+
+        self.assertNotEqual(context.exception.code, 0)
+
+    def test_refuses_output_outside_local_outputs(self):
+        self._write_gold()
+        self._write_result(self._valid_result())
+
+        with self.assertRaises(HybridBenchmarkError):
+            run_hybrid_benchmark(
+                hybrid_results_dir=self.results_dir,
+                gold_dir=self.gold_dir,
+                output_dir=REPO_ROOT / "tmp_hybrid_benchmark",
+            )
+
+    def test_computes_load_rate_and_stop_metrics(self):
+        self._write_gold()
+        self._write_result(self._valid_result())
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            strict_schema=True,
+        )
+
+        self.assertEqual(summary["schema_error_count"], 0)
+        self.assertEqual(summary["field_metrics"][FIELD_LOAD_NUMBER]["correct"], 1)
+        self.assertEqual(summary["field_metrics"][FIELD_TOTAL_CARRIER_RATE]["correct"], 1)
+        self.assertEqual(summary["stop_metrics"][FIELD_PICKUP_STOPS]["dispatch_usable"], 1)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 1)
+        self.assertTrue((self.output_dir / "hybrid_benchmark_summary.json").exists())
+        self.assertTrue((self.output_dir / "hybrid_field_metrics.csv").exists())
+        self.assertTrue((self.output_dir / "hybrid_document_metrics.csv").exists())
+        self.assertTrue((self.output_dir / "hybrid_error_cases.csv").exists())
+        self.assertTrue((self.output_dir / "hybrid_schema_errors.csv").exists())
+
+    def test_detects_schema_errors_auto_accept_and_missing_evidence(self):
+        self._write_gold()
+        result = self._valid_result()
+        result["fields"]["pickup_stops"][0]["auto_accept"] = True
+        result["fields"]["delivery_stops"][0]["evidence_ids"] = []
+        result["fields"]["delivery_stops"][0]["evidence_page"] = None
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+        )
+
+        self.assertGreaterEqual(summary["schema_error_count"], 1)
+        self.assertEqual(summary["review_policy"]["stop_auto_accept_violation"], 1)
+        self.assertGreaterEqual(summary["evidence_metrics"]["missing_evidence"], 1)
+
+    def test_writes_review_packet_when_requested(self):
+        self._write_gold()
+        self._write_result(self._valid_result())
+
+        run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            write_review_packets=True,
+        )
+
+        self.assertTrue((self.output_dir / "hybrid_review_packet.json").exists())
+        self.assertTrue((self.output_dir / "hybrid_review_items.csv").exists())
+        self.assertTrue((self.output_dir / "hybrid_review_packet.md").exists())
+
+    def test_non_rc_blank_ratecon_fields_are_not_applicable_not_missing_evidence(self):
+        label = build_gold_label_template(document_id="DOC-NON-RC", file_hash="hash-nonrc")
+        label["label_status"] = LABEL_PARTIAL
+        label["gold"]["document_type"] = "bol_pod"
+        label["gold"][FIELD_PICKUP_STOPS] = []
+        label["gold"][FIELD_DELIVERY_STOPS] = []
+        self._write_label(label)
+
+        result = build_hybrid_result_template("DOC-NON-RC")
+        result["file_hash"] = "hash-nonrc"
+        result["document_type"] = "bol_pod"
+        result["model_provider"] = "manual"
+        result["model_name"] = "manual_next_batch_v1"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = None
+        result["fields"][FIELD_TOTAL_CARRIER_RATE]["value"] = None
+        result["fields"][FIELD_PICKUP_STOPS] = []
+        result["fields"][FIELD_DELIVERY_STOPS] = []
+        result["evidence"] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            allow_unfilled_manual_templates=True,
+            write_review_packets=True,
+        )
+
+        self.assertEqual(summary["non_rc_handling"]["non_rc_filtered_correct"], 1)
+        self.assertEqual(summary["non_rc_handling"]["non_rc_not_applicable_fields"], 4)
+        self.assertEqual(summary["one_screen_summary"]["missing_evidence"], 0)
+        self.assertEqual(summary["unfilled_manual_template_count"], 0)
+        self.assertEqual(summary["stop_metrics"][FIELD_PICKUP_STOPS]["not_applicable"], 1)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["not_applicable"], 1)
+        with (self.output_dir / "hybrid_field_metrics.csv").open(newline="", encoding="utf-8") as handle:
+            field_rows = list(csv.DictReader(handle))
+        self.assertTrue(
+            all(
+                row["status"] == "not_applicable_non_rc"
+                for row in field_rows
+                if row["field"] in {FIELD_LOAD_NUMBER, FIELD_TOTAL_CARRIER_RATE}
+            )
+        )
+        with (self.output_dir / "hybrid_review_items.csv").open(newline="", encoding="utf-8") as handle:
+            review_rows = list(csv.DictReader(handle))
+        self.assertTrue(
+            all(
+                row["missing_evidence"] == "False" and row["recommended_action"] == "no_action_non_rc"
+                for row in review_rows
+            )
+        )
+
+    def test_non_rc_with_filled_ratecon_values_is_flagged_without_missing_evidence(self):
+        label = build_gold_label_template(document_id="DOC-NON-RC", file_hash="hash-nonrc")
+        label["label_status"] = LABEL_PARTIAL
+        label["gold"]["document_type"] = "bol_pod"
+        self._write_label(label)
+
+        result = build_hybrid_result_template("DOC-NON-RC")
+        result["file_hash"] = "hash-nonrc"
+        result["document_type"] = "bol_pod"
+        result["model_provider"] = "manual"
+        result["model_name"] = "manual_next_batch_v1"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = "SHOULD-NOT-BE-SCORED"
+        result["fields"][FIELD_PICKUP_STOPS][0]["city"] = "Example City"
+        result["evidence"] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+            allow_unfilled_manual_templates=True,
+        )
+
+        self.assertEqual(summary["non_rc_handling"]["non_rc_has_ratecon_fields"], 1)
+        self.assertEqual(summary["one_screen_summary"]["missing_evidence"], 0)
+        with (self.output_dir / "hybrid_error_cases.csv").open(newline="", encoding="utf-8") as handle:
+            error_rows = list(csv.DictReader(handle))
+        self.assertTrue(any(row["issue"] == "non_rc_has_ratecon_fields" for row in error_rows))
+
+    def test_gold_rate_confirmation_but_hybrid_non_rc_is_document_type_mismatch(self):
+        self._write_gold()
+        result = self._valid_result()
+        result["document_type"] = "bol_pod"
+        result["fields"][FIELD_LOAD_NUMBER]["value"] = None
+        result["fields"][FIELD_TOTAL_CARRIER_RATE]["value"] = None
+        result["fields"][FIELD_PICKUP_STOPS] = []
+        result["fields"][FIELD_DELIVERY_STOPS] = []
+        self._write_result(result)
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+        )
+
+        self.assertEqual(summary["document_classification"]["document_type_mismatch"], 1)
+        with (self.output_dir / "hybrid_error_cases.csv").open(newline="", encoding="utf-8") as handle:
+            error_rows = list(csv.DictReader(handle))
+        self.assertTrue(any(row["recommended_action"] == "review_document_type" for row in error_rows))
+
+    def test_multi_stop_delivery_same_order_compares_exact(self):
+        summary = self._run_multi_stop_benchmark([self._delivery_stop_one(), self._delivery_stop_two()])
+
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["exact_complete"], 2)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 0)
+
+    def test_multi_stop_delivery_reversed_order_uses_similarity_not_unsafe_wrong(self):
+        summary = self._run_multi_stop_benchmark(
+            [
+                self._delivery_stop_two(stop_index=1),
+                self._delivery_stop_one(stop_index=2),
+            ]
+        )
+
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["exact_complete"], 2)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 0)
+        with (self.output_dir / "hybrid_stop_pairing_diagnostics.csv").open(newline="", encoding="utf-8") as handle:
+            rows = [row for row in csv.DictReader(handle) if row["field"] == FIELD_DELIVERY_STOPS]
+        self.assertTrue(any(row["selected_pairing_method"] == "best_similarity" for row in rows))
+
+    def test_explicit_stop_index_pairing_used_when_indexes_match(self):
+        self._run_multi_stop_benchmark([self._delivery_stop_one(), self._delivery_stop_two()])
+
+        with (self.output_dir / "hybrid_stop_pairing_diagnostics.csv").open(newline="", encoding="utf-8") as handle:
+            rows = [row for row in csv.DictReader(handle) if row["field"] == FIELD_DELIVERY_STOPS]
+
+        self.assertTrue(all(row["selected_pairing_method"] == "explicit_stop_index" for row in rows))
+
+    def test_time_matches_repeated_appointment_window(self):
+        summary = self._run_multi_stop_benchmark(
+            [
+                self._delivery_stop_one(time=None, window="08:30-08:30"),
+                self._delivery_stop_two(),
+            ]
+        )
+
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["exact_complete"], 2)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 0)
+
+    def test_stable_components_match_time_window_differs_not_unsafe_wrong(self):
+        summary = self._run_multi_stop_benchmark(
+            [
+                self._delivery_stop_one(time="09:30"),
+                self._delivery_stop_two(),
+            ]
+        )
+
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 0)
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["dispatch_usable"], 1)
+        with (self.output_dir / "hybrid_field_metrics.csv").open(newline="", encoding="utf-8") as handle:
+            rows = [row for row in csv.DictReader(handle) if row["field"] == FIELD_DELIVERY_STOPS]
+        self.assertTrue(any(row["status"] == "stable_components_match_time_window_differs" for row in rows))
+
+    def test_true_wrong_city_remains_unsafe_wrong(self):
+        summary = self._run_multi_stop_benchmark(
+            [
+                self._delivery_stop_one(city="Boulder"),
+                self._delivery_stop_two(),
+            ]
+        )
+
+        self.assertEqual(summary["stop_metrics"][FIELD_DELIVERY_STOPS]["unsafe_wrong"], 1)
+        with (self.output_dir / "hybrid_error_cases.csv").open(newline="", encoding="utf-8") as handle:
+            error_rows = list(csv.DictReader(handle))
+        self.assertTrue(any(row["issue"] == "unsafe_wrong" for row in error_rows))
+
+    def test_no_external_api_calls_in_summary(self):
+        self._write_gold()
+        self._write_result(self._valid_result())
+
+        summary = run_hybrid_benchmark(
+            hybrid_results_dir=self.results_dir,
+            gold_dir=self.gold_dir,
+            output_dir=self.output_dir,
+        )
+
+        self.assertFalse(summary["external_api_calls_attempted"])
+        self.assertFalse(summary["pdf_processing_attempted"])
+        self.assertFalse(summary["ai_model_invocation_attempted"])
+
+    def test_local_outputs_ignored(self):
+        gitignore = (REPO_ROOT / ".gitignore").read_text(encoding="utf-8")
+
+        self.assertIn(".local_outputs/", gitignore)
+        self.assertIn(".local_outputs/**", gitignore)
+
+
+if __name__ == "__main__":
+    unittest.main()

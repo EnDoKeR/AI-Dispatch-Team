@@ -7,12 +7,15 @@ measurement result.
 
 from collections import Counter
 from dataclasses import dataclass
+import hashlib
+import json
 import re
 
 from app.document_ai.field_candidate_provenance import (
     SOURCE_LEGACY_PARSER,
     SOURCE_NATIVE_LAYOUT,
     SOURCE_NATIVE_TEXT,
+    SOURCE_OCR,
     build_field_candidate,
     adapt_candidate_result_to_field_candidates,
     adapt_ratecon_candidate_to_field_candidate,
@@ -36,7 +39,9 @@ from app.document_ai.layout_shadow_candidates import (
 )
 from app.document_ai.ratecon_candidate_context_features import enrich_candidates_context
 from app.document_ai.ratecon_load_table_safety import (
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    apply_table_abstention_profile_to_candidates,
     apply_table_safety_profile_to_candidates,
 )
 from app.document_ai.load_identity_forensics import (
@@ -62,6 +67,23 @@ from app.document_ai.ratecon_candidates import (
     FIELD_PICKUP_DATE,
     FIELD_PICKUP_LOCATION,
     FIELD_RATE,
+)
+from app.document_ai.ocr_stop_block_assembler import (
+    GENERATOR_OCR_STOP_BLOCK_ASSEMBLER,
+    STOP_CANDIDATE_PROFILE_BASELINE,
+    STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1,
+    STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1,
+    STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1,
+    STOP_CANDIDATE_PROFILES,
+    generate_ocr_stop_block_candidates,
+)
+from app.document_ai.ocr_stop_geometry_assembler import (
+    GENERATOR_OCR_STOP_GEOMETRY_ASSEMBLER,
+    generate_ocr_stop_geometry_candidates,
+)
+from app.document_ai.ocr_stop_table_reconstructor import (
+    GENERATOR_OCR_STOP_TABLE_RECONSTRUCTOR,
+    generate_ocr_stop_column_candidates,
 )
 from app.document_ai.text_artifacts import build_text_extraction_artifact_for_candidates
 from app.document_ai.stop_evidence_assembler import (
@@ -89,6 +111,7 @@ LOAD_CANDIDATE_PROFILES = {
     LOAD_CANDIDATE_PROFILE_BASELINE,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
     LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+    LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
 }
 
 _IDENTIFIER_LABEL_CORE = (
@@ -168,7 +191,7 @@ def _page_text_pages(artifact):
         {
             "page_number": page.get("page_number", index),
             "text": page.get("text", ""),
-            "source_method": artifact.get("source", "native"),
+            "source_method": page.get("source") or artifact.get("source", "native"),
         }
         for index, page in enumerate((artifact or {}).get("pages", []) or [], start=1)
     ]
@@ -208,10 +231,89 @@ def _annotate(candidate, generator_name, independent=True):
     return item
 
 
+def _safe_value_hash(value):
+    try:
+        payload = json.dumps(value, sort_keys=True, default=str)
+    except TypeError:
+        payload = str(value)
+    return hashlib.sha256(payload.encode("utf-8", errors="replace")).hexdigest()[:16]
+
+
+def _candidate_lineage(candidate, index):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    return {
+        "candidate_id": _text(metadata.get("candidate_id")),
+        "field": _text(candidate.get("field")),
+        "role": _text(metadata.get("stop_role") or metadata.get("role")),
+        "component_type": _text(metadata.get("component_type")),
+        "source": _text(candidate.get("source")),
+        "parser_name": _text(candidate.get("parser_name")),
+        "generator_name": _text(metadata.get("generator_name") or metadata.get("source_generator_name")),
+        "page": candidate.get("page") or metadata.get("page") or metadata.get("page_number"),
+        "line_index": (
+            metadata.get("line_index")
+            or metadata.get("source_line_index")
+            or metadata.get("reading_order_index")
+        ),
+        "bbox": candidate.get("bbox") or metadata.get("bbox") or metadata.get("component_bboxes"),
+        "stop_index": metadata.get("stop_index"),
+        "pairing_method": _text(metadata.get("pairing_method")),
+        "value_hash": _safe_value_hash(candidate.get("normalized_value") or candidate.get("value")),
+        "input_index": index,
+    }
+
+
+def _with_candidate_id(candidate, index):
+    item = dict(candidate or {})
+    metadata = dict(item.get("metadata") or {})
+    if not _text(metadata.get("candidate_id")):
+        basis = "|".join(
+            [
+                _text(item.get("field")),
+                _text(item.get("source")),
+                _text(item.get("parser_name")),
+                _text(item.get("label")),
+                _safe_value_hash(item.get("normalized_value") or item.get("value")),
+                str(index),
+            ]
+        )
+        metadata["candidate_id"] = (
+            f"{_text(item.get('field')) or 'candidate'}:"
+            f"{hashlib.sha256(basis.encode('utf-8', errors='replace')).hexdigest()[:12]}"
+        )
+        metadata["synthetic_candidate_id"] = True
+    item["metadata"] = metadata
+    return item
+
+
+def _append_unique_lineage(existing, entry):
+    existing = list(existing or [])
+    key = (
+        _text(entry.get("candidate_id")),
+        _text(entry.get("field")),
+        _text(entry.get("source")),
+        _text(entry.get("parser_name")),
+        _text(entry.get("value_hash")),
+    )
+    for item in existing:
+        if (
+            _text(item.get("candidate_id")),
+            _text(item.get("field")),
+            _text(item.get("source")),
+            _text(item.get("parser_name")),
+            _text(item.get("value_hash")),
+        ) == key:
+            return existing
+    existing.append(entry)
+    return existing
+
+
 def _dedupe(candidates):
-    seen = set()
+    seen = {}
     result = []
-    for candidate in candidates or []:
+    for index, raw_candidate in enumerate(candidates or [], start=1):
+        candidate = _with_candidate_id(raw_candidate, index)
         metadata = candidate.get("metadata") or {}
         structured_stop_identity = ()
         if metadata.get("structured_stop_candidate"):
@@ -238,8 +340,26 @@ def _dedupe(candidates):
             structured_stop_identity,
         )
         if identity in seen:
+            retained = seen[identity]
+            retained_metadata = dict(retained.get("metadata") or {})
+            kept_lineage = _candidate_lineage(retained, index)
+            dropped_lineage = _candidate_lineage(candidate, index)
+            lineage = retained_metadata.get("dedupe_lineage") or []
+            if not lineage:
+                lineage = _append_unique_lineage(lineage, kept_lineage)
+            lineage = _append_unique_lineage(lineage, dropped_lineage)
+            retained_metadata["dedupe_lineage"] = lineage
+            retained_metadata["merged_provenance"] = lineage
+            retained_metadata["dropped_unique_sources"] = sorted(
+                {
+                    _text(item.get("source"))
+                    for item in lineage
+                    if _text(item.get("source"))
+                }
+            )
+            retained["metadata"] = retained_metadata
             continue
-        seen.add(identity)
+        seen[identity] = candidate
         result.append(candidate)
     return result
 
@@ -301,6 +421,7 @@ def _text_candidate_generator(artifact, triage=None, legacy_context=None):
     if not _text((artifact or {}).get("full_text")):
         return [], ["artifact_full_text_missing"]
     result = extract_ratecon_candidates(_candidate_artifact(artifact or {}))
+    artifact_source = _text((artifact or {}).get("source"))
     candidates = [
         _annotate(candidate, GENERATOR_TEXT_CANDIDATES, independent=True)
         for candidate in adapt_candidate_result_to_field_candidates(
@@ -308,6 +429,12 @@ def _text_candidate_generator(artifact, triage=None, legacy_context=None):
             parser_name=GENERATOR_TEXT_CANDIDATES,
         )
     ]
+    if artifact_source == "ocr":
+        for candidate in candidates:
+            candidate["source"] = SOURCE_OCR
+            metadata = dict(candidate.get("metadata") or {})
+            metadata["ocr_candidate"] = True
+            candidate["metadata"] = metadata
     return candidates, list(result.get("warnings", []) or [])
 
 
@@ -399,6 +526,32 @@ def _artifact_page_lines(artifact):
     return pages
 
 
+def _artifact_page_line_sources(artifact):
+    sources = {}
+    for page in (artifact or {}).get("pages", []) or []:
+        page_number = page.get("page_number", "")
+        line_items = page.get("lines", []) or []
+        if line_items:
+            for index, item in enumerate(line_items):
+                if isinstance(item, dict) and _text(item.get("text")):
+                    sources[(page_number, index)] = _text(item.get("source")) or SOURCE_NATIVE_TEXT
+            continue
+        page_source = (
+            _text(page.get("source"))
+            or _text((artifact or {}).get("source"))
+            or SOURCE_NATIVE_TEXT
+        )
+        for index, line in enumerate(str(page.get("text") or "").splitlines()):
+            if _text(line):
+                sources[(page_number, index)] = page_source
+    if not sources and _text((artifact or {}).get("full_text")):
+        page_source = _text((artifact or {}).get("source")) or SOURCE_NATIVE_TEXT
+        for index, line in enumerate(str((artifact or {}).get("full_text") or "").splitlines()):
+            if _text(line):
+                sources[(1, index)] = page_source
+    return sources
+
+
 def _next_nonempty_line(lines, index):
     for position in range(index + 1, min(len(lines), index + 4)):
         value = _text(lines[position])
@@ -454,6 +607,7 @@ def _load_identifier_candidate(
     match_kind,
     label_hit_type="unknown",
     section_context="unknown",
+    source=SOURCE_NATIVE_TEXT,
 ):
     context = _identifier_context(lines, index)
     classification = classify_identifier_label(
@@ -482,7 +636,7 @@ def _load_identifier_candidate(
             label=label,
             evidence_text=evidence,
             page=page_number,
-            source=SOURCE_NATIVE_TEXT,
+            source=source,
             parser_name=GENERATOR_LOAD_ID_LINES,
             confidence=confidence,
             metadata={
@@ -518,6 +672,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
         page_number: lines
         for page_number, lines in _artifact_page_lines(artifact)
     }
+    line_sources = _artifact_page_line_sources(artifact)
     forensic_records = analyze_load_identity_label_hits(artifact or {})
     diagnostics = {
         "lines_scanned_count": sum(len(lines) for lines in page_lines.values()),
@@ -544,6 +699,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
             skipped[skip_reason] += 1
             continue
         evidence = f"{label} [{match_kind}-value-present]"
+        source = line_sources.get((page_number, index), SOURCE_NATIVE_TEXT)
         candidates.append(
             _load_identifier_candidate(
                 label,
@@ -555,6 +711,7 @@ def _load_identifier_line_generator(artifact, triage=None, legacy_context=None):
                 match_kind,
                 label_hit_type=record.get("hit_type", "unknown"),
                 section_context=record.get("section_context", "unknown"),
+                source=source,
             )
         )
         emitted_by_method[match_kind] += 1
@@ -763,7 +920,14 @@ def _header_load_candidate(row, label, value, method, diagnostics):
     diagnostics["emitted_by_method"][method] += 1
     diagnostics["emitted_by_id_type"][id_hint] += 1
     diagnostics["emitted_by_region"][document_region] += 1
-    source = SOURCE_NATIVE_LAYOUT if row.get("bbox") else SOURCE_NATIVE_TEXT
+    row_source = _text(row.get("source"))
+    source = (
+        SOURCE_OCR
+        if row_source == SOURCE_OCR
+        else SOURCE_NATIVE_LAYOUT
+        if row.get("bbox")
+        else SOURCE_NATIVE_TEXT
+    )
     return _annotate(
         build_field_candidate(
             field=FIELD_LOAD_NUMBER if primary else "reference_numbers",
@@ -1155,11 +1319,15 @@ def generate_field_candidates(
     strict=False,
     generators=None,
     load_candidate_profile=LOAD_CANDIDATE_PROFILE_BASELINE,
+    stop_candidate_profile=STOP_CANDIDATE_PROFILE_BASELINE,
 ):
+    if stop_candidate_profile not in STOP_CANDIDATE_PROFILES:
+        raise ValueError(f"unknown stop candidate profile: {stop_candidate_profile}")
     active_generators = list(generators or DEFAULT_GENERATORS)
     if generators is None and load_candidate_profile in {
         LOAD_CANDIDATE_PROFILE_HEADER_RECALL_V1,
         LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1,
+        LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1,
     }:
         active_generators.insert(
             2,
@@ -1245,6 +1413,57 @@ def generate_field_candidates(
             )
         )
 
+        if stop_candidate_profile in {
+            STOP_CANDIDATE_PROFILE_OCR_BLOCK_ASSEMBLY_V1,
+            STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1,
+            STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1,
+        }:
+            if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1:
+                generator_name = GENERATOR_OCR_STOP_TABLE_RECONSTRUCTOR
+                source_type = "shadow_ocr_stop_column_reconstruction"
+            elif stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1:
+                generator_name = GENERATOR_OCR_STOP_GEOMETRY_ASSEMBLER
+                source_type = "shadow_ocr_stop_geometry_assembly"
+            else:
+                generator_name = GENERATOR_OCR_STOP_BLOCK_ASSEMBLER
+                source_type = "shadow_ocr_stop_block_assembly"
+            try:
+                if stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_COLUMN_V1:
+                    generated, diagnostics = generate_ocr_stop_column_candidates(
+                        artifact,
+                    )
+                elif stop_candidate_profile == STOP_CANDIDATE_PROFILE_OCR_GEOMETRY_BLOCK_V1:
+                    generated, diagnostics = generate_ocr_stop_geometry_candidates(
+                        artifact,
+                    )
+                else:
+                    generated, diagnostics = generate_ocr_stop_block_candidates(
+                        artifact,
+                    )
+                warnings = []
+            except Exception as exc:
+                if strict:
+                    raise
+                generated = []
+                warnings = []
+                diagnostics = {}
+                errors.append(
+                    {
+                        "generator_name": generator_name,
+                        "error_type": exc.__class__.__name__,
+                    }
+                )
+            candidates.extend(generated)
+            summaries.append(
+                _summary(
+                    generator_name,
+                    source_type,
+                    generated,
+                    warnings,
+                    diagnostics=diagnostics,
+                )
+            )
+
     if include_legacy_final_candidates:
         generator = FieldCandidateGenerator(
             GENERATOR_LEGACY_FINAL_OUTPUT,
@@ -1284,4 +1503,6 @@ def generate_field_candidates(
     candidates = enrich_candidates_context(candidates)
     if load_candidate_profile == LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_SAFETY_V1:
         candidates = apply_table_safety_profile_to_candidates(candidates)
+    elif load_candidate_profile == LOAD_CANDIDATE_PROFILE_HEADER_RECALL_TABLE_ABSTAIN_V1:
+        candidates = apply_table_abstention_profile_to_candidates(candidates)
     return _build_result(candidates=candidates, summaries=summaries, errors=errors)

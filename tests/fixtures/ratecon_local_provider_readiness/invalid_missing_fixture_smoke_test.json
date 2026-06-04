@@ -1,0 +1,48 @@
+{
+  "approval": {
+    "approved_for_cloud": false,
+    "approved_for_fixture_only": false,
+    "approved_for_private_local_only": false,
+    "review_notes": "",
+    "reviewer": null
+  },
+  "benchmark_plan": {
+    "fixture_smoke_test_required": false,
+    "manual_baseline_required": true,
+    "minimum_required_reports": [
+      "schema_errors",
+      "missing_evidence",
+      "auto_accept_violations",
+      "unsafe_wrong_stops",
+      "manual_baseline_delta"
+    ],
+    "private_pilot_requires_explicit_confirmation": true
+  },
+  "experiment_id": "invalid_missing_fixture_smoke_test",
+  "privacy_review": {
+    "no_external_calls": true,
+    "no_model_weight_download_in_task": true,
+    "no_private_prompt_logging": true,
+    "no_private_response_logging": true,
+    "output_redaction_default": true,
+    "private_data_stays_local": true
+  },
+  "provider_name": "stub_empty_v1",
+  "provider_type": "stub",
+  "requested_capabilities": {
+    "external_calls": false,
+    "image_input": false,
+    "ocr_input": false,
+    "pdf_input": false,
+    "private_value_copy": false,
+    "raw_text_input": false
+  },
+  "safety_review": {
+    "auto_accept_disabled": true,
+    "filled_templates_unchanged": true,
+    "gold_labels_unchanged": true,
+    "production_output_unchanged": true,
+    "stops_review_required": true
+  },
+  "schema_version": "ratecon_local_provider_readiness_v1"
+}

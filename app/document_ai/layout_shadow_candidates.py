@@ -302,11 +302,13 @@ def _role_counts_for_row(row):
 def _safe_table_candidate_metadata(table, row, semantics):
     header_row_index = _safe_int(semantics.get("header_row_index"))
     row_index = _safe_int((row or {}).get("row_index"))
+    cells = row_cells(row or {})
     return safe_table_context_metadata(
         table_kind=semantics.get("recognized_kind", ""),
-        row_text=" ".join(_text(cell.get("text")) for cell in row_cells(row or {})),
+        row_text=" ".join(_text(cell.get("text")) for cell in cells),
         row_role_counts=_role_counts_for_row(row or {}),
         header_row=bool(semantics.get("header_row_index") != "" and row_index == header_row_index),
+        cell_count=len(cells),
     )
 
 

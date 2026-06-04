@@ -1,0 +1,639 @@
+# RateCon Hybrid Private Manual Pilot Guide v1
+
+Date: 2026-06-03
+
+Scope: local-only workflow for creating a small manual pilot packet from private
+RateCon audit/gold metadata. This workflow does not call AI, cloud services,
+OCR, local models, or PDF processing.
+
+## What This Produces
+
+The pilot generator creates:
+
+- a small document index;
+- blank hybrid result JSON templates;
+- an Excel-friendly checklist;
+- a readme;
+- benchmark instructions.
+
+All outputs are written under `.local_outputs/` and must not be committed.
+
+## Generate The Pilot Packet
+
+```powershell
+python scripts/create_ratecon_hybrid_private_manual_pilot.py ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot ^
+  --confirm-private-local-run
+```
+
+Optional flags:
+
+- `--max-docs 5`
+- `--pilot-profile representative_v1`
+- `--document-id DOC_ID`
+- `--include-private-values-local-only`
+
+The generator refuses to write outside `.local_outputs/`.
+
+## Where To Find Templates
+
+Templates are written to:
+
+```text
+.local_outputs/private_ratecon_hybrid_manual_pilot/templates/
+```
+
+Each template is a `.hybrid_result.json` file. Open it in a text editor and
+fill only values visible in the document.
+
+## Which Fields To Fill First
+
+Fill in this order:
+
+1. `document_type`: `rate_confirmation`, `bol_pod`,
+   `non_rate_confirmation`, `bill_of_lading_or_delivery_receipt`, or
+   `unknown`.
+2. `fields.load_number.value`.
+3. `fields.total_carrier_rate.value`.
+4. `fields.pickup_stops`.
+5. `fields.delivery_stops`.
+6. `evidence`.
+
+Leave unavailable components as `null`.
+
+## Fill BOL/POD Or Non-RC Documents
+
+If a selected document is a BOL, POD, delivery receipt, or otherwise not a
+rate confirmation, set `document_type` to the closest non-RC type and leave
+rate-con fields blank:
+
+- `fields.load_number.value = null`;
+- `fields.total_carrier_rate.value = null`;
+- `fields.pickup_stops = []`;
+- `fields.delivery_stops = []`.
+
+Do not add stop evidence for blank non-RC rate-con fields. The benchmark marks
+confirmed non-RC blank fields as `not_applicable_non_rc` and reports them as
+filtered, not failed. If the classification is uncertain, use `unknown`, keep
+the template review-required, and flag it for human review.
+
+## Required Stop Policy
+
+Every stop must stay:
+
+```json
+{
+  "requires_human_review": true,
+  "auto_accept": false
+}
+```
+
+Stops are review drafts only. Do not auto-accept stops in this pilot.
+
+## Add Evidence
+
+Every filled value needs evidence. Add evidence rows like:
+
+```json
+{
+  "evidence_id": "ev_pickup_001",
+  "field": "pickup_stops[0]",
+  "page": 1,
+  "bbox": null,
+  "text_excerpt_redacted": "<redacted>",
+  "source": "model"
+}
+```
+
+Then reference the evidence ID from the field or stop:
+
+```json
+{
+  "evidence_ids": ["ev_pickup_001"]
+}
+```
+
+Use redacted excerpts in any shareable output. Private raw text belongs only in
+ignored local files.
+
+## Multi-Stop Delivery/Pickup Matching
+
+For documents with multiple pickups or deliveries, keep each stop as a separate
+JSON object and preserve `stop_index` when visible. The benchmark pairs stops
+by explicit `stop_index` when the components agree, and otherwise uses
+one-to-one similarity so a reordered stop list does not become multiple unsafe
+wrong rows.
+
+Review `hybrid_stop_pairing_diagnostics.csv` when multi-stop rows look wrong.
+It shows the paired gold stop index, pairing method, component match score, and
+mismatch reasons. `time` and `appointment_window` can represent the same
+appointment differently; stable location/date matches with only time-window
+representation differences should remain review-required rather than unsafe.
+
+## Run Benchmark After Editing Templates
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_manual_pilot/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+The `--allow-unfilled-manual-templates` flag lets blank templates benchmark as
+missing/unfilled rows while still enforcing:
+
+- no `auto_accept=true`;
+- every stop must be review-required;
+- filled values must have evidence.
+
+## Read Benchmark Reports
+
+Start with:
+
+- `hybrid_benchmark_report.md`
+- `hybrid_error_cases.csv`
+- `hybrid_review_items.csv`
+
+Fix in this order:
+
+1. Schema errors.
+2. Auto-accept violations.
+3. Missing evidence.
+4. Unsafe wrong stops.
+5. Remaining missing/unfilled fields.
+
+If a stop gold label is marked uncertain, the benchmark keeps that row in
+human review instead of treating a stable-component match as `unsafe_wrong`.
+Review the source document and gold note before changing a manually preserved
+odd date or appointment window.
+
+For wrong rate rows, inspect `hybrid_money_diagnostics.csv`. The default file
+redacts raw private values but shows the source field path, comparison reason,
+and whether decimal-cent normalization matched.
+
+## Review Scalar Mismatches
+
+For load number or total carrier rate mismatches, generate a local-only scalar
+review packet:
+
+```powershell
+python scripts/create_ratecon_hybrid_scalar_discrepancy_review.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_manual_pilot/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_uncertain_gold_v1 ^
+  --output-dir .local_outputs/private_ratecon_hybrid_scalar_discrepancy_review ^
+  --confirm-private-local-run
+```
+
+Open `scalar_discrepancy_summary.md` first, then
+`scalar_discrepancy_items.csv`. The packet recommends whether to correct a
+manual hybrid template, request gold-label review, inspect document/file-hash
+matching, or investigate a benchmark bug. The patch template is dry-run-only
+and leaves proposed values blank.
+
+Do not edit gold labels automatically. Do not change a manually filled template
+unless the source document evidence proves the template is wrong.
+
+## Summarize Pilot Results
+
+After benchmark and scalar review cleanup, create a concise pilot summary:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_manual_pilot.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot_summary ^
+  --confirm-private-local-run
+```
+
+The summary writes:
+
+- `manual_pilot_summary.md`;
+- `manual_pilot_summary.json`;
+- `manual_pilot_success_criteria.csv`;
+- `manual_pilot_next_actions.csv`.
+
+Pilot status meanings:
+
+- `pilot_passed`: no schema, safety, accuracy, or review-item blockers.
+- `pilot_passed_with_review_items`: no failures, but review-required items
+  remain, such as uncertain gold.
+- `pilot_failed_schema`: schema errors must be fixed first.
+- `pilot_failed_safety`: missing evidence or stop auto-accept violations exist.
+- `pilot_failed_accuracy`: unsafe wrong stops or unresolved scalar wrongs remain.
+- `pilot_inconclusive`: inputs were insufficient to classify.
+
+Uncertain gold is not a failure when the benchmark classifies it as
+review-required. Keep it in human review and do not convert it into
+auto-accept.
+
+## Plan The Next Batch
+
+If audit and gold metadata are available, add `--write-next-batch-plan`:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_manual_pilot.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_manual_pilot_summary ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-next-batch-plan
+```
+
+The planner writes `manual_pilot_next_batch_plan.csv` with suggested documents,
+patterns, difficulty, why each document was selected, and what fields to fill.
+Use it to expand the pilot to 5-10 more documents while preserving pattern
+diversity:
+
+- TQL compact rows;
+- Express pickup/drop blocks;
+- PU/SO scanned blocks;
+- SPI/Fello/Landstar structured blocks;
+- city-level-only/verbal agreement;
+- non-RC/BOL/POD.
+
+Stay in manual-pilot mode until multiple batches show stable safety:
+
+- no schema errors;
+- no missing evidence;
+- no stop auto-accept violations;
+- no unsafe wrong stops;
+- scalar mismatches are resolved by review packets;
+- uncertain-gold rows remain explicitly review-required.
+
+Consider model-assisted filling only after the manual workflow proves the
+contract, evidence rules, review policy, and benchmark reports are stable across
+diverse document patterns. Do not introduce model integration from a single
+successful 5-document pilot.
+
+## Create The Next-Batch Packet
+
+After `manual_pilot_next_batch_plan.csv` exists, create a local-only packet for
+the next 5-10 documents:
+
+```powershell
+python scripts/create_ratecon_hybrid_next_batch_packet.py ^
+  --next-batch-plan .local_outputs/private_ratecon_hybrid_manual_pilot_summary/manual_pilot_next_batch_plan.csv ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_next_batch_packet ^
+  --confirm-private-local-run ^
+  --write-empty-templates ^
+  --write-checklist ^
+  --write-zip-instructions
+```
+
+The packet writes:
+
+- `next_batch_summary.json`;
+- `next_batch_readme.md`;
+- `next_batch_document_index.csv`;
+- `next_batch_checklist.csv`;
+- blank templates under `templates/`;
+- `how_to_fill_templates.md`;
+- `how_to_run_benchmark.md`;
+- `how_to_zip_for_review.md`.
+
+Templates use `model_provider=manual`, `model_name=manual_next_batch_v1`,
+`private_local_only=true`, and review reason `manual_next_batch_unfilled`.
+Likely rate-confirmation documents get one blank pickup stop and one blank
+delivery stop. Every stop remains `requires_human_review=true` and
+`auto_accept=false`.
+
+The checklist separates pickup and delivery rows and includes explicit evidence
+page/source rows. Use it as the manual fill tracker.
+
+## Zip Next-Batch Templates For Manual Filling
+
+Use the generated `how_to_zip_for_review.md` instructions. The zip should only
+include:
+
+- `next_batch_document_index.csv`;
+- `next_batch_checklist.csv`;
+- `templates/*.hybrid_result.json`.
+
+Do not zip PDFs unless explicitly requested. Do not commit the zip. Upload the
+zip only for manual filling/review.
+
+## Benchmark The Filled Next Batch
+
+After the templates are filled, run:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_next_batch_packet/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+PowerShell array form:
+
+```powershell
+$benchmarkArgs = @(
+  "--hybrid-results-dir", ".local_outputs/private_ratecon_hybrid_next_batch_packet/templates",
+  "--gold-dir", ".local_outputs/private_ratecon_gold_labels",
+  "--audit", ".local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl",
+  "--output-dir", ".local_outputs/private_ratecon_hybrid_next_batch_benchmark",
+  "--confirm-private-local-run",
+  "--allow-unfilled-manual-templates",
+  "--write-review-packets"
+)
+python scripts/run_ratecon_hybrid_benchmark.py @benchmarkArgs
+```
+
+Read `hybrid_benchmark_report.md` first, then inspect
+`hybrid_error_cases.csv` and `hybrid_review_items.csv`. Treat uncertain gold as
+review-required rather than failure when the benchmark classifies it that way.
+Keep private benchmark outputs local.
+
+## Summarize Multiple Manual Batches
+
+After two or more manual benchmark folders exist, aggregate them:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_batches.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --output-dir .local_outputs/private_ratecon_hybrid_multi_batch_summary ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-remaining-plan ^
+  --max-next-docs 10
+```
+
+The multi-batch summary writes:
+
+- `multi_batch_summary.md`;
+- `multi_batch_summary.json`;
+- `multi_batch_document_coverage.csv`;
+- `multi_batch_field_metrics.csv`;
+- `multi_batch_review_items.csv`;
+- `multi_batch_success_criteria.csv`;
+- optionally `remaining_manual_batch_plan.csv`.
+
+Document IDs are deduplicated across benchmark folders. Duplicate documents are
+listed in `multi_batch_document_coverage.csv` but excluded from aggregate
+metrics.
+
+Aggregate statuses:
+
+- `manual_hybrid_workflow_validated`: clean aggregate with no review blockers.
+- `manual_hybrid_validated_with_review_items`: clean aggregate except expected
+  review items, such as uncertain gold.
+- `manual_hybrid_failed_schema`: at least one schema error exists.
+- `manual_hybrid_failed_safety`: missing evidence or stop auto-accept exists.
+- `manual_hybrid_failed_accuracy`: unsafe wrong stops or unresolved scalar
+  wrongs remain.
+- `manual_hybrid_inconclusive`: insufficient benchmark inputs.
+
+The manual workflow is considered validated for the current stage when multiple
+batches show no schema errors, no missing evidence, no stop auto-accept
+violations, no unsafe wrong stops, and only explicit review-required uncertain
+gold remains.
+
+Non-RC/BOL-POD documents are counted separately in the multi-batch summary.
+For confirmed non-RC documents, blank load/rate/stop rows appear as
+`not_applicable_non_rc` or `not_applicable`. These are no-action
+classification outcomes, not scalar accuracy failures. Do not fill those rows
+with guessed rate-con values; if the document is not a rate confirmation, the
+correct manual action is to leave rate-con fields blank and preserve the
+non-RC document type.
+
+## Final Full-Corpus Closeout
+
+After every private audit/gold document has been covered by manual batches, run
+the closeout summary:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_batches.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_third_batch_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_remaining_batch_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_multi_batch_summary_final_closeout ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-remaining-plan ^
+  --write-closeout-report ^
+  --max-next-docs 10
+```
+
+The closeout writes:
+
+- `manual_hybrid_closeout_report.md`;
+- `manual_hybrid_closeout_summary.json`;
+- `manual_hybrid_closeout_success_criteria.csv`.
+
+The final closeout verdict
+`manual_hybrid_workflow_validated_full_corpus_with_review_items` means the
+manual/hybrid workflow has been validated across the available private corpus
+with explicit review items preserved. It does not mean production
+auto-extraction is ready. Stops remain review-required, `auto_accept` must stay
+`false`, and private benchmark outputs must remain local.
+
+Move toward model-assisted filling only after the manual workflow is stable,
+remaining actionable documents are `0`, and the next task can evaluate model
+assistance without changing production extraction or sending private documents
+to an external service.
+
+## Generate The Remaining Plan
+
+When `--write-remaining-plan` is supplied, the summary script writes
+`remaining_manual_batch_plan.csv`. It excludes document IDs already benchmarked
+in prior manual batches, excludes completed duplicate aliases by document
+identity, and excludes non-RC/BOL/POD rows by default. `remaining_plan_count`
+counts only actionable remaining documents, not duplicates or no-action rows.
+
+Use the plan to create a third-batch packet:
+
+```powershell
+python scripts/create_ratecon_hybrid_next_batch_packet.py ^
+  --next-batch-plan .local_outputs/private_ratecon_hybrid_multi_batch_summary/remaining_manual_batch_plan.csv ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --output-dir .local_outputs/private_ratecon_hybrid_third_batch_packet ^
+  --confirm-private-local-run ^
+  --write-empty-templates ^
+  --write-checklist ^
+  --write-zip-instructions
+```
+
+Benchmark unfilled third-batch templates before manual filling:
+
+```powershell
+python scripts/run_ratecon_hybrid_benchmark.py ^
+  --hybrid-results-dir .local_outputs/private_ratecon_hybrid_third_batch_packet/templates ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --output-dir .local_outputs/private_ratecon_hybrid_third_batch_benchmark_unfilled ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+Avoid duplicate documents by checking `multi_batch_document_coverage.csv` and
+the `already_completed` column in `remaining_manual_batch_plan.csv`. Do not
+move to model-assisted filling until the manual workflow remains stable across
+multiple diverse batches.
+
+## Model-Assisted Evaluation Harness
+
+The full-corpus manual/hybrid closeout is the baseline for model-assisted
+evaluation. Future model-assisted outputs must use the same hybrid contract and
+benchmark path. No model output can be production auto-accepted in this phase.
+
+Generate local-only stub submissions:
+
+```powershell
+python scripts/create_ratecon_model_assisted_stub_outputs.py ^
+  --templates-dir .local_outputs/private_ratecon_hybrid_remaining_batch_packet/templates ^
+  --output-dir .local_outputs/private_ratecon_model_assisted_stub_outputs ^
+  --confirm-private-local-run ^
+  --max-docs 5
+```
+
+Run the model-assisted benchmark wrapper:
+
+```powershell
+python scripts/run_ratecon_model_assisted_benchmark.py ^
+  --model-submissions-dir .local_outputs/private_ratecon_model_assisted_stub_outputs ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --manual-baseline-summary .local_outputs/private_ratecon_hybrid_multi_batch_summary_final_closeout/manual_hybrid_closeout_summary.json ^
+  --output-dir .local_outputs/private_ratecon_model_assisted_benchmark ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+The wrapper validates `ratecon_model_assisted_submission_v1`, extracts embedded
+`ratecon_hybrid_extraction_result_v1` JSON into a local-only output folder, runs
+the existing hybrid benchmark, and writes a baseline comparison. It must report
+`external_call_made=false`, `offline_only=true`, no PDF processing, no OCR, and
+no model invocation.
+
+Model-assisted status values include:
+
+- `model_output_not_ready`;
+- `model_output_schema_failed`;
+- `model_output_safety_failed`;
+- `model_output_below_manual_baseline`;
+- `model_output_matches_manual_baseline`;
+- `model_output_exceeds_manual_baseline_review_only`.
+
+Treat the manual baseline as the quality floor. A model-assisted result that
+matches the baseline is still review-only: stops remain `requires_human_review`
+and `auto_accept=false`.
+
+## Provider Adapter Dry Run
+
+Before any future provider experiment, inspect the disabled-by-default provider
+registry:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py list-providers
+```
+
+Validate a safe stub config:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py validate-config ^
+  --config tests/fixtures/ratecon_model_provider/valid_stub_provider_config.json ^
+  --confirm-private-local-run
+```
+
+Write a dry-run plan:
+
+```powershell
+python scripts/ratecon_model_provider_cli.py dry-run ^
+  --config tests/fixtures/ratecon_model_provider/valid_stub_provider_config.json ^
+  --templates-dir tests/fixtures/ratecon_model_assisted ^
+  --output-dir .local_outputs/ratecon_model_provider_dry_run_fixture ^
+  --confirm-private-local-run
+```
+
+The provider CLI writes only a plan and safety gate report. It does not execute
+a provider, call a model, process PDFs, OCR, or read private document text.
+Only `stub_empty_v1` is runnable in this phase. Local and cloud model
+placeholders are intentionally blocked.
+
+## Files That Must Never Be Committed
+
+Do not commit:
+
+- `.local_outputs/`;
+- private PDFs;
+- private gold labels;
+- private audit/eval/review outputs;
+- private hybrid templates;
+- manually filled hybrid results with private values;
+- raw extracted text;
+- model outputs containing private data.
+- model prompts or responses containing private values;
+- API keys.
+
+## Important Limits
+
+This is a manual pilot scaffold. It does not improve production extraction,
+does not change selected stop output, and does not introduce AI/model
+integration.
+
+## Local Provider Readiness Gates
+
+Before implementing any local model provider, create and validate a readiness
+file with `scripts/ratecon_local_provider_readiness_cli.py`. The readiness gates
+check privacy, safety, benchmark requirements, manual baseline requirements,
+and fixture smoke-test requirements. They cannot approve private local model
+execution in this phase.
+
+Run the fixture-only smoke test:
+
+```powershell
+python scripts/run_ratecon_local_provider_fixture_smoke_test.py ^
+  --output-dir .local_outputs/ratecon_local_provider_fixture_smoke_test ^
+  --confirm-private-local-run
+```
+
+The smoke test uses sanitized fixtures only. It lists providers, validates a
+safe config, validates readiness gates, writes a dry-run report, creates stub
+submissions, and benchmarks those stub submissions. It does not call a model,
+process PDFs, run OCR, edit gold labels, or edit hybrid templates.
+
+After the smoke test, generate the evidence pack described in
+`docs/ratecon_local_provider_evidence_pack_v1.md`. The pack indexes local
+artifacts, summarizes blockers, and recommends reject, continue fixture-only
+work, or prepare a separate design PR. It does not approve model implementation
+or private execution.
+
+## Local Provider Design Review
+
+If the evidence pack is ready, the next step is still only a design-review
+packet and PR checklist:
+
+```powershell
+python scripts/create_ratecon_local_provider_design_review.py ^
+  --evidence-pack-summary .local_outputs/ratecon_local_provider_evidence_pack/local_provider_evidence_pack_summary.json ^
+  --output-dir .local_outputs/ratecon_local_provider_design_review ^
+  --confirm-private-local-run
+```
+
+The design review may recommend `design_pr_ready`, but that means only that a
+future design PR can be opened. It does not approve model execution, provider
+implementation, PDF processing, OCR, private document processing, external
+calls, private execution, provider-registry unblocking, or model weight
+downloads. Any actual implementation requires a separate approved PR and must
+keep production extraction unchanged, stops review-required, and
+`auto_accept=false`.

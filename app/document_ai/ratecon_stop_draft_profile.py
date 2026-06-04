@@ -1,0 +1,9 @@
+"""Shadow-only stop draft profile constants."""
+
+STOP_DRAFT_PROFILE_NONE = "none"
+STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1 = "dispatch_usable_review_v1"
+
+STOP_DRAFT_PROFILES = {
+    STOP_DRAFT_PROFILE_NONE,
+    STOP_DRAFT_PROFILE_DISPATCH_USABLE_REVIEW_V1,
+}
