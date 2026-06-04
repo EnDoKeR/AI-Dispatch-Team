@@ -258,6 +258,43 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=str(path)):
                 assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_ocr_modules_remain_shadow_local_and_do_not_import_output_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.integrations.google_sheets_review",
+            "gspread",
+            "google.oauth",
+            "googleapiclient",
+            "openai",
+            "anthropic",
+            "google.generativeai",
+            "easyocr",
+        ]
+        ocr_files = [
+            path
+            for path in python_files(DOCUMENT_AI_PACKAGE)
+            if "ocr" in path.name.lower()
+        ]
+
+        self.assertGreaterEqual(len(ocr_files), 5)
+        for path in ocr_files:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
+        args_source = source_text(
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_args.py"
+        )
+        self.assertIn("--ratecon-shadow-ocr-provider", args_source)
+        self.assertIn('default="none"', args_source)
+        self.assertIn("--strict-ratecon-shadow-ocr", args_source)
+        self.assertIn("action=\"store_true\"", args_source)
+
     def test_document_ai_modules_do_not_import_legacy_ratecon_paths(self):
         forbidden_prefixes = [
             "app.market_intelligence.intake.pasted_text_parser_adapter",

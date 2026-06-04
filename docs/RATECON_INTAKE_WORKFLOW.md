@@ -6,7 +6,7 @@ Scope:
 
 - design only
 - no parser behavior changes
-- no OCR
+- no production OCR or OCR execution
 - no Gmail/email integration
 - no Google Sheets export
 - no Telegram file upload handling

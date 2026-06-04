@@ -1,8 +1,9 @@
 # PDF Triage
 
 PDF triage classifies document quality before RateCon field extraction. It does
-not parse business fields, call OCR, call Vision AI, create DispatchCases, or
-write timeline events.
+not parse business fields, run OCR, call Vision AI, create DispatchCases, or
+write timeline events. Optional local/shadow OCR diagnostics are separate and
+disabled by default.
 
 ## Why It Exists
 
@@ -47,7 +48,7 @@ numbers, appointment details, or document snippets.
 `OCR_NEEDED`
 
 - Text is empty, extremely sparse, or mixed by page.
-- OCR is not implemented by this route.
+- Production OCR is not implemented by this route.
 - The route only records that OCR should be considered later.
 
 `VISION_REVIEW_CANDIDATE`
