@@ -40,6 +40,13 @@ payment-terms, per-unit, accessorial, abstained, weak-only, and
 instructions/footer contexts. Known-debt selected-rate fixtures remain pinned,
 not fixed.
 
+Score trace/explanation cleanup follows this penalty ownership phase. Current
+trace fields, ranking adjustment reason strings, selected candidate trace
+payloads, decision statuses, and not-selected reasons are behavior-pinned by
+`tests/test_ratecon_rate_score_trace_explanation.py`. Trace cleanup must not
+change selected-rate behavior, score calculations, penalty values, thresholds,
+or reason strings.
+
 No compatibility aliases were added in this phase. The current ranking
 adjustment literals remain inside `field_candidate_resolver.py`; moving them
 into a separate policy module should be a future narrow cleanup only after this
@@ -65,7 +72,6 @@ Future behavior-preserving targets can include:
 
 - centralize named penalty constants inside `field_candidate_resolver.py` or a
   dedicated `ratecon_rate_ranking_policy.py` module;
-- isolate score explanation traces;
 - improve forensics diagnosis ownership;
 - capture private aggregate baselines before any experimental ranking profile;
 - only later consider behavior-changing ranking experiments under an explicit

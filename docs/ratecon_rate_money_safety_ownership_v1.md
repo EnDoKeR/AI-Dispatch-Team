@@ -104,6 +104,8 @@ Pinned behavior includes:
 - selected `total_carrier_rate` behavior across sanitized total-pay,
   accessorial/noise, fee/penalty, line-item, per-unit, and missing-total
   candidate combinations.
+- selected-rate score trace reason strings, ranking adjustment serialization,
+  decision status fields, and not-selected reason output.
 
 The selected-rate regression harness pins current behavior; it does not certify
 that every selected output is semantically correct. Some cases are explicitly
@@ -170,6 +172,15 @@ penalties, and not-selected traces. `app/document_ai/ratecon_rate_money_safety.p
 owns taxonomy/classifier inputs and abstention metadata only. The ownership
 pinning phase documents this split and pins current penalty behavior without
 changing selected rate output.
+
+Selected-rate score trace/explanation ownership is also separate from
+rate/money taxonomy ownership. `app/document_ai/field_candidate_resolver.py`
+owns score trace construction for now; forensics and audit modules may summarize
+resolver trace output but should not define competing explanation schemas.
+Trace cleanup must run the selected-rate regression harness and aggregate gate
+before any future ranking/scoring change. This trace cleanup pins current
+behavior and does not change selected-rate output, ranking, penalties, or reason
+strings.
 
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
