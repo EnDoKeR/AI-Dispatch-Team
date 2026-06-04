@@ -489,6 +489,55 @@ the `already_completed` column in `remaining_manual_batch_plan.csv`. Do not
 move to model-assisted filling until the manual workflow remains stable across
 multiple diverse batches.
 
+## Model-Assisted Evaluation Harness
+
+The full-corpus manual/hybrid closeout is the baseline for model-assisted
+evaluation. Future model-assisted outputs must use the same hybrid contract and
+benchmark path. No model output can be production auto-accepted in this phase.
+
+Generate local-only stub submissions:
+
+```powershell
+python scripts/create_ratecon_model_assisted_stub_outputs.py ^
+  --templates-dir .local_outputs/private_ratecon_hybrid_remaining_batch_packet/templates ^
+  --output-dir .local_outputs/private_ratecon_model_assisted_stub_outputs ^
+  --confirm-private-local-run ^
+  --max-docs 5
+```
+
+Run the model-assisted benchmark wrapper:
+
+```powershell
+python scripts/run_ratecon_model_assisted_benchmark.py ^
+  --model-submissions-dir .local_outputs/private_ratecon_model_assisted_stub_outputs ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --manual-baseline-summary .local_outputs/private_ratecon_hybrid_multi_batch_summary_final_closeout/manual_hybrid_closeout_summary.json ^
+  --output-dir .local_outputs/private_ratecon_model_assisted_benchmark ^
+  --confirm-private-local-run ^
+  --allow-unfilled-manual-templates ^
+  --write-review-packets
+```
+
+The wrapper validates `ratecon_model_assisted_submission_v1`, extracts embedded
+`ratecon_hybrid_extraction_result_v1` JSON into a local-only output folder, runs
+the existing hybrid benchmark, and writes a baseline comparison. It must report
+`external_call_made=false`, `offline_only=true`, no PDF processing, no OCR, and
+no model invocation.
+
+Model-assisted status values include:
+
+- `model_output_not_ready`;
+- `model_output_schema_failed`;
+- `model_output_safety_failed`;
+- `model_output_below_manual_baseline`;
+- `model_output_matches_manual_baseline`;
+- `model_output_exceeds_manual_baseline_review_only`.
+
+Treat the manual baseline as the quality floor. A model-assisted result that
+matches the baseline is still review-only: stops remain `requires_human_review`
+and `auto_accept=false`.
+
 ## Files That Must Never Be Committed
 
 Do not commit:
@@ -501,6 +550,8 @@ Do not commit:
 - manually filled hybrid results with private values;
 - raw extracted text;
 - model outputs containing private data.
+- model prompts or responses containing private values;
+- API keys.
 
 ## Important Limits
 

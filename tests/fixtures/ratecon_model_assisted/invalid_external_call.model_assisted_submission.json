@@ -1,0 +1,27 @@
+{
+  "created_at": "2026-06-04T00:00:00+00:00",
+  "input_policy": {
+    "images_included": false,
+    "ocr_processed": false,
+    "pdf_processed": false,
+    "private_local_only": true,
+    "raw_text_included": false
+  },
+  "provider": {
+    "external_call_made": true,
+    "model_name": null,
+    "model_version": null,
+    "offline_only": true,
+    "provider_name": "fixture_invalid_external_call",
+    "provider_type": "stub"
+  },
+  "result": {},
+  "run_id": "fixture_invalid_run",
+  "safety": {
+    "auto_accept_disabled": true,
+    "no_private_values_in_default_logs": true,
+    "stops_review_required": true
+  },
+  "schema_version": "ratecon_model_assisted_submission_v1",
+  "submission_id": "fixture_invalid_external_call"
+}
