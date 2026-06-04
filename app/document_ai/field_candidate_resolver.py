@@ -27,6 +27,7 @@ from app.document_ai.ratecon_rate_money_safety import (
     RATE_SELECTION_ABSTAIN,
     RATE_SELECTION_WEAK_ONLY,
     apply_rate_money_abstention_profile_to_candidates,
+    get_total_pay_strong_labels,
 )
 from app.document_ai.ratecon_ocr_candidate_policy import (
     OCR_CANDIDATE_POLICIES,
@@ -153,13 +154,7 @@ SOURCE_RANK = {
     "unknown": 0.0,
 }
 
-RATE_STRONG_LABELS = (
-    "total carrier pay",
-    "total carrier rate",
-    "carrier pay",
-    "total rate",
-    "agreed amount",
-)
+RATE_STRONG_LABELS = get_total_pay_strong_labels()
 RATE_COMPONENT_LABELS = (
     "linehaul",
     "line haul",
