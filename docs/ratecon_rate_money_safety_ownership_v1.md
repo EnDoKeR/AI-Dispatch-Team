@@ -191,6 +191,15 @@ compatibility behavior until a separate narrow consolidation proves diagnosis
 strings, counts, selected-rate outputs, and aggregate gate behavior are
 unchanged.
 
+The selected-rate cleanup closeout is documented in
+`docs/ratecon_selected_rate_cleanup_closeout_v1.md` and implemented by
+`scripts/summarize_ratecon_selected_rate_closeout.py`. Future behavior changes
+must start from a closeout baseline plus the sanitized selected-rate regression
+harness, snapshot comparison, private aggregate gate, and explicit metric-delta
+review. The closeout baseline is a reporting gate only; it does not approve
+production migration, threshold changes, ranking changes, or extraction
+behavior changes.
+
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
 truth.
