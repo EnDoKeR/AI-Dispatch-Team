@@ -270,11 +270,23 @@ selected-rate snapshots. This phase must not change resolver scoring,
 penalties, thresholds, trace schemas, diagnosis strings, diagnosis counts,
 evaluator statuses, aggregate gate behavior, or selected rate output.
 
+The next reporting-only phase closes out the selected-rate rate/money cleanup
+series with `scripts/summarize_ratecon_selected_rate_closeout.py` and
+`docs/ratecon_selected_rate_cleanup_closeout_v1.md`. The closeout summarizes
+existing sanitized selected-rate snapshots, aggregate gate output, optional
+static audit output, known debt, required gates, and next actions. It tolerates
+missing optional private full-corpus baseline inputs and must not run private
+measurement, process PDFs, run OCR, call Google/model/cloud services, edit gold
+labels, or change resolver behavior.
+
 Future rate/money consolidation should continue with one narrow target:
 
+- private full-corpus baseline if the closeout skipped it;
 - private aggregate baseline before experimental ranking profile;
 - optional shadow-only experimental ranking profile under explicit gates;
 - candidate source/ranking normalization.
+- load identifier ownership cleanup;
+- stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
 shadow rates, or use private gold labels as runtime truth as part of ownership

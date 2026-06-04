@@ -1,0 +1,20 @@
+{
+  "gate": {
+    "google_called": false,
+    "model_or_cloud_called": false,
+    "ocr_attempted": false,
+    "passed": true,
+    "pdf_processing_attempted": false,
+    "private_measurement_run": false
+  },
+  "summary": {
+    "delta": {
+      "high_confidence_wrong_count": 0,
+      "selected_wrong_money_context_count": 0,
+      "wrong_count": 0
+    },
+    "private_values_included": false,
+    "selected_value_changed_count": 0,
+    "selected_value_comparison_status": "private_values_unavailable"
+  }
+}
