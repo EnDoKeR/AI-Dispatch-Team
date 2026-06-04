@@ -475,6 +475,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_audit_orchestration.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
@@ -497,6 +498,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             DOCUMENT_AI_PACKAGE / "private_measurement_pipeline.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_reports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_outputs.py",
+            DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_audit_orchestration.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_report_writers.py",
             DOCUMENT_AI_PACKAGE / "measurement_cli" / "ratecon_private_review_exports.py",
             DOCUMENT_AI_PACKAGE / "private_measurement_blockers.py",
@@ -542,6 +544,11 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             / "measurement_cli"
             / "ratecon_private_review_exports.py"
         )
+        audit_orchestration_path = (
+            DOCUMENT_AI_PACKAGE
+            / "measurement_cli"
+            / "ratecon_private_audit_orchestration.py"
+        )
         safety_path = (
             DOCUMENT_AI_PACKAGE
             / "measurement_cli"
@@ -555,6 +562,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
                 output_path,
                 report_writer_path,
                 review_export_path,
+                audit_orchestration_path,
                 safety_path,
             ]
         )
@@ -576,6 +584,7 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             output_path,
             report_writer_path,
             review_export_path,
+            audit_orchestration_path,
             safety_path,
         ]:
             assert_no_import_prefix(self, source_path, forbidden_prefixes)

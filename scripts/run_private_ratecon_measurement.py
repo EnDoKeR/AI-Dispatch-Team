@@ -8,23 +8,13 @@ if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
 from app.document_ai.broker_template_registry import BrokerTemplateRegistry, TemplateRegistryError
-from app.document_ai.candidate_coverage_analysis import (
-    analyze_candidate_coverage_from_measurement_rows,
-    write_candidate_coverage_artifacts,
-)
-from app.document_ai.load_identifier_coverage_audit import (
-    analyze_load_identifier_coverage_from_rows,
-    write_load_identifier_coverage_artifacts,
-)
-from app.document_ai.load_identifier_source_line_audit import (
-    analyze_load_id_source_lines_from_rows,
-    write_load_identifier_source_line_artifacts,
-)
 from app.document_ai.layout_provider_diagnostics import (
     compare_pdfplumber_table_profiles,
-    write_layout_provider_diagnostics_report,
 )
 from app.document_ai.pdfplumber_layout_settings import PDFPLUMBER_TABLE_SETTING_PROFILES
+from app.document_ai.measurement_cli.ratecon_private_audit_orchestration import (
+    run_private_ratecon_audit_exports,
+)
 from app.document_ai.measurement_cli.ratecon_private_args import (
     DEFAULT_TEMPLATE_DIR,
     parse_private_ratecon_measurement_args,
@@ -35,7 +25,6 @@ from app.document_ai.measurement_cli.ratecon_private_config import (
 from app.document_ai.measurement_cli.ratecon_private_output_paths import (
     build_private_ratecon_output_paths,
     output_file_labels,
-    output_file_name,
 )
 from app.document_ai.measurement_cli.ratecon_private_safety import (
     PrivateRateconMeasurementSafetyError,
@@ -61,22 +50,7 @@ from app.document_ai.private_measurement_pipeline import measure_private_ratecon
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
-from app.document_ai.rate_candidate_forensics import (
-    analyze_rate_forensics_from_measurement_rows,
-    write_rate_forensics_artifacts,
-)
-from app.document_ai.rate_conflict_audit import (
-    analyze_rate_conflict_audit_from_measurement_rows,
-    write_rate_conflict_audit_artifacts,
-)
-from app.document_ai.ratecon_shadow_audit import (
-    shadow_records_from_rows,
-    write_ratecon_shadow_audit_artifacts,
-)
 from app.document_ai.ratecon_review_workbook import write_ratecon_review_artifacts
-from app.document_ai.stop_group_provenance_report import (
-    write_stop_group_provenance_report,
-)
 from app.integrations import google_sheets_review as sheets_review
 
 SAFETY_BANNER = (
@@ -500,33 +474,6 @@ def format_private_measurement_report(report):
     return lines
 
 
-def _diagnostics_from_rows(rows):
-    diagnostics = []
-    for row in rows or []:
-        if not row.get("layout_provider_status"):
-            continue
-        diagnostics.append(
-            {
-                "document_alias": row.get("document_alias", ""),
-                "provider_name": row.get("layout_provider_name", "pdfplumber"),
-                "provider_status": row.get("layout_provider_status", ""),
-                "page_count": row.get("page_count", 0),
-                "pages": [],
-                "total_word_count": row.get("layout_total_word_count", 0),
-                "total_line_count": row.get("layout_total_line_count", 0),
-                "total_table_count": row.get("layout_total_table_count", 0),
-                "total_table_cell_count": row.get("layout_total_table_cell_count", 0),
-                "table_settings_profile": row.get("layout_table_settings_profile", ""),
-                "layout_quality_bucket": row.get("layout_quality_bucket", ""),
-                "stop_evidence_signals": row.get("layout_stop_signal_counts", {}),
-                "warning_codes": row.get("warning_codes", []),
-                "raw_text_included": False,
-                "private_values_redacted": True,
-            }
-        )
-    return diagnostics
-
-
 def _load_google_review_config_from_args(args):
     config = sheets_review.load_google_sheets_review_config(args.google_config)
     return sheets_review.GoogleSheetsReviewConfig(
@@ -718,229 +665,21 @@ def main(argv=None):
                 "csvs_written": review.get("csvs_written", False),
             }
             print(f"review_workbook_export_written: {labels}")
-        if not args.dry_run and args.write_candidate_coverage:
-            coverage_analysis = analyze_candidate_coverage_from_measurement_rows(
-                report["rows"],
-                review_rows_by_sheet=review_rows_by_sheet,
-            )
-            coverage = write_candidate_coverage_artifacts(
-                coverage_analysis,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-            )
-            aggregate = coverage.get("aggregate", {})
-            labels = {
-                "files": _safe_output_file_labels(coverage.get("paths", {})),
-                "document_count": aggregate.get("document_count", 0),
-                "top_missing_candidate_fields": aggregate.get(
-                    "top_missing_candidate_fields",
-                    [],
-                )[:8],
-                "coverage_counts_by_stage": aggregate.get(
-                    "coverage_counts_by_stage",
-                    {},
-                ),
-                "gap_reason_counts": aggregate.get("gap_reason_counts", {}),
-                "recommended_next_fix": aggregate.get("recommended_next_fix", ""),
-                "private_values_printed": coverage.get("private_values_printed", False),
-                "raw_text_printed": coverage.get("raw_text_printed", False),
-            }
-            print(f"candidate_coverage_written: {labels}")
-        if not args.dry_run and args.write_load_identifier_audit:
-            load_identifier_analysis = analyze_load_identifier_coverage_from_rows(
-                report["rows"],
-            )
-            load_identifier_audit = write_load_identifier_coverage_artifacts(
-                load_identifier_analysis,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-            )
-            aggregate = load_identifier_audit.get("aggregate", {})
-            labels = {
-                "files": _safe_output_file_labels(
-                    load_identifier_audit.get("paths", {})
-                ),
-                "document_count": aggregate.get("document_count", 0),
-                "primary_candidate_count": aggregate.get(
-                    "primary_candidate_count",
-                    0,
-                ),
-                "typed_reference_count": aggregate.get("typed_reference_count", 0),
-                "rejected_non_primary_count": aggregate.get(
-                    "rejected_non_primary_count",
-                    0,
-                ),
-                "core_mapping_count": aggregate.get("core_mapping_count", 0),
-                "records_by_reason": aggregate.get("records_by_reason", {}),
-                "private_values_printed": load_identifier_audit.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "raw_text_printed": load_identifier_audit.get(
-                    "raw_text_printed",
-                    False,
-                ),
-            }
-            print(f"load_identifier_audit_written: {labels}")
-        if not args.dry_run and args.write_load_identifier_source_line_audit:
-            source_line_analysis = analyze_load_id_source_lines_from_rows(
-                report["rows"],
-            )
-            source_line_audit = write_load_identifier_source_line_artifacts(
-                source_line_analysis,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-                raw=True,
-            )
-            aggregate = source_line_audit.get("aggregate", {})
-            labels = {
-                "files": _safe_output_file_labels(source_line_audit.get("paths", {})),
-                "document_count": aggregate.get("document_count", 0),
-                "identifier_like_source_line_count": aggregate.get(
-                    "identifier_like_line_count",
-                    0,
-                ),
-                "label_detected_count": aggregate.get("detected_label_count", 0),
-                "label_classified_count": aggregate.get("classified_label_count", 0),
-                "primary_candidate_count": aggregate.get(
-                    "primary_candidate_count",
-                    0,
-                ),
-                "core_mapping_count": aggregate.get("core_mapping_count", 0),
-                "rejected_non_primary_count": aggregate.get(
-                    "rejected_non_primary_count",
-                    0,
-                ),
-                "fix_allowed": aggregate.get("fix_allowed", False),
-                "private_values_printed": source_line_audit.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "raw_text_printed": source_line_audit.get(
-                    "raw_text_printed",
-                    False,
-                ),
-                "line_text_printed": source_line_audit.get(
-                    "line_text_printed",
-                    False,
-                ),
-            }
-            print(f"load_identifier_source_line_audit_written: {labels}")
-        if not args.dry_run and args.write_rate_forensics:
-            rate_forensics_analysis = analyze_rate_forensics_from_measurement_rows(
-                report["rows"],
-            )
-            rate_forensics = write_rate_forensics_artifacts(
-                rate_forensics_analysis,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-                raw=True,
-            )
-            aggregate = rate_forensics.get("aggregate", {})
-            labels = {
-                "files": rate_forensics.get("files", {}),
-                "document_count": aggregate.get("document_count", 0),
-                "rate_candidate_count": aggregate.get("rate_candidate_count", 0),
-                "main_candidate_count": aggregate.get(
-                    "main_rate_candidate_count",
-                    0,
-                ),
-                "accessorial_candidate_count": aggregate.get(
-                    "accessorial_candidate_count",
-                    0,
-                ),
-                "quickpay_candidate_count": aggregate.get(
-                    "quickpay_candidate_count",
-                    0,
-                ),
-                "terms_candidate_count": aggregate.get("terms_candidate_count", 0),
-                "conflict_count": aggregate.get("conflict_count", 0),
-                "records_by_conflict_reason": aggregate.get(
-                    "records_by_conflict_reason",
-                    {},
-                ),
-                "private_values_printed": rate_forensics.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "raw_text_printed": rate_forensics.get("raw_text_printed", False),
-                "money_values_printed": rate_forensics.get(
-                    "money_values_printed",
-                    False,
-                ),
-            }
-            print(f"rate_forensics_written: {labels}")
-        if not args.dry_run and args.write_rate_conflict_audit:
-            rate_conflict_analysis = analyze_rate_conflict_audit_from_measurement_rows(
-                report["rows"],
-            )
-            rate_conflict_audit = write_rate_conflict_audit_artifacts(
-                rate_conflict_analysis,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-                raw=True,
-            )
-            aggregate = rate_conflict_audit.get("aggregate", {})
-            labels = {
-                "files": rate_conflict_audit.get("files", {}),
-                "document_count": aggregate.get("document_count", 0),
-                "equivalent_group_count": aggregate.get(
-                    "equivalent_group_count",
-                    0,
-                ),
-                "different_strong_total_count": aggregate.get(
-                    "different_strong_total_count",
-                    0,
-                ),
-                "conflict_count": aggregate.get("conflict_count", 0),
-                "records_by_conflict_reason": aggregate.get(
-                    "records_by_conflict_reason",
-                    {},
-                ),
-                "private_values_printed": rate_conflict_audit.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "raw_text_printed": rate_conflict_audit.get(
-                    "raw_text_printed",
-                    False,
-                ),
-                "money_values_printed": rate_conflict_audit.get(
-                    "money_values_printed",
-                    False,
-                ),
-            }
-            print(f"rate_conflict_audit_written: {labels}")
-        if not args.dry_run and args.write_ratecon_shadow_audit:
-            shadow_records = shadow_records_from_rows(report["rows"])
-            shadow_audit = write_ratecon_shadow_audit_artifacts(
-                shadow_records,
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-            )
-            aggregate = shadow_audit.get("aggregate", {})
-            labels = {
-                "files": shadow_audit.get("files", {}),
-                "documents_processed": aggregate.get("documents_processed", 0),
-                "shadow_success": aggregate.get("shadow_success", 0),
-                "shadow_failed": aggregate.get("shadow_failed", 0),
-                "needs_review_count": (
-                    aggregate.get("review_gate", {}) or {}
-                ).get("needs_review_count", 0),
-                "primary_layer_counts": (
-                    aggregate.get("failure_attribution", {}) or {}
-                ).get("primary_layer_counts", {}),
-                "private_values_printed": shadow_audit.get(
-                    "private_values_printed",
-                    False,
-                ),
-                "raw_text_printed": shadow_audit.get("raw_text_printed", False),
-                "money_values_printed": shadow_audit.get(
-                    "money_values_printed",
-                    False,
-                ),
-            }
-            print(f"ratecon_shadow_audit_written: {labels}")
+        for audit_result in run_private_ratecon_audit_exports(
+            report,
+            config,
+            output_paths,
+            review_rows_by_sheet=review_rows_by_sheet,
+            task_names=[
+                "candidate_coverage",
+                "load_identifier_audit",
+                "load_identifier_source_line_audit",
+                "rate_forensics",
+                "rate_conflict_audit",
+                "ratecon_shadow_audit",
+            ],
+        ):
+            print(f"{audit_result.message_label}: {audit_result.payload}")
         if not args.dry_run and args.sync_review_google_sheet:
             sync_result = _sync_google_review_tabs(report, args)
             sync_labels = {
@@ -959,25 +698,16 @@ def main(argv=None):
                 ),
             }
             print(f"google_sheet_sync: {sync_labels}")
-        if not args.dry_run and args.write_stop_provenance_report:
-            provenance_report = write_stop_group_provenance_report(
-                report["rows"],
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-            )
-            print(
-                "stop_provenance_report_written: "
-                f"{{'json': '{output_file_name(provenance_report['json'])}', "
-                f"'md': '{output_file_name(provenance_report['md'])}', "
-                f"'row_count': {provenance_report['row_count']}}}"
-            )
-        if not args.dry_run and args.layout_diagnostics:
-            diagnostics_path = write_layout_provider_diagnostics_report(
-                _diagnostics_from_rows(report["rows"]),
-                output_dir=output_paths.output_dir,
-                allow_custom_output_dir=args.allow_custom_output_dir,
-            )
-            print(f"layout_diagnostics_written: {output_file_name(diagnostics_path)}")
+        for audit_result in run_private_ratecon_audit_exports(
+            report,
+            config,
+            output_paths,
+            task_names=[
+                "stop_provenance_report",
+                "layout_diagnostics",
+            ],
+        ):
+            print(f"{audit_result.message_label}: {audit_result.payload}")
     except (
         PrivateMeasurementInputError,
         PrivateMeasurementOutputError,

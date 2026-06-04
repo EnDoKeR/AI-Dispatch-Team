@@ -39,10 +39,17 @@ and local-only/private-redaction metadata, and it must not run measurement,
 process PDFs, invoke OCR, call models or cloud services, sync Google Sheets,
 generate review workbooks, or own full audit orchestration.
 
-Future phases may move audit orchestration, review workbook generation, Google
-sync wiring, and pipeline orchestration into smaller owners. Each phase must
-preserve CLI flag names, output schemas, safety gates, and measurement behavior
-unless a separate behavior-change PR explicitly approves and tests that change.
+Phase 3C extracts only optional audit/diagnostic orchestration wrappers. The
+orchestration module may decide which existing audit writer functions to call
+from already-parsed flags, but it must not own metric definitions, audit
+algorithms, filenames, schemas, measurement execution, review workbook
+generation, or Google sync wiring.
+
+Future phases may move review workbook generation, Google sync wiring, and
+pipeline orchestration into smaller owners. Each phase must preserve CLI flag
+names, output schemas, output filenames, metric definitions, safety gates, and
+measurement behavior unless a separate behavior-change PR explicitly approves
+and tests that change.
 
 Private outputs remain local-only. Generated reports, audits, review workbooks,
 OCR artifacts, model outputs, raw extracted text, gold labels, and local audit
