@@ -1,0 +1,480 @@
+[
+  {
+    "id": "strong_total_only",
+    "description": "One explicit total-carrier-pay candidate.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Total Carrier Pay: $2,600.00",
+        "value": "2600.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "2600.00",
+      "selected_label": "Total Carrier Pay: $2,600.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.82,
+      "selected_score": 1.0,
+      "selected_money_context": "total_carrier_pay",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 1,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "total_plus_accessorial_noise",
+    "description": "Explicit total with detention, quick-pay, and fuel-advance noise candidates.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Total Carrier Pay: $2,600.00",
+        "value": "2600.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      },
+      {
+        "label": "Detention $150.00",
+        "value": "150.00",
+        "confidence": 0.98,
+        "source": "native_layout"
+      },
+      {
+        "label": "Quick Pay 3%",
+        "value": "3%",
+        "confidence": 0.96,
+        "source": "native_layout"
+      },
+      {
+        "label": "Fuel Advance $500.00",
+        "value": "500.00",
+        "confidence": 0.94,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "2600.00",
+      "selected_label": "Total Carrier Pay: $2,600.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.82,
+      "selected_score": 1.0,
+      "selected_money_context": "total_carrier_pay",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 4,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "line_haul_plus_total",
+    "description": "Line-haul candidate and explicit total candidate.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Line Haul Pay $3150.00",
+        "value": "3150.00",
+        "confidence": 0.92,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total Carrier Pay: $3,600.00",
+        "value": "3600.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "3600.00",
+      "selected_label": "Total Carrier Pay: $3,600.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.82,
+      "selected_score": 1.0,
+      "selected_money_context": "total_carrier_pay",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 2,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "line_items_without_explicit_total",
+    "description": "Line-haul and flat-pay candidates without an explicit total candidate.",
+    "known_debt": true,
+    "debt_note": "Current behavior selects a low-confidence unknown flat-pay candidate when no explicit total is available.",
+    "candidates": [
+      {
+        "label": "Line Haul Pay $3150.00",
+        "value": "3150.00",
+        "confidence": 0.92,
+        "source": "native_layout"
+      },
+      {
+        "label": "Flat Pay $3150.00",
+        "value": "3150.00",
+        "confidence": 0.9,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "3150.00",
+      "selected_label": "Flat Pay $3150.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.55,
+      "selected_score": 0.44,
+      "selected_money_context": "unknown",
+      "selected_rate_safety": "unknown",
+      "selected_rate_safety_reason": "money_context_unknown",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 2,
+      "needs_review": true,
+      "review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD"],
+      "global_needs_review": true,
+      "global_review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD:total_carrier_rate"]
+    }
+  },
+  {
+    "id": "total_with_fee_penalty_section",
+    "description": "Explicit total with tracking fee, on-time paperwork, and rate deduction candidates.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Total Carrier Pay: $2,600.00",
+        "value": "2600.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      },
+      {
+        "label": "Tracking Fee $150.00",
+        "value": "150.00",
+        "confidence": 0.95,
+        "source": "native_layout"
+      },
+      {
+        "label": "On Time Paperwork $150.00",
+        "value": "150.00",
+        "confidence": 0.94,
+        "source": "native_layout"
+      },
+      {
+        "label": "Rate deduction $250.00",
+        "value": "250.00",
+        "confidence": 0.93,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "2600.00",
+      "selected_label": "Total Carrier Pay: $2,600.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.82,
+      "selected_score": 1.0,
+      "selected_money_context": "total_carrier_pay",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 4,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "quick_pay_and_billing_page_only",
+    "description": "Only quick-pay and billing instruction money candidates are present.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Quick Pay 3%",
+        "value": "3%",
+        "confidence": 0.96,
+        "source": "native_layout"
+      },
+      {
+        "label": "Payment Terms Net 30 $35 Fee",
+        "value": "35.00",
+        "confidence": 0.94,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "",
+      "selected_label": "",
+      "selected_source": "",
+      "selected_confidence": null,
+      "selected_score": 0.0,
+      "selected_money_context": "",
+      "selected_rate_safety": "",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 0,
+      "input_candidate_count": 2,
+      "needs_review": true,
+      "review_reasons": ["MISSING_CRITICAL_FIELD"],
+      "global_needs_review": true,
+      "global_review_reasons": ["MISSING_CRITICAL_FIELD:total_carrier_rate"]
+    }
+  },
+  {
+    "id": "estimated_rate_to_truck",
+    "description": "Estimated rate to truck and generic total candidates with the same value.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Estimated Rate (To Truck): $3,800.00",
+        "value": "3800.00",
+        "confidence": 0.84,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total: $3,800.00",
+        "value": "3800.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "3800.00",
+      "selected_label": "Estimated Rate (To Truck): $3,800.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.84,
+      "selected_score": 0.97,
+      "selected_money_context": "estimated_rate_to_truck",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 2,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "pay_capacity_total",
+    "description": "Pay-capacity and generic total labels with the same value.",
+    "known_debt": true,
+    "debt_note": "Current behavior treats pay capacity and generic total labels as unknown low-confidence candidates.",
+    "candidates": [
+      {
+        "label": "Pay Capacity $7,900.00",
+        "value": "7900.00",
+        "confidence": 0.84,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total $7,900.00 USD",
+        "value": "7900.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "7900.00",
+      "selected_label": "Pay Capacity $7,900.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.55,
+      "selected_score": 0.44,
+      "selected_money_context": "unknown",
+      "selected_rate_safety": "unknown",
+      "selected_rate_safety_reason": "money_context_unknown",
+      "resolved_candidate_count": 2,
+      "input_candidate_count": 2,
+      "needs_review": true,
+      "review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD"],
+      "global_needs_review": true,
+      "global_review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD:total_carrier_rate"]
+    }
+  },
+  {
+    "id": "line_haul_accessorial_breakout",
+    "description": "Line haul with on-time, tracking, and document-level rate candidates.",
+    "known_debt": true,
+    "debt_note": "Current behavior selects a low-confidence unknown document-rate candidate from a breakout-like set.",
+    "candidates": [
+      {
+        "label": "Line Haul Pay $3150.00",
+        "value": "3150.00",
+        "confidence": 0.92,
+        "source": "native_layout"
+      },
+      {
+        "label": "On Time Paperwork $150.00",
+        "value": "150.00",
+        "confidence": 0.95,
+        "source": "native_layout"
+      },
+      {
+        "label": "On Time Delivery $150.00",
+        "value": "150.00",
+        "confidence": 0.94,
+        "source": "native_layout"
+      },
+      {
+        "label": "Tracking $150.00",
+        "value": "150.00",
+        "confidence": 0.93,
+        "source": "native_layout"
+      },
+      {
+        "label": "Document Rate $3,600.00",
+        "value": "3600.00",
+        "confidence": 0.84,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "3600.00",
+      "selected_label": "Document Rate $3,600.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.55,
+      "selected_score": 0.44,
+      "selected_money_context": "unknown",
+      "selected_rate_safety": "unknown",
+      "selected_rate_safety_reason": "money_context_unknown",
+      "resolved_candidate_count": 4,
+      "input_candidate_count": 5,
+      "needs_review": true,
+      "review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD"],
+      "global_needs_review": true,
+      "global_review_reasons": ["LOW_CONFIDENCE_CRITICAL_FIELD:total_carrier_rate"]
+    }
+  },
+  {
+    "id": "tracking_hold_negative_adjustment",
+    "description": "Carrier freight pay, tracking hold deduction, and explicit total candidate.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Carrier Freight Pay: $2,500.00",
+        "value": "2500.00",
+        "confidence": 0.86,
+        "source": "native_layout"
+      },
+      {
+        "label": "Tracking Hold -$100.00",
+        "value": "-100.00",
+        "confidence": 0.95,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total Carrier Pay: $2,400.00",
+        "value": "2400.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "2400.00",
+      "selected_label": "Total Carrier Pay: $2,400.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.82,
+      "selected_score": 1.0,
+      "selected_money_context": "total_carrier_pay",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 3,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "per_unit_rate_breakout",
+    "description": "Estimated truck rate, flat/per-unit breakout values, and generic total.",
+    "known_debt": false,
+    "candidates": [
+      {
+        "label": "Estimated Rate (To Truck): $5,750.00",
+        "value": "5750.00",
+        "confidence": 0.86,
+        "source": "native_layout"
+      },
+      {
+        "label": "$8.00 Flat",
+        "value": "8.00",
+        "confidence": 0.94,
+        "source": "native_layout"
+      },
+      {
+        "label": "$6.38 PER 50LBS BAG 900.00 $5,742.00",
+        "value": "5742.00",
+        "confidence": 0.95,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total: $5,750.00",
+        "value": "5750.00",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "5750.00",
+      "selected_label": "Estimated Rate (To Truck): $5,750.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.86,
+      "selected_score": 0.99,
+      "selected_money_context": "estimated_rate_to_truck",
+      "selected_rate_safety": "safe",
+      "selected_rate_safety_reason": "",
+      "resolved_candidate_count": 1,
+      "input_candidate_count": 4,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  },
+  {
+    "id": "carrier_freight_pay_blank_total",
+    "description": "Carrier freight pay with an explicit but blank total-carrier-pay label.",
+    "known_debt": true,
+    "debt_note": "Current behavior allows carrier freight pay when the explicit total label is blank.",
+    "candidates": [
+      {
+        "label": "Carrier Freight Pay: $2,200.00",
+        "value": "2200.00",
+        "confidence": 0.86,
+        "source": "native_layout"
+      },
+      {
+        "label": "Total Carrier Pay:",
+        "value": "",
+        "confidence": 0.82,
+        "source": "native_layout"
+      }
+    ],
+    "expected": {
+      "selected_value": "2200.00",
+      "selected_label": "Carrier Freight Pay: $2,200.00",
+      "selected_source": "native_layout",
+      "selected_confidence": 0.86,
+      "selected_score": 0.97,
+      "selected_money_context": "carrier_freight_pay",
+      "selected_rate_safety": "risky",
+      "selected_rate_safety_reason": "carrier_freight_pay_requires_no_explicit_total",
+      "resolved_candidate_count": 2,
+      "input_candidate_count": 2,
+      "needs_review": false,
+      "review_reasons": [],
+      "global_needs_review": false,
+      "global_review_reasons": []
+    }
+  }
+]

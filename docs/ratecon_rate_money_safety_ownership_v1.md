@@ -69,6 +69,7 @@ without a separate narrow PR and behavior-pinning evidence.
 
 Current rate/money behavior is pinned by:
 
+- `tests/test_ratecon_selected_rate_regression_harness.py`
 - `tests/test_ratecon_total_pay_label_taxonomy.py`
 - `tests/test_ratecon_accessorial_noise_label_taxonomy.py`
 - `tests/test_ratecon_rate_money_compatibility_pinning.py`
@@ -89,6 +90,14 @@ Pinned behavior includes:
   sanitized selected-rate behavior.
 - accessorial/noise/fee/penalty labels, compatibility aliases, current
   sanitizer/context classifications, and sanitized selected-rate behavior.
+- selected `total_carrier_rate` behavior across sanitized total-pay,
+  accessorial/noise, fee/penalty, line-item, per-unit, and missing-total
+  candidate combinations.
+
+The selected-rate regression harness pins current behavior; it does not certify
+that every selected output is semantically correct. Some cases are explicitly
+marked as known debt so future cleanup can distinguish intentional behavior
+changes from accidental regressions.
 
 ## Future Consolidation Requirements
 
@@ -111,11 +120,16 @@ Future accessorial/noise label changes must include selected-rate regression
 tests and measurement/evaluation evidence before changing ranking, safety
 classification, money-context labels, or candidate metadata behavior.
 
+Run `tests/test_ratecon_selected_rate_regression_harness.py` before changing
+money context classification, resolver ranking penalties, forensics diagnosis
+mapping, or selected-rate ranking profiles. Any change to the committed expected
+fixture outputs requires explicit review and a clear explanation.
+
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
 truth.
 
-## Audit Command
+## Audit Commands
 
 Run the local-only static audit before planning any rate/money cleanup:
 
@@ -129,6 +143,19 @@ python scripts/audit_ratecon_rate_money_safety_ownership.py `
 The audit uses static AST/text analysis only. It does not import project
 modules, execute extraction or resolver code, process PDFs, run OCR, call
 Google, or call model/cloud services.
+
+Run the optional local-only selected-rate snapshot when planning resolver or
+money-context cleanup:
+
+```powershell
+python scripts/run_ratecon_selected_rate_regression_snapshot.py `
+  --output-dir .local_outputs/ratecon_selected_rate_regression_snapshot `
+  --confirm-local-audit-run
+```
+
+The snapshot uses sanitized fixture candidates only. It does not process PDFs,
+run OCR, call Google, or call model/cloud services. Generated snapshot outputs
+must stay under `.local_outputs/` and must not be committed.
 
 Generated audit outputs, private PDFs, raw extracted text, gold labels,
 benchmark outputs, local review packets, Google credentials, OCR artifacts, and

@@ -207,12 +207,20 @@ compatibility aliases. It does not change total-pay taxonomy semantics, selected
 rate output, resolver scoring, thresholds, candidate source names, confidence
 values, field names, schemas, or money-context labels.
 
+After total-pay and accessorial/noise taxonomy centralization, the selected-rate
+regression harness pins current sanitized `total_carrier_rate` resolver behavior.
+Use `tests/test_ratecon_selected_rate_regression_harness.py` and the optional
+`scripts/run_ratecon_selected_rate_regression_snapshot.py` local snapshot before
+touching money-context classification, resolver penalties, forensics diagnosis
+mapping, or selected-rate ranking profiles. The harness is a behavior pin, not a
+correctness claim; known-debt cases require explicit review before expected
+outputs change.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - money context classification;
 - resolver rate ranking penalties;
 - forensics diagnosis mapping.
-- selected-rate regression harness.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
 shadow rates, or use private gold labels as runtime truth as part of ownership
