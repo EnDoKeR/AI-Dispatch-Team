@@ -258,6 +258,36 @@ class ArchitectureBoundaryTests(unittest.TestCase):
             with self.subTest(path=str(path)):
                 assert_no_import_prefix(self, path, forbidden_prefixes)
 
+    def test_ratecon_candidate_contract_modules_do_not_import_business_or_output_layers(self):
+        forbidden_prefixes = [
+            "app.market_intelligence.decision_engine",
+            "app.market_intelligence.dispatch_case",
+            "app.market_intelligence.case_event_builder",
+            "app.market_intelligence.event_logger",
+            "app.market_intelligence.telegram",
+            "app.integrations.google_sheets_review",
+            "gspread",
+            "google.oauth",
+            "googleapiclient",
+            "googlemaps",
+            "openai",
+            "anthropic",
+            "google.generativeai",
+        ]
+        candidate_paths = [
+            DOCUMENT_AI_PACKAGE / "field_candidate_provenance.py",
+            DOCUMENT_AI_PACKAGE / "field_candidate_generators.py",
+            DOCUMENT_AI_PACKAGE / "field_candidate_resolver.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_candidates.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_candidate_generators.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_candidate_extraction.py",
+            DOCUMENT_AI_PACKAGE / "ratecon_field_resolution.py",
+        ]
+
+        for path in candidate_paths:
+            with self.subTest(path=str(path)):
+                assert_no_import_prefix(self, path, forbidden_prefixes)
+
     def test_ocr_modules_remain_shadow_local_and_do_not_import_output_layers(self):
         forbidden_prefixes = [
             "app.market_intelligence.decision_engine",

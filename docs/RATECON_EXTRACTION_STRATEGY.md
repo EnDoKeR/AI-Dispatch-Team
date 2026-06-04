@@ -157,6 +157,11 @@ Rules:
 
 Extractors should produce candidates, not final truth immediately.
 
+Canonical ownership: `app/document_ai/field_candidate_provenance.py` owns the
+candidate contract for new document AI extraction candidates. Legacy
+`ratecon_candidates.py` and related RateCon candidate modules remain
+compatibility surfaces until a separate behavior-pinned cleanup proves safe.
+
 FieldCandidate fields:
 
 - `field_name`

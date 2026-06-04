@@ -492,8 +492,14 @@ Purpose:
 
 Owner module:
 
-- `app/document_ai/ratecon_candidates.py`
-- candidate generators: `app/document_ai/ratecon_candidate_generators.py`
+- canonical candidate contract for new document AI extraction candidates:
+  `app/document_ai/field_candidate_provenance.py`
+- generator/orchestration layer:
+  `app/document_ai/field_candidate_generators.py`
+- legacy compatibility candidate contract:
+  `app/document_ai/ratecon_candidates.py`
+- legacy compatibility candidate generators:
+  `app/document_ai/ratecon_candidate_generators.py`
 
 Current status:
 
