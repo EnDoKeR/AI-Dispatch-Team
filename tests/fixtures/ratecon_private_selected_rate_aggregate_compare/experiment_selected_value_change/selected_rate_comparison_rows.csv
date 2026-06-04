@@ -1,0 +1,5 @@
+document_id,field,selected_value,selected_source,selected_confidence,selected_money_context,selected_status
+DOC_A,total_carrier_rate,2500.00,sanitized_total,0.92,safe_total,selected
+DOC_B,total_carrier_rate,3200.00,sanitized_total,0.86,safe_total,selected
+DOC_C,total_carrier_rate,,sanitized_missing,0.00,unknown,missing
+DOC_D,total_carrier_rate,1750.00,sanitized_total,0.78,safe_total,selected

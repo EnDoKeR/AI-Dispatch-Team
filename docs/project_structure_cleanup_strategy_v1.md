@@ -223,11 +223,26 @@ snapshot before and after, compare snapshots locally, and leave resolver
 ranking penalties, selected rate output, money-context labels, total-pay
 taxonomy, and accessorial/noise taxonomy unchanged.
 
+After classifier ownership, add a local-only private aggregate selected-rate
+comparison gate before touching behavior-sensitive resolver ranking or scoring.
+`scripts/compare_ratecon_private_selected_rate_aggregates.py` compares existing
+private evaluation outputs for `total_carrier_rate`, redacts selected private
+values by default, writes only under `.local_outputs/`, and must not run
+measurement, process PDFs, run OCR, call Google/model/cloud services, or edit
+gold labels/templates.
+
+Future resolver penalty, ranking, scoring, selected-rate behavior, or private
+aggregate comparison work must run both the sanitized selected-rate regression
+harness and the private aggregate selected-rate gate. The private gate blocks
+unintentional increases in wrong counts, high-confidence wrong counts, selected
+wrong money-context counts, missing counts, selected-value changes when locally
+available, or incompatible evaluated document counts. It is a regression gate,
+not a correctness certification.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - resolver rate ranking penalties;
 - forensics diagnosis mapping.
-- selected-rate private aggregate comparison;
 - candidate source/ranking normalization.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

@@ -142,6 +142,27 @@ For classifier ownership cleanup, capture a before/after local snapshot with
 must show unchanged selected values, selected sources, confidence/status fields,
 review flags, and selected money-context metadata before proceeding.
 
+The private aggregate selected-rate comparison gate is
+`scripts/compare_ratecon_private_selected_rate_aggregates.py`. It compares
+existing local private evaluation outputs for `total_carrier_rate` without
+running measurement, processing PDFs, OCR, Google sync, or model/cloud calls.
+Reports redact selected private values by default; raw selected values are only
+included behind the explicit `--include-private-values-local-only` flag and
+still write only to `.local_outputs/`.
+
+Before any future resolver penalty, ranking, scoring, or selected-rate behavior
+change, run:
+
+1. the sanitized selected-rate regression harness;
+2. the private aggregate selected-rate comparison gate;
+3. a full private gold evaluation only when explicitly requested.
+
+The private aggregate gate blocks unintentional regressions in wrong counts,
+high-confidence wrong counts, selected wrong money-context counts, missing
+counts, selected-value changes when locally available, and incompatible
+evaluated document counts. It does not certify correctness or approve behavior
+changes by itself.
+
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
 truth.
@@ -173,6 +194,22 @@ python scripts/run_ratecon_selected_rate_regression_snapshot.py `
 The snapshot uses sanitized fixture candidates only. It does not process PDFs,
 run OCR, call Google, or call model/cloud services. Generated snapshot outputs
 must stay under `.local_outputs/` and must not be committed.
+
+Run the local-only private aggregate gate when comparing two existing private
+evaluation directories:
+
+```powershell
+python scripts/compare_ratecon_private_selected_rate_aggregates.py `
+  --baseline-eval-dir .local_outputs/private_ratecon_gold_eval_before `
+  --experiment-eval-dir .local_outputs/private_ratecon_gold_eval_after `
+  --output-dir .local_outputs/ratecon_private_selected_rate_aggregate_compare `
+  --confirm-private-local-run `
+  --fail-on-selected-rate-regression
+```
+
+The gate reads existing summaries and optional selected-rate rows only. It must
+not be used to create private evaluation outputs, process PDFs, run OCR, sync
+Google Sheets, call model/cloud services, or edit gold labels/templates.
 
 Generated audit outputs, private PDFs, raw extracted text, gold labels,
 benchmark outputs, local review packets, Google credentials, OCR artifacts, and
