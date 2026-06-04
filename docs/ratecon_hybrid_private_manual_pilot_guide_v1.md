@@ -590,3 +590,24 @@ Do not commit:
 This is a manual pilot scaffold. It does not improve production extraction,
 does not change selected stop output, and does not introduce AI/model
 integration.
+
+## Local Provider Readiness Gates
+
+Before implementing any local model provider, create and validate a readiness
+file with `scripts/ratecon_local_provider_readiness_cli.py`. The readiness gates
+check privacy, safety, benchmark requirements, manual baseline requirements,
+and fixture smoke-test requirements. They cannot approve private local model
+execution in this phase.
+
+Run the fixture-only smoke test:
+
+```powershell
+python scripts/run_ratecon_local_provider_fixture_smoke_test.py ^
+  --output-dir .local_outputs/ratecon_local_provider_fixture_smoke_test ^
+  --confirm-private-local-run
+```
+
+The smoke test uses sanitized fixtures only. It lists providers, validates a
+safe config, validates readiness gates, writes a dry-run report, creates stub
+submissions, and benchmarks those stub submissions. It does not call a model,
+process PDFs, run OCR, edit gold labels, or edit hybrid templates.

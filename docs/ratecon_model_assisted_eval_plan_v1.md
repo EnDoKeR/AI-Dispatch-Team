@@ -116,3 +116,12 @@ Stop the evaluation if any submission:
 5. Keep all model outputs review-first and local-only.
 6. Decide whether model-assisted filling reduces manual effort without
    increasing unsafe wrong or missing-evidence rates.
+
+## Local Provider Readiness Gates
+
+Any future local provider experiment must first pass the readiness-gate workflow
+in `docs/ratecon_local_provider_readiness_gates_v1.md`. The readiness CLI and
+fixture-only smoke test verify the approval checklist, provider config policy,
+registry blockers, stub submissions, and benchmark comparison without calling a
+model or processing PDFs. These gates do not approve implementation or private
+execution; they define the evidence required for a later PR.

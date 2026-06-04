@@ -116,3 +116,12 @@ A future local-only provider PR can add an adapter behind explicit config gates.
 It should first prove dry-run safety, then use sanitized fixtures, then run on a
 small private local-only batch with user confirmation. This plan does not
 implement that provider.
+
+## Readiness Gates
+
+Before any local provider implementation is proposed, run the readiness-gate
+workflow in `docs/ratecon_local_provider_readiness_gates_v1.md`. The readiness
+file, provider config, and fixture smoke report must show that execution remains
+disabled, outputs are review-first, no model/PDF/OCR work occurred, and the
+provider registry still blocks local/cloud placeholders. Readiness gates cannot
+override registry blockers in this phase.

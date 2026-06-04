@@ -13,6 +13,7 @@ from app.document_ai.ratecon_model_provider_contract import (
     StubEmptyProviderAdapter,
     validate_provider_config,
 )
+from app.document_ai.ratecon_local_provider_readiness import validate_readiness_payload
 
 
 PROVIDERS: dict[str, ProviderDescriptor] = {
@@ -115,3 +116,72 @@ def dry_run_provider_plan(
     provider_name = str(config.get("provider_name") or "").strip()
     adapter = get_provider_adapter(provider_name)
     return adapter.dry_run_plan(config, template_count=template_count, output_dir=output_dir)
+
+
+def evaluate_provider_readiness(
+    provider_name: str,
+    readiness_payload: dict[str, Any],
+    provider_config: dict[str, Any],
+) -> dict[str, Any]:
+    descriptor = get_provider_descriptor(provider_name)
+    readiness = validate_readiness_payload(readiness_payload)
+    config_validation = validate_provider_selection(provider_config)
+    blockers = list_provider_blockers_with_readiness(provider_name, readiness_payload, provider_config)
+    provider_execution_allowed = (
+        descriptor.provider_type == "stub"
+        and descriptor.can_execute
+        and readiness.valid
+        and config_validation.valid
+    )
+    if descriptor.provider_type == "cloud_model_placeholder":
+        status = "cloud_execution_forbidden"
+    elif descriptor.provider_type in {"local_model_placeholder", "manual_baseline"}:
+        status = "private_local_execution_not_approved"
+    elif provider_execution_allowed:
+        status = "fixture_only_plan_valid"
+    else:
+        status = "readiness_blocked"
+    return {
+        "schema_version": "ratecon_provider_readiness_evaluation_v1",
+        "provider": descriptor.to_dict(),
+        "readiness_status": readiness.status,
+        "provider_readiness_status": status,
+        "readiness_valid": readiness.valid,
+        "provider_config_valid": config_validation.valid,
+        "provider_execution_allowed": provider_execution_allowed,
+        "blocking_reasons": blockers,
+        "warnings": list(readiness.warnings),
+        "required_next_actions": list(readiness.required_next_actions),
+        "readiness_gate_results": list(readiness.gate_results),
+        "provider_config_gate_results": list(config_validation.safety_gates),
+        "local_model_placeholder_executable": False,
+        "cloud_model_placeholder_executable": False,
+        "future_local_provider_requires_separate_pr": True,
+    }
+
+
+def list_provider_blockers_with_readiness(
+    provider_name: str,
+    readiness_payload: dict[str, Any],
+    provider_config: dict[str, Any],
+) -> list[str]:
+    descriptor = get_provider_descriptor(provider_name)
+    readiness = validate_readiness_payload(readiness_payload)
+    config_validation = validate_provider_selection(provider_config)
+    blockers: list[str] = []
+    blockers.extend(readiness.errors)
+    blockers.extend(config_validation.errors)
+    blockers.extend(provider_blocking_reasons(provider_name))
+    config_provider = str(provider_config.get("provider_name") or "").strip()
+    readiness_provider = str(readiness_payload.get("provider_name") or "").strip()
+    if config_provider and config_provider != provider_name:
+        blockers.append(f"provider config selects {config_provider}, not {provider_name}")
+    if readiness_provider and readiness_provider != provider_name:
+        blockers.append(f"readiness file names {readiness_provider}, not {provider_name}")
+    if descriptor.provider_type == "local_model_placeholder":
+        blockers.append("local_model_placeholder_v1 is not executable yet; this branch only defines approval gates")
+    if descriptor.provider_type == "cloud_model_placeholder":
+        blockers.append("cloud_model_placeholder_v1 is forbidden in this phase")
+    if descriptor.provider_type == "manual_baseline":
+        blockers.append("manual baseline reference cannot copy private values or execute")
+    return list(dict.fromkeys(blockers))
