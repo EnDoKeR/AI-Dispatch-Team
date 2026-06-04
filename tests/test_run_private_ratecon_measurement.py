@@ -193,7 +193,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with patch(
-            "scripts.run_private_ratecon_measurement.require_provider_dependency",
+            "app.document_ai.measurement_cli.ratecon_private_safety.require_provider_dependency",
             side_effect=LayoutProviderDependencyError("missing"),
         ):
             with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -220,7 +220,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         stderr = io.StringIO()
 
         with patch(
-            "scripts.run_private_ratecon_measurement.require_provider_dependency",
+            "app.document_ai.measurement_cli.ratecon_private_safety.require_provider_dependency",
             side_effect=AssertionError("pdfplumber dependency check should not run"),
         ):
             with redirect_stdout(stdout), redirect_stderr(stderr):
@@ -552,7 +552,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as output_dir:
             buffer = io.StringIO()
             with patch(
-                "scripts.run_private_ratecon_measurement.require_provider_dependency",
+                "app.document_ai.measurement_cli.ratecon_private_safety.require_provider_dependency",
                 return_value=True,
             ):
                 with redirect_stdout(buffer):
@@ -1763,6 +1763,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
     def test_cli_does_not_import_deprecated_or_adapter_flows(self):
         source = inspect.getsource(run_private_ratecon_measurement)
         forbidden = [
+            "argparse.ArgumentParser",
             "scripts.import_ratecon",
             "scripts.read_ratecon",
             "DecisionEngine",
@@ -1775,6 +1776,9 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         for term in forbidden:
             with self.subTest(term=term):
                 self.assertNotIn(term, source)
+
+        self.assertIn("parse_private_ratecon_measurement_args", source)
+        self.assertIn("validate_private_ratecon_measurement_config", source)
 
 
 if __name__ == "__main__":
