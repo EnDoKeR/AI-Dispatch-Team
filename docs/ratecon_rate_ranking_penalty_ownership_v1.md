@@ -47,6 +47,12 @@ payloads, decision statuses, and not-selected reasons are behavior-pinned by
 change selected-rate behavior, score calculations, penalty values, thresholds,
 or reason strings.
 
+Forensics diagnosis mapping consumes resolver selection, scoring, and trace
+output when summarizing selected-rate error categories. It must not own resolver
+ranking penalties, score calculations, demotion rules, abstention decisions, or
+selected-rate output. Diagnosis changes require selected-rate regression
+snapshots and aggregate gate review.
+
 No compatibility aliases were added in this phase. The current ranking
 adjustment literals remain inside `field_candidate_resolver.py`; moving them
 into a separate policy module should be a future narrow cleanup only after this

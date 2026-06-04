@@ -259,10 +259,21 @@ must run the selected-rate snapshot before and after, compare snapshots
 locally, and leave score calculations, penalty values, thresholds, reason
 strings, metrics, and selected rate output unchanged.
 
+The next behavior-preserving phase documents selected-rate forensics diagnosis
+mapping ownership. `app/document_ai/rate_candidate_forensics.py` owns diagnosis
+mapping documentation and safe forensic category contracts.
+`app/document_ai/ratecon_gold_labels.py` currently assigns residual selected-rate
+diagnosis strings during local evaluation; that implementation path remains
+pinned compatibility debt until a separate narrow move proves unchanged
+diagnosis strings, counts, evaluator statuses, aggregate gate results, and
+selected-rate snapshots. This phase must not change resolver scoring,
+penalties, thresholds, trace schemas, diagnosis strings, diagnosis counts,
+evaluator statuses, aggregate gate behavior, or selected rate output.
+
 Future rate/money consolidation should continue with one narrow target:
 
-- forensics diagnosis mapping.
 - private aggregate baseline before experimental ranking profile;
+- optional shadow-only experimental ranking profile under explicit gates;
 - candidate source/ranking normalization.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
