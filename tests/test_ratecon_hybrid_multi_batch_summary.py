@@ -231,6 +231,28 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
         )
         return batch1, batch2
 
+    def _all_fixture_docs_batch(self, *, unsafe_wrong: int = 0, missing_evidence: int = 0, scalar_wrong: bool = False) -> Path:
+        docs = [
+            {"document_id": "DOC_FIXTURE_PERFECT"},
+            {"document_id": "DOC_FIXTURE_MISSING_EVIDENCE"},
+            {"document_id": "DOC_FIXTURE_UNSAFE_WRONG_STOP"},
+            {"document_id": "DOC_FIXTURE_AUTO_ACCEPT"},
+            {"document_id": "DOC_FIXTURE_PARTIAL_STOP", "delivery_tier": "matches_uncertain_gold_review_required"},
+            {
+                "document_id": "DOC_FIXTURE_NON_RC",
+                "document_type": "bol_pod",
+                "document_type_status": "non_rc_filtered_correct",
+            },
+        ]
+        if scalar_wrong:
+            docs[0]["total_carrier_rate_status"] = "wrong"
+        return self._benchmark_dir(
+            "batch_all_fixtures",
+            docs,
+            unsafe_wrong=unsafe_wrong,
+            missing_evidence=missing_evidence,
+        )
+
     def test_script_refuses_without_confirm_flag(self):
         batch1, _ = self._clean_batches()
         with redirect_stderr(io.StringIO()):
@@ -421,6 +443,123 @@ class RateConHybridMultiBatchSummaryTests(unittest.TestCase):
             benchmark_summary["unfilled_manual_template_count"] + non_rc_count,
             packet_summary["template_count"],
         )
+
+    def test_all_audit_docs_completed_remaining_plan_count_zero(self):
+        batch = self._all_fixture_docs_batch()
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+        )
+
+        self.assertEqual(summary["remaining_plan_count"], 0)
+        rows = _read_csv(OUTPUT_ROOT / "summary" / "remaining_manual_batch_plan.csv")
+        self.assertEqual(rows, [])
+
+    def test_duplicate_alias_docs_excluded_from_actionable_remaining_plan(self):
+        batch = self._benchmark_dir(
+            "batch_alias",
+            [
+                {
+                    "document_id": "DOC_ALIAS_PERFECT",
+                    "file_name_or_label": "fixture_perfect_rate_confirmation.pdf",
+                },
+                {"document_id": "DOC_FIXTURE_MISSING_EVIDENCE"},
+                {"document_id": "DOC_FIXTURE_UNSAFE_WRONG_STOP"},
+                {"document_id": "DOC_FIXTURE_AUTO_ACCEPT"},
+                {"document_id": "DOC_FIXTURE_PARTIAL_STOP", "delivery_tier": "matches_uncertain_gold_review_required"},
+                {
+                    "document_id": "DOC_FIXTURE_NON_RC",
+                    "document_type": "bol_pod",
+                    "document_type_status": "non_rc_filtered_correct",
+                },
+            ],
+        )
+
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+        )
+
+        self.assertEqual(summary["remaining_plan_count"], 0)
+        rows = _read_csv(OUTPUT_ROOT / "summary" / "remaining_manual_batch_plan.csv")
+        self.assertFalse(any(row["document_id"] == "DOC_FIXTURE_PERFECT" for row in rows))
+
+    def test_non_rc_completed_excluded_from_actionable_remaining_plan(self):
+        batch = self._all_fixture_docs_batch()
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+        )
+
+        self.assertEqual(summary["remaining_plan_count"], 0)
+        rows = _read_csv(OUTPUT_ROOT / "summary" / "remaining_manual_batch_plan.csv")
+        self.assertFalse(any(row["document_id"] == "DOC_FIXTURE_NON_RC" for row in rows))
+
+    def test_closeout_report_written_for_full_corpus(self):
+        batch = self._all_fixture_docs_batch()
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+            write_closeout_report=True,
+        )
+
+        self.assertEqual(summary["aggregate_status"], "manual_hybrid_validated_with_review_items")
+        self.assertEqual(summary["closeout_verdict"], "manual_hybrid_workflow_validated_full_corpus_with_review_items")
+        self.assertEqual(summary["remaining_plan_count"], 0)
+        self.assertTrue((OUTPUT_ROOT / "summary" / "manual_hybrid_closeout_report.md").exists())
+        self.assertTrue((OUTPUT_ROOT / "summary" / "manual_hybrid_closeout_summary.json").exists())
+        self.assertTrue((OUTPUT_ROOT / "summary" / "manual_hybrid_closeout_success_criteria.csv").exists())
+
+    def test_closeout_fails_if_unsafe_wrong_exists(self):
+        batch = self._all_fixture_docs_batch(unsafe_wrong=1)
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+            write_closeout_report=True,
+        )
+
+        self.assertEqual(summary["closeout_verdict"], "manual_hybrid_failed_accuracy")
+
+    def test_closeout_fails_if_missing_evidence_exists(self):
+        batch = self._all_fixture_docs_batch(missing_evidence=1)
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+            write_closeout_report=True,
+        )
+
+        self.assertEqual(summary["closeout_verdict"], "manual_hybrid_failed_safety")
+
+    def test_closeout_fails_if_scalar_wrong_exists(self):
+        batch = self._all_fixture_docs_batch(scalar_wrong=True)
+        summary = summarize_hybrid_batches(
+            benchmark_dirs=[batch],
+            output_dir=OUTPUT_ROOT / "summary",
+            audit=AUDIT,
+            gold_dir=GOLD_DIR,
+            write_remaining_plan=True,
+            write_closeout_report=True,
+        )
+
+        self.assertEqual(summary["closeout_verdict"], "manual_hybrid_failed_accuracy")
 
     def test_no_external_calls_or_pdf_processing(self):
         batch1, batch2 = self._clean_batches()

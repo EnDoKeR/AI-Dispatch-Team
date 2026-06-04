@@ -411,11 +411,51 @@ with guessed rate-con values; if the document is not a rate confirmation, the
 correct manual action is to leave rate-con fields blank and preserve the
 non-RC document type.
 
+## Final Full-Corpus Closeout
+
+After every private audit/gold document has been covered by manual batches, run
+the closeout summary:
+
+```powershell
+python scripts/summarize_ratecon_hybrid_batches.py ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_manual_pilot_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_next_batch_benchmark ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_third_batch_benchmark_after_scalar_fix ^
+  --benchmark-dir .local_outputs/private_ratecon_hybrid_remaining_batch_benchmark_after_scalar_fix ^
+  --output-dir .local_outputs/private_ratecon_hybrid_multi_batch_summary_final_closeout ^
+  --audit .local_outputs/private_ratecon_measurement/ratecon_shadow_document_pipeline_audit.jsonl ^
+  --gold-dir .local_outputs/private_ratecon_gold_labels ^
+  --confirm-private-local-run ^
+  --write-remaining-plan ^
+  --write-closeout-report ^
+  --max-next-docs 10
+```
+
+The closeout writes:
+
+- `manual_hybrid_closeout_report.md`;
+- `manual_hybrid_closeout_summary.json`;
+- `manual_hybrid_closeout_success_criteria.csv`.
+
+The final closeout verdict
+`manual_hybrid_workflow_validated_full_corpus_with_review_items` means the
+manual/hybrid workflow has been validated across the available private corpus
+with explicit review items preserved. It does not mean production
+auto-extraction is ready. Stops remain review-required, `auto_accept` must stay
+`false`, and private benchmark outputs must remain local.
+
+Move toward model-assisted filling only after the manual workflow is stable,
+remaining actionable documents are `0`, and the next task can evaluate model
+assistance without changing production extraction or sending private documents
+to an external service.
+
 ## Generate The Remaining Plan
 
 When `--write-remaining-plan` is supplied, the summary script writes
 `remaining_manual_batch_plan.csv`. It excludes document IDs already benchmarked
-in prior manual batches and excludes non-RC/BOL/POD rows by default.
+in prior manual batches, excludes completed duplicate aliases by document
+identity, and excludes non-RC/BOL/POD rows by default. `remaining_plan_count`
+counts only actionable remaining documents, not duplicates or no-action rows.
 
 Use the plan to create a third-batch packet:
 

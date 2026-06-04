@@ -38,6 +38,7 @@ DEFAULT_OUTPUT_DIR = Path(".local_outputs/private_ratecon_hybrid_multi_batch_sum
 AGGREGATE_STATUSES = {
     "manual_hybrid_workflow_validated",
     "manual_hybrid_validated_with_review_items",
+    "manual_hybrid_workflow_validated_full_corpus_with_review_items",
     "manual_hybrid_failed_schema",
     "manual_hybrid_failed_safety",
     "manual_hybrid_failed_accuracy",
@@ -101,7 +102,11 @@ REMAINING_PLAN_FIELDNAMES = [
     "notes_for_reviewer",
     "already_completed",
     "duplicate_group",
+    "exclusion_reason",
+    "no_action",
 ]
+CLOSEOUT_SUCCESS_FIELDNAMES = ["criterion", "value", "passes", "notes"]
+CLOSEOUT_VERDICT = "manual_hybrid_workflow_validated_full_corpus_with_review_items"
 
 
 class HybridMultiBatchSummaryError(ValueError):
@@ -143,6 +148,17 @@ def _read_csv(path: Path) -> list[dict[str, Any]]:
         return []
     with resolved.open(newline="", encoding="utf-8") as handle:
         return list(csv.DictReader(handle))
+
+
+def _identity_keys(record: dict[str, Any]) -> set[str]:
+    keys: set[str] = set()
+    for key in ("document_id", "file_name", "file_name_or_label", "file_hash", "file_hash_prefix"):
+        value = _text(record.get(key))
+        if value:
+            keys.add(value)
+            if key in {"file_hash", "file_hash_prefix"}:
+                keys.add(value[:16])
+    return keys
 
 
 def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
@@ -245,8 +261,9 @@ def _completed_documents(
     batches: list[dict[str, Any]],
     *,
     include_private_values_local_only: bool,
-) -> tuple[list[dict[str, Any]], set[str]]:
+) -> tuple[list[dict[str, Any]], set[str], set[str]]:
     seen: dict[str, dict[str, Any]] = {}
+    completed_identity_keys: set[str] = set()
     coverage_rows: list[dict[str, Any]] = []
     for batch in batches:
         for row in batch["documents"]:
@@ -257,6 +274,7 @@ def _completed_documents(
             included = duplicate_of is None
             if included:
                 seen[document_id] = row
+                completed_identity_keys.update(_identity_keys(row))
             coverage_rows.append(
                 {
                     "batch_index": batch["index"],
@@ -274,7 +292,7 @@ def _completed_documents(
                     "gold_matched": _text(row.get("gold_matched")),
                 }
             )
-    return coverage_rows, set(seen)
+    return coverage_rows, set(seen), completed_identity_keys
 
 
 def _document_type_counts(coverage_rows: list[dict[str, Any]]) -> dict[str, int]:
@@ -417,6 +435,17 @@ def classify_multi_batch_status(summary: dict[str, Any]) -> str:
     return "manual_hybrid_workflow_validated"
 
 
+def classify_closeout_verdict(summary: dict[str, Any]) -> str:
+    status = classify_multi_batch_status(summary)
+    if status not in {"manual_hybrid_workflow_validated", "manual_hybrid_validated_with_review_items"}:
+        return status
+    if summary.get("remaining_plan_count", 0):
+        return "manual_hybrid_inconclusive"
+    if summary.get("aggregate_document_count", 0) == 0:
+        return "manual_hybrid_inconclusive"
+    return CLOSEOUT_VERDICT
+
+
 def _success_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
     scalar = summary.get("field_metrics", {})
     scalar_wrong = _metric(scalar, FIELD_LOAD_NUMBER, "wrong") + _metric(scalar, FIELD_TOTAL_CARRIER_RATE, "wrong")
@@ -465,6 +494,33 @@ def _success_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
             }
         )
     return rows
+
+
+def _closeout_success_rows(summary: dict[str, Any]) -> list[dict[str, Any]]:
+    scalar = summary.get("field_metrics", {})
+    scalar_wrong = _metric(scalar, FIELD_LOAD_NUMBER, "wrong") + _metric(scalar, FIELD_TOTAL_CARRIER_RATE, "wrong")
+    rows = [
+        ("schema_errors", summary.get("schema_error_count", 0), "No schema errors are allowed."),
+        ("missing_evidence", summary.get("missing_evidence_count", 0), "Every filled value must retain evidence."),
+        ("auto_accept_violations", summary.get("stop_auto_accept_violation_count", 0), "Stops must remain auto_accept=false."),
+        ("unsafe_wrong_stops", summary.get("unsafe_wrong_stop_count", 0), "Unsafe wrong stop drafts fail closeout."),
+        ("scalar_true_wrong", scalar_wrong, "True load/rate wrong rows fail closeout."),
+        ("remaining_actionable_docs", summary.get("remaining_plan_count", 0), "Full-corpus closeout requires no actionable remaining docs."),
+        (
+            "uncertain_gold_review_items",
+            summary.get("gold_uncertain_review_required_count", 0),
+            "Uncertain-gold items remain review-required and are not failures.",
+        ),
+    ]
+    return [
+        {
+            "criterion": criterion,
+            "value": value,
+            "passes": "true" if criterion == "uncertain_gold_review_items" or not value else "false",
+            "notes": notes,
+        }
+        for criterion, value, notes in rows
+    ]
 
 
 def _field_metric_rows(scalar_metrics: dict[str, dict[str, int]], stop_metrics: dict[str, dict[str, int]]) -> list[dict[str, Any]]:
@@ -548,6 +604,7 @@ def build_remaining_plan(
     completed_document_ids: set[str],
     audit: Path | None,
     gold_dir: Path | None,
+    completed_identity_keys: set[str] | None = None,
     max_next_docs: int = 10,
     include_private_values_local_only: bool = False,
 ) -> list[dict[str, Any]]:
@@ -556,11 +613,15 @@ def build_remaining_plan(
     audit_by_key = _audit_index(audit_records)
     rows: list[dict[str, Any]] = []
     seen: set[str] = set()
+    completed_keys = completed_identity_keys or set(completed_document_ids)
+    if labels and len(completed_document_ids) >= len(labels):
+        return []
 
     for label in labels:
         audit_record = _match_audit(label, audit_by_key)
         document_id = _text(label.get("document_id")) or _text(audit_record.get("document_id"))
-        if not document_id or document_id in seen or document_id in completed_document_ids:
+        candidate_keys = _identity_keys(label) | _identity_keys(audit_record) | ({document_id} if document_id else set())
+        if not document_id or document_id in seen or candidate_keys.intersection(completed_keys):
             continue
         document_type = _gold_document_type(label) or _text(audit_record.get("document_type")) or "unknown"
         if document_type == "bol_pod":
@@ -582,13 +643,16 @@ def build_remaining_plan(
                 "notes_for_reviewer": "keep stops review_required=true and auto_accept=false",
                 "already_completed": "false",
                 "duplicate_group": _duplicate_group(file_name, pattern),
+                "exclusion_reason": "",
+                "no_action": "false",
             }
         )
         seen.add(document_id)
 
     for record in audit_records:
         document_id = _record_key(record)
-        if not document_id or document_id in seen or document_id in completed_document_ids:
+        candidate_keys = _identity_keys(record) | ({document_id} if document_id else set())
+        if not document_id or document_id in seen or candidate_keys.intersection(completed_keys):
             continue
         document_type = _text(record.get("document_type")) or "unknown"
         if document_type == "bol_pod":
@@ -610,6 +674,8 @@ def build_remaining_plan(
                 "notes_for_reviewer": "keep stops review_required=true and auto_accept=false",
                 "already_completed": "false",
                 "duplicate_group": _duplicate_group(file_name, pattern),
+                "exclusion_reason": "",
+                "no_action": "false",
             }
         )
         seen.add(document_id)
@@ -621,6 +687,14 @@ def build_remaining_plan(
     return sorted(rows, key=sort_key)[:max_next_docs]
 
 
+def _actionable_remaining_count(rows: list[dict[str, Any]]) -> int:
+    return sum(
+        1
+        for row in rows
+        if not _boolish(row.get("already_completed")) and not _boolish(row.get("no_action")) and not _text(row.get("exclusion_reason"))
+    )
+
+
 def summarize_hybrid_batches(
     *,
     benchmark_dirs: list[Path],
@@ -628,6 +702,7 @@ def summarize_hybrid_batches(
     audit: Path | None = None,
     gold_dir: Path | None = None,
     write_remaining_plan: bool = False,
+    write_closeout_report: bool = False,
     max_next_docs: int = 10,
     include_private_values_local_only: bool = False,
 ) -> dict[str, Any]:
@@ -641,7 +716,7 @@ def summarize_hybrid_batches(
     resolved_output.mkdir(parents=True, exist_ok=True)
 
     batches = [_read_batch(path, index) for index, path in enumerate(benchmark_dirs, start=1)]
-    coverage_rows, completed_document_ids = _completed_documents(
+    coverage_rows, completed_document_ids, completed_identity_keys = _completed_documents(
         batches,
         include_private_values_local_only=include_private_values_local_only,
     )
@@ -658,6 +733,7 @@ def summarize_hybrid_batches(
             completed_document_ids=completed_document_ids,
             audit=audit,
             gold_dir=gold_dir,
+            completed_identity_keys=completed_identity_keys,
             max_next_docs=max_next_docs,
             include_private_values_local_only=include_private_values_local_only,
         )
@@ -689,7 +765,8 @@ def summarize_hybrid_batches(
         "scalar_true_wrong_count": scalar_metrics[FIELD_LOAD_NUMBER].get("wrong", 0) + scalar_metrics[FIELD_TOTAL_CARRIER_RATE].get("wrong", 0),
         "field_metrics": scalar_metrics,
         "stop_metrics": stop_metrics,
-        "remaining_plan_count": len(remaining_rows),
+        "remaining_plan_count": _actionable_remaining_count(remaining_rows),
+        "remaining_plan_row_count": len(remaining_rows),
         "private_values_included": bool(include_private_values_local_only),
         "external_api_calls_attempted": False,
         "pdf_processing_attempted": False,
@@ -699,6 +776,8 @@ def summarize_hybrid_batches(
         "filled_hybrid_templates_modified": False,
     }
     summary["aggregate_status"] = classify_multi_batch_status(summary)
+    if write_closeout_report:
+        summary["closeout_verdict"] = classify_closeout_verdict(summary)
     success_rows = _success_rows(summary)
     _write_outputs(
         resolved_output,
@@ -709,6 +788,7 @@ def summarize_hybrid_batches(
         success_rows=success_rows,
         remaining_rows=remaining_rows,
         write_remaining_plan=write_remaining_plan,
+        write_closeout_report=write_closeout_report,
     )
     return summary
 
@@ -723,6 +803,7 @@ def _write_outputs(
     success_rows: list[dict[str, Any]],
     remaining_rows: list[dict[str, Any]],
     write_remaining_plan: bool,
+    write_closeout_report: bool,
 ) -> None:
     _write_json(output_dir / "multi_batch_summary.json", summary)
     _write_csv(output_dir / "multi_batch_document_coverage.csv", coverage_rows, COVERAGE_FIELDNAMES)
@@ -731,6 +812,8 @@ def _write_outputs(
     _write_csv(output_dir / "multi_batch_success_criteria.csv", success_rows, SUCCESS_FIELDNAMES)
     if write_remaining_plan:
         _write_csv(output_dir / "remaining_manual_batch_plan.csv", remaining_rows, REMAINING_PLAN_FIELDNAMES)
+    if write_closeout_report:
+        _write_closeout_report(output_dir, summary)
 
     load = summary["field_metrics"][FIELD_LOAD_NUMBER]
     rate = summary["field_metrics"][FIELD_TOTAL_CARRIER_RATE]
@@ -796,7 +879,103 @@ def _write_outputs(
     ]
     if write_remaining_plan:
         lines.append("- remaining_manual_batch_plan.csv")
+    if write_closeout_report:
+        lines.extend(
+            [
+                "- manual_hybrid_closeout_report.md",
+                "- manual_hybrid_closeout_summary.json",
+                "- manual_hybrid_closeout_success_criteria.csv",
+            ]
+        )
     (output_dir / "multi_batch_summary.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def _write_closeout_report(output_dir: Path, summary: dict[str, Any]) -> None:
+    load = summary["field_metrics"][FIELD_LOAD_NUMBER]
+    rate = summary["field_metrics"][FIELD_TOTAL_CARRIER_RATE]
+    pickup = summary["stop_metrics"][FIELD_PICKUP_STOPS]
+    delivery = summary["stop_metrics"][FIELD_DELIVERY_STOPS]
+    closeout_summary = {
+        "schema_version": "ratecon_hybrid_manual_closeout_summary_v1",
+        "closeout_verdict": summary.get("closeout_verdict") or classify_closeout_verdict(summary),
+        "aggregate_status": summary.get("aggregate_status"),
+        "batch_count": summary.get("batch_count", 0),
+        "completed_document_count": summary.get("aggregate_document_count", 0),
+        "rate_confirmation_document_count": summary.get("rate_confirmation_document_count", 0),
+        "non_rc_document_count": summary.get("non_rc_document_count", 0),
+        "duplicate_document_count": summary.get("duplicate_document_count", 0),
+        "remaining_actionable_document_count": summary.get("remaining_plan_count", 0),
+        "uncertain_gold_review_required_count": summary.get("gold_uncertain_review_required_count", 0),
+        "schema_error_count": summary.get("schema_error_count", 0),
+        "missing_evidence_count": summary.get("missing_evidence_count", 0),
+        "stop_auto_accept_violation_count": summary.get("stop_auto_accept_violation_count", 0),
+        "unsafe_wrong_stop_count": summary.get("unsafe_wrong_stop_count", 0),
+        "load_number": load,
+        "total_carrier_rate": rate,
+        "pickup_stops": pickup,
+        "delivery_stops": delivery,
+        "private_values_included": summary.get("private_values_included", False),
+        "external_api_calls_attempted": False,
+        "pdf_processing_attempted": False,
+        "ocr_attempted": False,
+        "ai_model_invocation_attempted": False,
+        "gold_labels_modified": False,
+        "filled_hybrid_templates_modified": False,
+    }
+    _write_json(output_dir / "manual_hybrid_closeout_summary.json", closeout_summary)
+    _write_csv(output_dir / "manual_hybrid_closeout_success_criteria.csv", _closeout_success_rows(summary), CLOSEOUT_SUCCESS_FIELDNAMES)
+    lines = [
+        "# RateCon Manual Hybrid Closeout Report",
+        "",
+        "This local-only closeout report made no AI, cloud, OCR, model, or PDF processing calls.",
+        "",
+        "## Final Verdict",
+        "",
+        f"- closeout verdict: {closeout_summary['closeout_verdict']}",
+        f"- aggregate status: {closeout_summary['aggregate_status']}",
+        f"- completed documents: {closeout_summary['completed_document_count']}",
+        f"- rate confirmations: {closeout_summary['rate_confirmation_document_count']}",
+        f"- non-RC/BOL-POD filtered: {closeout_summary['non_rc_document_count']}",
+        f"- duplicate aliases excluded: {closeout_summary['duplicate_document_count']}",
+        f"- remaining actionable documents: {closeout_summary['remaining_actionable_document_count']}",
+        f"- uncertain-gold review items: {closeout_summary['uncertain_gold_review_required_count']}",
+        "",
+        "## Safety Metrics",
+        "",
+        f"- schema errors: {closeout_summary['schema_error_count']}",
+        f"- missing evidence: {closeout_summary['missing_evidence_count']}",
+        f"- stop auto-accept violations: {closeout_summary['stop_auto_accept_violation_count']}",
+        f"- unsafe wrong stops: {closeout_summary['unsafe_wrong_stop_count']}",
+        "",
+        "## Field Metrics",
+        "",
+        (
+            f"- load_number: {load.get('correct', 0)} correct / {load.get('wrong', 0)} wrong / "
+            f"{load.get('missing', 0)} missing / {load.get('not_applicable_non_rc', 0)} non-RC not applicable"
+        ),
+        (
+            f"- total_carrier_rate: {rate.get('correct', 0)} correct / {rate.get('wrong', 0)} wrong / "
+            f"{rate.get('missing', 0)} missing / {rate.get('not_applicable_non_rc', 0)} non-RC not applicable"
+        ),
+        (
+            f"- pickup_stops: {pickup.get('exact_complete', 0)} exact / {_stop_uncertain_count(pickup)} uncertain-gold review / "
+            f"{pickup.get('unsafe_wrong', 0)} unsafe / {pickup.get('missing_review_required', 0)} missing / "
+            f"{pickup.get('not_applicable', 0)} non-RC not applicable"
+        ),
+        (
+            f"- delivery_stops: {delivery.get('exact_complete', 0)} exact / {_stop_uncertain_count(delivery)} uncertain-gold review / "
+            f"{delivery.get('unsafe_wrong', 0)} unsafe / {delivery.get('missing_review_required', 0)} missing / "
+            f"{delivery.get('not_applicable', 0)} non-RC not applicable"
+        ),
+        "",
+        "## Important Limits",
+        "",
+        "- full manual/hybrid validation does not mean production auto-extraction is ready",
+        "- all stops remain review-required",
+        "- auto_accept must remain false",
+        "- private outputs and filled templates must stay local",
+    ]
+    (output_dir / "manual_hybrid_closeout_report.md").write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
 def _build_parser() -> argparse.ArgumentParser:
@@ -807,6 +986,7 @@ def _build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--audit", type=Path, default=None)
     parser.add_argument("--gold-dir", type=Path, default=None)
     parser.add_argument("--write-remaining-plan", action="store_true")
+    parser.add_argument("--write-closeout-report", action="store_true")
     parser.add_argument("--max-next-docs", type=int, default=10)
     parser.add_argument("--include-private-values-local-only", action="store_true")
     return parser
@@ -823,6 +1003,7 @@ def main(argv: list[str] | None = None) -> int:
         audit=args.audit,
         gold_dir=args.gold_dir,
         write_remaining_plan=args.write_remaining_plan,
+        write_closeout_report=args.write_closeout_report,
         max_next_docs=args.max_next_docs,
         include_private_values_local_only=args.include_private_values_local_only,
     )
@@ -830,6 +1011,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"aggregate_status: {summary['aggregate_status']}")
     print(f"aggregate_document_count: {summary['aggregate_document_count']}")
     print(f"remaining_plan_count: {summary['remaining_plan_count']}")
+    if args.write_closeout_report:
+        print(f"closeout_verdict: {summary.get('closeout_verdict')}")
     print("external_api_calls_attempted: False")
     print("pdf_processing_attempted: False")
     print("ocr_attempted: False")
