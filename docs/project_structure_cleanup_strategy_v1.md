@@ -93,3 +93,25 @@ second owner for field policy. See
 Do not add new critical/readiness policy lists in scripts, review exporters,
 local audit tooling, provider governance scaffolding, or tests except as
 expected-value assertions for the canonical policy.
+
+## RateCon OCR Ownership Status
+
+OCR cleanup starts with an ownership/status audit, not deletion or
+productionization. Use `scripts/audit_ratecon_ocr_ownership_status.py` and
+`docs/ratecon_ocr_ownership_status_v1.md` before changing OCR modules.
+
+Current status:
+
+- OCR production path is not implemented.
+- Optional local/shadow OCR diagnostics exist.
+- OCR remains disabled by default and behind explicit local/private flags.
+- OCR dependencies remain optional and must not become mandatory in a cleanup
+  PR.
+- OCR stop assembly, geometry, and table reconstruction are experimental
+  shadow diagnostics, not production stop selection.
+
+Do not delete OCR modules until the ownership/status audit is reviewed. Do not
+productionize OCR without a separate approved PR with fixture tests, safety
+proof, default-off behavior, and review-required output. Generated OCR temp
+text, images, TSV, local outputs, raw extracted text, PDFs, and private audit
+artifacts must stay out of git.

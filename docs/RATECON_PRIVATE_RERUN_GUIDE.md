@@ -59,7 +59,8 @@ Do not share:
 `OCR_NEEDED`
 
 - The PDF has empty or very sparse extracted text, or mixed text coverage.
-- OCR is not implemented yet.
+- Production OCR is not implemented by this rerun workflow. Optional
+  local/shadow OCR diagnostics exist elsewhere and are disabled by default.
 - The document may still be valid and useful.
 
 `MANUAL_REVIEW`

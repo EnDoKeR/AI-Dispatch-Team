@@ -132,7 +132,7 @@ keys.
 
 ## Non-Goals
 
-- No OCR, Vision, or cloud document AI.
+- No OCR execution, production Vision, or cloud document AI.
 - No Google Sheets sync while credentials are unavailable.
 - No DispatchCase creation.
 - No DecisionEngine or Telegram calls.

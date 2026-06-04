@@ -81,7 +81,8 @@ Current status:
 - redacted diagnostics and layout diagnostics exist;
 - private value-review CSV is local-only and ignored;
 - no raw extracted text should be committed;
-- no OCR/Vision pipeline exists yet;
+- no production OCR/Vision path exists yet;
+- optional local/shadow OCR diagnostics exist and are disabled by default;
 - no RateCon intake should automatically create or link DispatchCases.
 
 Event timeline append points later:
@@ -175,4 +176,3 @@ Rules:
 - REVIEW_REQUIRED output must show missing or low-confidence critical fields;
 - adapters should not mutate the decision result or source evidence;
 - no raw private RateCon text should be included in output.
-

@@ -63,13 +63,14 @@ Fallback targets:
   remain the strongest concrete count after prior guardrails.
 
 If OCR-needed documents dominate, the selected outcome is `ocr_design_later`.
-OCR is not implemented in this workflow.
+Production OCR is not implemented in this workflow. Optional local/shadow OCR
+diagnostics exist elsewhere and remain disabled by default.
 
 ## Non-Goals
 
-This workflow does not run Google sync, add OCR or Vision, add cloud document AI,
-create DispatchCases, call DecisionEngine, call Telegram, write Event Timeline
-events, or claim production readiness.
+This workflow does not run Google sync, enable production OCR or Vision, add
+cloud document AI, create DispatchCases, call DecisionEngine, call Telegram,
+write Event Timeline events, or claim production readiness.
 
 ## Latest Local Result
 

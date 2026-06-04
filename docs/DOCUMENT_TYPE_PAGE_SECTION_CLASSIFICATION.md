@@ -195,7 +195,10 @@ review.
 
 ## Relationship to OCR and Vision
 
-OCR is still needed for empty-text or image-like documents, but OCR is not the first major block because most measured documents already had digital text.
+OCR may still be needed for empty-text or image-like documents, but production
+OCR is not the first major block because most measured documents already had
+digital text. Optional local/shadow OCR diagnostics are tracked separately in
+`docs/ratecon_ocr_ownership_status_v1.md`.
 
 Vision is not next by default. It should remain a gated fallback only after deterministic text, classification, templates, and layout-aware extraction are measured and found insufficient.
 
@@ -211,7 +214,7 @@ Vision is not next by default. It should remain a gated fallback only after dete
 
 ## Non-Goals
 
-- No OCR implementation.
+- No production OCR implementation in this block.
 - No Vision AI implementation.
 - No cloud APIs.
 - No real broker templates.

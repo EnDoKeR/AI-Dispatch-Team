@@ -117,7 +117,7 @@ categories.
 ## Non-Goals
 
 - No extraction hardening.
-- No OCR, Vision, or cloud document AI.
+- No OCR execution, production Vision, or cloud document AI.
 - No Google Sheets live sync.
 - No DispatchCase creation.
 - No DecisionEngine or Telegram calls.

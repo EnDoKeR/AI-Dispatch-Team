@@ -39,7 +39,7 @@ The system is not:
 - a PDF regex script that directly creates dispatch decisions;
 - a Google Sheets workflow as the core data model;
 - a live DAT/API integration yet;
-- an OCR/Vision pipeline yet;
+- a production OCR/Vision pipeline yet;
 - an accounting/factoring submission tool yet.
 
 ## Canonical Layer Model
@@ -59,7 +59,8 @@ Current and future work should fit one of these layers:
 3. Document AI / Parsing
    - Produces field candidates, evidence, confidence, extraction artifacts, and validation warnings.
    - Regex is only one candidate source.
-   - Future OCR/Vision must be gated by triage and explicit design.
+   - Optional local/shadow OCR diagnostics exist, but production OCR/Vision
+     must be gated by triage and explicit design.
 
 4. Domain Core
    - Owns normalized domain objects such as load candidates, stops, references, money amounts, driver profiles, broker profiles, and RateConfirmationIntake records.
@@ -123,7 +124,8 @@ This flow is conceptual. Some current pieces are still dry-run or report-only. A
 - Low-confidence or missing critical fields must route to review, not accept.
 - DispatchCase writes require explicit ownership policy and tests.
 - Private raw RateCon text must never be committed.
-- Future DAT/API, OCR/Vision, Google Maps, Gmail, Google Sheets, accounting, and factoring work must be adapter-first and separately approved.
+- Future DAT/API, production OCR/Vision, Google Maps, Gmail, Google Sheets,
+  accounting, and factoring work must be adapter-first and separately approved.
 
 ---
 
