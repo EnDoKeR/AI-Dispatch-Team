@@ -58,11 +58,19 @@ not change credential discovery, API scopes, worksheet semantics, sync modes,
 output schemas, workbook layout, measurement execution, or audit metrics. Tests
 must use fake clients and must not call Google.
 
-Future work should pause and measure the remaining CLI responsibilities before
-any further split. Each phase must preserve CLI flag names, output schemas,
-output filenames, workbook layout, metric definitions, safety gates, credential
-behavior, sync semantics, and measurement behavior unless a separate
-behavior-change PR explicitly approves and tests that change.
+Phase 3F is a responsibility audit, not another behavior split. Use
+`scripts/audit_private_ratecon_measurement_cli_responsibilities.py` and
+`docs/private_ratecon_measurement_cli_responsibility_audit_v1.md` to measure the
+remaining responsibilities in `scripts/run_private_ratecon_measurement.py`
+before deciding whether any further split is justified. The audit must remain
+static/local-only and must not import project modules, run measurement, process
+PDFs, invoke OCR, call Google, or call model/cloud services.
+
+Future work should pause after the audit and make an explicit decision. Each
+phase must preserve CLI flag names, output schemas, output filenames, workbook
+layout, metric definitions, safety gates, credential behavior, sync semantics,
+and measurement behavior unless a separate behavior-change PR explicitly
+approves and tests that change.
 
 Private outputs remain local-only. Generated reports, audits, review workbooks,
 OCR artifacts, model outputs, raw extracted text, gold labels, Google
