@@ -1600,10 +1600,10 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
                 "scripts.run_private_ratecon_measurement.build_private_ratecon_measurement_report",
                 return_value=fake_report,
             ), patch(
-                "scripts.run_private_ratecon_measurement.sheets_review.load_google_sheets_review_config",
+                "app.document_ai.measurement_cli.ratecon_private_google_sync.sheets_review.load_google_sheets_review_config",
                 return_value=fake_config,
             ), patch(
-                "scripts.run_private_ratecon_measurement.sheets_review.connect_to_google_sheet",
+                "app.document_ai.measurement_cli.ratecon_private_google_sync.sheets_review.connect_to_google_sheet",
                 return_value=fake_client,
             ):
                 with redirect_stdout(buffer):
@@ -1784,6 +1784,7 @@ class PrivateRateConMeasurementCliTests(unittest.TestCase):
         self.assertIn("write_private_ratecon_review_packet_exports", source)
         self.assertIn("private_ratecon_review_export_labels", source)
         self.assertIn("write_private_ratecon_review_workbook_if_enabled", source)
+        self.assertIn("run_private_ratecon_google_sync_if_enabled", source)
         self.assertIn("run_private_ratecon_audit_exports", source)
         self.assertIn("output_file_labels", source)
 
