@@ -249,9 +249,18 @@ must not change penalty values, score calculations, thresholds, demotion or
 abstention decisions, selected rate output, or selected-rate regression
 expectations.
 
+The next behavior-preserving phase documents selected-rate score
+trace/explanation ownership. `app/document_ai/field_candidate_resolver.py`
+continues to own score calculation and trace construction. Score traces explain
+current decisions; they do not define scoring behavior independently.
+Forensics, conflict-audit, shadow-audit, and root-cause modules may summarize
+resolver traces but should not invent competing explanation schemas. This phase
+must run the selected-rate snapshot before and after, compare snapshots
+locally, and leave score calculations, penalty values, thresholds, reason
+strings, metrics, and selected rate output unchanged.
+
 Future rate/money consolidation should continue with one narrow target:
 
-- score explanation trace cleanup;
 - forensics diagnosis mapping.
 - private aggregate baseline before experimental ranking profile;
 - candidate source/ranking normalization.
