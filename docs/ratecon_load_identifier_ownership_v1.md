@@ -65,6 +65,20 @@ Table/layout pairing improvements must be shadow-only or separately approved.
 Do not change selected load output, source names, confidence values, evaluator
 statuses, or private measurement schemas as part of ownership cleanup.
 
+## Source-Line Evidence Diagnostics
+
+`scripts/audit_ratecon_load_source_line_evidence.py` and
+`scripts/create_ratecon_load_source_line_diagnostics.py` provide local-only
+source-line/evidence diagnostics after the ownership baseline. They classify
+current failure modes such as table-neighbor wrong cell, nearby-row wrong pair,
+footer/barcode noise, PO/PRO/BOL/reference noise, gold absent from candidates,
+and gold present but not selected.
+
+Those diagnostics are reporting-only. They do not change selected load output,
+candidate generation, resolver ranking/scoring, source labels, confidence
+values, schemas, evaluator statuses, extraction, or private measurement
+behavior.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

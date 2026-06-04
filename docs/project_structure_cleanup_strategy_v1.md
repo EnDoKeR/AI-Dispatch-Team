@@ -288,13 +288,21 @@ sanitized selected-load regression harness and a local-only private aggregate
 `load_number` gate before any future load-ranking, table/layout pairing, or
 candidate-generation behavior changes.
 
+The next diagnostics-only phase adds load identifier source-line and
+evidence-quality reporting. It classifies existing failure modes such as
+table-neighbor wrong cell, nearby-row wrong pair, footer/barcode noise,
+PO/PRO/BOL/reference competition, gold absent from candidates, and gold present
+but not selected. It must not change selected load-number output, source labels,
+candidate generation, resolver ranking/scoring, evaluator statuses, extraction,
+private measurement, PDF processing, or OCR behavior.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
 - private aggregate baseline before experimental ranking profile;
 - optional shadow-only experimental ranking profile under explicit gates;
 - candidate source/ranking normalization.
-- load identifier ownership cleanup;
+- load source-line/evidence diagnostics closeout;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
