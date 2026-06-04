@@ -63,6 +63,12 @@ association remains the next blocker.
 FieldCandidate is an extraction-layer evidence record. Multiple candidates for one
 field are expected.
 
+Canonical ownership note: `app/document_ai/field_candidate_provenance.py` is the
+canonical candidate contract for new document AI extraction candidates. The
+legacy `app/document_ai/ratecon_candidates.py` contract and
+`app/document_ai/ratecon_candidate_generators.py` generator surface remain
+compatibility surfaces and should not receive new schema logic.
+
 Core fields:
 
 - `field_name`

@@ -115,3 +115,29 @@ productionize OCR without a separate approved PR with fixture tests, safety
 proof, default-off behavior, and review-required output. Generated OCR temp
 text, images, TSV, local outputs, raw extracted text, PDFs, and private audit
 artifacts must stay out of git.
+
+## RateCon Candidate Model Ownership
+
+Candidate model cleanup starts with an ownership/status audit, not refactoring or
+deletion. Use `scripts/audit_ratecon_candidate_model_ownership.py` and
+`docs/ratecon_candidate_model_ownership_v1.md` before changing candidate
+contracts, generators, resolver inputs, or compatibility modules.
+
+Current ownership policy:
+
+- `app/document_ai/field_candidate_provenance.py` is the canonical candidate
+  contract for new document AI extraction candidates.
+- `app/document_ai/field_candidate_generators.py` is a generator/orchestration
+  layer and should not own canonical schema fields.
+- `app/document_ai/field_candidate_resolver.py` consumes the candidate contract
+  and owns resolution/review gating, not new candidate schema ownership.
+- Legacy RateCon candidate modules remain compatibility surfaces until import
+  graph evidence and behavior-pinning tests support a separate cleanup.
+- Intake candidate builders are boundary adapters, not candidate contract
+  owners.
+
+Do not delete candidate modules until the candidate ownership audit is reviewed.
+Do not change candidate shapes, source names, confidence values, resolver
+thresholds, scoring, selected output, or extraction behavior in an ownership
+cleanup. Future cleanup may add compatibility adapters or consolidate constants
+only after behavior-pinning tests prove the existing output contract.
