@@ -163,6 +163,14 @@ counts, selected-value changes when locally available, and incompatible
 evaluated document counts. It does not certify correctness or approve behavior
 changes by itself.
 
+Resolver rate-ranking penalties are intentionally separate from money-context
+classifier ownership. `app/document_ai/field_candidate_resolver.py` owns current
+selected-rate score adjustments, profile handling, demotion/abstention
+penalties, and not-selected traces. `app/document_ai/ratecon_rate_money_safety.py`
+owns taxonomy/classifier inputs and abstention metadata only. The ownership
+pinning phase documents this split and pins current penalty behavior without
+changing selected rate output.
+
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
 truth.
