@@ -239,10 +239,21 @@ wrong money-context counts, missing counts, selected-value changes when locally
 available, or incompatible evaluated document counts. It is a regression gate,
 not a correctness certification.
 
+The next behavior-preserving phase documents and pins resolver rate-ranking
+penalty ownership. `app/document_ai/field_candidate_resolver.py` owns
+selected-rate ranking behavior for now, including score adjustments, profile
+handling, demotion/abstention penalties, and not-selected traces.
+`app/document_ai/ratecon_rate_money_safety.py` remains the owner for
+money-context taxonomy/classification inputs, not ranking penalties. This phase
+must not change penalty values, score calculations, thresholds, demotion or
+abstention decisions, selected rate output, or selected-rate regression
+expectations.
+
 Future rate/money consolidation should continue with one narrow target:
 
-- resolver rate ranking penalties;
+- score explanation trace cleanup;
 - forensics diagnosis mapping.
+- private aggregate baseline before experimental ranking profile;
 - candidate source/ranking normalization.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept
