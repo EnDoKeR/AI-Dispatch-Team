@@ -30,6 +30,12 @@ score trace semantics.
 trace output and summarize it. They should not invent competing score
 explanations or selected-rate reason schemas.
 
+Score traces explain resolver decisions. Selected-rate forensics diagnosis
+mapping summarizes error categories separately. Diagnosis mapping may consume
+trace, scoring, selected candidate, and money-context metadata, but it must not
+change trace schemas, reason strings, selected-rate output, scoring, penalties,
+thresholds, or money-context labels.
+
 ## Behavior Pinning
 
 Current trace behavior is pinned by:

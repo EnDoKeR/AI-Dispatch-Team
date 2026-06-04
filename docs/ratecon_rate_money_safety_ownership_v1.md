@@ -182,6 +182,15 @@ before any future ranking/scoring change. This trace cleanup pins current
 behavior and does not change selected-rate output, ranking, penalties, or reason
 strings.
 
+Selected-rate forensics diagnosis mapping is separate from money taxonomy,
+money-context classifier ownership, resolver ranking, and score trace ownership.
+`app/document_ai/rate_candidate_forensics.py` owns diagnosis mapping
+documentation and safe forensic category contracts. Current evaluator-side
+assignment in `app/document_ai/ratecon_gold_labels.py` remains pinned
+compatibility behavior until a separate narrow consolidation proves diagnosis
+strings, counts, selected-rate outputs, and aggregate gate behavior are
+unchanged.
+
 Do not lower resolver thresholds as part of rate/money cleanup. Do not
 auto-accept rates from shadow output. Do not use private gold labels as runtime
 truth.
