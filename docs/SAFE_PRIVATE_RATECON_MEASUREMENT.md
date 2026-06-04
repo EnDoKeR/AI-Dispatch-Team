@@ -160,8 +160,8 @@ PDF triage
 
 Older direct parser paths are not the official pipeline and must not be revived:
 
-- `scripts/import_ratecon.py`
-- `scripts/read_ratecon.py`
+- removed direct RateCon PDF/regex prototypes archived in
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`
 - old regex-to-field flows that bypass candidates, resolver, and validation.
 
 ## Safe Outputs

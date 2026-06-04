@@ -42,7 +42,9 @@ Historical app/script imports:
 - `app/load_intake/importer.py` imported `parse_ratecon(...)` and `append_load(...)` inside the legacy folder.
 - `app/load_intake/parser.py` imported other legacy helper modules and current `app.market_intelligence.market_models.MarketLoad` as `Load`.
 - No current `app/market_intelligence/intake/` module imports `app/load_intake`.
-- `scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate old manual PDF-to-Google-Sheets flow with similar regex ideas and live external dependencies.
+- The old direct RateCon PDF/regex Google Sheets prototype did not import
+  `app/load_intake`; it has since been removed and archived in
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 - `scripts/manual_test_sheet_connection.py` is a separate manual Google Sheets connectivity script and does not depend on `app/load_intake`.
 
 ## File-by-File Audit
@@ -486,7 +488,10 @@ It verifies that `parser.Load` still points to the active `MarketLoad` compatibi
 
 ## Scripts Impact
 
-`scripts/import_ratecon.py` does not import `app/load_intake`, but it contains a separate deprecated manual PDF-to-Google-Sheets flow. It is now blocked by default and requires an explicit legacy flag before any PDF read or Google Sheets write. Deleting `app/load_intake/` did not directly affect this script, but this script remains outside the new intake architecture.
+The old direct RateCon PDF/regex Google Sheets prototype did not import
+`app/load_intake`, but it remained outside the new intake architecture. It was
+removed after separate import graph proof; see
+`docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 
 `scripts/manual_test_sheet_connection.py` does not depend on `app/load_intake/`; it is a separate manual Google Sheets connectivity check.
 
@@ -704,11 +709,9 @@ This manual script does not import `app/load_intake/`. It should remain unless a
 
 ### Legacy standalone script outside package
 
-```text
-scripts/import_ratecon.py
-```
-
-This script does not import `app/load_intake/`, but it is old manual PDF-to-Google-Sheets logic with hardcoded paths and external dependencies. Deleting `app/load_intake/` does not break it. It should remain untouched in this cleanup unless a separate manual-script cleanup is approved.
+The old direct RateCon PDF/regex Google Sheets prototype did not import
+`app/load_intake/`. It has since been removed after separate import graph proof;
+see `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 
 ### Docs to update after deletion
 

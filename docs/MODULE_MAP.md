@@ -22,6 +22,8 @@ Status values:
 Cleanup notes:
 
 - Deprecated modules require a separate removal PR with import graph proof.
+- The old RateCon regex prototypes were removed after import graph proof; see
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 - Local-only modules must not commit private values, raw extracted text, model
   outputs, PDFs, OCR artifacts, or audit packets.
 - Compatibility modules should stay thin and should not become owners for new
@@ -35,8 +37,6 @@ Cleanup notes:
 | `app/market_intelligence/market_snapshot.py` | market_intelligence | market runtime | active | called by `main.py` | root entrypoint and market reports | market scoring, route fallback, opportunity helpers |  | Current market snapshot workflow owner. |
 | `scripts/run_tests.py` | scripts | test infrastructure | active | CLI | developers and CI-equivalent local runs | unittest discovery only |  | Canonical local unittest runner. |
 | `scripts/run_private_ratecon_measurement.py` | scripts | private RateCon local audit | local_only | CLI with explicit confirmation | manual private audit only | private measurement pipeline, layout diagnostics, review exports | split into smaller owners | Large local-only orchestrator targeted for future split. |
-| `scripts/read_ratecon.py` | scripts | legacy RateCon prototype | deprecated | blocked CLI | none expected outside manual legacy use | pypdf only after explicit legacy flag | after replacement proof and no non-test imports | Deprecated regex PDF reader. Do not add logic. |
-| `scripts/import_ratecon.py` | scripts | legacy RateCon prototype | deprecated | blocked CLI | none expected outside manual legacy use | pypdf and Google Sheets only after explicit legacy flag | after replacement proof and no non-test imports | Deprecated regex PDF-to-Sheets prototype. Do not add logic. |
 | `app/document_ai/ratecon_core_field_policy.py` | document_ai | readiness policy | active | library | measurement, benchmark, readiness, review flows | no external service imports | promote as single readiness policy owner | Count/status policy owner for RateCon field readiness. |
 | `app/document_ai/ratecon_candidates.py` | document_ai | candidate model | active | library | candidate extraction and resolver flows | canonical field/schema helpers |  | Candidate schema/constants used by current pipeline. |
 | `app/document_ai/ratecon_candidate_*` | document_ai | candidate pipeline | active | library | candidate extraction and context flows | candidate context and extraction helpers | consolidate candidate/status logic | RateCon candidate helper family. |

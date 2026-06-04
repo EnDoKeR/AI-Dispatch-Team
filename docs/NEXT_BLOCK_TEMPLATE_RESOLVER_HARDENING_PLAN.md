@@ -154,8 +154,8 @@ Docs should emphasize that templates are scoring aids, not final truth.
 - Do not write DispatchCase events.
 - Do not call DecisionEngine from extraction.
 - Do not call Telegram from extraction.
-- Do not re-enable legacy `scripts/import_ratecon.py` or `scripts/read_ratecon.py`
-  as official paths.
+- Do not recreate the removed direct RateCon PDF/regex prototypes as official
+  paths.
 
 ## Explicit Non-Goals
 
