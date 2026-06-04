@@ -59,8 +59,8 @@ Import scan findings:
 - `app/load_intake/sheet_writer.py` lazy-imported `gspread` only when a sheet write was requested.
 - Legacy tests imported `app/load_intake` modules to protect import safety before deletion.
 - No `market_intelligence` production flow imported `app/load_intake`.
-- `scripts/import_ratecon.py` is a standalone deprecated script, is blocked by
-  default, and does not use `app/load_intake/importer.py`.
+- The old standalone RateCon PDF/regex Google Sheets prototype was removed; see
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 
 Historical protection tests:
 

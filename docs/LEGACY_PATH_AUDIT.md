@@ -38,8 +38,7 @@ Searches covered:
 
 | File or module | Current behavior | Risk | Action | Priority |
 | --- | --- | --- | --- | --- |
-| `scripts/import_ratecon.py` | Deprecated legacy prototype. It is blocked by default, imports optional PDF/Google libraries lazily, and requires `--allow-legacy-google-sheet-write` before any PDF read or Google Sheets write. | Still contains a legacy direct-regex-to-sheet flow if explicitly enabled. It bypasses candidate/template/resolver/validation. | Keep blocked by default. Do not reuse this flow. Remove later after any remaining manual dependency is retired. | Critical |
-| `scripts/read_ratecon.py` | Deprecated legacy prototype. It is blocked by default, imports `pypdf` lazily, and requires `--allow-legacy-value-print` before any PDF read or value printing. | Still contains a legacy direct-regex value-print path if explicitly enabled. It bypasses candidate/template/resolver/validation. | Keep blocked by default. Remove later after any remaining manual dependency is retired. | High |
+| Legacy direct RateCon PDF/regex prototypes | `scripts/import_ratecon.py` and `scripts/read_ratecon.py` were removed after import graph proof showed zero non-test dependents. | Recreating them would bypass candidate/template/resolver/validation. | Do not recreate direct PDF-to-Google-Sheets or direct regex-to-final-field scripts. See `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`. | Critical |
 | `app/market_intelligence/intake/pasted_text_parser_adapter.py` | Uses label/regex heuristics to produce parser-shaped fields for dry-run/manual intake helpers. | It performs direct field assignment and can be mistaken for the official production extraction layer. Current usage is dry-run/testing oriented and does not create cases. | Keep temporarily as a compatibility/manual dry-run adapter. Document as superseded for production by candidate/template/resolver flow. Future work should route digital text artifacts through `app/document_ai` candidate extraction instead. | Medium |
 | `app/market_intelligence/intake/ratecon_text_dry_run.py` | Runs pasted text through the legacy parser adapter, normalizes to intake, builds summaries, and optionally creates link candidates. | It can produce `READY_FOR_REVIEW` status from dry-run parser output, but does not create/link cases or write events. | Keep as manual dry-run only. Docs and help text should continue to emphasize no private text storage and no DispatchCase creation. | Medium |
 | `app/market_intelligence/intake/ratecon_pdf_dry_run.py` | Extracts local PDF text with the local helper, feeds text into the text dry-run pipeline, and returns safe summaries. | It still depends on the legacy pasted-text adapter after extraction; not an official production RateCon extraction path. | Keep as local/private dry-run only. Do not use it as the canonical production parser. Future private reruns should compare it with the candidate/template path after that path is wired for local measurement. | Medium |
@@ -84,12 +83,8 @@ Safe current patterns:
 
 Legacy or local-only risk areas:
 
-- `scripts/import_ratecon.py` contains a deprecated Google Sheets write path, but
-  it is blocked by default and does not read a PDF or write externally without
-  `--allow-legacy-google-sheet-write`.
-- `scripts/read_ratecon.py` contains a deprecated value-print path, but it is
-  blocked by default and does not read a PDF or print values without
-  `--allow-legacy-value-print`.
+- The old direct RateCon PDF/regex prototypes were removed; see
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 - `scripts/export_private_ratecon_value_review_csv.py` writes private values to a
   gitignored local CSV by design.
 
@@ -97,11 +92,8 @@ Legacy or local-only risk areas:
 
 Immediate small actions:
 
-1. Keep `scripts/import_ratecon.py` blocked by default and do not use it for new
-   extraction work.
-2. Keep `scripts/read_ratecon.py` blocked by default and do not use it for new
-   extraction work.
-3. Add or preserve help text on private/local scripts that says local-only,
+1. Do not recreate direct RateCon PDF/regex prototypes.
+2. Add or preserve help text on private/local scripts that says local-only,
    ignored outputs only, and no raw text in reports.
 
 Later refactor actions:

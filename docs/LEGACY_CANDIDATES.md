@@ -106,7 +106,6 @@ Files:
 ```text
 scripts/manual_test_sheet_connection.py
 scripts/append_document_test_load.py
-scripts/import_ratecon.py
 ```
 
 Why this is flagged:
@@ -114,9 +113,8 @@ Why this is flagged:
 - These files import `gspread`.
 - They use Google service-account credentials.
 - They can write to a real Google Sheet.
-- `scripts/import_ratecon.py` is now blocked by default and lazy-imports optional
-  Google/PDF dependencies only after `--allow-legacy-google-sheet-write`, but it
-  remains a deprecated non-production prototype.
+- The old direct RateCon PDF/regex Google Sheets prototype was removed; see
+  `docs/archive/LEGACY_RATECON_REGEX_PROTOTYPES.md`.
 - `scripts/manual_test_sheet_connection.py` is a manual integration script and should not be treated as a unit test.
 - These files should not run as unit tests.
 
