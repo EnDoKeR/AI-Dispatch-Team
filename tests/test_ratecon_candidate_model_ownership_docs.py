@@ -32,6 +32,19 @@ class RateconCandidateModelOwnershipDocsTests(unittest.TestCase):
         self.assertIn("Do not change candidate shapes", source)
         self.assertIn("must not be committed", source)
 
+    def test_candidate_ownership_doc_mentions_behavior_pinning_and_guardrails(self):
+        source = self._read("docs/ratecon_candidate_model_ownership_v1.md")
+
+        self.assertIn("Behavior Pinning Status", source)
+        self.assertIn("tests/test_ratecon_candidate_compatibility_pinning.py", source)
+        self.assertIn("same field names", source)
+        self.assertIn("same source names", source)
+        self.assertIn("same confidence values", source)
+        self.assertIn("same candidate shapes", source)
+        self.assertIn("same resolver outputs", source)
+        self.assertIn("evaluation metrics", source)
+        self.assertIn("New candidate constants must go through", source)
+
     def test_module_map_classifies_candidate_owners(self):
         source = self._read("docs/MODULE_MAP.md")
 
@@ -50,6 +63,15 @@ class RateconCandidateModelOwnershipDocsTests(unittest.TestCase):
         self.assertIn("field_candidate_provenance.py", source)
         self.assertIn("Do not delete candidate modules", source)
         self.assertIn("Do not change candidate shapes", source)
+
+    def test_cleanup_strategy_references_candidate_compatibility_pinning(self):
+        source = self._read("docs/project_structure_cleanup_strategy_v1.md")
+
+        self.assertIn("RateCon Candidate Compatibility Pinning", source)
+        self.assertIn("tests/test_ratecon_candidate_compatibility_pinning.py", source)
+        self.assertIn("tests/test_ratecon_candidate_constant_guardrails.py", source)
+        self.assertIn("Current duplicate constants are compatibility debt", source)
+        self.assertIn("Do not consolidate duplicates without behavior-pinning tests", source)
 
 
 if __name__ == "__main__":

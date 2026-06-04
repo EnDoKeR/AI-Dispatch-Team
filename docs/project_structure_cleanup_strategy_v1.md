@@ -141,3 +141,30 @@ Do not change candidate shapes, source names, confidence values, resolver
 thresholds, scoring, selected output, or extraction behavior in an ownership
 cleanup. Future cleanup may add compatibility adapters or consolidate constants
 only after behavior-pinning tests prove the existing output contract.
+
+## RateCon Candidate Compatibility Pinning
+
+Candidate compatibility pinning locks current legacy and canonical candidate
+surfaces before any migration work. Use
+`tests/test_ratecon_candidate_compatibility_pinning.py` to verify that legacy
+field/source/confidence constants, candidate dict shapes, canonical candidate
+shape, existing adapters, and intake boundary candidate builders have not
+changed.
+
+Use `tests/test_ratecon_candidate_constant_guardrails.py` to keep new random
+candidate/source/confidence/field/status constants from spreading outside
+documented canonical, support-policy, or compatibility modules.
+Current duplicate constants are compatibility debt and are pinned by audit count; they are not
+approval to add more duplicates.
+
+Future candidate cleanup should start with one narrow target:
+
+- confidence/source constants;
+- candidate adapter behavior;
+- load identifier candidate generation;
+- rate money candidate context;
+- stop component candidate shape.
+
+Do not consolidate duplicates without behavior-pinning tests. Do not migrate
+consumers, refactor candidate generation, delete candidate modules, change
+resolver thresholds, or change selected output in the same PR as guardrail work.

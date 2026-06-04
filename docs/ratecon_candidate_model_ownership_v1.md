@@ -41,9 +41,38 @@ Intake candidate builders, including
 `app/document_ai/ratecon_intake_draft.py`, are boundary adapters. They are not
 canonical candidate model owners.
 
+## Behavior Pinning Status
+
+Legacy candidate compatibility behavior is pinned by
+`tests/test_ratecon_candidate_compatibility_pinning.py`. These tests preserve
+current behavior; they are not a migration plan and they do not approve deleting
+legacy modules.
+
+Pinned surfaces include:
+
+- legacy field/source/confidence constants;
+- `normalize_confidence`, `normalize_field_name`, and `normalize_source`;
+- legacy `build_field_candidate` dict shape;
+- legacy `build_candidate_extraction_result` dict shape;
+- legacy field resolution output shape;
+- intake boundary `build_field_candidate` shape;
+- canonical `FieldCandidate` dict shape;
+- the existing legacy-to-canonical adapter behavior.
+
+Future consolidation requires tests proving:
+
+- same field names;
+- same source names;
+- same confidence values;
+- same candidate shapes;
+- same resolver outputs;
+- same evaluation metrics.
+
 ## Change Rules
 
 - Do not add new field/source/confidence constants in random modules.
+- New candidate constants must go through canonical/support owners or an
+  explicitly documented compatibility module.
 - Do not change candidate shapes without evaluator and measurement tests.
 - Do not change resolver thresholds in a candidate ownership cleanup.
 - Do not change candidate confidence values or source names without a separate
@@ -76,6 +105,7 @@ Any future behavior-changing candidate PR must include tests that pin:
 - candidate field/source/confidence metadata;
 - candidate output shape and schema compatibility;
 - resolver review/selection behavior;
+- resolver output and evaluation metric compatibility;
 - private/local output redaction behavior;
 - architecture boundaries for document AI, intake, integrations, and model/OCR
   surfaces.
