@@ -1,0 +1,1 @@
+{"document_id":"FakeLoadConfirmationK","selected_source":"label_pattern","selected_value":"LOAD99999","gold_value":"LOAD12345","selected_label":"Load #","selected_line_index":5,"selected_page_index":1,"gold_line_index":4,"gold_page_index":1,"candidate_values":["LOAD99999","LOAD12345"],"diagnostic_hints":["ambiguous_multiple_load_ids"]}

@@ -1,0 +1,1 @@
+{"document_id":"FakeLoadConfirmationG","selected_source":"label_pattern","selected_value":"BOL55555","gold_value":"LOAD12345","selected_label":"BOL #","selected_line_index":9,"selected_page_index":1,"gold_line_index":4,"gold_page_index":1,"candidate_values":["BOL55555","LOAD12345"],"diagnostic_hints":["selected_bol_number_noise"]}
