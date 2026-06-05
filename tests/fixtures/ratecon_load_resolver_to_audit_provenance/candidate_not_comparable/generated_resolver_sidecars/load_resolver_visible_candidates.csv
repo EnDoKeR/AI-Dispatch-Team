@@ -1,0 +1,2 @@
+document_id,field,stage,candidate_id,source,source_family,parser_name,pairing_method,page_number,line_index,bbox_available,candidate_rank,resolver_selected,resolver_eligible,candidate_value
+FakeLoadConfirmationA,load_number,resolver,,native_text,native_text,load_identifier,same_row,1,10,true,1,true,true,LOAD12345

@@ -373,6 +373,8 @@ Future rate/money consolidation should continue with one narrow target:
   generation-to-adapter loss but adapter/dedupe stage rows are not visible;
 - adapter/dedupe current-run verification and boundary closeout after a fresh
   explicit sidecar-enabled local run;
+- resolver-to-audit provenance sidecar repair if adapter/dedupe current-run
+  evidence proves resolver detail is visible but local audit diagnostics lose it;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

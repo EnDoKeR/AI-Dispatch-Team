@@ -90,3 +90,11 @@ shadow-only behavior experiment is created and gated.
 Private values remain redacted by default. Table-neighbor and nearby-row
 experiments remain blocked unless complete roundtrip and selected-load gates are
 actionable.
+
+## Resolver-to-Audit Follow-Up
+
+When this closeout reports `adapter_dedupe_current_run_resolver_to_audit_loss`,
+the next cleanup is resolver-to-audit provenance preservation in local-only
+audit diagnostics. That follow-up must preserve only already-existing
+resolver-visible candidate metadata and must not change selected load output,
+resolver scoring, adapter behavior, or dedupe decisions.

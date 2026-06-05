@@ -29,6 +29,8 @@ from app.document_ai.load_identifier_generated_resolver_provenance import (  # n
 SERIALIZATION_ROW_FILE = "load_source_line_serialization_rows.csv"
 BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
 ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
+RESOLVER_TO_AUDIT_ROWS_FILE = "load_resolver_to_audit_rows.csv"
+RESOLVER_TO_AUDIT_SUMMARY_FILE = "load_resolver_to_audit_provenance_summary.json"
 
 LEGACY_GENERATED_FILES = (
     "load_generated_candidates.csv",
@@ -68,6 +70,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--serialization-dir")
     parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--adapter-dedupe-current-run-dir")
+    parser.add_argument("--resolver-to-audit-sidecar-dir")
     parser.add_argument("--generated-candidates")
     parser.add_argument("--adapter-input")
     parser.add_argument("--adapter-output")
@@ -128,6 +131,15 @@ def _read_json(path: Path | None) -> dict[str, Any]:
     return payload if isinstance(payload, dict) else {}
 
 
+def _preserved_resolver_to_audit_rows(directory: Path | None) -> list[dict[str, Any]]:
+    rows = _csv_rows(directory / RESOLVER_TO_AUDIT_ROWS_FILE if directory else None)
+    return [
+        row
+        for row in rows
+        if str(row.get("audit_preserved", "")).strip().lower() in {"1", "true", "yes"}
+    ]
+
+
 def _find_first(directory: Path | None, names: tuple[str, ...]) -> Path | None:
     if directory is None or not directory.exists():
         return None
@@ -162,6 +174,8 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
     resolver_from_audit, audit_rows = rows_from_audit_payloads(
         _jsonl_payloads(_resolve(args.audit))
     )
+    resolver_to_audit_dir = _resolve(args.resolver_to_audit_sidecar_dir)
+    resolver_to_audit_rows = _preserved_resolver_to_audit_rows(resolver_to_audit_dir)
     payload = build_load_generated_resolver_provenance_sidecars(
         generated_rows=_rows_from_explicit_or_legacy(
             args.generated_candidates, legacy_dir, LEGACY_GENERATED_FILES
@@ -184,7 +198,7 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
             ),
             resolver_from_audit,
         ),
-        audit_rows=audit_rows,
+        audit_rows=_merge_rows(audit_rows, resolver_to_audit_rows),
         serialization_rows=_csv_rows(
             serialization_dir / SERIALIZATION_ROW_FILE
             if serialization_dir is not None
@@ -230,6 +244,30 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
     payload["summary"]["adapter_dedupe_current_run_complete_roundtrip_count"] = int(
         current_run_summary.get("sidecar", {}).get("complete_roundtrip_count") or 0
     )
+    resolver_to_audit_requested = bool(args.resolver_to_audit_sidecar_dir)
+    resolver_to_audit_payload = _read_json(
+        resolver_to_audit_dir / RESOLVER_TO_AUDIT_SUMMARY_FILE
+        if resolver_to_audit_dir is not None
+        else None
+    )
+    resolver_to_audit_summary = (
+        dict(resolver_to_audit_payload.get("summary") or resolver_to_audit_payload)
+        if resolver_to_audit_payload
+        else {}
+    )
+    payload["summary"]["resolver_to_audit_sidecar_status"] = (
+        "present"
+        if resolver_to_audit_summary
+        else "skipped_missing_optional_dir"
+        if resolver_to_audit_requested
+        else "skipped_not_requested"
+    )
+    payload["summary"]["resolver_to_audit_preserved_count"] = int(
+        resolver_to_audit_summary.get("resolver_to_audit_preserved_count") or 0
+    )
+    payload["summary"]["resolver_to_audit_loss_count"] = int(
+        resolver_to_audit_summary.get("resolver_to_audit_loss_count") or 0
+    )
     return payload
 
 
@@ -266,6 +304,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"dedupe_detail_lost_count: {summary['dedupe_detail_lost_count']}")
     print(f"boundary_compare_status: {summary['boundary_compare_status']}")
     print(f"boundary_first_loss_boundary: {summary['boundary_first_loss_boundary']}")
+    print(f"resolver_to_audit_sidecar_status: {summary['resolver_to_audit_sidecar_status']}")
+    print(f"resolver_to_audit_preserved_count: {summary['resolver_to_audit_preserved_count']}")
+    print(f"resolver_to_audit_loss_count: {summary['resolver_to_audit_loss_count']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")

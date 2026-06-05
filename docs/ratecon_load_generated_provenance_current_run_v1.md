@@ -102,3 +102,7 @@ generation-to-adapter, adapter-to-dedupe, dedupe-to-resolver,
 resolver-to-audit, and audit-to-evaluator loss from missing stage visibility or
 candidate-not-comparable evidence. A non-full status blocks table-neighbor and
 nearby-row experiments.
+
+Resolver-to-audit sidecar evidence can be consumed as optional current-run
+context. It does not approve experiments; it only determines whether the next
+diagnostic boundary has moved to audit-to-evaluator.

@@ -163,3 +163,7 @@ The sidecar summary can be consumed by
 explicit local run. That closeout is reporting-only and keeps readiness strict:
 complete roundtrip must be proven before any load evidence-quality experiment is
 considered.
+
+Resolver-to-audit sidecars may be supplied as optional audit-stage evidence.
+Only rows classified as preserved should count as audit-stage rows; missing audit
+rows and field-loss rows remain blocking diagnostics.

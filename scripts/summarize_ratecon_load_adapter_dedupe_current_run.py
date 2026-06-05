@@ -29,6 +29,7 @@ STATUS_UNKNOWN = "adapter_dedupe_current_run_unknown"
 
 SIDE_CAR_SUMMARY_FILE = "load_generated_resolver_provenance_summary.json"
 BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
+RESOLVER_TO_AUDIT_SUMMARY_FILE = "load_resolver_to_audit_provenance_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -70,6 +71,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     )
     parser.add_argument("--generated-resolver-sidecar-dir", required=True)
     parser.add_argument("--boundary-compare-dir")
+    parser.add_argument("--resolver-to-audit-sidecar-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -206,6 +208,25 @@ def _boundary_summary(boundary_dir: Path | None) -> dict[str, Any]:
     }
 
 
+def _resolver_to_audit_summary(sidecar_dir: Path | None) -> dict[str, Any]:
+    if sidecar_dir is None:
+        return {
+            "status": "skipped_not_requested",
+            "resolver_to_audit_preserved_count": 0,
+            "resolver_to_audit_loss_count": 0,
+            "resolver_to_audit_status_counts": {},
+        }
+    summary, status = _summary_payload(sidecar_dir, RESOLVER_TO_AUDIT_SUMMARY_FILE)
+    return {
+        "status": status,
+        "resolver_to_audit_preserved_count": _to_int(
+            summary.get("resolver_to_audit_preserved_count")
+        ),
+        "resolver_to_audit_loss_count": _to_int(summary.get("resolver_to_audit_loss_count")),
+        "resolver_to_audit_status_counts": dict(
+            summary.get("resolver_to_audit_status_counts") or {}
+        ),
+    }
 def _has_all_stage_rows(sidecar: dict[str, Any]) -> bool:
     return (
         sidecar["generated_candidate_count"] > 0
@@ -398,9 +419,11 @@ def build_summary(
     *,
     sidecar_dir: Path,
     boundary_compare_dir: Path | None = None,
+    resolver_to_audit_sidecar_dir: Path | None = None,
 ) -> dict[str, Any]:
     sidecar = _sidecar_summary(sidecar_dir)
     boundary = _boundary_summary(boundary_compare_dir)
+    resolver_to_audit = _resolver_to_audit_summary(resolver_to_audit_sidecar_dir)
     status = _determine_status(sidecar, boundary)
     return {
         "schema_version": "ratecon_load_adapter_dedupe_current_run_v1",
@@ -409,6 +432,7 @@ def build_summary(
         "table_neighbor_experiment_ready": False,
         "sidecar": sidecar,
         "boundary_compare": boundary,
+        "resolver_to_audit_sidecar": resolver_to_audit,
         "gate": _gate_rows(status, sidecar, boundary),
         "next_actions": _next_actions(status, boundary),
         "known_debt": _known_debt_rows(status, sidecar, boundary),
@@ -435,6 +459,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) ->
 def _report(payload: dict[str, Any]) -> str:
     sidecar = payload["sidecar"]
     boundary = payload["boundary_compare"]
+    resolver_to_audit = payload["resolver_to_audit_sidecar"]
     lines = [
         "# RateCon Load Adapter/Dedupe Current Run",
         "",
@@ -456,6 +481,9 @@ def _report(payload: dict[str, Any]) -> str:
         f"- first_loss_boundary: {boundary['first_loss_boundary']}",
         f"- boundary_candidate_count: {boundary['candidate_count']}",
         f"- boundary_complete_roundtrip_count: {boundary['complete_roundtrip_count']}",
+        f"- resolver_to_audit_sidecar_status: {resolver_to_audit['status']}",
+        f"- resolver_to_audit_preserved_count: {resolver_to_audit['resolver_to_audit_preserved_count']}",
+        f"- resolver_to_audit_loss_count: {resolver_to_audit['resolver_to_audit_loss_count']}",
         f"- private_values_redacted: {payload['private_values_redacted']}",
         f"- pdf_processing_attempted: {payload['pdf_processing_attempted']}",
         f"- ocr_attempted: {payload['ocr_attempted']}",
@@ -512,6 +540,9 @@ def main(argv: list[str] | None = None) -> int:
             boundary_compare_dir=_resolve(args.boundary_compare_dir)
             if args.boundary_compare_dir
             else None,
+            resolver_to_audit_sidecar_dir=_resolve(args.resolver_to_audit_sidecar_dir)
+            if args.resolver_to_audit_sidecar_dir
+            else None,
         )
         write_outputs(output_dir, payload)
     except (OSError, adapter_dedupe_current_run_error, json.JSONDecodeError) as exc:
@@ -520,6 +551,7 @@ def main(argv: list[str] | None = None) -> int:
 
     sidecar = payload["sidecar"]
     boundary = payload["boundary_compare"]
+    resolver_to_audit = payload["resolver_to_audit_sidecar"]
     print("RateCon load adapter/dedupe current-run closeout")
     print(f"current_run_status: {payload['current_run_status']}")
     print(f"generated_candidate_count: {sidecar['generated_candidate_count']}")
@@ -530,6 +562,9 @@ def main(argv: list[str] | None = None) -> int:
     print(f"resolver_visible_candidate_count: {sidecar['resolver_visible_candidate_count']}")
     print(f"complete_roundtrip_count: {sidecar['complete_roundtrip_count']}")
     print(f"first_loss_boundary: {boundary['first_loss_boundary']}")
+    print(f"resolver_to_audit_sidecar_status: {resolver_to_audit['status']}")
+    print(f"resolver_to_audit_preserved_count: {resolver_to_audit['resolver_to_audit_preserved_count']}")
+    print(f"resolver_to_audit_loss_count: {resolver_to_audit['resolver_to_audit_loss_count']}")
     print(f"table_neighbor_experiment_ready: {payload['table_neighbor_experiment_ready']}")
     print(f"private_values_redacted: {payload['private_values_redacted']}")
     print(f"pdf_processing_attempted: {payload['pdf_processing_attempted']}")
