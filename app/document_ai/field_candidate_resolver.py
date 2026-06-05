@@ -396,6 +396,17 @@ def _metadata_summary(candidate):
         "ranking_adjustments",
         "load_candidate_profile",
         "load_candidate_profile_adjustments",
+        "candidate_id",
+        "page_number",
+        "line_index",
+        "line_number",
+        "source",
+        "source_family",
+        "parser_name",
+        "source_line",
+        "bbox_available",
+        "adapter_provenance_preserved",
+        "adapter_provenance_schema_version",
     ]
     return {key: metadata.get(key) for key in safe_keys if key in metadata}
 

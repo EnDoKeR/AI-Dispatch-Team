@@ -156,6 +156,8 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
         f"- complete_detail_serialized_count: {summary['complete_detail_serialized_count']}",
         f"- missing_at_generation_count: {summary['missing_at_generation_count']}",
         f"- lost_after_generation_count: {summary['lost_after_generation_count']}",
+        f"- adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}",
+        f"- adapter_detail_lost_count: {summary['adapter_detail_lost_count']}",
         f"- private_values_included: {summary['private_values_included']}",
         f"- values_redacted: {summary['values_redacted']}",
         f"- pdf_processing_attempted: {summary['pdf_processing_attempted']}",
@@ -167,6 +169,9 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
     ]
     for bucket, count in summary["serialization_loss_bucket_counts"].items():
         lines.append(f"- {bucket}: {count}")
+    lines.extend(["", "## Adapter Roundtrip Statuses"])
+    for status, count in summary["adapter_roundtrip_status_counts"].items():
+        lines.append(f"- {status}: {count}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -199,6 +204,16 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "detail_loss_bucket",
             "detail_loss_stage",
             "detail_loss_reason",
+            "adapter_input_candidate_id_available",
+            "adapter_output_candidate_id_available",
+            "adapter_input_page_line_available",
+            "adapter_output_page_line_available",
+            "adapter_input_source_available",
+            "adapter_output_source_available",
+            "adapter_input_pairing_method_available",
+            "adapter_output_pairing_method_available",
+            "adapter_roundtrip_status",
+            "adapter_loss_reason",
             "private_values_redacted",
             "value_preview",
         ],
@@ -230,6 +245,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"complete_detail_serialized_count: {summary['complete_detail_serialized_count']}")
     print(f"missing_at_generation_count: {summary['missing_at_generation_count']}")
     print(f"lost_after_generation_count: {summary['lost_after_generation_count']}")
+    print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
+    print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")

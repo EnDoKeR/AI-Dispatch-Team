@@ -10,6 +10,16 @@ from __future__ import annotations
 from collections import Counter, defaultdict
 from typing import Any
 
+from app.document_ai.load_identifier_candidate_adapter_provenance import (
+    LOAD_ADAPTER_ROUNDTRIP_COMPLETE,
+    LOAD_ADAPTER_ROUNDTRIP_LOST_CANDIDATE_ID,
+    LOAD_ADAPTER_ROUNDTRIP_LOST_PAGE_LINE,
+    LOAD_ADAPTER_ROUNDTRIP_LOST_PAIRING_METHOD,
+    LOAD_ADAPTER_ROUNDTRIP_LOST_SOURCE,
+    LOAD_ADAPTER_ROUNDTRIP_PRESERVED_PARTIAL_DETAIL,
+    summarize_adapter_provenance_roundtrip,
+)
+
 
 LOAD_SOURCE_LINE_SERIALIZATION_SCHEMA_VERSION = "ratecon_load_source_line_serialization_v1"
 LOAD_FIELD = "load_number"
@@ -89,6 +99,14 @@ def _first_text(*values: Any) -> str:
     return ""
 
 
+def _metadata(row: dict[str, Any]) -> dict[str, Any]:
+    if isinstance((row or {}).get("metadata"), dict):
+        return dict((row or {}).get("metadata") or {})
+    if isinstance((row or {}).get("metadata_summary"), dict):
+        return dict((row or {}).get("metadata_summary") or {})
+    return {}
+
+
 def _document_id(row: dict[str, Any], fallback: str = "") -> str:
     return _first_text(
         row.get("document_id"),
@@ -155,6 +173,7 @@ def _normalize_pairing(source: str, parser_name: str = "", explicit: Any = "") -
 
 
 def _page(row: dict[str, Any]) -> str:
+    metadata = _metadata(row)
     return _first_text(
         row.get("page_number"),
         row.get("page_index"),
@@ -162,20 +181,30 @@ def _page(row: dict[str, Any]) -> str:
         row.get("selected_page_index"),
         row.get("selected_page"),
         row.get("source_page"),
+        metadata.get("page_number"),
+        metadata.get("page_index"),
+        metadata.get("page"),
+        metadata.get("source_page"),
     )
 
 
 def _line(row: dict[str, Any]) -> str:
+    metadata = _metadata(row)
     return _first_text(
         row.get("line_index"),
+        row.get("line_number"),
         row.get("selected_line_index"),
         row.get("source_line_index"),
         row.get("reading_order_index"),
+        metadata.get("line_index"),
+        metadata.get("line_number"),
+        metadata.get("source_line_index"),
+        metadata.get("reading_order_index"),
     )
 
 
 def _candidate_id(row: dict[str, Any]) -> str:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    metadata = _metadata(row)
     return _first_text(
         row.get("candidate_id"),
         row.get("id"),
@@ -185,7 +214,7 @@ def _candidate_id(row: dict[str, Any]) -> str:
 
 
 def _candidate_value(row: dict[str, Any]) -> str:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    metadata = _metadata(row)
     return _first_text(
         row.get("candidate_value"),
         row.get("value"),
@@ -195,23 +224,33 @@ def _candidate_value(row: dict[str, Any]) -> str:
 
 
 def _source(row: dict[str, Any]) -> str:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
-    return _first_text(row.get("source"), row.get("selected_source"), metadata.get("source"))
+    metadata = _metadata(row)
+    return _first_text(
+        row.get("source"),
+        row.get("selected_source"),
+        metadata.get("source"),
+        metadata.get("original_source"),
+    )
 
 
 def _parser(row: dict[str, Any]) -> str:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    metadata = _metadata(row)
     return _first_text(row.get("parser_name"), row.get("parser"), metadata.get("parser_name"))
 
 
 def _pairing(row: dict[str, Any]) -> str:
-    metadata = row.get("metadata") if isinstance(row.get("metadata"), dict) else {}
+    metadata = _metadata(row)
     source = _source(row)
     parser = _parser(row)
     return _normalize_pairing(
         source,
         parser,
-        _first_text(row.get("pairing_method"), metadata.get("pairing_method")),
+        _first_text(
+            row.get("pairing_method"),
+            metadata.get("pairing_method"),
+            metadata.get("value_extraction_method"),
+            metadata.get("match_kind"),
+        ),
     )
 
 
@@ -414,6 +453,10 @@ def build_load_source_line_serialization_sidecar(
                 or evaluator.get("_selected")
             ) else None
             bucket, stage, reason = _loss_bucket(generated_row, resolver_row, audit_row, evaluator_row)
+            adapter_roundtrip = summarize_adapter_provenance_roundtrip(
+                generated_row,
+                resolver_row,
+            )
             source = _pick(generated_row, resolver_row, audit_row, evaluator_row, key="_source")
             parser_name = _pick(generated_row, resolver_row, audit_row, evaluator_row, key="_parser_name")
             value = _pick(generated_row, resolver_row, audit_row, evaluator_row, key="_candidate_value")
@@ -477,12 +520,27 @@ def build_load_source_line_serialization_sidecar(
                 "detail_loss_bucket": DETAIL_BUCKET_BY_SERIALIZATION_BUCKET[bucket],
                 "detail_loss_stage": stage,
                 "detail_loss_reason": reason,
+                **adapter_roundtrip,
                 "private_values_redacted": not include_private_values,
                 "value_preview": _value_for_output(value, include_private_values),
             }
             sidecar_rows.append(row)
 
     bucket_counts = Counter(row["serialization_loss_bucket"] for row in sidecar_rows)
+    adapter_status_counts = Counter(row["adapter_roundtrip_status"] for row in sidecar_rows)
+    adapter_lost_count = sum(
+        adapter_status_counts[status]
+        for status in (
+            LOAD_ADAPTER_ROUNDTRIP_LOST_CANDIDATE_ID,
+            LOAD_ADAPTER_ROUNDTRIP_LOST_PAGE_LINE,
+            LOAD_ADAPTER_ROUNDTRIP_LOST_SOURCE,
+            LOAD_ADAPTER_ROUNDTRIP_LOST_PAIRING_METHOD,
+        )
+    )
+    adapter_preserved_count = (
+        adapter_status_counts[LOAD_ADAPTER_ROUNDTRIP_COMPLETE]
+        + adapter_status_counts[LOAD_ADAPTER_ROUNDTRIP_PRESERVED_PARTIAL_DETAIL]
+    )
     summary = {
         "schema_version": LOAD_SOURCE_LINE_SERIALIZATION_SCHEMA_VERSION,
         "document_count": len({row["document_id"] for row in sidecar_rows}),
@@ -503,6 +561,9 @@ def build_load_source_line_serialization_sidecar(
             + bucket_counts[SERIALIZATION_LOST_IN_DETAIL_INVENTORY_READER]
         ),
         "serialization_loss_bucket_counts": dict(sorted(bucket_counts.items())),
+        "adapter_roundtrip_status_counts": dict(sorted(adapter_status_counts.items())),
+        "adapter_detail_preserved_count": adapter_preserved_count,
+        "adapter_detail_lost_count": adapter_lost_count,
         "private_values_included": include_private_values,
         "values_redacted": not include_private_values,
         "pdf_processing_attempted": False,

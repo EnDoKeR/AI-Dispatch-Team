@@ -325,6 +325,17 @@ inventory. It must not change selected load output, candidate generation,
 resolver behavior, source labels, confidence values, evaluator statuses,
 private measurement, PDF processing, or OCR behavior.
 
+The next adapter-provenance repair phase focuses on the observed
+`lost_in_candidate_adapter` bucket with
+`app/document_ai/load_identifier_candidate_adapter_provenance.py` and
+`scripts/audit_ratecon_load_candidate_adapter_provenance.py`. It preserves only
+already-existing load candidate id, source, page/line, bbox, parser, and
+pairing metadata across the adapter boundary. It must not infer missing
+metadata, fabricate candidate ids, change candidate generation, change resolver
+ranking/scoring, change selected load output, change source labels, change
+confidence values, change evaluator statuses, process PDFs, run OCR, or run
+private measurement.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
@@ -339,6 +350,8 @@ Future rate/money consolidation should continue with one narrow target:
   page/line/source detail;
 - candidate provenance repair if serialization shows detail missing at
   generation;
+- candidate adapter provenance repair if serialization shows detail exists
+  before adaptation but is dropped at the adapter boundary;
 - serialization boundary repair if detail exists at generation but is dropped
   before diagnostics;
 - stop extraction architecture closeout.

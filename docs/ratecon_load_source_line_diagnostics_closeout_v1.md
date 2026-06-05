@@ -71,6 +71,11 @@ If the detail inventory includes serialization sidecar data, the closeout also
 reports serialization complete-detail counts and whether serialization loss
 dominates. High serialization loss keeps experiment readiness blocked.
 
+If the detail inventory includes adapter provenance roundtrip data, the
+closeout also reports adapter-preserved and adapter-lost counts. Adapter loss is
+a blocker for behavior experiments until the boundary is repaired and the
+selected-load regression harness plus private selected-load aggregate gate pass.
+
 ## Known Debt
 
 Known debt remains pinned:
@@ -86,6 +91,7 @@ Known debt remains pinned:
   surfaces.
 - missing or dropped serialization of candidate id, source, page/line, and
   pairing metadata across local diagnostic surfaces.
+- adapter-boundary loss of already-existing load candidate provenance metadata.
 
 Future behavior changes must be shadow-only first and require explicit review
 of selected-load regression output, private aggregate gate output, diagnostic

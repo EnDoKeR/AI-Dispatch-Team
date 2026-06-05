@@ -108,3 +108,13 @@ candidate provenance repair. If detail is present at generation but lost later,
 the next task is repairing the specific serialization boundary. Table-neighbor
 or nearby-row behavior experiments remain blocked until source-line detail
 roundtrip is actionable.
+
+## Adapter Provenance Repair
+
+`app/document_ai/load_identifier_candidate_adapter_provenance.py` and
+`scripts/audit_ratecon_load_candidate_adapter_provenance.py` narrow the next
+serialization repair target to the candidate adapter boundary. They preserve and
+audit already-existing candidate id, source, page/line, bbox, and pairing
+metadata across adaptation without inferring missing detail or changing
+resolver behavior. Serialization sidecar rows may report adapter roundtrip
+status, but those fields remain local-only diagnostics.

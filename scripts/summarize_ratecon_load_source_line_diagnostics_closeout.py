@@ -280,6 +280,10 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
             "serialization_complete_detail_count": 0,
             "serialization_loss_bucket_counts": {},
             "serialization_loss_dominates": False,
+            "adapter_roundtrip_status_counts": {},
+            "adapter_detail_preserved_count": 0,
+            "adapter_detail_lost_count": 0,
+            "adapter_loss_blocks_readiness": False,
             "missing_page_line_ratio": 0.0,
             "missing_source_ratio": 0.0,
             "unknown_caused_by_missing_detail_ratio": 0.0,
@@ -301,6 +305,11 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
     serialization_complete_count = _to_int(summary.get("serialization_complete_detail_count"))
     serialization_total = sum(serialization_counts.values())
     serialization_loss_count = max(serialization_total - serialization_complete_count, 0)
+    adapter_counts = {
+        str(key): _to_int(value)
+        for key, value in dict(summary.get("adapter_roundtrip_status_counts") or {}).items()
+    }
+    adapter_lost_count = _to_int(summary.get("adapter_detail_lost_count"))
     return {
         "status": status if status == "present" else "skipped_missing_optional_dir",
         "path": str(detail_dir),
@@ -320,6 +329,12 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
             serialization_total > 0
             and (serialization_loss_count / serialization_total) >= dominance_threshold
         ),
+        "adapter_roundtrip_status_counts": adapter_counts,
+        "adapter_detail_preserved_count": _to_int(
+            summary.get("adapter_detail_preserved_count")
+        ),
+        "adapter_detail_lost_count": adapter_lost_count,
+        "adapter_loss_blocks_readiness": adapter_lost_count > 0,
         "missing_page_line_ratio": (
             missing_page_line_count / candidate_count if candidate_count else 0.0
         ),
@@ -369,6 +384,7 @@ def _detail_inventory_blocks_readiness(detail_inventory: dict[str, Any]) -> bool
         or detail_inventory["missing_source_ratio"] >= dominance_threshold
         or detail_inventory["unknown_caused_by_missing_detail_ratio"] >= dominance_threshold
         or detail_inventory["serialization_loss_dominates"]
+        or detail_inventory["adapter_loss_blocks_readiness"]
     )
 
 
@@ -496,7 +512,8 @@ def _readiness_rows(
                 f"missing_source_ratio={detail_inventory['missing_source_ratio']:.3f} "
                 f"unknown_caused_by_missing_detail_ratio={detail_inventory['unknown_caused_by_missing_detail_ratio']:.3f} "
                 f"serialization_sidecar_status={detail_inventory['serialization_sidecar_status']} "
-                f"serialization_loss_dominates={detail_inventory['serialization_loss_dominates']}"
+                f"serialization_loss_dominates={detail_inventory['serialization_loss_dominates']} "
+                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']}"
             ),
         },
     ]
@@ -580,7 +597,8 @@ def _gate_inventory(
                 f"missing_page_line_count={detail_inventory['missing_page_line_count']} "
                 f"missing_source_count={detail_inventory['missing_source_count']} "
                 f"dropped_detail_count={detail_inventory['dropped_detail_count']} "
-                f"serialization_complete_detail_count={detail_inventory['serialization_complete_detail_count']}"
+                f"serialization_complete_detail_count={detail_inventory['serialization_complete_detail_count']} "
+                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']}"
             ),
         },
     ]
@@ -755,6 +773,9 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- detail_inventory_serialization_sidecar_status: {detail_inventory['serialization_sidecar_status']}",
         f"- detail_inventory_serialization_complete_detail_count: {detail_inventory['serialization_complete_detail_count']}",
         f"- detail_inventory_serialization_loss_dominates: {detail_inventory['serialization_loss_dominates']}",
+        f"- detail_inventory_adapter_detail_preserved_count: {detail_inventory['adapter_detail_preserved_count']}",
+        f"- detail_inventory_adapter_detail_lost_count: {detail_inventory['adapter_detail_lost_count']}",
+        f"- detail_inventory_adapter_loss_blocks_readiness: {detail_inventory['adapter_loss_blocks_readiness']}",
         "- private_values_redacted: True",
         "- pdf_processing_attempted: False",
         "- ocr_attempted: False",
@@ -873,6 +894,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "detail_inventory_serialization_loss_dominates: "
         f"{summary['detail_inventory']['serialization_loss_dominates']}"
+    )
+    print(
+        "detail_inventory_adapter_detail_lost_count: "
+        f"{summary['detail_inventory']['adapter_detail_lost_count']}"
     )
     print("private_values_redacted: True")
     print("pdf_processing_attempted: False")

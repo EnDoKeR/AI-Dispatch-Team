@@ -1,0 +1,22 @@
+{
+  "input_candidate": {
+    "field_name": "load_number",
+    "candidate_id": "cand-source-lost",
+    "raw_value": "LOAD12345",
+    "source": "native_text",
+    "pairing_method": "same_row",
+    "page_number": "1",
+    "line_number": "5"
+  },
+  "output_candidate": {
+    "field": "load_number",
+    "value": "LOAD12345",
+    "metadata": {
+      "candidate_id": "cand-source-lost",
+      "pairing_method": "same_row",
+      "page_number": "1",
+      "line_index": "5"
+    }
+  },
+  "expected_status": "adapter_roundtrip_lost_source"
+}
