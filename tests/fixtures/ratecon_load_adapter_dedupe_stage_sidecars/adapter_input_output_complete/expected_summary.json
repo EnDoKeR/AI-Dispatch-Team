@@ -1,0 +1,8 @@
+{
+  "adapter_stage_status": "adapter_stage_complete",
+  "dedupe_stage_status": "dedupe_stage_complete",
+  "adapter_input_count": 1,
+  "adapter_output_count": 1,
+  "dedupe_input_count": 1,
+  "dedupe_output_count": 1
+}

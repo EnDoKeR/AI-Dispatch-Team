@@ -127,3 +127,10 @@ private measurement emits generated rows before deciding on later boundary
 repair. If generated rows are present but complete roundtrip is still absent,
 the next task must target the exact later loss boundary and must not change
 selection, scoring, source labels, or candidate generation.
+
+## Adapter/Dedupe Stage Sidecars
+
+`docs/ratecon_load_adapter_dedupe_stage_sidecars_v1.md` adds explicit adapter
+and dedupe diagnostic stage rows. That phase makes adapter and dedupe
+visibility measurable before any later boundary is repaired. It remains
+sidecar-only and must not infer missing metadata or change candidate behavior.

@@ -264,6 +264,87 @@ def _candidate_lineage(candidate, index):
     }
 
 
+def _candidate_id_for_stage_record(candidate):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    return _text(metadata.get("candidate_id") or candidate.get("candidate_id"))
+
+
+def _lineage_candidate_ids(lineage):
+    ids = []
+    for item in lineage or []:
+        candidate_id = _text((item or {}).get("candidate_id"))
+        if candidate_id and candidate_id not in ids:
+            ids.append(candidate_id)
+    return ids
+
+
+def _load_stage_record(candidate, stage, index, dedupe_output_ids=None):
+    candidate = candidate if isinstance(candidate, dict) else {}
+    if _text(candidate.get("field")) != FIELD_LOAD_NUMBER:
+        return None
+    metadata = candidate.get("metadata") if isinstance(candidate.get("metadata"), dict) else {}
+    candidate_id = _candidate_id_for_stage_record(candidate)
+    lineage_ids = _lineage_candidate_ids(metadata.get("dedupe_lineage") or [])
+    output_ids = set(dedupe_output_ids or set())
+    dropped = bool(stage == "dedupe_input" and candidate_id and candidate_id not in output_ids)
+    return {
+        "document_id": _text(metadata.get("document_id") or candidate.get("document_id")),
+        "field": FIELD_LOAD_NUMBER,
+        "stage": stage,
+        "candidate_id": candidate_id,
+        "source": _text(candidate.get("source") or metadata.get("source") or metadata.get("original_source")),
+        "source_family": _text(metadata.get("source_family")),
+        "parser_name": _text(candidate.get("parser_name") or metadata.get("parser_name")),
+        "pairing_method": _text(
+            metadata.get("pairing_method")
+            or metadata.get("value_extraction_method")
+            or metadata.get("match_kind")
+        ),
+        "page_number": candidate.get("page") or metadata.get("page_number") or metadata.get("page"),
+        "line_index": (
+            metadata.get("line_index")
+            or metadata.get("line_number")
+            or metadata.get("source_line_index")
+            or metadata.get("reading_order_index")
+        ),
+        "bbox_available": bool(candidate.get("bbox") or metadata.get("bbox") or metadata.get("component_bboxes")),
+        "candidate_rank": index,
+        "dedupe_merged": bool(stage == "dedupe_output" and len(lineage_ids) > 1),
+        "dedupe_dropped": dropped,
+        "dedupe_parent_candidate_ids": [candidate_id] if stage == "dedupe_output" and candidate_id else [],
+        "dedupe_child_candidate_ids": (
+            [item for item in lineage_ids if item != candidate_id]
+            if stage == "dedupe_output"
+            else []
+        ),
+    }
+
+
+def _adapter_dedupe_provenance_records(adapter_candidates, deduped_candidates):
+    dedupe_output_ids = {
+        _candidate_id_for_stage_record(candidate)
+        for candidate in deduped_candidates or []
+        if _candidate_id_for_stage_record(candidate)
+    }
+    records = []
+    for stage in ("adapter_input", "adapter_output", "dedupe_input"):
+        for index, candidate in enumerate(adapter_candidates or [], start=1):
+            row = _load_stage_record(
+                candidate,
+                stage,
+                index,
+                dedupe_output_ids=dedupe_output_ids,
+            )
+            if row is not None:
+                records.append(row)
+    for index, candidate in enumerate(deduped_candidates or [], start=1):
+        row = _load_stage_record(candidate, "dedupe_output", index)
+        if row is not None:
+            records.append(row)
+    return records
+
+
 def _with_candidate_id(candidate, index):
     item = dict(candidate or {})
     metadata = dict(item.get("metadata") or {})
@@ -409,8 +490,17 @@ def _summary(generator_name, source_type, candidates=None, warnings=None, diagno
 
 
 def _build_result(candidates=None, summaries=None, errors=None):
+    adapter_candidates = [
+        _with_candidate_id(candidate, index)
+        for index, candidate in enumerate(candidates or [], start=1)
+    ]
+    deduped_candidates = _dedupe(adapter_candidates)
     return {
-        "candidates": _dedupe(candidates or []),
+        "candidates": deduped_candidates,
+        "adapter_dedupe_provenance_records": _adapter_dedupe_provenance_records(
+            adapter_candidates,
+            deduped_candidates,
+        ),
         "generator_summaries": list(summaries or []),
         "errors": list(errors or []),
         "result_version": "field_candidate_generation_result_v1",

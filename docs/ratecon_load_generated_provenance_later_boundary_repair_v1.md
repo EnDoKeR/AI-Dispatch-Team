@@ -92,3 +92,11 @@ Future table-neighbor or nearby-row behavior experiments remain blocked until:
 
 This PR does not approve production migration, load ranking changes, or
 table/nearby-row behavior changes.
+
+## Adapter/Dedupe Stage Sidecars
+
+The follow-up adapter/dedupe stage sidecar phase adds explicit local-only
+adapter input/output and dedupe input/output rows. Boundary comparison should
+use those rows before claiming generation-to-adapter, adapter-to-dedupe, or
+dedupe-to-resolver loss. Missing stage visibility must remain unresolved rather
+than synthesized evidence.

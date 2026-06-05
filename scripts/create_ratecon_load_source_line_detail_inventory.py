@@ -218,6 +218,12 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
             f"- generated_resolver_current_artifacts_status: {summary['generated_resolver_current_artifacts_status']}",
             f"- generated_candidate_detail_available_count: {summary['generated_candidate_detail_available_count']}",
             f"- resolver_visible_detail_available_count: {summary['resolver_visible_detail_available_count']}",
+            f"- adapter_input_count: {summary.get('generated_resolver_adapter_input_count', 0)}",
+            f"- adapter_output_count: {summary.get('generated_resolver_adapter_output_count', 0)}",
+            f"- dedupe_input_count: {summary.get('generated_resolver_dedupe_input_count', 0)}",
+            f"- dedupe_output_count: {summary.get('generated_resolver_dedupe_output_count', 0)}",
+            f"- adapter_detail_lost_count: {summary.get('generated_resolver_adapter_detail_lost_count', 0)}",
+            f"- dedupe_detail_lost_count: {summary.get('generated_resolver_dedupe_detail_lost_count', 0)}",
             f"- boundary_compare_status: {summary.get('boundary_compare_status', 'skipped_not_requested')}",
             f"- boundary_first_loss_boundary: {summary.get('boundary_first_loss_boundary', '')}",
             f"- boundary_complete_roundtrip_count: {summary.get('boundary_complete_roundtrip_count', 0)}",
@@ -398,6 +404,24 @@ def _merge_generated_resolver_sidecar(payload: dict[str, Any], sidecar_dir: Path
     summary["generated_resolver_complete_roundtrip_count"] = int(
         sidecar_summary.get("complete_roundtrip_count") or 0
     )
+    summary["generated_resolver_adapter_input_count"] = int(
+        sidecar_summary.get("adapter_input_count") or 0
+    )
+    summary["generated_resolver_adapter_output_count"] = int(
+        sidecar_summary.get("adapter_output_count") or 0
+    )
+    summary["generated_resolver_dedupe_input_count"] = int(
+        sidecar_summary.get("dedupe_input_count") or 0
+    )
+    summary["generated_resolver_dedupe_output_count"] = int(
+        sidecar_summary.get("dedupe_output_count") or 0
+    )
+    summary["generated_resolver_adapter_detail_lost_count"] = int(
+        sidecar_summary.get("adapter_detail_lost_count") or 0
+    )
+    summary["generated_resolver_dedupe_detail_lost_count"] = int(
+        sidecar_summary.get("dedupe_detail_lost_count") or 0
+    )
     return payload
 
 
@@ -454,6 +478,22 @@ def main(argv: list[str] | None = None) -> int:
     print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
     print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
     print(f"generated_resolver_sidecar_status: {summary['generated_resolver_sidecar_status']}")
+    print(
+        "generated_resolver_adapter_input_count: "
+        f"{summary['generated_resolver_adapter_input_count']}"
+    )
+    print(
+        "generated_resolver_adapter_output_count: "
+        f"{summary['generated_resolver_adapter_output_count']}"
+    )
+    print(
+        "generated_resolver_dedupe_input_count: "
+        f"{summary['generated_resolver_dedupe_input_count']}"
+    )
+    print(
+        "generated_resolver_dedupe_output_count: "
+        f"{summary['generated_resolver_dedupe_output_count']}"
+    )
     print(f"boundary_compare_status: {summary['boundary_compare_status']}")
     print(f"boundary_first_loss_boundary: {summary['boundary_first_loss_boundary']}")
     print(f"private_values_included: {summary['private_values_included']}")

@@ -38,6 +38,42 @@ STAGE_PRIVATE_VALUES_NOT_REQUESTED = "private_values_not_requested"
 STAGE_NOT_APPLICABLE_CANDIDATE_MISSING = "not_applicable_candidate_missing"
 STAGE_UNKNOWN = "unknown"
 
+ADAPTER_STAGE_COMPLETE = "adapter_stage_complete"
+ADAPTER_STAGE_UNAVAILABLE = "adapter_stage_unavailable"
+ADAPTER_INPUT_DETAIL_AVAILABLE = "adapter_input_detail_available"
+ADAPTER_INPUT_DETAIL_MISSING = "adapter_input_detail_missing"
+ADAPTER_OUTPUT_DETAIL_PRESERVED = "adapter_output_detail_preserved"
+ADAPTER_OUTPUT_DETAIL_LOST = "adapter_output_detail_lost"
+DEDUPE_STAGE_COMPLETE = "dedupe_stage_complete"
+DEDUPE_STAGE_UNAVAILABLE = "dedupe_stage_unavailable"
+DEDUPE_INPUT_DETAIL_AVAILABLE = "dedupe_input_detail_available"
+DEDUPE_OUTPUT_DETAIL_PRESERVED = "dedupe_output_detail_preserved"
+DEDUPE_OUTPUT_DETAIL_LOST = "dedupe_output_detail_lost"
+DEDUPE_MERGED_DETAIL_PRESERVED = "dedupe_merged_detail_preserved"
+DEDUPE_DROPPED_DETAIL_PRESERVED = "dedupe_dropped_detail_preserved"
+DEDUPE_LINEAGE_UNAVAILABLE = "dedupe_lineage_unavailable"
+NOT_APPLICABLE_CANDIDATE_MISSING = "not_applicable_candidate_missing"
+ADAPTER_DEDUPE_UNKNOWN = "unknown"
+
+ADAPTER_DEDUPE_STAGE_STATUSES = (
+    ADAPTER_STAGE_COMPLETE,
+    ADAPTER_STAGE_UNAVAILABLE,
+    ADAPTER_INPUT_DETAIL_AVAILABLE,
+    ADAPTER_INPUT_DETAIL_MISSING,
+    ADAPTER_OUTPUT_DETAIL_PRESERVED,
+    ADAPTER_OUTPUT_DETAIL_LOST,
+    DEDUPE_STAGE_COMPLETE,
+    DEDUPE_STAGE_UNAVAILABLE,
+    DEDUPE_INPUT_DETAIL_AVAILABLE,
+    DEDUPE_OUTPUT_DETAIL_PRESERVED,
+    DEDUPE_OUTPUT_DETAIL_LOST,
+    DEDUPE_MERGED_DETAIL_PRESERVED,
+    DEDUPE_DROPPED_DETAIL_PRESERVED,
+    DEDUPE_LINEAGE_UNAVAILABLE,
+    NOT_APPLICABLE_CANDIDATE_MISSING,
+    ADAPTER_DEDUPE_UNKNOWN,
+)
+
 STAGE_LOSS_BUCKETS = (
     STAGE_GENERATED_DETAIL_AVAILABLE,
     STAGE_GENERATED_DETAIL_MISSING,
@@ -85,11 +121,34 @@ STAGE_ROW_FIELDNAMES = [
     "resolver_eligible",
     "resolver_selected",
     "resolver_trace_available",
+    "dedupe_merged",
+    "dedupe_dropped",
+    "dedupe_parent_candidate_ids",
+    "dedupe_child_candidate_ids",
     "detail_roundtrip_status",
     "detail_loss_stage",
     "detail_loss_reason",
     "private_values_redacted",
     "value_preview",
+]
+
+ADAPTER_DEDUPE_LOSS_FIELDNAMES = [
+    "document_id",
+    "field",
+    "candidate_id",
+    "adapter_stage_status",
+    "dedupe_stage_status",
+    "adapter_dedupe_loss_stage",
+    "adapter_dedupe_loss_reason",
+    "adapter_input_detail_available",
+    "adapter_output_detail_available",
+    "dedupe_input_detail_available",
+    "dedupe_output_detail_available",
+    "dedupe_merged",
+    "dedupe_dropped",
+    "dedupe_parent_candidate_ids",
+    "dedupe_child_candidate_ids",
+    "private_values_redacted",
 ]
 
 LOSS_ROW_FIELDNAMES = [
@@ -133,6 +192,14 @@ def _first_text(*values: Any) -> str:
         text = _text(value)
         if text:
             return text
+    return ""
+
+
+def _joined_texts(value: Any) -> str:
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple, set)):
+        return ";".join(_text(item) for item in value if _text(item))
     return ""
 
 
@@ -362,6 +429,10 @@ def _normalize_stage_row(
         "resolver_eligible": _eligible(row) if stage == "resolver" else False,
         "resolver_selected": _selected(row) if stage == "resolver" else False,
         "resolver_trace_available": stage == "resolver",
+        "dedupe_merged": _bool(row.get("dedupe_merged")),
+        "dedupe_dropped": _bool(row.get("dedupe_dropped")),
+        "dedupe_parent_candidate_ids": _joined_texts(row.get("dedupe_parent_candidate_ids")),
+        "dedupe_child_candidate_ids": _joined_texts(row.get("dedupe_child_candidate_ids")),
         "detail_roundtrip_status": "",
         "detail_loss_stage": "",
         "detail_loss_reason": "",
@@ -391,6 +462,38 @@ def _stage_rows(
             )
         )
     return normalized
+
+
+def build_adapter_stage_row(
+    candidate: dict[str, Any] | None,
+    *,
+    stage: str,
+    include_private_values: bool = False,
+) -> dict[str, Any]:
+    """Build a redacted adapter-stage row from already-visible metadata."""
+
+    return _normalize_stage_row(
+        dict(candidate or {}),
+        stage=stage,
+        fallback="",
+        include_private_values=include_private_values,
+    )
+
+
+def build_dedupe_stage_row(
+    candidate: dict[str, Any] | None,
+    *,
+    stage: str,
+    include_private_values: bool = False,
+) -> dict[str, Any]:
+    """Build a redacted dedupe-stage row from already-visible metadata."""
+
+    return _normalize_stage_row(
+        dict(candidate or {}),
+        stage=stage,
+        fallback="",
+        include_private_values=include_private_values,
+    )
 
 
 def _generated_stage_record(
@@ -456,6 +559,32 @@ def generated_provenance_records_from_shadow_result(
     return records
 
 
+def generated_resolver_provenance_records_from_shadow_result(
+    shadow_result: dict[str, Any] | None,
+    *,
+    document_id: str = "",
+) -> list[dict[str, Any]]:
+    """Return generated plus adapter/dedupe stage rows already in debug output."""
+
+    shadow_result = shadow_result or {}
+    debug = shadow_result.get("debug") if isinstance(shadow_result.get("debug"), dict) else {}
+    records = generated_provenance_records_from_shadow_result(
+        shadow_result,
+        document_id=document_id,
+    )
+    for record in debug.get("adapter_dedupe_provenance_records", []) or []:
+        if not isinstance(record, dict):
+            continue
+        stage = _text(record.get("stage"))
+        if stage not in {"adapter_input", "adapter_output", "dedupe_input", "dedupe_output"}:
+            continue
+        item = dict(record)
+        if document_id and not _text(item.get("document_id")):
+            item["document_id"] = document_id
+        records.append(item)
+    return records
+
+
 def _group(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:
     grouped: dict[str, dict[str, dict[str, Any]]] = defaultdict(dict)
     for row in rows:
@@ -469,6 +598,172 @@ def _candidate_keys(*groups: dict[str, dict[str, dict[str, Any]]]) -> dict[str, 
         for doc_id, candidates in group.items():
             keys[doc_id].update(candidates)
     return keys
+
+
+def _stage_detail_available(row: dict[str, Any] | None) -> bool:
+    return bool((row or {}).get("_detail_available"))
+
+
+def classify_adapter_dedupe_stage_loss(
+    *,
+    adapter_input: dict[str, Any] | None = None,
+    adapter_output: dict[str, Any] | None = None,
+    dedupe_input: dict[str, Any] | None = None,
+    dedupe_output: dict[str, Any] | None = None,
+) -> tuple[str, str, str, str]:
+    """Classify adapter/dedupe stage visibility without inferring metadata."""
+
+    adapter_input_detail = _stage_detail_available(adapter_input)
+    adapter_output_detail = _stage_detail_available(adapter_output)
+    dedupe_input_detail = _stage_detail_available(dedupe_input)
+    dedupe_output_detail = _stage_detail_available(dedupe_output)
+
+    if not any([adapter_input, adapter_output, dedupe_input, dedupe_output]):
+        return (
+            ADAPTER_STAGE_UNAVAILABLE,
+            DEDUPE_STAGE_UNAVAILABLE,
+            "adapter",
+            "Adapter and dedupe diagnostic rows were unavailable.",
+        )
+    if adapter_input and not adapter_input_detail:
+        return (
+            ADAPTER_INPUT_DETAIL_MISSING,
+            DEDUPE_STAGE_UNAVAILABLE if not (dedupe_input or dedupe_output) else ADAPTER_DEDUPE_UNKNOWN,
+            "adapter",
+            "Adapter input row is present but lacks candidate id, source, page/line, or pairing detail.",
+        )
+    if adapter_input_detail and not adapter_output:
+        return (
+            ADAPTER_OUTPUT_DETAIL_LOST,
+            DEDUPE_STAGE_UNAVAILABLE if not (dedupe_input or dedupe_output) else ADAPTER_DEDUPE_UNKNOWN,
+            "adapter",
+            "Adapter input detail is present but adapter output row is unavailable.",
+        )
+    if adapter_input_detail and adapter_output and not adapter_output_detail:
+        return (
+            ADAPTER_OUTPUT_DETAIL_LOST,
+            DEDUPE_STAGE_UNAVAILABLE if not (dedupe_input or dedupe_output) else ADAPTER_DEDUPE_UNKNOWN,
+            "adapter",
+            "Adapter output row is present but lost source-line detail.",
+        )
+
+    adapter_status = (
+        ADAPTER_STAGE_COMPLETE
+        if adapter_input_detail and adapter_output_detail
+        else ADAPTER_OUTPUT_DETAIL_PRESERVED
+        if adapter_output_detail
+        else ADAPTER_STAGE_UNAVAILABLE
+    )
+    if not (dedupe_input or dedupe_output):
+        return (
+            adapter_status,
+            DEDUPE_STAGE_UNAVAILABLE,
+            "dedupe",
+            "Adapter detail is visible but dedupe diagnostic rows were unavailable.",
+        )
+    if dedupe_input and not dedupe_input_detail:
+        return (
+            adapter_status,
+            DEDUPE_INPUT_DETAIL_AVAILABLE if dedupe_output_detail else DEDUPE_OUTPUT_DETAIL_LOST,
+            "dedupe",
+            "Dedupe input row is present but lacks source-line detail.",
+        )
+    if dedupe_input_detail and not dedupe_output:
+        return (
+            adapter_status,
+            DEDUPE_OUTPUT_DETAIL_LOST,
+            "dedupe",
+            "Dedupe input detail is present but dedupe output row is unavailable.",
+        )
+    if dedupe_output and not dedupe_output_detail:
+        return (
+            adapter_status,
+            DEDUPE_OUTPUT_DETAIL_LOST,
+            "dedupe",
+            "Dedupe output row is present but lost source-line detail.",
+        )
+
+    dedupe_status = (
+        DEDUPE_STAGE_COMPLETE
+        if dedupe_input_detail and dedupe_output_detail
+        else DEDUPE_OUTPUT_DETAIL_PRESERVED
+    )
+    return (
+        adapter_status,
+        dedupe_status,
+        "none",
+        "Adapter and dedupe diagnostic rows preserve available source-line detail.",
+    )
+
+
+def _lineage_ids(row: dict[str, Any] | None, key: str) -> str:
+    value = (row or {}).get(key)
+    if isinstance(value, str):
+        return value
+    if isinstance(value, (list, tuple, set)):
+        return ";".join(_text(item) for item in value if _text(item))
+    return ""
+
+
+def _adapter_dedupe_loss_row(
+    doc_id: str,
+    candidate_id: str,
+    rows: dict[str, dict[str, Any] | None],
+    *,
+    include_private_values: bool,
+) -> dict[str, Any]:
+    adapter_status, dedupe_status, loss_stage, reason = classify_adapter_dedupe_stage_loss(
+        adapter_input=rows.get("adapter_input"),
+        adapter_output=rows.get("adapter_output"),
+        dedupe_input=rows.get("dedupe_input"),
+        dedupe_output=rows.get("dedupe_output"),
+    )
+    dedupe_input = rows.get("dedupe_input") or {}
+    dedupe_output = rows.get("dedupe_output") or {}
+    return {
+        "document_id": doc_id,
+        "field": LOAD_FIELD,
+        "candidate_id": candidate_id,
+        "adapter_stage_status": adapter_status,
+        "dedupe_stage_status": dedupe_status,
+        "adapter_dedupe_loss_stage": loss_stage,
+        "adapter_dedupe_loss_reason": reason,
+        "adapter_input_detail_available": _stage_detail_available(rows.get("adapter_input")),
+        "adapter_output_detail_available": _stage_detail_available(rows.get("adapter_output")),
+        "dedupe_input_detail_available": _stage_detail_available(rows.get("dedupe_input")),
+        "dedupe_output_detail_available": _stage_detail_available(rows.get("dedupe_output")),
+        "dedupe_merged": _bool(dedupe_output.get("dedupe_merged")),
+        "dedupe_dropped": _bool(dedupe_input.get("dedupe_dropped")),
+        "dedupe_parent_candidate_ids": _lineage_ids(dedupe_output, "dedupe_parent_candidate_ids"),
+        "dedupe_child_candidate_ids": _lineage_ids(dedupe_output, "dedupe_child_candidate_ids"),
+        "private_values_redacted": not include_private_values,
+    }
+
+
+def summarize_adapter_dedupe_roundtrip(
+    adapter_dedupe_rows: list[dict[str, Any]] | None,
+) -> dict[str, Any]:
+    rows = list(adapter_dedupe_rows or [])
+    adapter_counts = Counter(
+        row.get("adapter_stage_status", ADAPTER_DEDUPE_UNKNOWN) for row in rows
+    )
+    dedupe_counts = Counter(
+        row.get("dedupe_stage_status", ADAPTER_DEDUPE_UNKNOWN) for row in rows
+    )
+    return {
+        "adapter_dedupe_candidate_count": len(rows),
+        "adapter_stage_status_counts": dict(sorted(adapter_counts.items())),
+        "dedupe_stage_status_counts": dict(sorted(dedupe_counts.items())),
+        "adapter_detail_preserved_count": adapter_counts.get(ADAPTER_STAGE_COMPLETE, 0)
+        + adapter_counts.get(ADAPTER_OUTPUT_DETAIL_PRESERVED, 0),
+        "adapter_detail_lost_count": adapter_counts.get(ADAPTER_INPUT_DETAIL_MISSING, 0)
+        + adapter_counts.get(ADAPTER_OUTPUT_DETAIL_LOST, 0),
+        "dedupe_detail_preserved_count": dedupe_counts.get(DEDUPE_STAGE_COMPLETE, 0)
+        + dedupe_counts.get(DEDUPE_OUTPUT_DETAIL_PRESERVED, 0),
+        "dedupe_detail_lost_count": dedupe_counts.get(DEDUPE_OUTPUT_DETAIL_LOST, 0),
+        "adapter_stage_unavailable_count": adapter_counts.get(ADAPTER_STAGE_UNAVAILABLE, 0),
+        "dedupe_stage_unavailable_count": dedupe_counts.get(DEDUPE_STAGE_UNAVAILABLE, 0),
+    }
 
 
 def _loss_classification(
@@ -704,6 +999,7 @@ def build_load_generated_resolver_provenance_sidecars(
         keys_by_doc["generated_resolver_inputs_unavailable"].add("candidate_missing")
 
     loss_rows: list[dict[str, Any]] = []
+    adapter_dedupe_loss_rows: list[dict[str, Any]] = []
     for doc_id in sorted(keys_by_doc):
         for candidate_id in sorted(keys_by_doc[doc_id]):
             rows = {
@@ -712,6 +1008,14 @@ def build_load_generated_resolver_provenance_sidecars(
             }
             loss_rows.append(
                 _loss_row(
+                    doc_id,
+                    candidate_id,
+                    rows,
+                    include_private_values=include_private_values,
+                )
+            )
+            adapter_dedupe_loss_rows.append(
+                _adapter_dedupe_loss_row(
                     doc_id,
                     candidate_id,
                     rows,
@@ -735,6 +1039,7 @@ def build_load_generated_resolver_provenance_sidecars(
 
     bucket_counts = Counter(row["stage_loss_bucket"] for row in loss_rows)
     status_counts = Counter(row["generated_resolver_roundtrip_status"] for row in loss_rows)
+    adapter_dedupe_summary = summarize_adapter_dedupe_roundtrip(adapter_dedupe_loss_rows)
     measurable = bool(
         generated_stage
         or adapter_input_stage
@@ -763,6 +1068,12 @@ def build_load_generated_resolver_provenance_sidecars(
         "dedupe_input_count": len(dedupe_input_stage),
         "dedupe_output_count": len(dedupe_output_stage),
         "dedupe_lineage_row_count": len(dedupe_input_stage) + len(dedupe_output_stage),
+        "adapter_dedupe_stage_row_count": (
+            len(adapter_input_stage)
+            + len(adapter_output_stage)
+            + len(dedupe_input_stage)
+            + len(dedupe_output_stage)
+        ),
         "resolver_visible_candidate_count": len(resolver_stage),
         "audit_visible_candidate_count": len(audit_stage),
         "serialization_visible_candidate_count": len(serialization_stage),
@@ -784,16 +1095,22 @@ def build_load_generated_resolver_provenance_sidecars(
         "google_called": False,
         "model_or_cloud_called": False,
         "private_measurement_run": False,
+        **adapter_dedupe_summary,
     }
     return {
         "schema_version": LOAD_GENERATED_RESOLVER_PROVENANCE_SCHEMA_VERSION,
         "summary": summary,
         "stage_rows": all_stage_rows,
         "generated_rows": generated_stage,
+        "adapter_input_rows": adapter_input_stage,
+        "adapter_output_rows": adapter_output_stage,
         "adapter_rows": adapter_input_stage + adapter_output_stage,
+        "dedupe_input_rows": dedupe_input_stage,
+        "dedupe_output_rows": dedupe_output_stage,
         "dedupe_rows": dedupe_input_stage + dedupe_output_stage,
         "resolver_rows": resolver_stage,
         "loss_rows": loss_rows,
+        "adapter_dedupe_loss_rows": adapter_dedupe_loss_rows,
         "review_rows": [
             {
                 "document_id": row["document_id"],
@@ -998,6 +1315,10 @@ def build_markdown_report(payload: dict[str, Any]) -> str:
         f"- current_artifacts_measurable: {summary['current_artifacts_measurable']}",
         f"- provenance_candidate_count: {summary['provenance_candidate_count']}",
         f"- generated_candidate_count: {summary['generated_candidate_count']}",
+        f"- adapter_input_count: {summary['adapter_input_count']}",
+        f"- adapter_output_count: {summary['adapter_output_count']}",
+        f"- dedupe_input_count: {summary['dedupe_input_count']}",
+        f"- dedupe_output_count: {summary['dedupe_output_count']}",
         f"- resolver_visible_candidate_count: {summary['resolver_visible_candidate_count']}",
         f"- generated_candidate_detail_available_count: {summary['generated_candidate_detail_available_count']}",
         f"- resolver_visible_detail_available_count: {summary['resolver_visible_detail_available_count']}",
@@ -1019,6 +1340,12 @@ def build_markdown_report(payload: dict[str, Any]) -> str:
     lines.extend(["", "## Roundtrip Statuses"])
     for status, count in summary["generated_resolver_roundtrip_status_counts"].items():
         lines.append(f"- {status}: {count}")
+    lines.extend(["", "## Adapter/Dedupe Stage Statuses", "### Adapter"])
+    for status, count in summary.get("adapter_stage_status_counts", {}).items():
+        lines.append(f"- {status}: {count}")
+    lines.append("### Dedupe")
+    for status, count in summary.get("dedupe_stage_status_counts", {}).items():
+        lines.append(f"- {status}: {count}")
     return "\n".join(lines) + "\n"
 
 
@@ -1033,18 +1360,48 @@ def write_load_generated_resolver_provenance_outputs(
         "summary": output_dir / "load_generated_resolver_provenance_summary.json",
         "report": output_dir / "load_generated_resolver_provenance_report.md",
         "generated_candidates": output_dir / "load_generated_candidates.csv",
+        "adapter_input_candidates": output_dir / "load_adapter_input_candidates.csv",
+        "adapter_output_candidates": output_dir / "load_adapter_output_candidates.csv",
         "adapter_roundtrip_rows": output_dir / "load_adapter_roundtrip_rows.csv",
         "resolver_visible_candidates": output_dir / "load_resolver_visible_candidates.csv",
+        "dedupe_input_candidates": output_dir / "load_dedupe_input_candidates.csv",
+        "dedupe_output_candidates": output_dir / "load_dedupe_output_candidates.csv",
         "dedupe_lineage_rows": output_dir / "load_dedupe_lineage_rows.csv",
+        "adapter_dedupe_loss_by_stage": output_dir / "load_adapter_dedupe_loss_by_stage.csv",
         "provenance_loss_by_stage": output_dir / "load_provenance_loss_by_stage.csv",
         "review_items": output_dir / "load_generated_resolver_review_items.csv",
     }
     write_json(paths["summary"], payload)
     paths["report"].write_text(build_markdown_report(payload), encoding="utf-8")
     write_csv(paths["generated_candidates"], payload["generated_rows"], STAGE_ROW_FIELDNAMES)
+    write_csv(
+        paths["adapter_input_candidates"],
+        payload.get("adapter_input_rows", []),
+        STAGE_ROW_FIELDNAMES,
+    )
+    write_csv(
+        paths["adapter_output_candidates"],
+        payload.get("adapter_output_rows", []),
+        STAGE_ROW_FIELDNAMES,
+    )
     write_csv(paths["adapter_roundtrip_rows"], payload["adapter_rows"], STAGE_ROW_FIELDNAMES)
     write_csv(paths["resolver_visible_candidates"], payload["resolver_rows"], STAGE_ROW_FIELDNAMES)
+    write_csv(
+        paths["dedupe_input_candidates"],
+        payload.get("dedupe_input_rows", []),
+        STAGE_ROW_FIELDNAMES,
+    )
+    write_csv(
+        paths["dedupe_output_candidates"],
+        payload.get("dedupe_output_rows", []),
+        STAGE_ROW_FIELDNAMES,
+    )
     write_csv(paths["dedupe_lineage_rows"], payload["dedupe_rows"], STAGE_ROW_FIELDNAMES)
+    write_csv(
+        paths["adapter_dedupe_loss_by_stage"],
+        payload.get("adapter_dedupe_loss_rows", []),
+        ADAPTER_DEDUPE_LOSS_FIELDNAMES,
+    )
     write_csv(paths["provenance_loss_by_stage"], payload["loss_rows"], LOSS_ROW_FIELDNAMES)
     write_csv(
         paths["review_items"],

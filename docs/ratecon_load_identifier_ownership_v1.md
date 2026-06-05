@@ -147,3 +147,9 @@ evaluator, and sidecar visibility. It reports where already-existing load
 candidate provenance disappears. It must not own load candidate taxonomy,
 resolver scoring, selected value choice, extraction behavior, or evaluator
 status semantics.
+
+Adapter/dedupe stage sidecars extend the generated/resolver provenance owner by
+making adapter input/output and dedupe input/output visibility explicit. They
+preserve only already-existing metadata and remain local-only diagnostics. They
+do not change load candidate generation, dedupe decisions, resolver ranking, or
+selected output.

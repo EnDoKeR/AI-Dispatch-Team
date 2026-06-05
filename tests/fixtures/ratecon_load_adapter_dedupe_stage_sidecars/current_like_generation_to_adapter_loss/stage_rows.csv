@@ -1,0 +1,3 @@
+document_id,field,stage,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,bbox_available,candidate_rank,selected,resolver_eligible
+FakeLoadConfirmationA,load_number,generated,cand-load-1,LOAD12345,table_key_value_row,load_identifier,same_row,1,5,true,1,false,false
+FakeLoadConfirmationA,load_number,resolver,cand-load-1,LOAD12345,table_key_value_row,load_identifier,same_row,1,5,true,1,true,true

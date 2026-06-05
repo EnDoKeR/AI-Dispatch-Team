@@ -115,3 +115,11 @@ provenance current-run verification. If boundary comparison reports any first
 loss other than `boundary_no_loss_complete_roundtrip`, experiment readiness
 remains blocked. The boundary result does not approve behavior changes by
 itself.
+
+## Adapter/Dedupe Stage Sidecars
+
+If generated/resolver sidecars include adapter/dedupe stage rows, the closeout
+also reports adapter input/output and dedupe input/output counts. These counts
+are visibility evidence only. Readiness remains blocked when adapter/dedupe
+stage visibility is missing, when complete roundtrip is absent, or when selected
+load gates have not passed.

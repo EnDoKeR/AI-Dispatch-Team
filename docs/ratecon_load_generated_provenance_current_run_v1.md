@@ -85,3 +85,11 @@ audit, evaluator, and sidecar rows and reports the first unavailable boundary.
 The current-run summarizer can consume `--boundary-compare-dir` additively. A
 boundary compare result can only block readiness; it does not approve
 table-neighbor or nearby-row behavior changes.
+
+## Adapter/Dedupe Stage Sidecars
+
+Adapter/dedupe stage sidecars add explicit adapter input/output and dedupe
+input/output rows to the generated/resolver provenance output. Current-run
+readiness remains blocked unless those rows are available, resolver rows are
+available, and complete roundtrip is proven by local-only sidecars and existing
+selected-load gates.

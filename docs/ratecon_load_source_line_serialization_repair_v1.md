@@ -146,3 +146,10 @@ continues to be diagnostic-only and does not approve load selection changes.
 identify whether complete generated-to-sidecar roundtrip is still blocked by a
 later diagnostic boundary. The input is additive and cannot make readiness more
 permissive.
+
+## Adapter/Dedupe Stage Sidecars
+
+Adapter/dedupe stage sidecars split adapter input/output and dedupe input/output
+rows. Serialization repair should use those rows only to locate where existing
+metadata stops being visible; it must not infer page/line/source detail or
+change resolver behavior.
