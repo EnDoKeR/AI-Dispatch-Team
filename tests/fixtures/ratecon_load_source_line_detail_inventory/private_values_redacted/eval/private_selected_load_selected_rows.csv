@@ -1,0 +1,2 @@
+document_id,field,selected_value,gold_value,selected_source,selected_confidence,selected_status,selected_label,selected_line_index,selected_page_index
+FakeLoadConfirmationG,load_number,LOAD12345,LOAD12345,native_text,0.90,resolved,Load #,3,1

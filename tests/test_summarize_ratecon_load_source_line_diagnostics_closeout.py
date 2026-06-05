@@ -15,7 +15,12 @@ class SummarizeRateconLoadSourceLineDiagnosticsCloseoutTests(unittest.TestCase):
     def _output_dir(self, tmp_path: Path, name: str) -> Path:
         return tmp_path / ".local_outputs" / name
 
-    def _run_fixture(self, tmp_path: Path, fixture: str) -> subprocess.CompletedProcess:
+    def _run_fixture(
+        self,
+        tmp_path: Path,
+        fixture: str,
+        *extra_args: str,
+    ) -> subprocess.CompletedProcess:
         fixture_dir = FIXTURES / fixture
         cmd = [
             sys.executable,
@@ -31,6 +36,7 @@ class SummarizeRateconLoadSourceLineDiagnosticsCloseoutTests(unittest.TestCase):
             "--output-dir",
             str(self._output_dir(tmp_path, fixture)),
             "--confirm-local-audit-run",
+            *extra_args,
         ]
         return subprocess.run(cmd, cwd=ROOT, text=True, capture_output=True)
 
@@ -214,6 +220,71 @@ class SummarizeRateconLoadSourceLineDiagnosticsCloseoutTests(unittest.TestCase):
         self.assertFalse(summary["google_called"])
         self.assertFalse(summary["model_or_cloud_called"])
         self.assertFalse(summary["private_measurement_run"])
+
+    def test_missing_optional_detail_inventory_preserves_current_status(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            result = self._run_fixture(
+                tmp_path,
+                "complete_actionable",
+                "--detail-inventory-dir",
+                str(tmp_path / "missing_detail_inventory"),
+            )
+            summary = self._summary(tmp_path, "complete_actionable")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            self._expected_status("complete_actionable"),
+            summary["closeout_status"],
+        )
+        self.assertEqual("skipped_missing_optional_dir", summary["detail_inventory"]["status"])
+
+    def test_detail_inventory_with_dominant_missing_detail_blocks_readiness(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            detail_dir = tmp_path / "detail_inventory"
+            detail_dir.mkdir()
+            (detail_dir / "load_source_line_detail_inventory_summary.json").write_text(
+                json.dumps(
+                    {
+                        "summary": {
+                            "detail_input_status": "available",
+                            "candidate_detail_row_count": 4,
+                            "complete_source_detail_count": 1,
+                            "missing_page_line_count": 3,
+                            "missing_source_count": 0,
+                            "dropped_detail_count": 0,
+                            "unknown_caused_by_missing_detail_count": 3,
+                            "private_values_included": False,
+                            "values_redacted": True,
+                        }
+                    }
+                ),
+                encoding="utf-8",
+            )
+            result = self._run_fixture(
+                tmp_path,
+                "complete_actionable",
+                "--detail-inventory-dir",
+                str(detail_dir),
+            )
+            summary = self._summary(tmp_path, "complete_actionable")
+
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertEqual(
+            "load_source_line_diagnostics_incomplete_detail_unavailable",
+            summary["closeout_status"],
+        )
+        self.assertEqual("present", summary["detail_inventory"]["status"])
+        self.assertEqual(3, summary["detail_inventory"]["missing_page_line_count"])
+        self.assertTrue(
+            any(
+                row["readiness_check"] == "detail_inventory_not_dominated_by_missing_detail"
+                and not row["passed"]
+                and row["blocking"]
+                for row in summary["readiness"]
+            )
+        )
 
     def test_committed_closeout_fixtures_are_sanitized(self):
         forbidden = (

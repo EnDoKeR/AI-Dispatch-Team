@@ -85,6 +85,14 @@ any source-line evidence-quality behavior experiment. If the closeout reports
 mostly unavailable detail or unknown buckets, table-neighbor and nearby-row
 experiments remain blocked until audit/eval evidence is improved.
 
+`app/document_ai/load_identifier_source_line_detail.py` and
+`scripts/create_ratecon_load_source_line_detail_inventory.py` add local-only
+detail inventory sidecars for existing eval/audit/diagnostic metadata. They
+explain whether unknown or source-line-unavailable diagnostics are caused by
+missing candidate id, source, page/line, pairing, label, value, or evaluator
+detail. They do not change selected load output, candidate generation, resolver
+ranking, source labels, confidence values, schemas, or evaluator statuses.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

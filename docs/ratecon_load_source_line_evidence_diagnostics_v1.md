@@ -91,8 +91,9 @@ Future behavior changes require:
 
 1. the selected-load regression harness;
 2. the private selected-load aggregate gate;
-3. the load source-line diagnostics closeout/readiness gate;
-4. private full-corpus evaluation only when explicitly requested.
+3. load source-line detail inventory when available;
+4. the load source-line diagnostics closeout/readiness gate;
+5. private full-corpus evaluation only when explicitly requested.
 
 Known debt remains table-neighbor wrong cell, nearby-row wrong pair, noisy
 references, footer/barcode noise, and ambiguous competing load identifiers.
@@ -110,3 +111,12 @@ Diagnostics are not experiment approval. If local diagnostics are dominated by
 `evaluator_detail_unavailable`, or `unknown`, future table-neighbor or
 nearby-row behavior experiments are blocked until source-line/evidence detail
 is enriched.
+
+## Detail Inventory
+
+`scripts/create_ratecon_load_source_line_detail_inventory.py` adds a separate
+local-only detail sidecar over existing eval/audit/diagnostic outputs. It
+reports whether source, page/line, candidate id, pairing method, label context,
+value context, and neighboring context are available. The sidecar does not
+change diagnostic classifications from this document and does not feed any
+signal back into the resolver.

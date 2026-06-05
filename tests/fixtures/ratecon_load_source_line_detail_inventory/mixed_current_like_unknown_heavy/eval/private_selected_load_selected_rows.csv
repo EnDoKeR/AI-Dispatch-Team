@@ -1,0 +1,4 @@
+document_id,field,selected_value,gold_value,selected_source,selected_confidence,selected_status,selected_label,selected_line_index,selected_page_index
+FakeLoadConfirmationH,load_number,REF33333,LOAD12345,table_neighbor,0.90,resolved,Load #,,
+FakeLoadConfirmationI,load_number,PO99999,LOAD12345,nearby_row,0.87,resolved,Load #,,
+FakeLoadConfirmationJ,load_number,LOAD12345,LOAD12345,table_key_value_row,0.92,resolved,Load #,4,1

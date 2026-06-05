@@ -1,0 +1,305 @@
+"""Create local-only RateCon load source-line detail inventory sidecars.
+
+This script reads existing local evaluation, audit, and diagnostics artifacts.
+It does not run measurement, process PDFs, invoke OCR, call Google, or call
+model/cloud services. Default outputs redact selected, gold, and candidate
+values.
+"""
+
+from __future__ import annotations
+
+import argparse
+import csv
+import json
+import sys
+from pathlib import Path
+from typing import Any
+
+REPO_ROOT = Path(__file__).resolve().parents[1]
+if str(REPO_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPO_ROOT))
+
+from app.document_ai.load_identifier_source_line_detail import (
+    LOAD_FIELD,
+    build_load_source_line_detail_inventory,
+)
+
+
+SUMMARY_FILE = "ratecon_gold_evaluation_summary.json"
+ERROR_CASE_FILES = (
+    "ratecon_gold_evaluation_error_cases.csv",
+    "ratecon_gold_error_cases.csv",
+)
+SELECTED_ROW_FILES = (
+    "private_selected_load_selected_rows.csv",
+    "ratecon_selected_load_comparison_rows.csv",
+    "selected_load_comparison_rows.csv",
+    "ratecon_gold_selected_load_rows.csv",
+    "selected_load_rows.csv",
+)
+DIAGNOSTICS_SUMMARY_FILE = "load_source_line_diagnostics_summary.json"
+DIAGNOSTIC_ROW_FILE = "load_source_line_error_cases.csv"
+
+
+def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Create local-only RateCon load source-line detail inventory."
+    )
+    parser.add_argument("--eval-dir", required=True)
+    parser.add_argument("--audit", required=True)
+    parser.add_argument("--diagnostics-dir", required=True)
+    parser.add_argument("--output-dir", required=True)
+    parser.add_argument("--confirm-private-local-run", action="store_true")
+    parser.add_argument("--include-private-values-local-only", action="store_true")
+    return parser.parse_args(argv)
+
+
+def _resolve(path: str | Path) -> Path:
+    return Path(path).expanduser().resolve()
+
+
+def _require_output_under_local_outputs(path: Path) -> Path:
+    if ".local_outputs" not in path.parts:
+        raise ValueError("output-dir must be inside .local_outputs")
+    return path
+
+
+def _read_json(path: Path) -> dict[str, Any]:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
+def _find_first(directory: Path, names: tuple[str, ...]) -> Path | None:
+    for name in names:
+        path = directory / name
+        if path.exists():
+            return path
+    return None
+
+
+def _csv_rows(path: Path | None) -> list[dict[str, str]]:
+    if path is None or not path.exists():
+        return []
+    with path.open("r", encoding="utf-8", newline="") as handle:
+        return [dict(row) for row in csv.DictReader(handle)]
+
+
+def _text(value: Any) -> str:
+    return str(value or "").strip()
+
+
+def _field_matches(row: dict[str, Any]) -> bool:
+    field = _text(row.get("field") or row.get("field_name"))
+    return not field or field == LOAD_FIELD
+
+
+def _document_id(row: dict[str, Any], fallback: str = "") -> str:
+    return _text(
+        row.get("document_id")
+        or row.get("case_id")
+        or row.get("measurement_alias")
+        or row.get("file_hash")
+        or fallback
+    )
+
+
+def _rows_by_doc(rows: list[dict[str, Any]], fallback_prefix: str) -> dict[str, dict[str, Any]]:
+    by_doc: dict[str, dict[str, Any]] = {}
+    for index, row in enumerate(rows, start=1):
+        if not _field_matches(row):
+            continue
+        by_doc[_document_id(row, f"{fallback_prefix}_{index}")] = row
+    return by_doc
+
+
+def _read_selected_rows(eval_dir: Path) -> dict[str, dict[str, Any]]:
+    return _rows_by_doc(
+        _csv_rows(_find_first(eval_dir, SELECTED_ROW_FILES)),
+        "selected_row",
+    )
+
+
+def _read_error_rows(eval_dir: Path) -> dict[str, dict[str, Any]]:
+    return _rows_by_doc(
+        _csv_rows(_find_first(eval_dir, ERROR_CASE_FILES)),
+        "error_row",
+    )
+
+
+def _read_diagnostic_rows(diagnostics_dir: Path) -> dict[str, dict[str, Any]]:
+    return _rows_by_doc(
+        _csv_rows(diagnostics_dir / DIAGNOSTIC_ROW_FILE),
+        "diagnostic_row",
+    )
+
+
+def _read_audit_rows(path: Path) -> dict[str, dict[str, Any]]:
+    rows: dict[str, dict[str, Any]] = {}
+    if not path.exists():
+        return rows
+    for index, line in enumerate(path.read_text(encoding="utf-8").splitlines(), start=1):
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, dict):
+            continue
+        rows[_document_id(payload, f"audit_row_{index}")] = payload
+    return rows
+
+
+def _write_json(path: Path, payload: dict[str, Any]) -> None:
+    path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+
+
+def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
+    with path.open("w", encoding="utf-8", newline="") as handle:
+        writer = csv.DictWriter(handle, fieldnames=fieldnames)
+        writer.writeheader()
+        for row in rows:
+            writer.writerow({field: row.get(field, "") for field in fieldnames})
+
+
+def _write_report(path: Path, payload: dict[str, Any]) -> None:
+    summary = payload["summary"]
+    lines = [
+        "# RateCon Load Source-Line Detail Inventory",
+        "",
+        "Local-only detail inventory over existing evaluation/audit/diagnostic artifacts.",
+        "Private selected, gold, and candidate values are redacted unless explicitly included locally.",
+        "",
+        f"- detail_input_status: {summary['detail_input_status']}",
+        f"- document_count: {summary['document_count']}",
+        f"- candidate_detail_row_count: {summary['candidate_detail_row_count']}",
+        f"- complete_source_detail_count: {summary['complete_source_detail_count']}",
+        f"- missing_page_line_count: {summary['missing_page_line_count']}",
+        f"- missing_source_count: {summary['missing_source_count']}",
+        f"- dropped_detail_count: {summary['dropped_detail_count']}",
+        f"- unknown_caused_by_missing_detail_count: {summary['unknown_caused_by_missing_detail_count']}",
+        f"- private_values_included: {summary['private_values_included']}",
+        f"- values_redacted: {summary['values_redacted']}",
+        f"- pdf_processing_attempted: {summary['pdf_processing_attempted']}",
+        f"- ocr_attempted: {summary['ocr_attempted']}",
+        f"- google_called: {summary['google_called']}",
+        f"- model_or_cloud_called: {summary['model_or_cloud_called']}",
+        "",
+        "## Detail Loss Buckets",
+    ]
+    for bucket, count in summary["detail_loss_bucket_counts"].items():
+        lines.append(f"- {bucket}: {count}")
+    path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
+    output_dir.mkdir(parents=True, exist_ok=True)
+    _write_json(output_dir / "load_source_line_detail_inventory_summary.json", payload)
+    _write_report(output_dir / "load_source_line_detail_inventory_report.md", payload)
+    _write_csv(
+        output_dir / "load_source_line_detail_rows.csv",
+        payload["detail_rows"],
+        [
+            "document_id",
+            "file_name_redacted_or_alias",
+            "field",
+            "candidate_id",
+            "selected",
+            "candidate_rank",
+            "source",
+            "source_family",
+            "parser_name",
+            "pairing_method",
+            "page_number",
+            "line_index",
+            "bbox_available",
+            "source_line_status",
+            "candidate_value_status",
+            "label_text_status",
+            "value_text_status",
+            "neighbor_context_status",
+            "detail_loss_bucket",
+            "detail_loss_stage",
+            "detail_loss_reason",
+            "diagnostic_bucket",
+            "known_debt",
+            "private_values_redacted",
+            "value_preview",
+            "gold_value_preview",
+        ],
+    )
+    _write_csv(
+        output_dir / "load_source_line_detail_loss.csv",
+        payload["detail_loss_rows"],
+        [
+            "document_id",
+            "candidate_id",
+            "detail_loss_bucket",
+            "detail_loss_stage",
+            "detail_loss_reason",
+            "diagnostic_bucket",
+        ],
+    )
+    _write_csv(
+        output_dir / "load_source_line_candidate_detail_coverage.csv",
+        payload["coverage_rows"],
+        ["coverage_metric", "count", "detail"],
+    )
+    _write_csv(
+        output_dir / "load_source_line_detail_review_items.csv",
+        payload["review_rows"],
+        [
+            "document_id",
+            "detail_loss_bucket",
+            "diagnostic_bucket",
+            "recommended_action",
+            "behavior_change_allowed",
+        ],
+    )
+
+
+def build_inventory(args: argparse.Namespace) -> dict[str, Any]:
+    eval_dir = _resolve(args.eval_dir)
+    diagnostics_dir = _resolve(args.diagnostics_dir)
+    diagnostics_payload = _read_json(diagnostics_dir / DIAGNOSTICS_SUMMARY_FILE)
+    return build_load_source_line_detail_inventory(
+        selected_rows=_read_selected_rows(eval_dir),
+        error_rows=_read_error_rows(eval_dir),
+        audit_rows=_read_audit_rows(_resolve(args.audit)),
+        diagnostic_rows=_read_diagnostic_rows(diagnostics_dir),
+        diagnostics_summary=diagnostics_payload.get("summary") or {},
+        include_private_values=bool(args.include_private_values_local_only),
+    )
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = parse_args(argv)
+    if not args.confirm_private_local_run:
+        raise SystemExit("--confirm-private-local-run is required for this local-only detail inventory.")
+    output_dir = _require_output_under_local_outputs(_resolve(args.output_dir))
+    payload = build_inventory(args)
+    write_outputs(output_dir, payload)
+    summary = payload["summary"]
+    print("RateCon load source-line detail inventory")
+    print(f"detail_input_status: {summary['detail_input_status']}")
+    print(f"document_count: {summary['document_count']}")
+    print(f"candidate_detail_row_count: {summary['candidate_detail_row_count']}")
+    print(f"complete_source_detail_count: {summary['complete_source_detail_count']}")
+    print(f"missing_page_line_count: {summary['missing_page_line_count']}")
+    print(f"missing_source_count: {summary['missing_source_count']}")
+    print(f"dropped_detail_count: {summary['dropped_detail_count']}")
+    print(
+        "unknown_caused_by_missing_detail_count: "
+        f"{summary['unknown_caused_by_missing_detail_count']}"
+    )
+    print(f"private_values_included: {summary['private_values_included']}")
+    print(f"values_redacted: {summary['values_redacted']}")
+    print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")
+    print(f"ocr_attempted: {summary['ocr_attempted']}")
+    print(f"google_called: {summary['google_called']}")
+    print(f"model_or_cloud_called: {summary['model_or_cloud_called']}")
+    print(f"output_dir: {output_dir}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

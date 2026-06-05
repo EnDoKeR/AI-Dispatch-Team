@@ -304,6 +304,17 @@ future load evidence experiments are not ready. If actionable, the next
 behavior work must still be shadow-only and gated by the selected-load
 regression harness and private selected-load aggregate gate.
 
+The next diagnostic-detail phase enriches local-only load source-line evidence
+availability with `app/document_ai/load_identifier_source_line_detail.py` and
+`scripts/create_ratecon_load_source_line_detail_inventory.py`. It adds
+redacted detail-loss sidecars for existing eval/audit/diagnostic outputs and
+feeds those summaries into the closeout gate. It must not change selected load
+output, candidate generation, resolver ranking/scoring, source labels,
+confidence values, schemas, evaluator statuses, private measurement, PDF
+processing, or OCR behavior. If detail remains missing, the next target is
+audit/eval serialization repair, not table-neighbor or nearby-row behavior
+changes.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
@@ -314,6 +325,8 @@ Future rate/money consolidation should continue with one narrow target:
 - shadow-only table-neighbor/nearby-row evidence-quality experiment if closeout
   is actionable;
 - audit/eval source-line detail enrichment if closeout is not actionable;
+- audit/eval serialization repair if detail inventory still shows missing
+  page/line/source detail;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

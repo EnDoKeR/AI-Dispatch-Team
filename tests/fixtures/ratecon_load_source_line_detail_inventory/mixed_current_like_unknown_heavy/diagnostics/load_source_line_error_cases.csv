@@ -1,0 +1,4 @@
+document_id,field,diagnostic_bucket
+FakeLoadConfirmationH,load_number,unknown
+FakeLoadConfirmationI,load_number,unknown
+FakeLoadConfirmationJ,load_number,duplicate_same_value_candidates

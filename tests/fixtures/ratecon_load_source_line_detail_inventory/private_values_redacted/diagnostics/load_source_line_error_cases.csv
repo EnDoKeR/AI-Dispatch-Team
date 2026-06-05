@@ -1,0 +1,2 @@
+document_id,field,diagnostic_bucket
+FakeLoadConfirmationG,load_number,duplicate_same_value_candidates
