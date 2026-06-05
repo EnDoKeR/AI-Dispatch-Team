@@ -205,6 +205,14 @@ def _roundtrip_status(serialization_loss_stage: str) -> str:
     return "loss_detected"
 
 
+def _adapter_roundtrip_status(row: dict[str, Any]) -> str:
+    return _text(row.get("adapter_roundtrip_status"))
+
+
+def _adapter_loss_reason(row: dict[str, Any]) -> str:
+    return _text(row.get("adapter_loss_reason"))
+
+
 def _candidate_from_serialization(row: dict[str, Any], index: int) -> dict[str, Any]:
     serialization_loss_stage = _text(
         row.get("serialization_loss_stage") or row.get("serialization_loss_bucket")
@@ -227,6 +235,8 @@ def _candidate_from_serialization(row: dict[str, Any], index: int) -> dict[str, 
         "serialization_loss_stage": serialization_loss_stage,
         "serialization_loss_reason": row.get("detail_loss_reason"),
         "source_detail_roundtrip_status": _roundtrip_status(serialization_loss_stage),
+        "adapter_roundtrip_status": _adapter_roundtrip_status(row),
+        "adapter_loss_reason": _adapter_loss_reason(row),
     }
 
 
@@ -467,6 +477,8 @@ def _detail_row(
         "source_detail_roundtrip_status": _text(
             candidate.get("source_detail_roundtrip_status")
         ),
+        "adapter_roundtrip_status": _text(candidate.get("adapter_roundtrip_status")),
+        "adapter_loss_reason": _text(candidate.get("adapter_loss_reason")),
         "diagnostic_bucket": diagnostic_bucket,
         "known_debt": diagnostic_bucket in KNOWN_DEBT_DIAGNOSTIC_BUCKETS,
         "private_values_redacted": not include_private_values,
@@ -604,6 +616,20 @@ def build_load_source_line_detail_inventory(
         for row in detail_rows
         if row["serialization_loss_stage"] != "not_available"
     )
+    adapter_roundtrip_counts = Counter(
+        row["adapter_roundtrip_status"]
+        for row in detail_rows
+        if row["adapter_roundtrip_status"]
+    )
+    adapter_detail_lost_count = sum(
+        count
+        for status, count in adapter_roundtrip_counts.items()
+        if status.startswith("adapter_roundtrip_lost_")
+    )
+    adapter_detail_preserved_count = (
+        adapter_roundtrip_counts["adapter_roundtrip_complete"]
+        + adapter_roundtrip_counts["adapter_roundtrip_preserved_partial_detail"]
+    )
     source_line_complete_count = loss_counts[DETAIL_LOSS_COMPLETE]
     missing_page_line_count = loss_counts[DETAIL_LOSS_MISSING_PAGE_LINE]
     missing_source_count = loss_counts[DETAIL_LOSS_MISSING_SOURCE]
@@ -697,6 +723,9 @@ def build_load_source_line_detail_inventory(
                 "complete_detail_serialized"
             ],
             "serialization_loss_bucket_counts": dict(sorted(serialization_loss_counts.items())),
+            "adapter_roundtrip_status_counts": dict(sorted(adapter_roundtrip_counts.items())),
+            "adapter_detail_preserved_count": adapter_detail_preserved_count,
+            "adapter_detail_lost_count": adapter_detail_lost_count,
             "private_values_included": include_private_values,
             "values_redacted": not include_private_values,
             "pdf_processing_attempted": False,
@@ -716,6 +745,8 @@ def build_load_source_line_detail_inventory(
                 "serialization_loss_stage": row["serialization_loss_stage"],
                 "serialization_loss_reason": row["serialization_loss_reason"],
                 "source_detail_roundtrip_status": row["source_detail_roundtrip_status"],
+                "adapter_roundtrip_status": row["adapter_roundtrip_status"],
+                "adapter_loss_reason": row["adapter_loss_reason"],
                 "diagnostic_bucket": row["diagnostic_bucket"],
             }
             for row in detail_rows

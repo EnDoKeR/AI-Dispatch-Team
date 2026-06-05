@@ -7,6 +7,9 @@ from app.document_ai.ratecon_canonical_fields import (
     confidence_after_mapping,
     normalize_raw_field_name,
 )
+from app.document_ai.load_identifier_candidate_adapter_provenance import (
+    preserve_load_candidate_provenance,
+)
 
 
 SOURCE_NATIVE_TEXT = "native_text"
@@ -160,6 +163,18 @@ def adapt_ratecon_candidate_to_field_candidate(
         context_before=candidate.get("context_before", ""),
         context_after=candidate.get("context_after", ""),
     )
+    metadata = preserve_load_candidate_provenance(
+        candidate,
+        parser_name=parser_name,
+        metadata={
+            "candidate_id": _text(candidate.get("candidate_id")),
+            "value_type": _text(candidate.get("value_type")),
+            "identifier_type": _text(candidate.get("identifier_type")),
+            "confidence_reasons": list(candidate.get("confidence_reasons", []) or []),
+            "warnings": list(candidate.get("warnings", []) or []),
+            "original_source": _text(candidate.get("source")),
+        },
+    )
     return build_field_candidate(
         field=candidate.get("field_name", ""),
         value=candidate.get("raw_value") or value,
@@ -171,14 +186,7 @@ def adapt_ratecon_candidate_to_field_candidate(
         source=_source_from_candidate(candidate),
         parser_name=parser_name,
         confidence=candidate.get("confidence", ""),
-        metadata={
-            "candidate_id": _text(candidate.get("candidate_id")),
-            "value_type": _text(candidate.get("value_type")),
-            "identifier_type": _text(candidate.get("identifier_type")),
-            "confidence_reasons": list(candidate.get("confidence_reasons", []) or []),
-            "warnings": list(candidate.get("warnings", []) or []),
-            "original_source": _text(candidate.get("source")),
-        },
+        metadata=metadata,
     )
 
 

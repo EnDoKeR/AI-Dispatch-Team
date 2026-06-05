@@ -101,6 +101,13 @@ and classify where it is lost. They do not own candidate taxonomy, resolver
 selection, source labels, confidence values, schemas, or evaluator status
 semantics.
 
+`app/document_ai/load_identifier_candidate_adapter_provenance.py` and
+`scripts/audit_ratecon_load_candidate_adapter_provenance.py` focus specifically
+on preserving already-existing load candidate provenance metadata across the
+candidate adapter boundary. They do not infer missing metadata, change candidate
+generation, change selected-value resolution, or approve table/nearby-row
+behavior changes.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

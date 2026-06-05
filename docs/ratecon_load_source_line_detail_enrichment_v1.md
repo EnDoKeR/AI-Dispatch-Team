@@ -98,3 +98,12 @@ generation, resolver trace, shadow audit, and evaluator surfaces.
 
 Serialization repair is diagnostic-only. It does not infer missing page/line
 metadata and does not change selected load output or resolver behavior.
+
+## Adapter Roundtrip Detail
+
+When the serialization sidecar includes adapter provenance fields, the detail
+inventory reports `adapter_roundtrip_status`, `adapter_loss_reason`,
+`adapter_detail_preserved_count`, and `adapter_detail_lost_count`. These fields
+show whether already-present load candidate metadata survived the adapter
+boundary. They are local-only diagnostics and do not make closeout readiness
+more permissive.

@@ -196,10 +196,15 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
             "## Serialization Sidecar",
             f"- serialization_sidecar_status: {summary['serialization_sidecar_status']}",
             f"- serialization_complete_detail_count: {summary['serialization_complete_detail_count']}",
+            f"- adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}",
+            f"- adapter_detail_lost_count: {summary['adapter_detail_lost_count']}",
         ]
     )
     for bucket, count in summary["serialization_loss_bucket_counts"].items():
         lines.append(f"- {bucket}: {count}")
+    lines.extend(["", "## Adapter Roundtrip Statuses"])
+    for status, count in summary["adapter_roundtrip_status_counts"].items():
+        lines.append(f"- {status}: {count}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -235,6 +240,8 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "serialization_loss_stage",
             "serialization_loss_reason",
             "source_detail_roundtrip_status",
+            "adapter_roundtrip_status",
+            "adapter_loss_reason",
             "diagnostic_bucket",
             "known_debt",
             "private_values_redacted",
@@ -254,6 +261,8 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "serialization_loss_stage",
             "serialization_loss_reason",
             "source_detail_roundtrip_status",
+            "adapter_roundtrip_status",
+            "adapter_loss_reason",
             "diagnostic_bucket",
         ],
     )
@@ -321,6 +330,8 @@ def main(argv: list[str] | None = None) -> int:
         "serialization_complete_detail_count: "
         f"{summary['serialization_complete_detail_count']}"
     )
+    print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
+    print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")
