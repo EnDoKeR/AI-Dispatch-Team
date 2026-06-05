@@ -158,3 +158,7 @@ Adapter/dedupe current-run verification is required before future
 evidence-quality behavior changes. It must show generated, adapter, dedupe, and
 resolver rows are comparable without inferred metadata and without changing
 selected load output.
+
+Resolver-to-audit provenance preservation is required when resolver-visible load
+metadata is present but audit diagnostics lose candidate/source/page/line
+detail. This remains local-only and must not feed back into resolver behavior.

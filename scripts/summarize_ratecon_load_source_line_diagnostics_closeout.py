@@ -95,6 +95,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--generated-resolver-provenance-dir")
     parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--adapter-dedupe-current-run-dir")
+    parser.add_argument("--resolver-to-audit-sidecar-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -440,6 +441,21 @@ def _boundary_compare_summary(boundary_dir: Path | None) -> dict[str, Any]:
         str(key): _to_int(value)
         for key, value in dict(summary.get("loss_boundary_counts") or {}).items()
     }
+    return {
+        "boundary_compare_status": (
+            status if status == "present" else "skipped_missing_optional_dir"
+        ),
+        "boundary_first_loss_boundary": first_loss_boundary,
+        "boundary_complete_roundtrip_count": complete_roundtrip_count,
+        "boundary_candidate_count": _to_int(summary.get("candidate_count")),
+        "boundary_loss_boundary_counts": counts,
+        "boundary_blocks_readiness": status == "present"
+        and (
+            complete_roundtrip_count <= 0
+            or first_loss_boundary
+            not in {"", "boundary_no_loss_complete_roundtrip"}
+        ),
+    }
 
 
 def _adapter_dedupe_current_run_summary(current_run_dir: Path | None) -> dict[str, Any]:
@@ -468,20 +484,28 @@ def _adapter_dedupe_current_run_summary(current_run_dir: Path | None) -> dict[st
         "blocks_readiness": status == "present"
         and current_status != "adapter_dedupe_current_run_full_roundtrip_measurable",
     }
+
+
+def _resolver_to_audit_sidecar_summary(sidecar_dir: Path | None) -> dict[str, Any]:
+    if sidecar_dir is None:
+        return {
+            "status": "skipped_not_requested",
+            "resolver_to_audit_preserved_count": 0,
+            "resolver_to_audit_loss_count": 0,
+            "blocks_readiness": False,
+        }
+    payload, status = _read_json_if_present(
+        sidecar_dir / "load_resolver_to_audit_provenance_summary.json"
+    )
+    summary = dict(payload.get("summary") or payload) if payload else {}
+    loss_count = _to_int(summary.get("resolver_to_audit_loss_count"))
     return {
-        "boundary_compare_status": (
-            status if status == "present" else "skipped_missing_optional_dir"
+        "status": status if status == "present" else "skipped_missing_optional_dir",
+        "resolver_to_audit_preserved_count": _to_int(
+            summary.get("resolver_to_audit_preserved_count")
         ),
-        "boundary_first_loss_boundary": first_loss_boundary,
-        "boundary_complete_roundtrip_count": complete_roundtrip_count,
-        "boundary_candidate_count": _to_int(summary.get("candidate_count")),
-        "boundary_loss_boundary_counts": counts,
-        "boundary_blocks_readiness": status == "present"
-        and (
-            complete_roundtrip_count <= 0
-            or first_loss_boundary
-            not in {"", "boundary_no_loss_complete_roundtrip"}
-        ),
+        "resolver_to_audit_loss_count": loss_count,
+        "blocks_readiness": status == "present" and loss_count > 0,
     }
 
 
@@ -912,6 +936,7 @@ def summarize_closeout(
     generated_resolver_provenance_dir: Path | None = None,
     boundary_compare_dir: Path | None = None,
     adapter_dedupe_current_run_dir: Path | None = None,
+    resolver_to_audit_sidecar_dir: Path | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
@@ -928,6 +953,9 @@ def summarize_closeout(
     )
     adapter_dedupe_current_run = _adapter_dedupe_current_run_summary(
         adapter_dedupe_current_run_dir
+    )
+    resolver_to_audit_sidecar = _resolver_to_audit_sidecar_summary(
+        resolver_to_audit_sidecar_dir
     )
     repo = _repo_evidence(repo_root)
     criteria = _success_criteria(diagnostics, aggregate_gate, repo)
@@ -949,6 +977,7 @@ def summarize_closeout(
         "aggregate_gate": aggregate_gate,
         "detail_inventory": detail_inventory,
         "adapter_dedupe_current_run": adapter_dedupe_current_run,
+        "resolver_to_audit_sidecar": resolver_to_audit_sidecar,
         "repo_evidence": repo,
         "success_criteria": criteria,
         "readiness": readiness,
@@ -1028,6 +1057,9 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- adapter_dedupe_current_run_status: {summary['adapter_dedupe_current_run']['current_run_status']}",
         f"- adapter_dedupe_current_run_first_loss_boundary: {summary['adapter_dedupe_current_run']['first_loss_boundary']}",
         f"- adapter_dedupe_current_run_complete_roundtrip_count: {summary['adapter_dedupe_current_run']['complete_roundtrip_count']}",
+        f"- resolver_to_audit_sidecar_status: {summary['resolver_to_audit_sidecar']['status']}",
+        f"- resolver_to_audit_preserved_count: {summary['resolver_to_audit_sidecar']['resolver_to_audit_preserved_count']}",
+        f"- resolver_to_audit_loss_count: {summary['resolver_to_audit_sidecar']['resolver_to_audit_loss_count']}",
         "- private_values_redacted: True",
         "- pdf_processing_attempted: False",
         "- ocr_attempted: False",
@@ -1107,6 +1139,9 @@ def main(argv: list[str] | None = None) -> int:
             _resolve(args.boundary_compare_dir) if args.boundary_compare_dir else None,
             _resolve(args.adapter_dedupe_current_run_dir)
             if args.adapter_dedupe_current_run_dir
+            else None,
+            _resolve(args.resolver_to_audit_sidecar_dir)
+            if args.resolver_to_audit_sidecar_dir
             else None,
         )
         write_outputs(output_dir, summary)

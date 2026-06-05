@@ -129,3 +129,8 @@ load gates have not passed.
 The closeout can consume adapter/dedupe current-run evidence as an optional
 local-only gate. This cannot make readiness more permissive. Any status other
 than full roundtrip measurable keeps future load behavior experiments blocked.
+
+Resolver-to-audit sidecar evidence is also optional local-only context. It can
+show whether resolver-visible metadata survives into audit diagnostics, but it
+cannot make readiness more permissive unless complete roundtrip and selected-load
+gates are actionable.

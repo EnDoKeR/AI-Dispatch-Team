@@ -45,6 +45,8 @@ RESOLVER_FILES = (("load_resolver_visible_candidates.csv", "resolver"), ("resolv
 SERIALIZATION_FILE = "load_source_line_serialization_rows.csv"
 DETAIL_FILE = "load_source_line_detail_rows.csv"
 ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
+RESOLVER_TO_AUDIT_ROWS_FILE = "load_resolver_to_audit_rows.csv"
+RESOLVER_TO_AUDIT_SUMMARY_FILE = "load_resolver_to_audit_provenance_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -69,6 +71,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--serialization-dir")
     parser.add_argument("--detail-inventory-dir")
     parser.add_argument("--adapter-dedupe-current-run-dir")
+    parser.add_argument("--resolver-to-audit-sidecar-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -129,6 +132,7 @@ def _collect_stage_rows(
     generated_resolver_sidecar_dir: Path,
     serialization_dir: Path | None,
     detail_inventory_dir: Path | None,
+    resolver_to_audit_sidecar_dir: Path | None = None,
 ) -> tuple[list[dict[str, Any]], dict[str, str]]:
     statuses: dict[str, str] = {}
     explicit_rows = _csv_rows(generated_resolver_sidecar_dir / STAGE_ROW_FILE)
@@ -155,6 +159,17 @@ def _collect_stage_rows(
         detail_inventory_dir / DETAIL_FILE if detail_inventory_dir else None,
         "evaluator",
     )
+    resolver_to_audit_all_rows = _csv_rows(
+        resolver_to_audit_sidecar_dir / RESOLVER_TO_AUDIT_ROWS_FILE
+        if resolver_to_audit_sidecar_dir
+        else None,
+        "audit",
+    )
+    resolver_to_audit_rows = [
+        row
+        for row in resolver_to_audit_all_rows
+        if str(row.get("audit_preserved", "")).strip().lower() in {"1", "true", "yes"}
+    ]
     statuses.update(
         {
             "generated_rows": "present" if generated_rows else "missing",
@@ -163,6 +178,8 @@ def _collect_stage_rows(
             "resolver_rows": "present" if resolver_rows else "missing",
             "serialization_rows": "present" if serialization_rows else "missing",
             "detail_inventory_rows": "present" if detail_rows else "missing",
+            "resolver_to_audit_rows": "present" if resolver_to_audit_all_rows else "missing",
+            "resolver_to_audit_preserved_rows": "present" if resolver_to_audit_rows else "missing",
         }
     )
     return (
@@ -170,6 +187,7 @@ def _collect_stage_rows(
         + adapter_rows
         + dedupe_rows
         + resolver_rows
+        + resolver_to_audit_rows
         + serialization_rows
         + detail_rows,
         statuses,
@@ -205,6 +223,9 @@ def _report(payload: dict[str, Any]) -> str:
         f"- ocr_attempted: {summary['ocr_attempted']}",
         f"- google_called: {summary['google_called']}",
         f"- model_or_cloud_called: {summary['model_or_cloud_called']}",
+        f"- resolver_to_audit_sidecar_status: {summary.get('resolver_to_audit_sidecar_status', 'skipped_not_requested')}",
+        f"- resolver_to_audit_preserved_count: {summary.get('resolver_to_audit_preserved_count', 0)}",
+        f"- resolver_to_audit_loss_count: {summary.get('resolver_to_audit_loss_count', 0)}",
         "",
         "## Boundary Counts",
     ]
@@ -251,6 +272,7 @@ def build_boundary_compare(args: argparse.Namespace) -> dict[str, Any]:
         sidecar_dir,
         _resolve(args.serialization_dir),
         _resolve(args.detail_inventory_dir),
+        _resolve(args.resolver_to_audit_sidecar_dir),
     )
     payload = compare_generated_provenance_boundaries(stage_rows)
     payload["summary"]["input_statuses"] = input_statuses
@@ -268,6 +290,25 @@ def build_boundary_compare(args: argparse.Namespace) -> dict[str, Any]:
     )
     payload["summary"]["adapter_dedupe_current_run_complete_roundtrip_count"] = int(
         current_run_summary.get("sidecar", {}).get("complete_roundtrip_count") or 0
+    )
+    resolver_to_audit_dir = _resolve(getattr(args, "resolver_to_audit_sidecar_dir", None))
+    resolver_to_audit_summary = _json_summary(
+        resolver_to_audit_dir / RESOLVER_TO_AUDIT_SUMMARY_FILE
+        if resolver_to_audit_dir is not None
+        else None
+    )
+    payload["summary"]["resolver_to_audit_sidecar_status"] = (
+        "present"
+        if resolver_to_audit_summary
+        else "skipped_missing_optional_dir"
+        if getattr(args, "resolver_to_audit_sidecar_dir", None)
+        else "skipped_not_requested"
+    )
+    payload["summary"]["resolver_to_audit_preserved_count"] = int(
+        resolver_to_audit_summary.get("resolver_to_audit_preserved_count") or 0
+    )
+    payload["summary"]["resolver_to_audit_loss_count"] = int(
+        resolver_to_audit_summary.get("resolver_to_audit_loss_count") or 0
     )
     return payload
 

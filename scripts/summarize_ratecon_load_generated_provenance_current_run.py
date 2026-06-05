@@ -30,6 +30,7 @@ DETAIL_SUMMARY_FILE = "load_source_line_detail_inventory_summary.json"
 CLOSEOUT_SUMMARY_FILE = "load_source_line_closeout_summary.json"
 BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
 ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
+RESOLVER_TO_AUDIT_SUMMARY_FILE = "load_resolver_to_audit_provenance_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -64,6 +65,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--closeout-dir")
     parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--adapter-dedupe-current-run-dir")
+    parser.add_argument("--resolver-to-audit-sidecar-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -252,6 +254,23 @@ def _adapter_dedupe_current_run_summary(path: Path | None) -> dict[str, Any]:
     }
 
 
+def _resolver_to_audit_summary(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {
+            "status": "skipped_not_requested",
+            "resolver_to_audit_preserved_count": 0,
+            "resolver_to_audit_loss_count": 0,
+        }
+    summary, status = _summary_payload(path, RESOLVER_TO_AUDIT_SUMMARY_FILE)
+    return {
+        "status": status,
+        "resolver_to_audit_preserved_count": _to_int(
+            summary.get("resolver_to_audit_preserved_count")
+        ),
+        "resolver_to_audit_loss_count": _to_int(summary.get("resolver_to_audit_loss_count")),
+    }
+
+
 def _determine_status(sidecar: dict[str, Any]) -> str:
     if sidecar["status"] == "missing":
         return STATUS_PRIVATE_INPUTS_UNAVAILABLE
@@ -428,6 +447,7 @@ def build_summary(
     closeout_dir: Path | None = None,
     boundary_compare_dir: Path | None = None,
     adapter_dedupe_current_run_dir: Path | None = None,
+    resolver_to_audit_sidecar_dir: Path | None = None,
 ) -> dict[str, Any]:
     sidecar = _sidecar_summary(sidecar_dir)
     status = _determine_status(sidecar)
@@ -437,6 +457,7 @@ def build_summary(
     adapter_dedupe_current_run = _adapter_dedupe_current_run_summary(
         adapter_dedupe_current_run_dir
     )
+    resolver_to_audit = _resolver_to_audit_summary(resolver_to_audit_sidecar_dir)
     gate_rows = _gate_rows(status, sidecar, boundary)
     next_actions = _next_actions(status, sidecar)
     if boundary["blocks_experiment"]:
@@ -461,6 +482,7 @@ def build_summary(
         "closeout": closeout,
         "boundary_compare": boundary,
         "adapter_dedupe_current_run": adapter_dedupe_current_run,
+        "resolver_to_audit_sidecar": resolver_to_audit,
         "gate": gate_rows,
         "next_actions": next_actions,
         "known_debt": known_debt,
@@ -488,6 +510,7 @@ def _report(payload: dict[str, Any]) -> str:
     sidecar = payload["sidecar"]
     boundary = payload["boundary_compare"]
     adapter_dedupe = payload["adapter_dedupe_current_run"]
+    resolver_to_audit = payload["resolver_to_audit_sidecar"]
     lines = [
         "# RateCon Load Generated Provenance Current Run",
         "",
@@ -515,6 +538,9 @@ def _report(payload: dict[str, Any]) -> str:
         f"- adapter_dedupe_current_run_status: {adapter_dedupe['current_run_status']}",
         f"- adapter_dedupe_complete_roundtrip_count: {adapter_dedupe['complete_roundtrip_count']}",
         f"- adapter_dedupe_first_loss_boundary: {adapter_dedupe['first_loss_boundary']}",
+        f"- resolver_to_audit_sidecar_status: {resolver_to_audit['status']}",
+        f"- resolver_to_audit_preserved_count: {resolver_to_audit['resolver_to_audit_preserved_count']}",
+        f"- resolver_to_audit_loss_count: {resolver_to_audit['resolver_to_audit_loss_count']}",
         f"- private_values_redacted: {payload['private_values_redacted']}",
         f"- pdf_processing_attempted: {payload['pdf_processing_attempted']}",
         f"- ocr_attempted: {payload['ocr_attempted']}",
@@ -578,6 +604,9 @@ def main(argv: list[str] | None = None) -> int:
             adapter_dedupe_current_run_dir=_resolve(args.adapter_dedupe_current_run_dir)
             if args.adapter_dedupe_current_run_dir
             else None,
+            resolver_to_audit_sidecar_dir=_resolve(args.resolver_to_audit_sidecar_dir)
+            if args.resolver_to_audit_sidecar_dir
+            else None,
         )
         write_outputs(output_dir, payload)
     except current_run_error as exc:
@@ -593,6 +622,10 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "adapter_dedupe_current_run_status: "
         f"{payload['adapter_dedupe_current_run']['current_run_status']}"
+    )
+    print(
+        "resolver_to_audit_sidecar_status: "
+        f"{payload['resolver_to_audit_sidecar']['status']}"
     )
     print(f"output_dir: {output_dir}")
     return 0

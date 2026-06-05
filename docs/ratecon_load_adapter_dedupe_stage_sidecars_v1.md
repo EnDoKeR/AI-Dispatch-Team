@@ -99,3 +99,7 @@ boundary result with
 not experiment approval: if complete roundtrip remains missing, the next cleanup
 must target the exact first proven loss boundary and must not change selected
 load output.
+
+If that boundary is resolver-to-audit, the next task is local-only audit
+diagnostic provenance preservation. Adapter/dedupe behavior should not be
+changed after adapter/dedupe rows are visible and preserved.

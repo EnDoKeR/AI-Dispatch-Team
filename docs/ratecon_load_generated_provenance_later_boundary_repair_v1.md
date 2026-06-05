@@ -106,3 +106,7 @@ must run a fresh explicit local sidecar-enabled diagnostic measurement and
 summarize the first proven boundary. If adapter/dedupe stages are complete but
 complete roundtrip is still absent, the next task should target the later
 boundary reported by that closeout only.
+
+If the reported boundary is resolver-to-audit, the repair target is audit
+diagnostic sidecar preservation of already-existing resolver-visible metadata.
+It is not a resolver-ranking, adapter, dedupe, or extraction task.

@@ -44,6 +44,7 @@ approved_constant_modules = {
     "app/document_ai/load_identifier_candidate_adapter_provenance.py",
     "app/document_ai/load_identifier_generated_provenance_boundary.py",
     "app/document_ai/load_identifier_generated_resolver_provenance.py",
+    "app/document_ai/load_identifier_resolver_to_audit_provenance.py",
     "app/document_ai/load_identifier_source_line_audit.py",
     "app/document_ai/load_identifier_source_line_detail.py",
     "app/document_ai/load_identifier_source_line_serialization.py",
