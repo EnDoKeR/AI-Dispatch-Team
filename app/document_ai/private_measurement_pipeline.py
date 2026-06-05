@@ -153,6 +153,9 @@ from app.document_ai.load_identifier_source_line_audit import (
     build_load_id_source_line_record_from_metrics,
     build_load_identifier_source_line_metrics,
 )
+from app.document_ai.load_identifier_generated_resolver_provenance import (
+    generated_provenance_records_from_shadow_result,
+)
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
     FIELD_RESOLUTION_STATUS_LOW_CONFIDENCE,
@@ -1264,6 +1267,7 @@ def _with_shadow_document_pipeline(
     shadow_stop_fusion_profile="none",
     strict_shadow_ocr=False,
     include_private_eval_values=False,
+    write_load_generated_resolver_provenance_sidecars=False,
 ):
     """Attach shadow diagnostics after legacy row construction.
 
@@ -1285,6 +1289,7 @@ def _with_shadow_document_pipeline(
     )
     shadow_legacy_context = dict(legacy_context or {})
     shadow_legacy_context["legacy_summary"] = legacy
+    load_generated_resolver_records = []
     try:
         shadow_result = extract_ratecon_document(
             pdf_path,
@@ -1311,6 +1316,11 @@ def _with_shadow_document_pipeline(
             strict_layout_provider=strict,
             include_private_eval_artifact=include_private_eval_values,
         )
+        if write_load_generated_resolver_provenance_sidecars:
+            load_generated_resolver_records = generated_provenance_records_from_shadow_result(
+                shadow_result,
+                document_id=document_alias,
+            )
         record = build_ratecon_shadow_audit_record(
             document_alias=document_alias,
             pdf_path=pdf_path,
@@ -1335,6 +1345,8 @@ def _with_shadow_document_pipeline(
         )
 
     row["ratecon_shadow_audit_records"] = [record]
+    if write_load_generated_resolver_provenance_sidecars:
+        row["load_generated_resolver_provenance_records"] = load_generated_resolver_records
     row.update(shadow_row_summary_fields(record))
     return row
 
@@ -1503,6 +1515,7 @@ def measure_private_ratecon_pdf(
     ratecon_shadow_stop_fusion_profile="none",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
+    write_load_generated_resolver_provenance_sidecars=False,
 ):
     """Measure a local private RateCon PDF and return safe status summaries only."""
     policy = output_policy or build_safe_measurement_output_policy()
@@ -1546,6 +1559,9 @@ def measure_private_ratecon_pdf(
             shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
+            write_load_generated_resolver_provenance_sidecars=(
+                write_load_generated_resolver_provenance_sidecars
+            ),
         )
 
     extraction = _extract_text_in_memory(pdf_path)
@@ -1590,6 +1606,9 @@ def measure_private_ratecon_pdf(
             shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
+            write_load_generated_resolver_provenance_sidecars=(
+                write_load_generated_resolver_provenance_sidecars
+            ),
         )
 
     text = extraction.get("text", "")
@@ -1681,6 +1700,9 @@ def measure_private_ratecon_pdf(
             shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
+            write_load_generated_resolver_provenance_sidecars=(
+                write_load_generated_resolver_provenance_sidecars
+            ),
         )
 
     selected_pages = _selected_candidate_pages(classification_result, artifact)
@@ -2118,4 +2140,7 @@ def measure_private_ratecon_pdf(
         shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
         strict_shadow_ocr=strict_ratecon_shadow_ocr,
         include_private_eval_values=include_private_eval_values,
+        write_load_generated_resolver_provenance_sidecars=(
+            write_load_generated_resolver_provenance_sidecars
+        ),
     )

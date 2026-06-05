@@ -130,3 +130,11 @@ availability.
 This sidecar input is additive. It can improve loss-stage attribution, but it
 does not make readiness more permissive, change diagnostic classifications, or
 change selected load behavior.
+
+## Current-Run Generated Provenance
+
+`scripts/summarize_ratecon_load_generated_provenance_current_run.py` consumes
+generated/resolver sidecar summaries after an explicit local run. If generated
+rows are present but complete roundtrip is absent, the next repair must target
+the exact later boundary reported by `generated_resolver_loss_stage`. This
+continues to be diagnostic-only and does not approve load selection changes.

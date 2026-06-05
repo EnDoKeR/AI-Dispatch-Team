@@ -100,6 +100,9 @@ Known debt remains pinned:
 - adapter-boundary loss of already-existing load candidate provenance metadata.
 - missing generated/resolver provenance sidecars, which leaves corpus-level
   adapter improvement unmeasurable from eval/audit-only outputs.
+- generated rows present without complete generated/resolver roundtrip, which
+  blocks table-neighbor and nearby-row behavior experiments until the later
+  loss boundary is repaired.
 
 Future behavior changes must be shadow-only first and require explicit review
 of selected-load regression output, private aggregate gate output, diagnostic

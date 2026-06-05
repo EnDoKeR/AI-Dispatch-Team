@@ -115,6 +115,12 @@ adapter, dedupe, and resolver-visible metadata measurable during explicit local
 runs without changing extraction, candidate generation, resolver behavior,
 selected load output, source labels, confidence values, or evaluator statuses.
 
+`scripts/summarize_ratecon_load_generated_provenance_current_run.py` closes the
+current-run evidence loop for generated provenance. It reports whether generated
+rows are absent, present without detail, or present with later loss. A later
+loss status blocks table/nearby-row experiments until the reported boundary is
+repaired and the selected-load gates pass.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

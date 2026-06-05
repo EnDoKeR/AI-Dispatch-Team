@@ -8,6 +8,7 @@ from app.document_ai.load_identifier_generated_resolver_provenance import (
     STAGE_GENERATED_DETAIL_MISSING,
     STAGE_LOST_BETWEEN_GENERATION_AND_ADAPTER,
     build_load_generated_resolver_provenance_sidecars,
+    generated_provenance_records_from_shadow_result,
 )
 
 
@@ -116,6 +117,70 @@ class RateconLoadGeneratedResolverProvenanceTests(unittest.TestCase):
         self.assertNotIn("LOAD12345", json.dumps(redacted))
         self.assertEqual("[redacted]", redacted["generated_rows"][0]["value_preview"])
         self.assertEqual("LOAD12345", included["generated_rows"][0]["value_preview"])
+
+    def test_generated_records_from_shadow_debug_candidates_omit_values(self):
+        records = generated_provenance_records_from_shadow_result(
+            {
+                "debug": {
+                    "triage": {"document_id": "FakeLoadConfirmationA"},
+                    "candidates": [
+                        {
+                            "field": "load_number",
+                            "value": "LOAD12345",
+                            "metadata": {
+                                "candidate_id": "cand-load-1",
+                                "page_number": "1",
+                                "line_index": "5",
+                                "pairing_method": "same_row",
+                            },
+                            "source": "native_text",
+                            "parser_name": "load_identifier",
+                        },
+                        {
+                            "field": "total_carrier_rate",
+                            "value": "$999.00",
+                            "metadata": {"candidate_id": "rate-1"},
+                            "source": "native_text",
+                        },
+                    ],
+                }
+            },
+            document_id="FakeLoadConfirmationA",
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("generated", records[0]["stage"])
+        self.assertEqual("cand-load-1", records[0]["candidate_id"])
+        self.assertEqual("1", records[0]["page_number"])
+        self.assertEqual("5", records[0]["line_index"])
+        self.assertNotIn("candidate_value", records[0])
+        self.assertNotIn("value", json.dumps(records))
+        self.assertNotIn("LOAD12345", json.dumps(records))
+
+    def test_generated_records_do_not_fabricate_missing_candidate_ids(self):
+        records = generated_provenance_records_from_shadow_result(
+            {
+                "debug": {
+                    "candidates": [
+                        {
+                            "field": "load_number",
+                            "source": "native_text",
+                            "parser_name": "load_identifier",
+                            "metadata": {
+                                "page_number": "1",
+                                "line_index": "5",
+                                "pairing_method": "same_row",
+                            },
+                        }
+                    ]
+                }
+            },
+            document_id="FakeLoadConfirmationB",
+        )
+
+        self.assertEqual(1, len(records))
+        self.assertEqual("", records[0]["candidate_id"])
+        self.assertEqual("FakeLoadConfirmationB", records[0]["document_id"])
 
 
 if __name__ == "__main__":

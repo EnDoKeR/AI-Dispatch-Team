@@ -1,0 +1,2 @@
+document_id,field,candidate_id,stage_loss_bucket,generated_resolver_roundtrip_status,generated_resolver_loss_stage
+FakeLoadConfirmationF,load_number,cand-load-6,unknown,current_like_eval_audit_only_unmeasurable,generated_resolver_sidecar
