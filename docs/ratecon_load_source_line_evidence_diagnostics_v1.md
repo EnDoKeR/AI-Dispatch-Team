@@ -91,8 +91,22 @@ Future behavior changes require:
 
 1. the selected-load regression harness;
 2. the private selected-load aggregate gate;
-3. private full-corpus evaluation only when explicitly requested.
+3. the load source-line diagnostics closeout/readiness gate;
+4. private full-corpus evaluation only when explicitly requested.
 
 Known debt remains table-neighbor wrong cell, nearby-row wrong pair, noisy
 references, footer/barcode noise, and ambiguous competing load identifiers.
 This PR does not approve fixing those behaviors.
+
+## Closeout Readiness Gate
+
+`scripts/summarize_ratecon_load_source_line_diagnostics_closeout.py` closes out
+this diagnostics phase by reading existing local diagnostic, audit, and
+aggregate-gate outputs. It does not run private measurement, process PDFs, OCR,
+call Google/model/cloud services, or change resolver behavior.
+
+Diagnostics are not experiment approval. If local diagnostics are dominated by
+`candidate_source_line_unavailable`, `candidate_page_line_unavailable`,
+`evaluator_detail_unavailable`, or `unknown`, future table-neighbor or
+nearby-row behavior experiments are blocked until source-line/evidence detail
+is enriched.

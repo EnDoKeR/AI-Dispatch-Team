@@ -79,6 +79,12 @@ candidate generation, resolver ranking/scoring, source labels, confidence
 values, schemas, evaluator statuses, extraction, or private measurement
 behavior.
 
+`scripts/summarize_ratecon_load_source_line_diagnostics_closeout.py` is the
+local-only closeout/readiness gate for this diagnostics phase. Run it before
+any source-line evidence-quality behavior experiment. If the closeout reports
+mostly unavailable detail or unknown buckets, table-neighbor and nearby-row
+experiments remain blocked until audit/eval evidence is improved.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

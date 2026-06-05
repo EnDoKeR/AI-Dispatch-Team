@@ -1,0 +1,23 @@
+{
+  "summary": {
+    "detail_status": "available",
+    "document_count": 8,
+    "diagnostic_bucket_counts": {
+      "gold_in_candidates_not_selected": 1,
+      "gold_not_in_candidates": 1,
+      "selected_nearby_row_wrong_pair": 1,
+      "selected_po_number_noise": 1,
+      "selected_table_neighbor_wrong_cell": 2,
+      "unknown": 1
+    },
+    "covered_fixture_bucket_count": 5,
+    "expected_failure_fixture_nonzero_count": 3,
+    "private_values_included": false,
+    "values_redacted": true,
+    "pdf_processing_attempted": false,
+    "ocr_attempted": false,
+    "google_called": false,
+    "model_or_cloud_called": false,
+    "private_measurement_run": false
+  }
+}

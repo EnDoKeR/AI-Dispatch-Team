@@ -1,0 +1,3 @@
+document_id,diagnostic_bucket,selected_value,gold_value
+FakeLoadConfirmationA,selected_table_neighbor_wrong_cell,[redacted],[redacted]
+FakeLoadConfirmationB,selected_nearby_row_wrong_pair,[redacted],[redacted]
