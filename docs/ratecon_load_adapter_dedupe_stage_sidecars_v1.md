@@ -89,3 +89,13 @@ adapter/dedupe stage visibility exists. If adapter and dedupe rows are complete
 but resolver rows lose detail, the next task is a dedupe-to-resolver diagnostic
 boundary repair. If adapter input is still absent, the next task is adapter
 stage emission repair, not extraction or resolver changes.
+
+## Current-Run Verification
+
+The follow-up current-run verification phase runs an explicit local private
+diagnostic measurement with adapter/dedupe sidecars, then summarizes the
+boundary result with
+`scripts/summarize_ratecon_load_adapter_dedupe_current_run.py`. Diagnostics are
+not experiment approval: if complete roundtrip remains missing, the next cleanup
+must target the exact first proven loss boundary and must not change selected
+load output.

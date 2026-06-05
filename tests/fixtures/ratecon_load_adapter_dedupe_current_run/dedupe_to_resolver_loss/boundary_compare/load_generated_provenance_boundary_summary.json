@@ -1,0 +1,10 @@
+{
+  "summary": {
+    "candidate_count": 1,
+    "complete_roundtrip_count": 0,
+    "first_loss_boundary": "boundary_dedupe_to_resolver_loss",
+    "loss_boundary_counts": {
+      "boundary_dedupe_to_resolver_loss": 1
+    }
+  }
+}

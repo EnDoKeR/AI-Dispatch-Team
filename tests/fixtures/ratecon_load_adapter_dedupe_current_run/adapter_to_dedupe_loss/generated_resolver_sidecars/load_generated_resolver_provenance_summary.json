@@ -1,0 +1,27 @@
+{
+  "summary": {
+    "adapter_detail_lost_count": 0,
+    "adapter_detail_preserved_count": 1,
+    "adapter_input_count": 1,
+    "adapter_output_count": 1,
+    "complete_roundtrip_count": 0,
+    "current_artifacts_status": "partial_roundtrip_measurable",
+    "dedupe_detail_lost_count": 0,
+    "dedupe_detail_preserved_count": 0,
+    "dedupe_input_count": 0,
+    "dedupe_output_count": 0,
+    "generated_candidate_count": 1,
+    "generated_candidate_detail_available_count": 1,
+    "google_called": false,
+    "model_or_cloud_called": false,
+    "ocr_attempted": false,
+    "pdf_processing_attempted": false,
+    "private_values_included": false,
+    "provenance_candidate_count": 1,
+    "resolver_visible_candidate_count": 0,
+    "resolver_visible_detail_available_count": 0,
+    "stage_loss_bucket_counts": {
+      "lost_between_adapter_and_dedupe": 1
+    }
+  }
+}

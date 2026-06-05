@@ -371,6 +371,8 @@ Future rate/money consolidation should continue with one narrow target:
   present but complete roundtrip is still missing;
 - adapter/dedupe stage sidecar emission if later-boundary evidence points to
   generation-to-adapter loss but adapter/dedupe stage rows are not visible;
+- adapter/dedupe current-run verification and boundary closeout after a fresh
+  explicit sidecar-enabled local run;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

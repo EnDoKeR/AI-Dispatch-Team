@@ -123,3 +123,9 @@ also reports adapter input/output and dedupe input/output counts. These counts
 are visibility evidence only. Readiness remains blocked when adapter/dedupe
 stage visibility is missing, when complete roundtrip is absent, or when selected
 load gates have not passed.
+
+## Adapter/Dedupe Current-Run Verification
+
+The closeout can consume adapter/dedupe current-run evidence as an optional
+local-only gate. This cannot make readiness more permissive. Any status other
+than full roundtrip measurable keeps future load behavior experiments blocked.
