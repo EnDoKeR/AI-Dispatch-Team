@@ -67,6 +67,10 @@ detail, missing page/line, missing source, dropped-detail, and
 unknown-caused-by-missing-detail counts. This optional input can only make
 readiness stricter; it does not approve a behavior experiment.
 
+If the detail inventory includes serialization sidecar data, the closeout also
+reports serialization complete-detail counts and whether serialization loss
+dominates. High serialization loss keeps experiment readiness blocked.
+
 ## Known Debt
 
 Known debt remains pinned:
@@ -80,6 +84,8 @@ Known debt remains pinned:
 - unknown/detail-unavailable local diagnostics.
 - missing source-line detail between candidate/audit/evaluator/diagnostic
   surfaces.
+- missing or dropped serialization of candidate id, source, page/line, and
+  pairing metadata across local diagnostic surfaces.
 
 Future behavior changes must be shadow-only first and require explicit review
 of selected-load regression output, private aggregate gate output, diagnostic

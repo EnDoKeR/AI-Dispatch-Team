@@ -315,6 +315,16 @@ processing, or OCR behavior. If detail remains missing, the next target is
 audit/eval serialization repair, not table-neighbor or nearby-row behavior
 changes.
 
+The next serialization-repair phase traces local-only load source-line metadata
+roundtrip with `app/document_ai/load_identifier_source_line_serialization.py`,
+`scripts/create_ratecon_load_source_line_serialization.py`, and
+`scripts/audit_ratecon_load_source_line_serialization.py`. It maps where
+candidate id, source, page/line, and pairing method are missing or dropped
+between generation, resolver trace, shadow audit, evaluator rows, and detail
+inventory. It must not change selected load output, candidate generation,
+resolver behavior, source labels, confidence values, evaluator statuses,
+private measurement, PDF processing, or OCR behavior.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
@@ -327,6 +337,10 @@ Future rate/money consolidation should continue with one narrow target:
 - audit/eval source-line detail enrichment if closeout is not actionable;
 - audit/eval serialization repair if detail inventory still shows missing
   page/line/source detail;
+- candidate provenance repair if serialization shows detail missing at
+  generation;
+- serialization boundary repair if detail exists at generation but is dropped
+  before diagnostics;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

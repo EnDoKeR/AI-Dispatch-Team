@@ -1,0 +1,2 @@
+document_id,field,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,bbox_available,selected,candidate_rank
+FakeLoadConfirmationE,load_number,cand-load-5,LOAD52345,native_text,load_identifier,native_text,1,6,true,true,1

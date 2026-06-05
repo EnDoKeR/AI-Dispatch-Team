@@ -1,0 +1,6 @@
+{
+  "serialization_loss_bucket": "lost_in_candidate_adapter",
+  "complete_detail_serialized_count": 0,
+  "missing_at_generation_count": 0,
+  "lost_after_generation_count": 1
+}

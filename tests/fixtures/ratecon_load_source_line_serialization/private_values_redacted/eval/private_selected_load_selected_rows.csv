@@ -1,0 +1,2 @@
+document_id,field,selected_candidate_id,selected_value,gold_value,selected_source,pairing_method,selected_line_index,selected_page_index
+FakeLoadConfirmationH,load_number,cand-load-8,LOAD82345,LOAD82345,barcode_footer,barcode,30,1
