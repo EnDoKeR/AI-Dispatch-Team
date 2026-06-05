@@ -84,3 +84,17 @@ Future behavior experiments require:
 
 If detail remains missing, the next task is audit/eval serialization repair,
 not table-neighbor or nearby-row behavior changes.
+
+## Serialization Sidecar
+
+`app/document_ai/load_identifier_source_line_serialization.py` and
+`scripts/create_ratecon_load_source_line_serialization.py` add an optional
+local-only serialization sidecar for this detail inventory. When
+`--serialization-dir` is supplied, the detail inventory can include
+`serialization_loss_stage`, `serialization_loss_reason`, and
+`source_detail_roundtrip_status` columns. The sidecar explains whether
+candidate id, source, page/line, and pairing metadata roundtripped across
+generation, resolver trace, shadow audit, and evaluator surfaces.
+
+Serialization repair is diagnostic-only. It does not infer missing page/line
+metadata and does not change selected load output or resolver behavior.

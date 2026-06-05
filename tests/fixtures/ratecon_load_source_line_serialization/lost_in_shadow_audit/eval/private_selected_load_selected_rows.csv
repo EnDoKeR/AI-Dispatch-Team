@@ -1,0 +1,2 @@
+document_id,field,selected_candidate_id,selected_value,gold_value,selected_source,pairing_method,selected_line_index,selected_page_index
+FakeLoadConfirmationE,load_number,cand-load-5,LOAD52345,LOAD52345,native_text,native_text,6,1

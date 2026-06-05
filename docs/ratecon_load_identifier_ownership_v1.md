@@ -93,6 +93,14 @@ missing candidate id, source, page/line, pairing, label, value, or evaluator
 detail. They do not change selected load output, candidate generation, resolver
 ranking, source labels, confidence values, schemas, or evaluator statuses.
 
+`app/document_ai/load_identifier_source_line_serialization.py` and
+`scripts/create_ratecon_load_source_line_serialization.py` own local-only
+serialization sidecars for load source-line diagnostic detail. They preserve
+existing candidate id, source, page/line, and pairing metadata when available
+and classify where it is lost. They do not own candidate taxonomy, resolver
+selection, source labels, confidence values, schemas, or evaluator status
+semantics.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

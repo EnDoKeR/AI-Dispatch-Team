@@ -43,6 +43,7 @@ approved_constant_modules = {
     "app/document_ai/load_identifier_coverage_audit.py",
     "app/document_ai/load_identifier_source_line_audit.py",
     "app/document_ai/load_identifier_source_line_detail.py",
+    "app/document_ai/load_identifier_source_line_serialization.py",
     "app/document_ai/local_review_analysis.py",
     "app/document_ai/measurement_integrity.py",
     "app/document_ai/normalized_stops.py",

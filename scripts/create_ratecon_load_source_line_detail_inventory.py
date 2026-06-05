@@ -39,6 +39,7 @@ SELECTED_ROW_FILES = (
 )
 DIAGNOSTICS_SUMMARY_FILE = "load_source_line_diagnostics_summary.json"
 DIAGNOSTIC_ROW_FILE = "load_source_line_error_cases.csv"
+SERIALIZATION_ROW_FILE = "load_source_line_serialization_rows.csv"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -48,6 +49,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--eval-dir", required=True)
     parser.add_argument("--audit", required=True)
     parser.add_argument("--diagnostics-dir", required=True)
+    parser.add_argument("--serialization-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
@@ -188,6 +190,16 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
     ]
     for bucket, count in summary["detail_loss_bucket_counts"].items():
         lines.append(f"- {bucket}: {count}")
+    lines.extend(
+        [
+            "",
+            "## Serialization Sidecar",
+            f"- serialization_sidecar_status: {summary['serialization_sidecar_status']}",
+            f"- serialization_complete_detail_count: {summary['serialization_complete_detail_count']}",
+        ]
+    )
+    for bucket, count in summary["serialization_loss_bucket_counts"].items():
+        lines.append(f"- {bucket}: {count}")
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
 
 
@@ -220,6 +232,9 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "detail_loss_bucket",
             "detail_loss_stage",
             "detail_loss_reason",
+            "serialization_loss_stage",
+            "serialization_loss_reason",
+            "source_detail_roundtrip_status",
             "diagnostic_bucket",
             "known_debt",
             "private_values_redacted",
@@ -236,6 +251,9 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "detail_loss_bucket",
             "detail_loss_stage",
             "detail_loss_reason",
+            "serialization_loss_stage",
+            "serialization_loss_reason",
+            "source_detail_roundtrip_status",
             "diagnostic_bucket",
         ],
     )
@@ -260,13 +278,20 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
 def build_inventory(args: argparse.Namespace) -> dict[str, Any]:
     eval_dir = _resolve(args.eval_dir)
     diagnostics_dir = _resolve(args.diagnostics_dir)
+    serialization_dir = _resolve(args.serialization_dir) if args.serialization_dir else None
     diagnostics_payload = _read_json(diagnostics_dir / DIAGNOSTICS_SUMMARY_FILE)
+    serialization_rows = (
+        _csv_rows(serialization_dir / SERIALIZATION_ROW_FILE)
+        if serialization_dir and serialization_dir.exists()
+        else []
+    )
     return build_load_source_line_detail_inventory(
         selected_rows=_read_selected_rows(eval_dir),
         error_rows=_read_error_rows(eval_dir),
         audit_rows=_read_audit_rows(_resolve(args.audit)),
         diagnostic_rows=_read_diagnostic_rows(diagnostics_dir),
         diagnostics_summary=diagnostics_payload.get("summary") or {},
+        serialization_rows=serialization_rows,
         include_private_values=bool(args.include_private_values_local_only),
     )
 
@@ -290,6 +315,11 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "unknown_caused_by_missing_detail_count: "
         f"{summary['unknown_caused_by_missing_detail_count']}"
+    )
+    print(f"serialization_sidecar_status: {summary['serialization_sidecar_status']}")
+    print(
+        "serialization_complete_detail_count: "
+        f"{summary['serialization_complete_detail_count']}"
     )
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")

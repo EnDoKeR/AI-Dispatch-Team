@@ -120,3 +120,11 @@ reports whether source, page/line, candidate id, pairing method, label context,
 value context, and neighboring context are available. The sidecar does not
 change diagnostic classifications from this document and does not feed any
 signal back into the resolver.
+
+## Serialization Repair
+
+`scripts/create_ratecon_load_source_line_serialization.py` adds a local-only
+serialization sidecar that traces whether existing candidate id, source,
+page/line, and pairing metadata roundtrips through generated-candidate,
+resolver, audit, and evaluator surfaces. It is diagnostic-only and must not
+change the source-line diagnostic buckets above.

@@ -181,6 +181,94 @@ def _candidate_details(audit_row: dict[str, Any]) -> list[dict[str, Any]]:
     return rows
 
 
+def _serialization_details_by_doc(
+    serialization_rows: list[dict[str, Any]] | None,
+) -> dict[str, list[dict[str, Any]]]:
+    rows: dict[str, list[dict[str, Any]]] = {}
+    for index, row in enumerate(serialization_rows or [], start=1):
+        if not isinstance(row, dict):
+            continue
+        doc_id = _document_id(row, f"serialization_row_{index}")
+        rows.setdefault(doc_id, []).append(dict(row))
+    return rows
+
+
+def _serialization_key(row: dict[str, Any]) -> str:
+    return _token(row.get("candidate_id") or row.get("id") or row.get("candidate_value") or row.get("value"))
+
+
+def _roundtrip_status(serialization_loss_stage: str) -> str:
+    if not serialization_loss_stage:
+        return "not_available"
+    if serialization_loss_stage == "complete_detail_serialized":
+        return "complete"
+    return "loss_detected"
+
+
+def _candidate_from_serialization(row: dict[str, Any], index: int) -> dict[str, Any]:
+    serialization_loss_stage = _text(
+        row.get("serialization_loss_stage") or row.get("serialization_loss_bucket")
+    )
+    return {
+        "candidate_rank": row.get("candidate_rank") or index,
+        "candidate_id": row.get("candidate_id"),
+        "candidate_value": row.get("candidate_value") or row.get("value_preview"),
+        "selected": row.get("selected") or row.get("resolver_selected"),
+        "source": row.get("source"),
+        "source_family": row.get("source_family"),
+        "parser_name": row.get("parser_name"),
+        "pairing_method": row.get("pairing_method"),
+        "page_number": row.get("page_number"),
+        "line_index": row.get("line_index"),
+        "bbox_available": row.get("bbox_available"),
+        "detail_loss_bucket_override": row.get("detail_loss_bucket"),
+        "detail_loss_stage_override": row.get("detail_loss_stage"),
+        "detail_loss_reason_override": row.get("detail_loss_reason"),
+        "serialization_loss_stage": serialization_loss_stage,
+        "serialization_loss_reason": row.get("detail_loss_reason"),
+        "source_detail_roundtrip_status": _roundtrip_status(serialization_loss_stage),
+    }
+
+
+def _merge_serialization_details(
+    candidate_details: list[dict[str, Any]],
+    serialization_details: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not serialization_details:
+        return candidate_details
+    serialization_by_key = {
+        _serialization_key(row): row
+        for row in serialization_details
+        if _serialization_key(row)
+    }
+    merged: list[dict[str, Any]] = []
+    seen_keys: set[str] = set()
+    for candidate in candidate_details:
+        row = dict(candidate)
+        key = _serialization_key(row)
+        serialization_row = serialization_by_key.get(key)
+        if serialization_row:
+            seen_keys.add(key)
+            serialization_candidate = _candidate_from_serialization(
+                serialization_row,
+                len(merged) + 1,
+            )
+            for field, value in serialization_candidate.items():
+                if field.startswith("detail_loss_") or field.startswith("serialization_"):
+                    row[field] = value
+                elif field == "source_detail_roundtrip_status":
+                    row[field] = value
+                elif not _text(row.get(field)) and value not in (None, ""):
+                    row[field] = value
+        merged.append(row)
+    for index, serialization_row in enumerate(serialization_details, start=1):
+        key = _serialization_key(serialization_row)
+        if key and key in seen_keys:
+            continue
+        merged.append(_candidate_from_serialization(serialization_row, len(merged) + 1))
+    return merged
+
+
 def _diagnostic_bucket(
     doc_id: str,
     diagnostics_by_doc: dict[str, dict[str, Any]],
@@ -371,6 +459,14 @@ def _detail_row(
         ),
         "detail_loss_stage": "",
         "detail_loss_reason": "",
+        "serialization_loss_stage": _text(
+            candidate.get("serialization_loss_stage")
+            or candidate.get("serialization_loss_bucket")
+        ),
+        "serialization_loss_reason": _text(candidate.get("serialization_loss_reason")),
+        "source_detail_roundtrip_status": _text(
+            candidate.get("source_detail_roundtrip_status")
+        ),
         "diagnostic_bucket": diagnostic_bucket,
         "known_debt": diagnostic_bucket in KNOWN_DEBT_DIAGNOSTIC_BUCKETS,
         "private_values_redacted": not include_private_values,
@@ -391,6 +487,23 @@ def _detail_row(
     row["detail_loss_bucket"] = loss_bucket
     row["detail_loss_stage"] = loss_stage
     row["detail_loss_reason"] = loss_reason
+    override_bucket = _text(candidate.get("detail_loss_bucket_override"))
+    override_stage = _text(candidate.get("detail_loss_stage_override"))
+    override_reason = _text(candidate.get("detail_loss_reason_override"))
+    if override_bucket:
+        row["detail_loss_bucket"] = override_bucket
+    if override_stage:
+        row["detail_loss_stage"] = override_stage
+    if override_reason:
+        row["detail_loss_reason"] = override_reason
+    if not row["serialization_loss_stage"]:
+        row["serialization_loss_stage"] = "not_available"
+    if not row["serialization_loss_reason"]:
+        row["serialization_loss_reason"] = ""
+    if not row["source_detail_roundtrip_status"]:
+        row["source_detail_roundtrip_status"] = _roundtrip_status(
+            row["serialization_loss_stage"]
+        )
     row.pop("_candidate_page_line_present", None)
     return row
 
@@ -423,6 +536,7 @@ def build_load_source_line_detail_inventory(
     audit_rows: dict[str, dict[str, Any]] | None = None,
     diagnostic_rows: dict[str, dict[str, Any]] | None = None,
     diagnostics_summary: dict[str, Any] | None = None,
+    serialization_rows: list[dict[str, Any]] | None = None,
     include_private_values: bool = False,
 ) -> dict[str, Any]:
     selected_rows = selected_rows or {}
@@ -430,7 +544,14 @@ def build_load_source_line_detail_inventory(
     audit_rows = audit_rows or {}
     diagnostic_rows = diagnostic_rows or {}
     diagnostics_summary = diagnostics_summary or {}
-    document_ids = sorted(set(selected_rows) | set(error_rows) | set(audit_rows) | set(diagnostic_rows))
+    serialization_by_doc = _serialization_details_by_doc(serialization_rows)
+    document_ids = sorted(
+        set(selected_rows)
+        | set(error_rows)
+        | set(audit_rows)
+        | set(diagnostic_rows)
+        | set(serialization_by_doc)
+    )
 
     detail_input_status = "available" if document_ids else "detail_input_unavailable"
     if not document_ids:
@@ -442,7 +563,10 @@ def build_load_source_line_detail_inventory(
         error_row = error_rows.get(doc_id, {})
         audit_row = audit_rows.get(doc_id, {})
         diagnostics_row = diagnostic_rows.get(doc_id, {})
-        candidate_details = _candidate_details(audit_row)
+        candidate_details = _merge_serialization_details(
+            _candidate_details(audit_row),
+            serialization_by_doc.get(doc_id, []),
+        )
         if candidate_details:
             for index, candidate in enumerate(candidate_details, start=1):
                 candidate.setdefault("candidate_rank", index)
@@ -475,6 +599,11 @@ def build_load_source_line_detail_inventory(
             )
 
     loss_counts = Counter(row["detail_loss_bucket"] for row in detail_rows)
+    serialization_loss_counts = Counter(
+        row["serialization_loss_stage"]
+        for row in detail_rows
+        if row["serialization_loss_stage"] != "not_available"
+    )
     source_line_complete_count = loss_counts[DETAIL_LOSS_COMPLETE]
     missing_page_line_count = loss_counts[DETAIL_LOSS_MISSING_PAGE_LINE]
     missing_source_count = loss_counts[DETAIL_LOSS_MISSING_SOURCE]
@@ -532,6 +661,11 @@ def build_load_source_line_detail_inventory(
             "count": dropped_detail_count,
             "detail": "Rows where detail appears to exist in one local surface but not another.",
         },
+        {
+            "coverage_metric": "serialization_sidecar_rows",
+            "count": sum(serialization_loss_counts.values()),
+            "detail": "Rows augmented by local-only serialization sidecar metadata.",
+        },
     ]
     review_rows = [
         {
@@ -556,6 +690,13 @@ def build_load_source_line_detail_inventory(
             "dropped_detail_count": dropped_detail_count,
             "unknown_caused_by_missing_detail_count": unknown_caused_by_missing_detail_count,
             "detail_loss_bucket_counts": dict(sorted(loss_counts.items())),
+            "serialization_sidecar_status": (
+                "present" if serialization_by_doc else "skipped_missing_optional_dir"
+            ),
+            "serialization_complete_detail_count": serialization_loss_counts[
+                "complete_detail_serialized"
+            ],
+            "serialization_loss_bucket_counts": dict(sorted(serialization_loss_counts.items())),
             "private_values_included": include_private_values,
             "values_redacted": not include_private_values,
             "pdf_processing_attempted": False,
@@ -572,6 +713,9 @@ def build_load_source_line_detail_inventory(
                 "detail_loss_bucket": row["detail_loss_bucket"],
                 "detail_loss_stage": row["detail_loss_stage"],
                 "detail_loss_reason": row["detail_loss_reason"],
+                "serialization_loss_stage": row["serialization_loss_stage"],
+                "serialization_loss_reason": row["serialization_loss_reason"],
+                "source_detail_roundtrip_status": row["source_detail_roundtrip_status"],
                 "diagnostic_bucket": row["diagnostic_bucket"],
             }
             for row in detail_rows

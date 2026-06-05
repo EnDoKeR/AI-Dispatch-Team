@@ -1,0 +1,2 @@
+document_id,field,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,bbox_available,selected,candidate_rank,resolver_eligible,dedupe_detail_missing
+FakeLoadConfirmationC,load_number,cand-load-3,LOAD32345,nearby_row,load_identifier,nearby_row,2,9,true,false,2,true,true
