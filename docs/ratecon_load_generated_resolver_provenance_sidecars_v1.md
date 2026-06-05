@@ -130,3 +130,15 @@ permissive unless generated rows, resolver-visible rows, a complete roundtrip,
 and the existing selected-load gates are all present. When generated rows are
 absent in an explicit sidecar-enabled measurement, the only allowed repair is
 local-only generation-stage sidecar instrumentation.
+
+## Later-Boundary Compare
+
+`app/document_ai/load_identifier_generated_provenance_boundary.py` and
+`scripts/compare_ratecon_load_generated_provenance_boundaries.py` compare the
+stage rows produced by these sidecars with serialization/detail outputs. They
+identify the first later boundary where already-existing generated provenance
+stops being visible.
+
+The generated/resolver sidecar writer accepts `--boundary-compare-dir` only as
+an additive local summary input. It does not change sidecar row matching,
+candidate generation, resolver behavior, selected output, or readiness gates.
