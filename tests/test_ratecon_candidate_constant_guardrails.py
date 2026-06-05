@@ -42,6 +42,7 @@ approved_constant_modules = {
     "app/document_ai/layout_provider_diagnostics.py",
     "app/document_ai/load_identifier_coverage_audit.py",
     "app/document_ai/load_identifier_candidate_adapter_provenance.py",
+    "app/document_ai/load_identifier_generated_resolver_provenance.py",
     "app/document_ai/load_identifier_source_line_audit.py",
     "app/document_ai/load_identifier_source_line_detail.py",
     "app/document_ai/load_identifier_source_line_serialization.py",

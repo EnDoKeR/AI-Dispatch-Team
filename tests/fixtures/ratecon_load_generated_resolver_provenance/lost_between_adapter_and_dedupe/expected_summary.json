@@ -1,0 +1,7 @@
+{
+  "stage_loss_bucket": "lost_between_adapter_and_dedupe",
+  "current_artifacts_status": "partial_roundtrip_measurable",
+  "complete_roundtrip_count": 0,
+  "generated_candidate_count": 1,
+  "resolver_visible_candidate_count": 0
+}

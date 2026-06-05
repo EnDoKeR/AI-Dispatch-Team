@@ -18,6 +18,7 @@ APPROVED_OWNER_PATHS = {
     "app/document_ai/load_identifier_source_line_audit.py",
     "app/document_ai/load_identifier_source_line_detail.py",
     "app/document_ai/load_identifier_source_line_serialization.py",
+    "app/document_ai/load_identifier_generated_resolver_provenance.py",
     "scripts/evaluate_ratecon_against_gold.py",
     "scripts/run_private_ratecon_measurement.py",
     "scripts/compare_ratecon_private_selected_load_aggregates.py",
@@ -25,6 +26,7 @@ APPROVED_OWNER_PATHS = {
     "scripts/audit_ratecon_load_source_line_serialization.py",
     "scripts/audit_ratecon_load_candidate_adapter_provenance.py",
     "scripts/create_ratecon_load_source_line_serialization.py",
+    "scripts/create_ratecon_load_generated_resolver_provenance_sidecars.py",
 }
 
 CURRENT_COMPATIBILITY_ALLOWLIST = {
@@ -120,8 +122,10 @@ class RateconLoadIdentifierGuardrailTests(unittest.TestCase):
             "app/document_ai/load_identifier_candidate_adapter_provenance.py",
             "app/document_ai/load_identifier_source_line_detail.py",
             "app/document_ai/load_identifier_source_line_serialization.py",
+            "app/document_ai/load_identifier_generated_resolver_provenance.py",
             "scripts/compare_ratecon_private_selected_load_aggregates.py",
             "scripts/create_ratecon_load_source_line_serialization.py",
+            "scripts/create_ratecon_load_generated_resolver_provenance_sidecars.py",
             "scripts/audit_ratecon_load_candidate_adapter_provenance.py",
         ):
             self.assertTrue((ROOT / rel).exists(), rel)

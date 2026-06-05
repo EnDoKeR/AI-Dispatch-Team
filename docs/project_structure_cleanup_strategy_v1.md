@@ -352,6 +352,8 @@ Future rate/money consolidation should continue with one narrow target:
   generation;
 - candidate adapter provenance repair if serialization shows detail exists
   before adaptation but is dropped at the adapter boundary;
+- generated/resolver provenance sidecars if eval/audit-only artifacts cannot
+  measure adapter roundtrip at corpus level;
 - serialization boundary repair if detail exists at generation but is dropped
   before diagnostics;
 - stop extraction architecture closeout.

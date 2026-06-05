@@ -92,6 +92,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--source-line-audit-dir", required=True)
     parser.add_argument("--aggregate-gate-dir", required=True)
     parser.add_argument("--detail-inventory-dir")
+    parser.add_argument("--generated-resolver-provenance-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -284,6 +285,12 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
             "adapter_detail_preserved_count": 0,
             "adapter_detail_lost_count": 0,
             "adapter_loss_blocks_readiness": False,
+            "generated_resolver_sidecar_status": "skipped_not_requested",
+            "generated_resolver_current_artifacts_status": "skipped",
+            "generated_candidate_detail_available_count": 0,
+            "resolver_visible_detail_available_count": 0,
+            "generated_resolver_complete_roundtrip_count": 0,
+            "generated_resolver_blocks_readiness": False,
             "missing_page_line_ratio": 0.0,
             "missing_source_ratio": 0.0,
             "unknown_caused_by_missing_detail_ratio": 0.0,
@@ -310,6 +317,21 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
         for key, value in dict(summary.get("adapter_roundtrip_status_counts") or {}).items()
     }
     adapter_lost_count = _to_int(summary.get("adapter_detail_lost_count"))
+    generated_resolver_status = str(
+        summary.get("generated_resolver_current_artifacts_status") or "skipped"
+    )
+    generated_resolver_sidecar_status = str(
+        summary.get("generated_resolver_sidecar_status") or "skipped_missing_optional_dir"
+    )
+    generated_detail_available_count = _to_int(
+        summary.get("generated_candidate_detail_available_count")
+    )
+    resolver_detail_available_count = _to_int(
+        summary.get("resolver_visible_detail_available_count")
+    )
+    generated_resolver_complete_count = _to_int(
+        summary.get("generated_resolver_complete_roundtrip_count")
+    )
     return {
         "status": status if status == "present" else "skipped_missing_optional_dir",
         "path": str(detail_dir),
@@ -335,6 +357,19 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
         ),
         "adapter_detail_lost_count": adapter_lost_count,
         "adapter_loss_blocks_readiness": adapter_lost_count > 0,
+        "generated_resolver_sidecar_status": generated_resolver_sidecar_status,
+        "generated_resolver_current_artifacts_status": generated_resolver_status,
+        "generated_candidate_detail_available_count": generated_detail_available_count,
+        "resolver_visible_detail_available_count": resolver_detail_available_count,
+        "generated_resolver_complete_roundtrip_count": generated_resolver_complete_count,
+        "generated_resolver_blocks_readiness": (
+            generated_resolver_sidecar_status == "present"
+            and (
+                generated_resolver_status == "current_like_eval_audit_only_unmeasurable"
+                or generated_detail_available_count == 0
+                or resolver_detail_available_count == 0
+            )
+        ),
         "missing_page_line_ratio": (
             missing_page_line_count / candidate_count if candidate_count else 0.0
         ),
@@ -347,6 +382,58 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
         "private_values_included": _as_bool(summary.get("private_values_included")),
         "values_redacted": not _as_bool(summary.get("private_values_included")),
     }
+
+
+def _generated_resolver_provenance_summary(sidecar_dir: Path | None) -> dict[str, Any]:
+    if sidecar_dir is None:
+        return {
+            "generated_resolver_sidecar_status": "skipped_not_requested",
+            "generated_resolver_current_artifacts_status": "skipped",
+            "generated_candidate_detail_available_count": 0,
+            "resolver_visible_detail_available_count": 0,
+            "generated_resolver_complete_roundtrip_count": 0,
+            "generated_resolver_blocks_readiness": False,
+        }
+    payload, status = _read_json_if_present(
+        sidecar_dir / "load_generated_resolver_provenance_summary.json"
+    )
+    summary = dict(payload.get("summary") or {}) if payload else {}
+    generated_detail_available_count = _to_int(
+        summary.get("generated_candidate_detail_available_count")
+    )
+    resolver_detail_available_count = _to_int(
+        summary.get("resolver_visible_detail_available_count")
+    )
+    current_status = str(summary.get("current_artifacts_status") or "missing")
+    complete_roundtrip_count = _to_int(summary.get("complete_roundtrip_count"))
+    return {
+        "generated_resolver_sidecar_status": (
+            status if status == "present" else "skipped_missing_optional_dir"
+        ),
+        "generated_resolver_current_artifacts_status": current_status,
+        "generated_candidate_detail_available_count": generated_detail_available_count,
+        "resolver_visible_detail_available_count": resolver_detail_available_count,
+        "generated_resolver_complete_roundtrip_count": complete_roundtrip_count,
+        "generated_resolver_blocks_readiness": (
+            status == "present"
+            and (
+                current_status == "current_like_eval_audit_only_unmeasurable"
+                or generated_detail_available_count == 0
+                or resolver_detail_available_count == 0
+            )
+        ),
+    }
+
+
+def _merge_generated_resolver_into_detail(
+    detail_inventory: dict[str, Any],
+    generated_resolver: dict[str, Any],
+) -> dict[str, Any]:
+    if generated_resolver["generated_resolver_sidecar_status"] == "skipped_not_requested":
+        return detail_inventory
+    merged = dict(detail_inventory)
+    merged.update(generated_resolver)
+    return merged
 
 
 def _repo_evidence(repo_root: Path) -> dict[str, Any]:
@@ -385,6 +472,7 @@ def _detail_inventory_blocks_readiness(detail_inventory: dict[str, Any]) -> bool
         or detail_inventory["unknown_caused_by_missing_detail_ratio"] >= dominance_threshold
         or detail_inventory["serialization_loss_dominates"]
         or detail_inventory["adapter_loss_blocks_readiness"]
+        or detail_inventory["generated_resolver_blocks_readiness"]
     )
 
 
@@ -513,7 +601,8 @@ def _readiness_rows(
                 f"unknown_caused_by_missing_detail_ratio={detail_inventory['unknown_caused_by_missing_detail_ratio']:.3f} "
                 f"serialization_sidecar_status={detail_inventory['serialization_sidecar_status']} "
                 f"serialization_loss_dominates={detail_inventory['serialization_loss_dominates']} "
-                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']}"
+                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']} "
+                f"generated_resolver_status={detail_inventory['generated_resolver_current_artifacts_status']}"
             ),
         },
     ]
@@ -598,7 +687,9 @@ def _gate_inventory(
                 f"missing_source_count={detail_inventory['missing_source_count']} "
                 f"dropped_detail_count={detail_inventory['dropped_detail_count']} "
                 f"serialization_complete_detail_count={detail_inventory['serialization_complete_detail_count']} "
-                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']}"
+                f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']} "
+                f"generated_resolver_sidecar_status={detail_inventory['generated_resolver_sidecar_status']} "
+                f"generated_resolver_current_artifacts_status={detail_inventory['generated_resolver_current_artifacts_status']}"
             ),
         },
     ]
@@ -687,6 +778,7 @@ def summarize_closeout(
     source_line_audit_dir: Path,
     aggregate_gate_dir: Path,
     detail_inventory_dir: Path | None = None,
+    generated_resolver_provenance_dir: Path | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
@@ -694,7 +786,10 @@ def summarize_closeout(
     ownership_audit = _ownership_audit_summary(ownership_audit_dir)
     source_line_audit = _source_line_audit_summary(source_line_audit_dir)
     aggregate_gate = _aggregate_gate_summary(aggregate_gate_dir)
-    detail_inventory = _detail_inventory_summary(detail_inventory_dir)
+    detail_inventory = _merge_generated_resolver_into_detail(
+        _detail_inventory_summary(detail_inventory_dir),
+        _generated_resolver_provenance_summary(generated_resolver_provenance_dir),
+    )
     repo = _repo_evidence(repo_root)
     criteria = _success_criteria(diagnostics, aggregate_gate, repo)
     readiness = _readiness_rows(
@@ -776,6 +871,10 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- detail_inventory_adapter_detail_preserved_count: {detail_inventory['adapter_detail_preserved_count']}",
         f"- detail_inventory_adapter_detail_lost_count: {detail_inventory['adapter_detail_lost_count']}",
         f"- detail_inventory_adapter_loss_blocks_readiness: {detail_inventory['adapter_loss_blocks_readiness']}",
+        f"- detail_inventory_generated_resolver_sidecar_status: {detail_inventory['generated_resolver_sidecar_status']}",
+        f"- detail_inventory_generated_resolver_current_artifacts_status: {detail_inventory['generated_resolver_current_artifacts_status']}",
+        f"- detail_inventory_generated_candidate_detail_available_count: {detail_inventory['generated_candidate_detail_available_count']}",
+        f"- detail_inventory_resolver_visible_detail_available_count: {detail_inventory['resolver_visible_detail_available_count']}",
         "- private_values_redacted: True",
         "- pdf_processing_attempted: False",
         "- ocr_attempted: False",
@@ -849,6 +948,9 @@ def main(argv: list[str] | None = None) -> int:
             _resolve(args.source_line_audit_dir),
             _resolve(args.aggregate_gate_dir),
             _resolve(args.detail_inventory_dir) if args.detail_inventory_dir else None,
+            _resolve(args.generated_resolver_provenance_dir)
+            if args.generated_resolver_provenance_dir
+            else None,
         )
         write_outputs(output_dir, summary)
     except (OSError, closeout_error, json.JSONDecodeError) as exc:
@@ -898,6 +1000,14 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "detail_inventory_adapter_detail_lost_count: "
         f"{summary['detail_inventory']['adapter_detail_lost_count']}"
+    )
+    print(
+        "detail_inventory_generated_resolver_sidecar_status: "
+        f"{summary['detail_inventory']['generated_resolver_sidecar_status']}"
+    )
+    print(
+        "detail_inventory_generated_resolver_current_artifacts_status: "
+        f"{summary['detail_inventory']['generated_resolver_current_artifacts_status']}"
     )
     print("private_values_redacted: True")
     print("pdf_processing_attempted: False")

@@ -87,6 +87,7 @@ def build_private_ratecon_measurement_parser():
     parser.add_argument("--write-candidate-coverage", action="store_true")
     parser.add_argument("--write-load-identifier-audit", action="store_true")
     parser.add_argument("--write-load-identifier-source-line-audit", action="store_true")
+    parser.add_argument("--write-load-generated-resolver-provenance-sidecars", action="store_true")
     parser.add_argument("--write-rate-forensics", action="store_true")
     parser.add_argument("--write-rate-conflict-audit", action="store_true")
     parser.add_argument("--ratecon-shadow-document-pipeline", action="store_true")

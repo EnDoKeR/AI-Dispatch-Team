@@ -1,0 +1,2 @@
+document_id,field,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,selected
+FakeLoadConfirmationA,load_number,cand-load-1,LOAD12345,table_key_value_row,load_identifier,same_row,1,5,true

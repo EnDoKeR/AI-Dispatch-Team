@@ -76,6 +76,12 @@ closeout also reports adapter-preserved and adapter-lost counts. Adapter loss is
 a blocker for behavior experiments until the boundary is repaired and the
 selected-load regression harness plus private selected-load aggregate gate pass.
 
+If a generated/resolver provenance sidecar is supplied, the closeout also
+reports generated candidate detail availability, resolver-visible detail
+availability, generated/resolver loss stage, and whether current artifacts are
+measurable. Eval/audit-only unmeasurable artifacts keep behavior experiments
+blocked.
+
 ## Known Debt
 
 Known debt remains pinned:
@@ -92,6 +98,8 @@ Known debt remains pinned:
 - missing or dropped serialization of candidate id, source, page/line, and
   pairing metadata across local diagnostic surfaces.
 - adapter-boundary loss of already-existing load candidate provenance metadata.
+- missing generated/resolver provenance sidecars, which leaves corpus-level
+  adapter improvement unmeasurable from eval/audit-only outputs.
 
 Future behavior changes must be shadow-only first and require explicit review
 of selected-load regression output, private aggregate gate output, diagnostic
