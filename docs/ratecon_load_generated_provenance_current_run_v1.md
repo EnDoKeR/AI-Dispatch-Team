@@ -74,3 +74,14 @@ reported by the sidecar.
 
 This closeout does not approve production migration and does not approve an
 experimental ranking profile by itself.
+
+## Later-Boundary Compare
+
+`scripts/compare_ratecon_load_generated_provenance_boundaries.py` adds the
+next local-only gate for current runs where generated rows exist but complete
+roundtrip is still missing. It compares generated, adapter, dedupe, resolver,
+audit, evaluator, and sidecar rows and reports the first unavailable boundary.
+
+The current-run summarizer can consume `--boundary-compare-dir` additively. A
+boundary compare result can only block readiness; it does not approve
+table-neighbor or nearby-row behavior changes.

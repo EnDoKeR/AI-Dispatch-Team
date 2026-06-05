@@ -28,6 +28,7 @@ STATUS_UNKNOWN = "current_run_unknown"
 SIDE_CAR_SUMMARY_FILE = "load_generated_resolver_provenance_summary.json"
 DETAIL_SUMMARY_FILE = "load_source_line_detail_inventory_summary.json"
 CLOSEOUT_SUMMARY_FILE = "load_source_line_closeout_summary.json"
+BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -60,6 +61,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--generated-resolver-sidecar-dir", required=True)
     parser.add_argument("--detail-inventory-dir")
     parser.add_argument("--closeout-dir")
+    parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -177,6 +179,41 @@ def _optional_summary(path: Path | None, filename: str, label: str) -> dict[str,
     }
 
 
+def _boundary_summary(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {
+            "status": "skipped_not_requested",
+            "path": "",
+            "first_loss_boundary": "",
+            "complete_roundtrip_count": 0,
+            "candidate_count": 0,
+            "loss_boundary_counts": {},
+            "blocks_experiment": False,
+        }
+    summary, status = _summary_payload(path, BOUNDARY_SUMMARY_FILE)
+    first_loss_boundary = str(summary.get("first_loss_boundary") or "")
+    complete_roundtrip_count = _to_int(summary.get("complete_roundtrip_count"))
+    candidate_count = _to_int(summary.get("candidate_count"))
+    loss_counts = {
+        str(key): _to_int(value)
+        for key, value in dict(summary.get("loss_boundary_counts") or {}).items()
+    }
+    return {
+        "status": status,
+        "path": str(path),
+        "first_loss_boundary": first_loss_boundary,
+        "complete_roundtrip_count": complete_roundtrip_count,
+        "candidate_count": candidate_count,
+        "loss_boundary_counts": loss_counts,
+        "blocks_experiment": status == "present"
+        and (
+            complete_roundtrip_count <= 0
+            or first_loss_boundary
+            not in {"", "boundary_no_loss_complete_roundtrip"}
+        ),
+    }
+
+
 def _determine_status(sidecar: dict[str, Any]) -> str:
     if sidecar["status"] == "missing":
         return STATUS_PRIVATE_INPUTS_UNAVAILABLE
@@ -278,7 +315,16 @@ def _known_debt_rows(status: str, sidecar: dict[str, Any]) -> list[dict[str, Any
     ]
 
 
-def _gate_rows(status: str, sidecar: dict[str, Any]) -> list[dict[str, Any]]:
+def _gate_rows(
+    status: str,
+    sidecar: dict[str, Any],
+    boundary: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    boundary = boundary or {
+        "status": "skipped_not_requested",
+        "blocks_experiment": False,
+        "first_loss_boundary": "",
+    }
     return [
         {
             "criterion": "sidecar_summary_present",
@@ -312,9 +358,15 @@ def _gate_rows(status: str, sidecar: dict[str, Any]) -> list[dict[str, Any]]:
         },
         {
             "criterion": "ready_for_table_neighbor_experiment",
-            "passed": status == STATUS_FULL,
+            "passed": status == STATUS_FULL and not boundary["blocks_experiment"],
             "required": True,
-            "notes": status,
+            "notes": f"{status}; boundary={boundary['first_loss_boundary']}",
+        },
+        {
+            "criterion": "later_boundary_compare_not_blocking",
+            "passed": not boundary["blocks_experiment"],
+            "required": boundary["status"] == "present",
+            "notes": boundary["status"],
         },
     ]
 
@@ -324,24 +376,36 @@ def build_summary(
     sidecar_dir: Path,
     detail_inventory_dir: Path | None = None,
     closeout_dir: Path | None = None,
+    boundary_compare_dir: Path | None = None,
 ) -> dict[str, Any]:
     sidecar = _sidecar_summary(sidecar_dir)
     status = _determine_status(sidecar)
     detail = _optional_summary(detail_inventory_dir, DETAIL_SUMMARY_FILE, "detail_inventory")
     closeout = _optional_summary(closeout_dir, CLOSEOUT_SUMMARY_FILE, "closeout")
-    gate_rows = _gate_rows(status, sidecar)
+    boundary = _boundary_summary(boundary_compare_dir)
+    gate_rows = _gate_rows(status, sidecar, boundary)
     next_actions = _next_actions(status, sidecar)
+    if boundary["blocks_experiment"]:
+        next_actions.append(
+            {
+                "action": "repair_exact_later_boundary_before_experiment",
+                "required_before_experiment": True,
+                "reason": f"Boundary compare reports {boundary['first_loss_boundary']}.",
+            }
+        )
     known_debt = _known_debt_rows(status, sidecar)
     return {
         "schema_version": "ratecon_load_generated_provenance_current_run_v1",
         "current_run_status": status,
         "behavior_change_allowed": False,
-        "table_neighbor_experiment_ready": status == STATUS_FULL,
+        "table_neighbor_experiment_ready": status == STATUS_FULL
+        and not boundary["blocks_experiment"],
         "generation_stage_instrumentation_needed": status
         in {STATUS_PARTIAL, STATUS_GENERATED_ABSENT},
         "sidecar": sidecar,
         "detail_inventory": detail,
         "closeout": closeout,
+        "boundary_compare": boundary,
         "gate": gate_rows,
         "next_actions": next_actions,
         "known_debt": known_debt,
@@ -367,6 +431,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) ->
 
 def _report(payload: dict[str, Any]) -> str:
     sidecar = payload["sidecar"]
+    boundary = payload["boundary_compare"]
     lines = [
         "# RateCon Load Generated Provenance Current Run",
         "",
@@ -382,6 +447,9 @@ def _report(payload: dict[str, Any]) -> str:
         f"- generated_candidate_count: {sidecar['generated_candidate_count']}",
         f"- resolver_visible_candidate_count: {sidecar['resolver_visible_candidate_count']}",
         f"- complete_roundtrip_count: {sidecar['complete_roundtrip_count']}",
+        f"- boundary_compare_status: {boundary['status']}",
+        f"- boundary_first_loss_boundary: {boundary['first_loss_boundary']}",
+        f"- boundary_complete_roundtrip_count: {boundary['complete_roundtrip_count']}",
         f"- private_values_redacted: {payload['private_values_redacted']}",
         f"- pdf_processing_attempted: {payload['pdf_processing_attempted']}",
         f"- ocr_attempted: {payload['ocr_attempted']}",
@@ -439,6 +507,9 @@ def main(argv: list[str] | None = None) -> int:
             if args.detail_inventory_dir
             else None,
             closeout_dir=_resolve(args.closeout_dir) if args.closeout_dir else None,
+            boundary_compare_dir=_resolve(args.boundary_compare_dir)
+            if args.boundary_compare_dir
+            else None,
         )
         write_outputs(output_dir, payload)
     except current_run_error as exc:
@@ -449,6 +520,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"generated_candidate_count: {payload['sidecar']['generated_candidate_count']}")
     print(f"resolver_visible_candidate_count: {payload['sidecar']['resolver_visible_candidate_count']}")
     print(f"complete_roundtrip_count: {payload['sidecar']['complete_roundtrip_count']}")
+    print(f"boundary_compare_status: {payload['boundary_compare']['status']}")
+    print(f"boundary_first_loss_boundary: {payload['boundary_compare']['first_loss_boundary']}")
     print(f"output_dir: {output_dir}")
     return 0
 

@@ -138,3 +138,11 @@ generated/resolver sidecar summaries after an explicit local run. If generated
 rows are present but complete roundtrip is absent, the next repair must target
 the exact later boundary reported by `generated_resolver_loss_stage`. This
 continues to be diagnostic-only and does not approve load selection changes.
+
+## Later-Boundary Compare
+
+`scripts/create_ratecon_load_source_line_serialization.py` can consume
+`--boundary-compare-dir` as a summary-only input. Boundary compare fields
+identify whether complete generated-to-sidecar roundtrip is still blocked by a
+later diagnostic boundary. The input is additive and cannot make readiness more
+permissive.

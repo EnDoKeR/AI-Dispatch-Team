@@ -138,3 +138,12 @@ python scripts/audit_ratecon_load_identifier_ownership.py `
 
 This ownership baseline is not a load-number improvement PR and does not claim
 accuracy gains.
+
+## Later-Boundary Ownership
+
+`app/document_ai/load_identifier_generated_provenance_boundary.py` is the
+local-only owner for comparing generated, adapter, dedupe, resolver, audit,
+evaluator, and sidecar visibility. It reports where already-existing load
+candidate provenance disappears. It must not own load candidate taxonomy,
+resolver scoring, selected value choice, extraction behavior, or evaluator
+status semantics.

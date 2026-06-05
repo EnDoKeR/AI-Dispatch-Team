@@ -42,6 +42,7 @@ DIAGNOSTIC_ROW_FILE = "load_source_line_error_cases.csv"
 SERIALIZATION_ROW_FILE = "load_source_line_serialization_rows.csv"
 GENERATED_RESOLVER_SUMMARY_FILE = "load_generated_resolver_provenance_summary.json"
 GENERATED_RESOLVER_LOSS_FILE = "load_provenance_loss_by_stage.csv"
+BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -53,6 +54,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--diagnostics-dir", required=True)
     parser.add_argument("--serialization-dir")
     parser.add_argument("--generated-resolver-provenance-dir")
+    parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
@@ -216,6 +218,9 @@ def _write_report(path: Path, payload: dict[str, Any]) -> None:
             f"- generated_resolver_current_artifacts_status: {summary['generated_resolver_current_artifacts_status']}",
             f"- generated_candidate_detail_available_count: {summary['generated_candidate_detail_available_count']}",
             f"- resolver_visible_detail_available_count: {summary['resolver_visible_detail_available_count']}",
+            f"- boundary_compare_status: {summary.get('boundary_compare_status', 'skipped_not_requested')}",
+            f"- boundary_first_loss_boundary: {summary.get('boundary_first_loss_boundary', '')}",
+            f"- boundary_complete_roundtrip_count: {summary.get('boundary_complete_roundtrip_count', 0)}",
         ]
     )
     path.write_text("\n".join(lines) + "\n", encoding="utf-8")
@@ -327,7 +332,12 @@ def build_inventory(args: argparse.Namespace) -> dict[str, Any]:
         if args.generated_resolver_provenance_dir
         else None
     )
-    return _merge_generated_resolver_sidecar(payload, generated_resolver_dir)
+    payload = _merge_generated_resolver_sidecar(payload, generated_resolver_dir)
+    return _merge_boundary_compare_summary(
+        payload,
+        _resolve(args.boundary_compare_dir) if args.boundary_compare_dir else None,
+        bool(args.boundary_compare_dir),
+    )
 
 
 def _merge_generated_resolver_sidecar(payload: dict[str, Any], sidecar_dir: Path | None) -> dict[str, Any]:
@@ -391,6 +401,31 @@ def _merge_generated_resolver_sidecar(payload: dict[str, Any], sidecar_dir: Path
     return payload
 
 
+def _merge_boundary_compare_summary(
+    payload: dict[str, Any],
+    boundary_dir: Path | None,
+    requested: bool,
+) -> dict[str, Any]:
+    boundary_payload = _read_json(
+        boundary_dir / BOUNDARY_SUMMARY_FILE
+        if boundary_dir is not None and boundary_dir.exists()
+        else Path("__missing__")
+    )
+    boundary_summary = dict(boundary_payload.get("summary") or {}) if boundary_payload else {}
+    summary = payload["summary"]
+    summary["boundary_compare_status"] = "present" if boundary_summary else (
+        "skipped_missing_optional_dir" if requested else "skipped_not_requested"
+    )
+    summary["boundary_first_loss_boundary"] = boundary_summary.get("first_loss_boundary", "")
+    summary["boundary_complete_roundtrip_count"] = int(
+        boundary_summary.get("complete_roundtrip_count") or 0
+    )
+    summary["boundary_loss_boundary_counts"] = dict(
+        boundary_summary.get("loss_boundary_counts") or {}
+    )
+    return payload
+
+
 def main(argv: list[str] | None = None) -> int:
     args = parse_args(argv)
     if not args.confirm_private_local_run:
@@ -419,6 +454,8 @@ def main(argv: list[str] | None = None) -> int:
     print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
     print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
     print(f"generated_resolver_sidecar_status: {summary['generated_resolver_sidecar_status']}")
+    print(f"boundary_compare_status: {summary['boundary_compare_status']}")
+    print(f"boundary_first_loss_boundary: {summary['boundary_first_loss_boundary']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")

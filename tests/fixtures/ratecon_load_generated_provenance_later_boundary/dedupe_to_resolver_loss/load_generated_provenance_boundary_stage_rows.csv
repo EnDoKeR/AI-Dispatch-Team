@@ -1,0 +1,6 @@
+document_id,field,stage,candidate_id,source,parser_name,pairing_method,page_number,line_index
+FakeLoadConfirmationA,load_number,generated,cand-load-1,native_layout,layout_load_identity_pairing_generator,nearby_row,1,5
+FakeLoadConfirmationA,load_number,adapter_input,cand-load-1,native_layout,layout_load_identity_pairing_generator,nearby_row,1,5
+FakeLoadConfirmationA,load_number,adapter_output,cand-load-1,native_layout,layout_load_identity_pairing_generator,nearby_row,1,5
+FakeLoadConfirmationA,load_number,dedupe_input,cand-load-1,native_layout,layout_load_identity_pairing_generator,nearby_row,1,5
+FakeLoadConfirmationA,load_number,dedupe_output,cand-load-1,native_layout,layout_load_identity_pairing_generator,nearby_row,1,5

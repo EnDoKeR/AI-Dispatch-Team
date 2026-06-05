@@ -27,6 +27,7 @@ from app.document_ai.load_identifier_generated_resolver_provenance import (  # n
 
 
 SERIALIZATION_ROW_FILE = "load_source_line_serialization_rows.csv"
+BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
 
 LEGACY_GENERATED_FILES = (
     "load_generated_candidates.csv",
@@ -64,6 +65,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--audit")
     parser.add_argument("--legacy-output-dir")
     parser.add_argument("--serialization-dir")
+    parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--generated-candidates")
     parser.add_argument("--adapter-input")
     parser.add_argument("--adapter-output")
@@ -117,6 +119,13 @@ def _jsonl_payloads(path: Path | None) -> list[dict[str, Any]]:
     return rows
 
 
+def _read_json(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def _find_first(directory: Path | None, names: tuple[str, ...]) -> Path | None:
     if directory is None or not directory.exists():
         return None
@@ -151,7 +160,7 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
     resolver_from_audit, audit_rows = rows_from_audit_payloads(
         _jsonl_payloads(_resolve(args.audit))
     )
-    return build_load_generated_resolver_provenance_sidecars(
+    payload = build_load_generated_resolver_provenance_sidecars(
         generated_rows=_rows_from_explicit_or_legacy(
             args.generated_candidates, legacy_dir, LEGACY_GENERATED_FILES
         ),
@@ -181,6 +190,26 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
         ),
         include_private_values=bool(args.include_private_values_local_only),
     )
+    boundary_requested = bool(args.boundary_compare_dir)
+    boundary_dir = _resolve(args.boundary_compare_dir)
+    boundary_payload = _read_json(
+        boundary_dir / BOUNDARY_SUMMARY_FILE if boundary_dir is not None else None
+    )
+    boundary_summary = dict(boundary_payload.get("summary") or {}) if boundary_payload else {}
+    payload["summary"]["boundary_compare_status"] = "present" if boundary_summary else (
+        "skipped_missing_optional_dir" if boundary_requested else "skipped_not_requested"
+    )
+    payload["summary"]["boundary_first_loss_boundary"] = boundary_summary.get(
+        "first_loss_boundary",
+        "",
+    )
+    payload["summary"]["boundary_complete_roundtrip_count"] = int(
+        boundary_summary.get("complete_roundtrip_count") or 0
+    )
+    payload["summary"]["boundary_loss_boundary_counts"] = dict(
+        boundary_summary.get("loss_boundary_counts") or {}
+    )
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -206,6 +235,8 @@ def main(argv: list[str] | None = None) -> int:
         f"{summary['resolver_visible_detail_available_count']}"
     )
     print(f"complete_roundtrip_count: {summary['complete_roundtrip_count']}")
+    print(f"boundary_compare_status: {summary['boundary_compare_status']}")
+    print(f"boundary_first_loss_boundary: {summary['boundary_first_loss_boundary']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")

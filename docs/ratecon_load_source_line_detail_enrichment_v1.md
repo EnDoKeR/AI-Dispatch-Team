@@ -127,3 +127,11 @@ generated/resolver sidecars. It records whether generated rows are absent,
 present but missing detail, or present with later loss. If later loss remains,
 the next task is a boundary-specific serialization repair, not a table-neighbor
 or nearby-row behavior change.
+
+## Later-Boundary Compare
+
+The detail inventory can consume boundary compare summaries through
+`--boundary-compare-dir`. Boundary fields explain whether generated provenance
+detail is still blocked after generation, adapter, dedupe, resolver, audit,
+evaluator, or sidecar serialization. This input is local-only and can only keep
+future behavior experiments blocked until complete roundtrip is proven.

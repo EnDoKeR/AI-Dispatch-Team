@@ -42,6 +42,7 @@ approved_constant_modules = {
     "app/document_ai/layout_provider_diagnostics.py",
     "app/document_ai/load_identifier_coverage_audit.py",
     "app/document_ai/load_identifier_candidate_adapter_provenance.py",
+    "app/document_ai/load_identifier_generated_provenance_boundary.py",
     "app/document_ai/load_identifier_generated_resolver_provenance.py",
     "app/document_ai/load_identifier_source_line_audit.py",
     "app/document_ai/load_identifier_source_line_detail.py",
@@ -166,7 +167,7 @@ class RateconCandidateConstantGuardrailTests(unittest.TestCase):
         duplicates = summary["duplicate_constants"]
         duplicate_names = {row["constant_name"] for row in duplicates}
 
-        self.assertEqual(36, summary["duplicate_constant_count"])
+        self.assertEqual(37, summary["duplicate_constant_count"])
         self.assertIn(
             "CANDIDATE_CONFIDENCE_HIGH;CONFIDENCE_HIGH",
             duplicate_names,

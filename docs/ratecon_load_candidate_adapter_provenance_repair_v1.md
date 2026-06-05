@@ -98,6 +98,14 @@ later, the next task is the exact later-boundary serialization repair. This PR
 does not approve behavior-changing load-number experiments or production
 migration.
 
+## Later-Boundary Follow-Up
+
+The later-boundary compare separates adapter loss from downstream diagnostic
+visibility loss. If generated rows have detail but adapter/dedupe/resolver/audit
+or evaluator rows are missing, the next task must repair only that exact
+boundary and must not change selection, scoring, source labels, confidence
+values, or candidate generation.
+
 ## Generated/Resolver Provenance Sidecars
 
 `app/document_ai/load_identifier_generated_resolver_provenance.py` and

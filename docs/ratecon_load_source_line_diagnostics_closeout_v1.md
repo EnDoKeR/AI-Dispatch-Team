@@ -107,3 +107,11 @@ Known debt remains pinned:
 Future behavior changes must be shadow-only first and require explicit review
 of selected-load regression output, private aggregate gate output, diagnostic
 coverage, and metric deltas.
+
+## Later-Boundary Compare
+
+The closeout summarizer can consume `--boundary-compare-dir` after generated
+provenance current-run verification. If boundary comparison reports any first
+loss other than `boundary_no_loss_complete_roundtrip`, experiment readiness
+remains blocked. The boundary result does not approve behavior changes by
+itself.

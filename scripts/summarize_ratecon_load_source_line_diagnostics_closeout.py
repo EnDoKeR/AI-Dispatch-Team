@@ -93,6 +93,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--aggregate-gate-dir", required=True)
     parser.add_argument("--detail-inventory-dir")
     parser.add_argument("--generated-resolver-provenance-dir")
+    parser.add_argument("--boundary-compare-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -291,6 +292,10 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
             "resolver_visible_detail_available_count": 0,
             "generated_resolver_complete_roundtrip_count": 0,
             "generated_resolver_blocks_readiness": False,
+            "boundary_compare_status": "skipped_not_requested",
+            "boundary_first_loss_boundary": "",
+            "boundary_complete_roundtrip_count": 0,
+            "boundary_blocks_readiness": False,
             "missing_page_line_ratio": 0.0,
             "missing_source_ratio": 0.0,
             "unknown_caused_by_missing_detail_ratio": 0.0,
@@ -370,6 +375,12 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
                 or resolver_detail_available_count == 0
             )
         ),
+        "boundary_compare_status": "skipped_not_requested",
+        "boundary_first_loss_boundary": "",
+        "boundary_complete_roundtrip_count": 0,
+        "boundary_candidate_count": 0,
+        "boundary_loss_boundary_counts": {},
+        "boundary_blocks_readiness": False,
         "missing_page_line_ratio": (
             missing_page_line_count / candidate_count if candidate_count else 0.0
         ),
@@ -381,6 +392,43 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
         ),
         "private_values_included": _as_bool(summary.get("private_values_included")),
         "values_redacted": not _as_bool(summary.get("private_values_included")),
+    }
+
+
+def _boundary_compare_summary(boundary_dir: Path | None) -> dict[str, Any]:
+    if boundary_dir is None:
+        return {
+            "boundary_compare_status": "skipped_not_requested",
+            "boundary_first_loss_boundary": "",
+            "boundary_complete_roundtrip_count": 0,
+            "boundary_candidate_count": 0,
+            "boundary_loss_boundary_counts": {},
+            "boundary_blocks_readiness": False,
+        }
+    payload, status = _read_json_if_present(
+        boundary_dir / "load_generated_provenance_boundary_summary.json"
+    )
+    summary = dict(payload.get("summary") or {}) if payload else {}
+    first_loss_boundary = str(summary.get("first_loss_boundary") or "")
+    complete_roundtrip_count = _to_int(summary.get("complete_roundtrip_count"))
+    counts = {
+        str(key): _to_int(value)
+        for key, value in dict(summary.get("loss_boundary_counts") or {}).items()
+    }
+    return {
+        "boundary_compare_status": (
+            status if status == "present" else "skipped_missing_optional_dir"
+        ),
+        "boundary_first_loss_boundary": first_loss_boundary,
+        "boundary_complete_roundtrip_count": complete_roundtrip_count,
+        "boundary_candidate_count": _to_int(summary.get("candidate_count")),
+        "boundary_loss_boundary_counts": counts,
+        "boundary_blocks_readiness": status == "present"
+        and (
+            complete_roundtrip_count <= 0
+            or first_loss_boundary
+            not in {"", "boundary_no_loss_complete_roundtrip"}
+        ),
     }
 
 
@@ -436,6 +484,17 @@ def _merge_generated_resolver_into_detail(
     return merged
 
 
+def _merge_boundary_compare_into_detail(
+    detail_inventory: dict[str, Any],
+    boundary_compare: dict[str, Any],
+) -> dict[str, Any]:
+    if boundary_compare["boundary_compare_status"] == "skipped_not_requested":
+        return detail_inventory
+    merged = dict(detail_inventory)
+    merged.update(boundary_compare)
+    return merged
+
+
 def _repo_evidence(repo_root: Path) -> dict[str, Any]:
     gates = {path: (repo_root / path).exists() for path in required_repo_gate_paths}
     fixtures = {path: (repo_root / path).exists() for path in required_fixture_paths}
@@ -473,6 +532,7 @@ def _detail_inventory_blocks_readiness(detail_inventory: dict[str, Any]) -> bool
         or detail_inventory["serialization_loss_dominates"]
         or detail_inventory["adapter_loss_blocks_readiness"]
         or detail_inventory["generated_resolver_blocks_readiness"]
+        or detail_inventory["boundary_blocks_readiness"]
     )
 
 
@@ -689,7 +749,9 @@ def _gate_inventory(
                 f"serialization_complete_detail_count={detail_inventory['serialization_complete_detail_count']} "
                 f"adapter_detail_lost_count={detail_inventory['adapter_detail_lost_count']} "
                 f"generated_resolver_sidecar_status={detail_inventory['generated_resolver_sidecar_status']} "
-                f"generated_resolver_current_artifacts_status={detail_inventory['generated_resolver_current_artifacts_status']}"
+                f"generated_resolver_current_artifacts_status={detail_inventory['generated_resolver_current_artifacts_status']} "
+                f"boundary_compare_status={detail_inventory['boundary_compare_status']} "
+                f"boundary_first_loss_boundary={detail_inventory['boundary_first_loss_boundary']}"
             ),
         },
     ]
@@ -779,6 +841,7 @@ def summarize_closeout(
     aggregate_gate_dir: Path,
     detail_inventory_dir: Path | None = None,
     generated_resolver_provenance_dir: Path | None = None,
+    boundary_compare_dir: Path | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
@@ -786,9 +849,12 @@ def summarize_closeout(
     ownership_audit = _ownership_audit_summary(ownership_audit_dir)
     source_line_audit = _source_line_audit_summary(source_line_audit_dir)
     aggregate_gate = _aggregate_gate_summary(aggregate_gate_dir)
-    detail_inventory = _merge_generated_resolver_into_detail(
-        _detail_inventory_summary(detail_inventory_dir),
-        _generated_resolver_provenance_summary(generated_resolver_provenance_dir),
+    detail_inventory = _merge_boundary_compare_into_detail(
+        _merge_generated_resolver_into_detail(
+            _detail_inventory_summary(detail_inventory_dir),
+            _generated_resolver_provenance_summary(generated_resolver_provenance_dir),
+        ),
+        _boundary_compare_summary(boundary_compare_dir),
     )
     repo = _repo_evidence(repo_root)
     criteria = _success_criteria(diagnostics, aggregate_gate, repo)
@@ -875,6 +941,10 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- detail_inventory_generated_resolver_current_artifacts_status: {detail_inventory['generated_resolver_current_artifacts_status']}",
         f"- detail_inventory_generated_candidate_detail_available_count: {detail_inventory['generated_candidate_detail_available_count']}",
         f"- detail_inventory_resolver_visible_detail_available_count: {detail_inventory['resolver_visible_detail_available_count']}",
+        f"- detail_inventory_boundary_compare_status: {detail_inventory['boundary_compare_status']}",
+        f"- detail_inventory_boundary_first_loss_boundary: {detail_inventory['boundary_first_loss_boundary']}",
+        f"- detail_inventory_boundary_complete_roundtrip_count: {detail_inventory['boundary_complete_roundtrip_count']}",
+        f"- detail_inventory_boundary_blocks_readiness: {detail_inventory['boundary_blocks_readiness']}",
         "- private_values_redacted: True",
         "- pdf_processing_attempted: False",
         "- ocr_attempted: False",
@@ -951,6 +1021,7 @@ def main(argv: list[str] | None = None) -> int:
             _resolve(args.generated_resolver_provenance_dir)
             if args.generated_resolver_provenance_dir
             else None,
+            _resolve(args.boundary_compare_dir) if args.boundary_compare_dir else None,
         )
         write_outputs(output_dir, summary)
     except (OSError, closeout_error, json.JSONDecodeError) as exc:
@@ -1008,6 +1079,22 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "detail_inventory_generated_resolver_current_artifacts_status: "
         f"{summary['detail_inventory']['generated_resolver_current_artifacts_status']}"
+    )
+    print(
+        "detail_inventory_boundary_compare_status: "
+        f"{summary['detail_inventory']['boundary_compare_status']}"
+    )
+    print(
+        "detail_inventory_boundary_first_loss_boundary: "
+        f"{summary['detail_inventory']['boundary_first_loss_boundary']}"
+    )
+    print(
+        "detail_inventory_boundary_complete_roundtrip_count: "
+        f"{summary['detail_inventory']['boundary_complete_roundtrip_count']}"
+    )
+    print(
+        "detail_inventory_boundary_blocks_readiness: "
+        f"{summary['detail_inventory']['boundary_blocks_readiness']}"
     )
     print("private_values_redacted: True")
     print("pdf_processing_attempted: False")

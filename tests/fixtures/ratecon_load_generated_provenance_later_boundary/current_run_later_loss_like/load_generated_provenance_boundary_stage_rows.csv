@@ -1,0 +1,3 @@
+document_id,field,stage,candidate_id,source,parser_name,pairing_method,page_number,line_index
+FakeLoadConfirmationCurrent,load_number,generated,load_number:7305afa48080,native_layout,layout_load_identity_pairing_generator,nearby_row,1,
+FakeLoadConfirmationCurrent,load_number,resolver,load_number:7305afa48080,native_layout,layout_load_identity_pairing_generator,nearby_row,,
