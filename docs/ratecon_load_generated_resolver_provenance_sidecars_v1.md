@@ -142,3 +142,16 @@ stops being visible.
 The generated/resolver sidecar writer accepts `--boundary-compare-dir` only as
 an additive local summary input. It does not change sidecar row matching,
 candidate generation, resolver behavior, selected output, or readiness gates.
+
+## Adapter/Dedupe Stage Sidecars
+
+The adapter/dedupe sidecar extension adds split outputs for
+`load_adapter_input_candidates.csv`, `load_adapter_output_candidates.csv`,
+`load_dedupe_input_candidates.csv`, `load_dedupe_output_candidates.csv`, and
+`load_adapter_dedupe_loss_by_stage.csv`. The older combined
+`load_adapter_roundtrip_rows.csv` and `load_dedupe_lineage_rows.csv` remain for
+compatibility.
+
+These rows are visibility only. They read or emit existing metadata, redact
+values by default, and must not change generation, adapter, dedupe, resolver,
+selected output, or evaluator metrics.

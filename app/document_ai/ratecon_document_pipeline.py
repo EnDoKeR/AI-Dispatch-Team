@@ -194,6 +194,10 @@ def extract_ratecon_document(
                 "errors": generation_result.get("errors", []),
                 "section_context_summary": section_context_summary(artifact),
             },
+            "adapter_dedupe_provenance_records": generation_result.get(
+                "adapter_dedupe_provenance_records",
+                [],
+            ),
             "resolved_fields": resolved.get("resolved_fields", {}),
             "resolver_decision_traces": resolved.get("resolver_decision_traces", {}),
             "review_gate_trace": resolved.get("review_gate_trace", {}),

@@ -291,6 +291,12 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
             "generated_candidate_detail_available_count": 0,
             "resolver_visible_detail_available_count": 0,
             "generated_resolver_complete_roundtrip_count": 0,
+            "generated_resolver_adapter_input_count": 0,
+            "generated_resolver_adapter_output_count": 0,
+            "generated_resolver_dedupe_input_count": 0,
+            "generated_resolver_dedupe_output_count": 0,
+            "generated_resolver_adapter_detail_lost_count": 0,
+            "generated_resolver_dedupe_detail_lost_count": 0,
             "generated_resolver_blocks_readiness": False,
             "boundary_compare_status": "skipped_not_requested",
             "boundary_first_loss_boundary": "",
@@ -367,6 +373,24 @@ def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
         "generated_candidate_detail_available_count": generated_detail_available_count,
         "resolver_visible_detail_available_count": resolver_detail_available_count,
         "generated_resolver_complete_roundtrip_count": generated_resolver_complete_count,
+        "generated_resolver_adapter_input_count": _to_int(
+            summary.get("generated_resolver_adapter_input_count")
+        ),
+        "generated_resolver_adapter_output_count": _to_int(
+            summary.get("generated_resolver_adapter_output_count")
+        ),
+        "generated_resolver_dedupe_input_count": _to_int(
+            summary.get("generated_resolver_dedupe_input_count")
+        ),
+        "generated_resolver_dedupe_output_count": _to_int(
+            summary.get("generated_resolver_dedupe_output_count")
+        ),
+        "generated_resolver_adapter_detail_lost_count": _to_int(
+            summary.get("generated_resolver_adapter_detail_lost_count")
+        ),
+        "generated_resolver_dedupe_detail_lost_count": _to_int(
+            summary.get("generated_resolver_dedupe_detail_lost_count")
+        ),
         "generated_resolver_blocks_readiness": (
             generated_resolver_sidecar_status == "present"
             and (
@@ -440,6 +464,12 @@ def _generated_resolver_provenance_summary(sidecar_dir: Path | None) -> dict[str
             "generated_candidate_detail_available_count": 0,
             "resolver_visible_detail_available_count": 0,
             "generated_resolver_complete_roundtrip_count": 0,
+            "generated_resolver_adapter_input_count": 0,
+            "generated_resolver_adapter_output_count": 0,
+            "generated_resolver_dedupe_input_count": 0,
+            "generated_resolver_dedupe_output_count": 0,
+            "generated_resolver_adapter_detail_lost_count": 0,
+            "generated_resolver_dedupe_detail_lost_count": 0,
             "generated_resolver_blocks_readiness": False,
         }
     payload, status = _read_json_if_present(
@@ -462,6 +492,16 @@ def _generated_resolver_provenance_summary(sidecar_dir: Path | None) -> dict[str
         "generated_candidate_detail_available_count": generated_detail_available_count,
         "resolver_visible_detail_available_count": resolver_detail_available_count,
         "generated_resolver_complete_roundtrip_count": complete_roundtrip_count,
+        "generated_resolver_adapter_input_count": _to_int(summary.get("adapter_input_count")),
+        "generated_resolver_adapter_output_count": _to_int(summary.get("adapter_output_count")),
+        "generated_resolver_dedupe_input_count": _to_int(summary.get("dedupe_input_count")),
+        "generated_resolver_dedupe_output_count": _to_int(summary.get("dedupe_output_count")),
+        "generated_resolver_adapter_detail_lost_count": _to_int(
+            summary.get("adapter_detail_lost_count")
+        ),
+        "generated_resolver_dedupe_detail_lost_count": _to_int(
+            summary.get("dedupe_detail_lost_count")
+        ),
         "generated_resolver_blocks_readiness": (
             status == "present"
             and (
@@ -941,6 +981,12 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- detail_inventory_generated_resolver_current_artifacts_status: {detail_inventory['generated_resolver_current_artifacts_status']}",
         f"- detail_inventory_generated_candidate_detail_available_count: {detail_inventory['generated_candidate_detail_available_count']}",
         f"- detail_inventory_resolver_visible_detail_available_count: {detail_inventory['resolver_visible_detail_available_count']}",
+        f"- detail_inventory_adapter_input_count: {detail_inventory['generated_resolver_adapter_input_count']}",
+        f"- detail_inventory_adapter_output_count: {detail_inventory['generated_resolver_adapter_output_count']}",
+        f"- detail_inventory_dedupe_input_count: {detail_inventory['generated_resolver_dedupe_input_count']}",
+        f"- detail_inventory_dedupe_output_count: {detail_inventory['generated_resolver_dedupe_output_count']}",
+        f"- detail_inventory_adapter_stage_lost_count: {detail_inventory['generated_resolver_adapter_detail_lost_count']}",
+        f"- detail_inventory_dedupe_stage_lost_count: {detail_inventory['generated_resolver_dedupe_detail_lost_count']}",
         f"- detail_inventory_boundary_compare_status: {detail_inventory['boundary_compare_status']}",
         f"- detail_inventory_boundary_first_loss_boundary: {detail_inventory['boundary_first_loss_boundary']}",
         f"- detail_inventory_boundary_complete_roundtrip_count: {detail_inventory['boundary_complete_roundtrip_count']}",
@@ -1079,6 +1125,22 @@ def main(argv: list[str] | None = None) -> int:
     print(
         "detail_inventory_generated_resolver_current_artifacts_status: "
         f"{summary['detail_inventory']['generated_resolver_current_artifacts_status']}"
+    )
+    print(
+        "detail_inventory_adapter_input_count: "
+        f"{summary['detail_inventory']['generated_resolver_adapter_input_count']}"
+    )
+    print(
+        "detail_inventory_adapter_output_count: "
+        f"{summary['detail_inventory']['generated_resolver_adapter_output_count']}"
+    )
+    print(
+        "detail_inventory_dedupe_input_count: "
+        f"{summary['detail_inventory']['generated_resolver_dedupe_input_count']}"
+    )
+    print(
+        "detail_inventory_dedupe_output_count: "
+        f"{summary['detail_inventory']['generated_resolver_dedupe_output_count']}"
     )
     print(
         "detail_inventory_boundary_compare_status: "

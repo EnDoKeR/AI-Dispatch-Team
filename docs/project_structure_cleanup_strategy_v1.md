@@ -369,6 +369,8 @@ Future rate/money consolidation should continue with one narrow target:
   before diagnostics;
 - generated-provenance later-boundary compare/repair if generated rows are
   present but complete roundtrip is still missing;
+- adapter/dedupe stage sidecar emission if later-boundary evidence points to
+  generation-to-adapter loss but adapter/dedupe stage rows are not visible;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

@@ -8,6 +8,7 @@ from app.document_ai.load_identifier_generated_resolver_provenance import (
     STAGE_GENERATED_DETAIL_MISSING,
     STAGE_LOST_BETWEEN_GENERATION_AND_ADAPTER,
     build_load_generated_resolver_provenance_sidecars,
+    generated_resolver_provenance_records_from_shadow_result,
     generated_provenance_records_from_shadow_result,
 )
 
@@ -181,6 +182,55 @@ class RateconLoadGeneratedResolverProvenanceTests(unittest.TestCase):
         self.assertEqual(1, len(records))
         self.assertEqual("", records[0]["candidate_id"])
         self.assertEqual("FakeLoadConfirmationB", records[0]["document_id"])
+
+    def test_full_stage_records_from_shadow_debug_include_adapter_dedupe_rows(self):
+        records = generated_resolver_provenance_records_from_shadow_result(
+            {
+                "debug": {
+                    "triage": {"document_id": "FakeLoadConfirmationA"},
+                    "candidates": [
+                        {
+                            "field": "load_number",
+                            "value": "LOAD12345",
+                            "metadata": {
+                                "candidate_id": "cand-load-1",
+                                "page_number": "1",
+                                "line_index": "5",
+                                "pairing_method": "same_row",
+                            },
+                            "source": "native_text",
+                            "parser_name": "load_identifier",
+                        }
+                    ],
+                    "adapter_dedupe_provenance_records": [
+                        {
+                            "field": "load_number",
+                            "stage": "adapter_input",
+                            "candidate_id": "cand-load-1",
+                            "source": "native_text",
+                            "parser_name": "load_identifier",
+                            "pairing_method": "same_row",
+                            "page_number": "1",
+                            "line_index": "5",
+                        },
+                        {
+                            "field": "load_number",
+                            "stage": "dedupe_output",
+                            "candidate_id": "cand-load-1",
+                            "source": "native_text",
+                            "parser_name": "load_identifier",
+                            "pairing_method": "same_row",
+                            "page_number": "1",
+                            "line_index": "5",
+                        },
+                    ],
+                }
+            },
+            document_id="FakeLoadConfirmationA",
+        )
+
+        self.assertEqual(["generated", "adapter_input", "dedupe_output"], [row["stage"] for row in records])
+        self.assertNotIn("LOAD12345", json.dumps(records))
 
 
 if __name__ == "__main__":

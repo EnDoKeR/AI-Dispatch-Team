@@ -122,11 +122,24 @@ class RunPrivateRateconMeasurementLoadProvenanceSidecarsTests(unittest.TestCase)
                     )
             summary_path = output_dir / "load_generated_resolver_provenance_summary.json"
             payload = json.loads(summary_path.read_text(encoding="utf-8"))
+            emitted_files = {
+                name: (output_dir / name).exists()
+                for name in (
+                    "load_adapter_input_candidates.csv",
+                    "load_adapter_output_candidates.csv",
+                    "load_dedupe_input_candidates.csv",
+                    "load_dedupe_output_candidates.csv",
+                    "load_adapter_dedupe_loss_by_stage.csv",
+                )
+            }
             console_output = buffer.getvalue()
 
         self.assertEqual(exit_code, 0)
         self.assertIn("load_generated_resolver_provenance_sidecars_written", console_output)
+        self.assertEqual(emitted_files, {name: True for name in emitted_files})
         self.assertEqual(1, payload["summary"]["generated_candidate_count"])
+        self.assertEqual(1, payload["summary"]["adapter_input_count"])
+        self.assertEqual(1, payload["summary"]["adapter_output_count"])
         self.assertFalse(payload["summary"]["private_values_included"])
         self.assertTrue(payload["summary"]["values_redacted"])
         self.assertNotIn("LOAD12345", json.dumps(payload))

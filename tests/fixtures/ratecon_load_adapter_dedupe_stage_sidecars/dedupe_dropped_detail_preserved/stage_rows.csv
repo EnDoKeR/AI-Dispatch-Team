@@ -1,0 +1,2 @@
+document_id,field,stage,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,bbox_available,candidate_rank,dedupe_dropped
+FakeLoadConfirmationA,load_number,dedupe_input,cand-load-2,LOAD12345,table_key_value_row,load_identifier,same_row,1,6,true,2,true

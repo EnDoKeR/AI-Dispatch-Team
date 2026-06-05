@@ -29,11 +29,15 @@ STAGE_ROW_FILE = "load_generated_provenance_boundary_stage_rows.csv"
 GENERATED_FILES = (("load_generated_candidates.csv", "generated"), ("generated_candidates.csv", "generated"))
 ADAPTER_FILES = (
     ("load_adapter_roundtrip_rows.csv", ""),
+    ("load_adapter_input_candidates.csv", "adapter_input"),
+    ("load_adapter_output_candidates.csv", "adapter_output"),
     ("adapter_input.csv", "adapter_input"),
     ("adapter_output.csv", "adapter_output"),
 )
 DEDUPE_FILES = (
     ("load_dedupe_lineage_rows.csv", ""),
+    ("load_dedupe_input_candidates.csv", "dedupe_input"),
+    ("load_dedupe_output_candidates.csv", "dedupe_output"),
     ("dedupe_input.csv", "dedupe_input"),
     ("dedupe_output.csv", "dedupe_output"),
 )

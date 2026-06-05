@@ -133,6 +133,18 @@ def _sidecar_summary(sidecar_dir: Path) -> dict[str, Any]:
         "current_artifacts_measurable": _as_bool(summary.get("current_artifacts_measurable")),
         "provenance_candidate_count": _to_int(summary.get("provenance_candidate_count")),
         "generated_candidate_count": _to_int(summary.get("generated_candidate_count")),
+        "adapter_input_count": _to_int(summary.get("adapter_input_count")),
+        "adapter_output_count": _to_int(summary.get("adapter_output_count")),
+        "dedupe_input_count": _to_int(summary.get("dedupe_input_count")),
+        "dedupe_output_count": _to_int(summary.get("dedupe_output_count")),
+        "adapter_detail_preserved_count": _to_int(
+            summary.get("adapter_detail_preserved_count")
+        ),
+        "adapter_detail_lost_count": _to_int(summary.get("adapter_detail_lost_count")),
+        "dedupe_detail_preserved_count": _to_int(
+            summary.get("dedupe_detail_preserved_count")
+        ),
+        "dedupe_detail_lost_count": _to_int(summary.get("dedupe_detail_lost_count")),
         "resolver_visible_candidate_count": _to_int(
             summary.get("resolver_visible_candidate_count")
         ),
@@ -345,6 +357,18 @@ def _gate_rows(
             "notes": str(sidecar["resolver_visible_candidate_count"]),
         },
         {
+            "criterion": "adapter_dedupe_rows_present",
+            "passed": sidecar["adapter_input_count"] > 0
+            and sidecar["adapter_output_count"] > 0
+            and sidecar["dedupe_input_count"] > 0
+            and sidecar["dedupe_output_count"] > 0,
+            "required": True,
+            "notes": (
+                f"adapter={sidecar['adapter_input_count']}/{sidecar['adapter_output_count']}; "
+                f"dedupe={sidecar['dedupe_input_count']}/{sidecar['dedupe_output_count']}"
+            ),
+        },
+        {
             "criterion": "complete_roundtrip_present",
             "passed": sidecar["complete_roundtrip_count"] > 0,
             "required": True,
@@ -445,6 +469,12 @@ def _report(payload: dict[str, Any]) -> str:
         f"- current_artifacts_status: {sidecar['current_artifacts_status']}",
         f"- provenance_candidate_count: {sidecar['provenance_candidate_count']}",
         f"- generated_candidate_count: {sidecar['generated_candidate_count']}",
+        f"- adapter_input_count: {sidecar['adapter_input_count']}",
+        f"- adapter_output_count: {sidecar['adapter_output_count']}",
+        f"- dedupe_input_count: {sidecar['dedupe_input_count']}",
+        f"- dedupe_output_count: {sidecar['dedupe_output_count']}",
+        f"- adapter_detail_lost_count: {sidecar['adapter_detail_lost_count']}",
+        f"- dedupe_detail_lost_count: {sidecar['dedupe_detail_lost_count']}",
         f"- resolver_visible_candidate_count: {sidecar['resolver_visible_candidate_count']}",
         f"- complete_roundtrip_count: {sidecar['complete_roundtrip_count']}",
         f"- boundary_compare_status: {boundary['status']}",

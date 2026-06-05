@@ -1,0 +1,2 @@
+document_id,field,candidate_id,candidate_value,source,parser_name,pairing_method,page_number,line_index,bbox_available,candidate_rank,dedupe_merged,dedupe_parent_candidate_ids,dedupe_child_candidate_ids
+FakeLoadConfirmationA,load_number,cand-load-1,LOAD12345,table_key_value_row,load_identifier,same_row,1,5,true,1,false,cand-load-1,

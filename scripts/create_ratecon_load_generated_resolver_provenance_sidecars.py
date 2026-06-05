@@ -225,6 +225,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"current_artifacts_measurable: {summary['current_artifacts_measurable']}")
     print(f"provenance_candidate_count: {summary['provenance_candidate_count']}")
     print(f"generated_candidate_count: {summary['generated_candidate_count']}")
+    print(f"adapter_input_count: {summary['adapter_input_count']}")
+    print(f"adapter_output_count: {summary['adapter_output_count']}")
+    print(f"dedupe_input_count: {summary['dedupe_input_count']}")
+    print(f"dedupe_output_count: {summary['dedupe_output_count']}")
     print(f"resolver_visible_candidate_count: {summary['resolver_visible_candidate_count']}")
     print(
         "generated_candidate_detail_available_count: "
@@ -235,6 +239,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{summary['resolver_visible_detail_available_count']}"
     )
     print(f"complete_roundtrip_count: {summary['complete_roundtrip_count']}")
+    print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
+    print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
+    print(f"dedupe_detail_preserved_count: {summary['dedupe_detail_preserved_count']}")
+    print(f"dedupe_detail_lost_count: {summary['dedupe_detail_lost_count']}")
     print(f"boundary_compare_status: {summary['boundary_compare_status']}")
     print(f"boundary_first_loss_boundary: {summary['boundary_first_loss_boundary']}")
     print(f"private_values_included: {summary['private_values_included']}")

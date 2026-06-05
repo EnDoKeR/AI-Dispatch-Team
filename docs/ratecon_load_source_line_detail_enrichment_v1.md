@@ -135,3 +135,10 @@ The detail inventory can consume boundary compare summaries through
 detail is still blocked after generation, adapter, dedupe, resolver, audit,
 evaluator, or sidecar serialization. This input is local-only and can only keep
 future behavior experiments blocked until complete roundtrip is proven.
+
+## Adapter/Dedupe Stage Sidecars
+
+Generated/resolver sidecars also expose adapter input/output and dedupe
+input/output counts. The detail inventory reports these only as local evidence
+for missing-detail attribution; it does not approve behavior experiments or
+change selected load output.

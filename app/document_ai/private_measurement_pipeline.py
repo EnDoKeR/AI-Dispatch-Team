@@ -154,7 +154,7 @@ from app.document_ai.load_identifier_source_line_audit import (
     build_load_identifier_source_line_metrics,
 )
 from app.document_ai.load_identifier_generated_resolver_provenance import (
-    generated_provenance_records_from_shadow_result,
+    generated_resolver_provenance_records_from_shadow_result,
 )
 from app.document_ai.ratecon_field_resolution import (
     FIELD_RESOLUTION_STATUS_CONFLICT,
@@ -1317,7 +1317,7 @@ def _with_shadow_document_pipeline(
             include_private_eval_artifact=include_private_eval_values,
         )
         if write_load_generated_resolver_provenance_sidecars:
-            load_generated_resolver_records = generated_provenance_records_from_shadow_result(
+            load_generated_resolver_records = generated_resolver_provenance_records_from_shadow_result(
                 shadow_result,
                 document_id=document_alias,
             )
