@@ -142,3 +142,9 @@ Generated/resolver sidecars also expose adapter input/output and dedupe
 input/output counts. The detail inventory reports these only as local evidence
 for missing-detail attribution; it does not approve behavior experiments or
 change selected load output.
+
+## Adapter/Dedupe Current-Run Verification
+
+The adapter/dedupe current-run closeout is an additional detail prerequisite.
+Candidate-not-comparable, stage-unavailable, or missing complete roundtrip
+evidence keeps table-neighbor and nearby-row experiments blocked.

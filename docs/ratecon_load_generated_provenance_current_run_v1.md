@@ -93,3 +93,12 @@ input/output rows to the generated/resolver provenance output. Current-run
 readiness remains blocked unless those rows are available, resolver rows are
 available, and complete roundtrip is proven by local-only sidecars and existing
 selected-load gates.
+
+## Adapter/Dedupe Current-Run Closeout
+
+`scripts/summarize_ratecon_load_adapter_dedupe_current_run.py` adds the
+follow-up closeout for fresh sidecar-enabled runs. It distinguishes true
+generation-to-adapter, adapter-to-dedupe, dedupe-to-resolver,
+resolver-to-audit, and audit-to-evaluator loss from missing stage visibility or
+candidate-not-comparable evidence. A non-full status blocks table-neighbor and
+nearby-row experiments.

@@ -1,0 +1,2 @@
+document_id,field,candidate_id,source,page_number,line_index,pairing_method,candidate_value
+FakeLoadConfirmationA,load_number,load-1,native_text,1,10,same_row,LOAD12345

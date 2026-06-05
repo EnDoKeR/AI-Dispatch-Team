@@ -28,6 +28,7 @@ from app.document_ai.load_identifier_generated_resolver_provenance import (  # n
 
 SERIALIZATION_ROW_FILE = "load_source_line_serialization_rows.csv"
 BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
+ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
 
 LEGACY_GENERATED_FILES = (
     "load_generated_candidates.csv",
@@ -66,6 +67,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--legacy-output-dir")
     parser.add_argument("--serialization-dir")
     parser.add_argument("--boundary-compare-dir")
+    parser.add_argument("--adapter-dedupe-current-run-dir")
     parser.add_argument("--generated-candidates")
     parser.add_argument("--adapter-input")
     parser.add_argument("--adapter-output")
@@ -208,6 +210,25 @@ def build_sidecars(args: argparse.Namespace) -> dict[str, Any]:
     )
     payload["summary"]["boundary_loss_boundary_counts"] = dict(
         boundary_summary.get("loss_boundary_counts") or {}
+    )
+    current_run_requested = bool(args.adapter_dedupe_current_run_dir)
+    current_run_dir = _resolve(args.adapter_dedupe_current_run_dir)
+    current_run_payload = _read_json(
+        current_run_dir / ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE
+        if current_run_dir is not None
+        else None
+    )
+    current_run_summary = (
+        dict(current_run_payload.get("summary") or current_run_payload)
+        if current_run_payload
+        else {}
+    )
+    payload["summary"]["adapter_dedupe_current_run_status"] = current_run_summary.get(
+        "current_run_status",
+        "skipped_missing_optional_dir" if current_run_requested else "skipped_not_requested",
+    )
+    payload["summary"]["adapter_dedupe_current_run_complete_roundtrip_count"] = int(
+        current_run_summary.get("sidecar", {}).get("complete_roundtrip_count") or 0
     )
     return payload
 

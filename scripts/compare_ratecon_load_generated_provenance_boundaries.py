@@ -44,6 +44,7 @@ DEDUPE_FILES = (
 RESOLVER_FILES = (("load_resolver_visible_candidates.csv", "resolver"), ("resolver_trace.csv", "resolver"))
 SERIALIZATION_FILE = "load_source_line_serialization_rows.csv"
 DETAIL_FILE = "load_source_line_detail_rows.csv"
+ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -67,6 +68,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--generated-resolver-sidecar-dir", required=True)
     parser.add_argument("--serialization-dir")
     parser.add_argument("--detail-inventory-dir")
+    parser.add_argument("--adapter-dedupe-current-run-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -110,6 +112,17 @@ def _csv_rows_from_first(directory: Path, names: tuple[tuple[str, str], ...]) ->
     for name, default_stage in names:
         rows.extend(_csv_rows(directory / name, default_stage))
     return rows
+
+
+def _json_summary(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    text = path.read_text(encoding="utf-8")
+    _check_safe_text(path, text)
+    payload = json.loads(text)
+    if not isinstance(payload, dict):
+        return {}
+    return dict(payload.get("summary") or payload)
 
 
 def _collect_stage_rows(
@@ -241,6 +254,21 @@ def build_boundary_compare(args: argparse.Namespace) -> dict[str, Any]:
     )
     payload = compare_generated_provenance_boundaries(stage_rows)
     payload["summary"]["input_statuses"] = input_statuses
+    current_run_dir = _resolve(getattr(args, "adapter_dedupe_current_run_dir", None))
+    current_run_summary = _json_summary(
+        current_run_dir / ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE
+        if current_run_dir is not None
+        else None
+    )
+    payload["summary"]["adapter_dedupe_current_run_status"] = current_run_summary.get(
+        "current_run_status",
+        "skipped_missing_optional_dir"
+        if getattr(args, "adapter_dedupe_current_run_dir", None)
+        else "skipped_not_requested",
+    )
+    payload["summary"]["adapter_dedupe_current_run_complete_roundtrip_count"] = int(
+        current_run_summary.get("sidecar", {}).get("complete_roundtrip_count") or 0
+    )
     return payload
 
 

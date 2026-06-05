@@ -29,6 +29,7 @@ SIDE_CAR_SUMMARY_FILE = "load_generated_resolver_provenance_summary.json"
 DETAIL_SUMMARY_FILE = "load_source_line_detail_inventory_summary.json"
 CLOSEOUT_SUMMARY_FILE = "load_source_line_closeout_summary.json"
 BOUNDARY_SUMMARY_FILE = "load_generated_provenance_boundary_summary.json"
+ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE = "load_adapter_dedupe_current_run_summary.json"
 
 FORBIDDEN_PRIVATE_MARKERS = (
     ".gold.json",
@@ -62,6 +63,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--detail-inventory-dir")
     parser.add_argument("--closeout-dir")
     parser.add_argument("--boundary-compare-dir")
+    parser.add_argument("--adapter-dedupe-current-run-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -223,6 +225,30 @@ def _boundary_summary(path: Path | None) -> dict[str, Any]:
             or first_loss_boundary
             not in {"", "boundary_no_loss_complete_roundtrip"}
         ),
+    }
+
+
+def _adapter_dedupe_current_run_summary(path: Path | None) -> dict[str, Any]:
+    if path is None:
+        return {
+            "status": "skipped_not_requested",
+            "path": "",
+            "current_run_status": "skipped",
+            "complete_roundtrip_count": 0,
+            "first_loss_boundary": "",
+        }
+    summary, status = _summary_payload(path, ADAPTER_DEDUPE_CURRENT_RUN_SUMMARY_FILE)
+    sidecar = dict(summary.get("sidecar") or {})
+    boundary = dict(summary.get("boundary_compare") or {})
+    return {
+        "status": status,
+        "path": str(path),
+        "current_run_status": str(
+            summary.get("current_run_status")
+            or ("missing" if status == "missing" else "")
+        ),
+        "complete_roundtrip_count": _to_int(sidecar.get("complete_roundtrip_count")),
+        "first_loss_boundary": str(boundary.get("first_loss_boundary") or ""),
     }
 
 
@@ -401,12 +427,16 @@ def build_summary(
     detail_inventory_dir: Path | None = None,
     closeout_dir: Path | None = None,
     boundary_compare_dir: Path | None = None,
+    adapter_dedupe_current_run_dir: Path | None = None,
 ) -> dict[str, Any]:
     sidecar = _sidecar_summary(sidecar_dir)
     status = _determine_status(sidecar)
     detail = _optional_summary(detail_inventory_dir, DETAIL_SUMMARY_FILE, "detail_inventory")
     closeout = _optional_summary(closeout_dir, CLOSEOUT_SUMMARY_FILE, "closeout")
     boundary = _boundary_summary(boundary_compare_dir)
+    adapter_dedupe_current_run = _adapter_dedupe_current_run_summary(
+        adapter_dedupe_current_run_dir
+    )
     gate_rows = _gate_rows(status, sidecar, boundary)
     next_actions = _next_actions(status, sidecar)
     if boundary["blocks_experiment"]:
@@ -430,6 +460,7 @@ def build_summary(
         "detail_inventory": detail,
         "closeout": closeout,
         "boundary_compare": boundary,
+        "adapter_dedupe_current_run": adapter_dedupe_current_run,
         "gate": gate_rows,
         "next_actions": next_actions,
         "known_debt": known_debt,
@@ -456,6 +487,7 @@ def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) ->
 def _report(payload: dict[str, Any]) -> str:
     sidecar = payload["sidecar"]
     boundary = payload["boundary_compare"]
+    adapter_dedupe = payload["adapter_dedupe_current_run"]
     lines = [
         "# RateCon Load Generated Provenance Current Run",
         "",
@@ -480,6 +512,9 @@ def _report(payload: dict[str, Any]) -> str:
         f"- boundary_compare_status: {boundary['status']}",
         f"- boundary_first_loss_boundary: {boundary['first_loss_boundary']}",
         f"- boundary_complete_roundtrip_count: {boundary['complete_roundtrip_count']}",
+        f"- adapter_dedupe_current_run_status: {adapter_dedupe['current_run_status']}",
+        f"- adapter_dedupe_complete_roundtrip_count: {adapter_dedupe['complete_roundtrip_count']}",
+        f"- adapter_dedupe_first_loss_boundary: {adapter_dedupe['first_loss_boundary']}",
         f"- private_values_redacted: {payload['private_values_redacted']}",
         f"- pdf_processing_attempted: {payload['pdf_processing_attempted']}",
         f"- ocr_attempted: {payload['ocr_attempted']}",
@@ -540,6 +575,9 @@ def main(argv: list[str] | None = None) -> int:
             boundary_compare_dir=_resolve(args.boundary_compare_dir)
             if args.boundary_compare_dir
             else None,
+            adapter_dedupe_current_run_dir=_resolve(args.adapter_dedupe_current_run_dir)
+            if args.adapter_dedupe_current_run_dir
+            else None,
         )
         write_outputs(output_dir, payload)
     except current_run_error as exc:
@@ -552,6 +590,10 @@ def main(argv: list[str] | None = None) -> int:
     print(f"complete_roundtrip_count: {payload['sidecar']['complete_roundtrip_count']}")
     print(f"boundary_compare_status: {payload['boundary_compare']['status']}")
     print(f"boundary_first_loss_boundary: {payload['boundary_compare']['first_loss_boundary']}")
+    print(
+        "adapter_dedupe_current_run_status: "
+        f"{payload['adapter_dedupe_current_run']['current_run_status']}"
+    )
     print(f"output_dir: {output_dir}")
     return 0
 

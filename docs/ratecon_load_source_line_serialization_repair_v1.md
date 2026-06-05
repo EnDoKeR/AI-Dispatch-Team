@@ -153,3 +153,10 @@ Adapter/dedupe stage sidecars split adapter input/output and dedupe input/output
 rows. Serialization repair should use those rows only to locate where existing
 metadata stops being visible; it must not infer page/line/source detail or
 change resolver behavior.
+
+## Adapter/Dedupe Current-Run Verification
+
+If the adapter/dedupe current-run closeout reports resolver-to-audit or
+audit-to-evaluator loss, the next serialization cleanup must repair that exact
+diagnostic sidecar boundary only. It must not change selected load output or
+resolver ranking.

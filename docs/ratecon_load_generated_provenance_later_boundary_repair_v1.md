@@ -100,3 +100,9 @@ adapter input/output and dedupe input/output rows. Boundary comparison should
 use those rows before claiming generation-to-adapter, adapter-to-dedupe, or
 dedupe-to-resolver loss. Missing stage visibility must remain unresolved rather
 than synthesized evidence.
+
+After those rows are visible, the adapter/dedupe current-run verification phase
+must run a fresh explicit local sidecar-enabled diagnostic measurement and
+summarize the first proven boundary. If adapter/dedupe stages are complete but
+complete roundtrip is still absent, the next task should target the later
+boundary reported by that closeout only.

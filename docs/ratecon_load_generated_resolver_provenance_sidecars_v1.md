@@ -155,3 +155,11 @@ compatibility.
 These rows are visibility only. They read or emit existing metadata, redact
 values by default, and must not change generation, adapter, dedupe, resolver,
 selected output, or evaluator metrics.
+
+## Adapter/Dedupe Current-Run Closeout
+
+The sidecar summary can be consumed by
+`scripts/summarize_ratecon_load_adapter_dedupe_current_run.py` after a fresh
+explicit local run. That closeout is reporting-only and keeps readiness strict:
+complete roundtrip must be proven before any load evidence-quality experiment is
+considered.

@@ -1,0 +1,10 @@
+{
+  "summary": {
+    "candidate_count": 1,
+    "complete_roundtrip_count": 0,
+    "first_loss_boundary": "boundary_audit_to_evaluator_loss",
+    "loss_boundary_counts": {
+      "boundary_audit_to_evaluator_loss": 1
+    }
+  }
+}

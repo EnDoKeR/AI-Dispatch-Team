@@ -153,3 +153,8 @@ making adapter input/output and dedupe input/output visibility explicit. They
 preserve only already-existing metadata and remain local-only diagnostics. They
 do not change load candidate generation, dedupe decisions, resolver ranking, or
 selected output.
+
+Adapter/dedupe current-run verification is required before future
+evidence-quality behavior changes. It must show generated, adapter, dedupe, and
+resolver rows are comparable without inferred metadata and without changing
+selected load output.

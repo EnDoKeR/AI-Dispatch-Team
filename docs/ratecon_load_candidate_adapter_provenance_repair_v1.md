@@ -134,3 +134,10 @@ selection, scoring, source labels, or candidate generation.
 and dedupe diagnostic stage rows. That phase makes adapter and dedupe
 visibility measurable before any later boundary is repaired. It remains
 sidecar-only and must not infer missing metadata or change candidate behavior.
+
+## Adapter/Dedupe Current-Run Verification
+
+Adapter/dedupe current-run verification is required before claiming adapter or
+dedupe provenance is actionable on local private artifacts. The closeout must
+show generated, adapter, dedupe, and resolver rows are comparable without
+fabricated candidate ids.
