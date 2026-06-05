@@ -118,3 +118,15 @@ audit already-existing candidate id, source, page/line, bbox, and pairing
 metadata across adaptation without inferring missing detail or changing
 resolver behavior. Serialization sidecar rows may report adapter roundtrip
 status, but those fields remain local-only diagnostics.
+
+## Generated/Resolver Sidecar Integration
+
+`scripts/create_ratecon_load_source_line_serialization.py` can consume an
+optional `--generated-resolver-provenance-dir`. When present, serialization
+reports include generated/resolver roundtrip status, loss stage, loss reason,
+generated candidate detail availability, and resolver-visible detail
+availability.
+
+This sidecar input is additive. It can improve loss-stage attribution, but it
+does not make readiness more permissive, change diagnostic classifications, or
+change selected load behavior.

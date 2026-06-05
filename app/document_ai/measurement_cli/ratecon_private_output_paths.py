@@ -241,6 +241,7 @@ def command_requests_local_output_write(config):
         "write_candidate_coverage",
         "write_load_identifier_audit",
         "write_load_identifier_source_line_audit",
+        "write_load_generated_resolver_provenance_sidecars",
         "write_rate_forensics",
         "write_rate_conflict_audit",
         "write_ratecon_shadow_audit",

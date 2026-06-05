@@ -58,6 +58,10 @@ from app.document_ai.private_measurement_pipeline import measure_private_ratecon
 from app.document_ai.private_measurement_reports import (
     build_private_ratecon_measurement_aggregate,
 )
+from app.document_ai.load_identifier_generated_resolver_provenance import (
+    build_load_generated_resolver_provenance_from_measurement_rows,
+    write_load_generated_resolver_provenance_outputs,
+)
 
 SAFETY_BANNER = (
     "PRIVATE LOCAL MEASUREMENT - no raw text printed or saved; "
@@ -68,6 +72,42 @@ SAFETY_BANNER = (
 
 def _safe_output_file_labels(paths):
     return output_file_labels(paths)
+
+
+def _write_load_generated_resolver_provenance_sidecars_if_enabled(
+    report,
+    config,
+    output_paths,
+):
+    if getattr(config, "dry_run", False) or not getattr(
+        config,
+        "write_load_generated_resolver_provenance_sidecars",
+        False,
+    ):
+        return None
+    payload = build_load_generated_resolver_provenance_from_measurement_rows(
+        report.get("rows", []),
+        include_private_values=False,
+    )
+    paths = write_load_generated_resolver_provenance_outputs(
+        output_paths.output_dir,
+        payload,
+    )
+    summary = payload.get("summary", {})
+    return {
+        "files": _safe_output_file_labels(paths),
+        "current_artifacts_status": summary.get("current_artifacts_status", ""),
+        "current_artifacts_measurable": summary.get("current_artifacts_measurable", False),
+        "generated_candidate_count": summary.get("generated_candidate_count", 0),
+        "resolver_visible_candidate_count": summary.get("resolver_visible_candidate_count", 0),
+        "complete_roundtrip_count": summary.get("complete_roundtrip_count", 0),
+        "private_values_printed": False,
+        "raw_text_printed": False,
+        "pdf_processing_attempted": False,
+        "ocr_attempted": False,
+        "google_called": False,
+        "model_or_cloud_called": False,
+    }
 
 
 def _print_expected_error(reason):
@@ -622,6 +662,18 @@ def main(argv=None):
             ],
         ):
             print(f"{audit_result.message_label}: {audit_result.payload}")
+        load_provenance_sidecars = (
+            _write_load_generated_resolver_provenance_sidecars_if_enabled(
+                report,
+                config,
+                output_paths,
+            )
+        )
+        if load_provenance_sidecars is not None:
+            print(
+                "load_generated_resolver_provenance_sidecars_written: "
+                f"{load_provenance_sidecars}"
+            )
         google_sync_result = run_private_ratecon_google_sync_if_enabled(
             report,
             config,

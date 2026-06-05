@@ -108,6 +108,13 @@ candidate adapter boundary. They do not infer missing metadata, change candidate
 generation, change selected-value resolution, or approve table/nearby-row
 behavior changes.
 
+`app/document_ai/load_identifier_generated_resolver_provenance.py` and
+`scripts/create_ratecon_load_generated_resolver_provenance_sidecars.py` add
+local-only generated/resolver provenance sidecars. They make generated,
+adapter, dedupe, and resolver-visible metadata measurable during explicit local
+runs without changing extraction, candidate generation, resolver behavior,
+selected load output, source labels, confidence values, or evaluator statuses.
+
 ## Local-Only Audit
 
 `scripts/audit_ratecon_load_identifier_ownership.py` provides static AST/text

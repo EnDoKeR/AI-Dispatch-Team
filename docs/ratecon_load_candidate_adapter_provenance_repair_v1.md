@@ -97,3 +97,16 @@ provenance generation repair. If metadata survives the adapter but is lost
 later, the next task is the exact later-boundary serialization repair. This PR
 does not approve behavior-changing load-number experiments or production
 migration.
+
+## Generated/Resolver Provenance Sidecars
+
+`app/document_ai/load_identifier_generated_resolver_provenance.py` and
+`scripts/create_ratecon_load_generated_resolver_provenance_sidecars.py` add the
+next local-only measurement surface for this phase. They make generated,
+adapter, dedupe, and resolver-visible provenance rows explicit so adapter
+roundtrip can be measured during future opt-in local runs.
+
+These sidecars do not infer missing metadata, fabricate candidate ids, change
+resolver behavior, or change selected load output. Current eval/audit-only
+artifacts can still be reported as unmeasurable when generated/resolver rows
+are absent.

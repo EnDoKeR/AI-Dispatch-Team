@@ -107,3 +107,15 @@ inventory reports `adapter_roundtrip_status`, `adapter_loss_reason`,
 show whether already-present load candidate metadata survived the adapter
 boundary. They are local-only diagnostics and do not make closeout readiness
 more permissive.
+
+## Generated/Resolver Provenance Detail
+
+When a generated/resolver provenance sidecar is supplied with
+`--generated-resolver-provenance-dir`, the detail inventory can include
+`generated_resolver_roundtrip_status`, `generated_resolver_loss_stage`, and
+`generated_resolver_loss_reason`. It can also summarize generated candidate
+detail availability and resolver-visible detail availability.
+
+This input explains whether current artifacts are measurable or only
+eval/audit-level and unmeasurable. It remains local-only and redacted by
+default.

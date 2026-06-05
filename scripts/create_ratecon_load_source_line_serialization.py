@@ -32,6 +32,8 @@ SELECTED_ROW_FILES = (
     "ratecon_gold_selected_load_rows.csv",
     "selected_load_rows.csv",
 )
+GENERATED_RESOLVER_SUMMARY_FILE = "load_generated_resolver_provenance_summary.json"
+GENERATED_RESOLVER_LOSS_FILE = "load_provenance_loss_by_stage.csv"
 
 
 def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
@@ -42,6 +44,7 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--resolver-trace")
     parser.add_argument("--audit")
     parser.add_argument("--eval-dir")
+    parser.add_argument("--generated-resolver-provenance-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-private-local-run", action="store_true")
     parser.add_argument("--include-private-values-local-only", action="store_true")
@@ -136,6 +139,13 @@ def _write_json(path: Path, payload: dict[str, Any]) -> None:
     path.write_text(json.dumps(payload, indent=2, sort_keys=True) + "\n", encoding="utf-8")
 
 
+def _read_json(path: Path | None) -> dict[str, Any]:
+    if path is None or not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
+
+
 def _write_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str]) -> None:
     with path.open("w", encoding="utf-8", newline="") as handle:
         writer = csv.DictWriter(handle, fieldnames=fieldnames)
@@ -216,19 +226,78 @@ def write_outputs(output_dir: Path, payload: dict[str, Any]) -> None:
             "adapter_loss_reason",
             "private_values_redacted",
             "value_preview",
+            "generated_resolver_roundtrip_status",
+            "generated_resolver_loss_stage",
+            "generated_resolver_loss_reason",
         ],
     )
 
 
+def _merge_generated_resolver_sidecar(payload: dict[str, Any], sidecar_dir: Path | None) -> dict[str, Any]:
+    summary = payload["summary"]
+    sidecar_payload = _read_json(
+        sidecar_dir / GENERATED_RESOLVER_SUMMARY_FILE
+        if sidecar_dir is not None
+        else None
+    )
+    sidecar_summary = dict(sidecar_payload.get("summary") or {}) if sidecar_payload else {}
+    loss_rows = _csv_rows(
+        sidecar_dir / GENERATED_RESOLVER_LOSS_FILE
+        if sidecar_dir is not None and sidecar_dir.exists()
+        else None
+    )
+    loss_by_key = {
+        (
+            _text(row.get("document_id")),
+            _text(row.get("candidate_id")),
+        ): row
+        for row in loss_rows
+    }
+    for row in payload["serialization_rows"]:
+        loss = loss_by_key.get((_text(row.get("document_id")), _text(row.get("candidate_id"))), {})
+        row["generated_resolver_roundtrip_status"] = _text(
+            loss.get("generated_resolver_roundtrip_status")
+        )
+        row["generated_resolver_loss_stage"] = _text(
+            loss.get("generated_resolver_loss_stage")
+        )
+        row["generated_resolver_loss_reason"] = _text(
+            loss.get("generated_resolver_loss_reason")
+        )
+    summary["generated_resolver_sidecar_status"] = (
+        "present" if sidecar_summary else "skipped_missing_optional_dir"
+    )
+    summary["generated_resolver_current_artifacts_status"] = sidecar_summary.get(
+        "current_artifacts_status",
+        "skipped",
+    )
+    summary["generated_candidate_detail_available_count"] = int(
+        sidecar_summary.get("generated_candidate_detail_available_count") or 0
+    )
+    summary["resolver_visible_detail_available_count"] = int(
+        sidecar_summary.get("resolver_visible_detail_available_count") or 0
+    )
+    summary["generated_resolver_loss_bucket_counts"] = dict(
+        sidecar_summary.get("stage_loss_bucket_counts") or {}
+    )
+    return payload
+
+
 def build_sidecar(args: argparse.Namespace) -> dict[str, Any]:
     eval_dir = _resolve(args.eval_dir)
-    return build_load_source_line_serialization_sidecar(
+    payload = build_load_source_line_serialization_sidecar(
         generated_rows=_csv_rows(_resolve(args.generated_candidates)),
         resolver_rows=_csv_rows(_resolve(args.resolver_trace)),
         audit_rows=_read_audit_rows(_resolve(args.audit)),
         evaluator_rows=_csv_rows(_find_selected_rows(eval_dir)),
         include_private_values=bool(args.include_private_values_local_only),
     )
+    sidecar_dir = (
+        _resolve(args.generated_resolver_provenance_dir)
+        if args.generated_resolver_provenance_dir
+        else None
+    )
+    return _merge_generated_resolver_sidecar(payload, sidecar_dir)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -247,6 +316,7 @@ def main(argv: list[str] | None = None) -> int:
     print(f"lost_after_generation_count: {summary['lost_after_generation_count']}")
     print(f"adapter_detail_preserved_count: {summary['adapter_detail_preserved_count']}")
     print(f"adapter_detail_lost_count: {summary['adapter_detail_lost_count']}")
+    print(f"generated_resolver_sidecar_status: {summary['generated_resolver_sidecar_status']}")
     print(f"private_values_included: {summary['private_values_included']}")
     print(f"values_redacted: {summary['values_redacted']}")
     print(f"pdf_processing_attempted: {summary['pdf_processing_attempted']}")
