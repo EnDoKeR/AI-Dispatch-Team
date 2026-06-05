@@ -162,6 +162,13 @@ def _field_matches(row: dict[str, Any] | None) -> bool:
     return not field or field == LOAD_FIELD
 
 
+def _is_load_candidate(row: dict[str, Any] | None) -> bool:
+    row = row or {}
+    metadata = _metadata(row)
+    field = _text(row.get("field") or row.get("field_name") or metadata.get("field"))
+    return field == LOAD_FIELD
+
+
 def _candidate_id(row: dict[str, Any] | None) -> str:
     metadata = _metadata(row)
     row = row or {}
@@ -384,6 +391,69 @@ def _stage_rows(
             )
         )
     return normalized
+
+
+def _generated_stage_record(
+    candidate: dict[str, Any],
+    *,
+    document_id: str,
+    index: int,
+) -> dict[str, Any]:
+    metadata = _metadata(candidate)
+    source = _source(candidate)
+    parser_name = _parser_name(candidate)
+    return {
+        "document_id": document_id,
+        "field": LOAD_FIELD,
+        "stage": "generated",
+        "candidate_id": _candidate_id(candidate),
+        "source": source,
+        "source_family": _first_text(
+            candidate.get("source_family"),
+            metadata.get("source_family"),
+            _source_family(source, parser_name),
+        ),
+        "parser_name": parser_name,
+        "pairing_method": _pairing(candidate),
+        "page_number": _page(candidate),
+        "line_index": _line(candidate),
+        "bbox_available": _has_bbox(candidate),
+        "candidate_rank": _first_text(candidate.get("candidate_rank"), candidate.get("rank"), index),
+    }
+
+
+def generated_provenance_records_from_shadow_result(
+    shadow_result: dict[str, Any] | None,
+    *,
+    document_id: str = "",
+) -> list[dict[str, Any]]:
+    """Return generated-stage load metadata already present in debug candidates.
+
+    The records intentionally omit candidate values and do not synthesize missing
+    candidate ids, page/line detail, source labels, or pairing methods.
+    """
+
+    shadow_result = shadow_result or {}
+    debug = shadow_result.get("debug") if isinstance(shadow_result.get("debug"), dict) else {}
+    candidates = debug.get("candidates") if isinstance(debug, dict) else []
+    triage = debug.get("triage") if isinstance(debug.get("triage"), dict) else {}
+    fallback_document_id = _first_text(
+        document_id,
+        triage.get("document_id"),
+        shadow_result.get("document_id"),
+    )
+    records: list[dict[str, Any]] = []
+    for index, candidate in enumerate(candidates or [], start=1):
+        if not isinstance(candidate, dict) or not _is_load_candidate(candidate):
+            continue
+        records.append(
+            _generated_stage_record(
+                candidate,
+                document_id=fallback_document_id,
+                index=index,
+            )
+        )
+    return records
 
 
 def _group(rows: list[dict[str, Any]]) -> dict[str, dict[str, dict[str, Any]]]:

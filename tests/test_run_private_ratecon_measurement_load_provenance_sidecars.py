@@ -6,7 +6,7 @@ from contextlib import redirect_stdout
 from pathlib import Path
 from unittest.mock import patch
 
-from scripts.run_private_ratecon_measurement import main
+from scripts.run_private_ratecon_measurement import build_private_ratecon_measurement_report, main
 
 
 class RunPrivateRateconMeasurementLoadProvenanceSidecarsTests(unittest.TestCase):
@@ -134,6 +134,41 @@ class RunPrivateRateconMeasurementLoadProvenanceSidecarsTests(unittest.TestCase)
         self.assertFalse(payload["summary"]["ocr_attempted"])
         self.assertFalse(payload["summary"]["google_called"])
         self.assertFalse(payload["summary"]["model_or_cloud_called"])
+
+    def test_report_builder_flag_reaches_measurement_without_default_change(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            input_dir = Path(tmp) / "input"
+            pdf_path = input_dir / "FakeLoadConfirmationA.pdf"
+            input_dir.mkdir()
+            pdf_path.write_text("fake pdf placeholder", encoding="utf-8")
+            with patch(
+                "scripts.run_private_ratecon_measurement.discover_private_pdfs",
+                return_value=[pdf_path],
+            ), patch(
+                "scripts.run_private_ratecon_measurement.build_safe_aliases",
+                return_value={pdf_path: "RATECON_001"},
+            ), patch(
+                "scripts.run_private_ratecon_measurement._load_registry",
+                return_value=[],
+            ), patch(
+                "scripts.run_private_ratecon_measurement.measure_private_ratecon_pdf",
+                return_value={"document_alias": "RATECON_001"},
+            ) as mocked_measure:
+                build_private_ratecon_measurement_report(
+                    input_dir=input_dir,
+                    write_load_generated_resolver_provenance_sidecars=True,
+                )
+                explicit_call = mocked_measure.call_args.kwargs[
+                    "write_load_generated_resolver_provenance_sidecars"
+                ]
+                mocked_measure.reset_mock()
+                build_private_ratecon_measurement_report(input_dir=input_dir)
+                default_call = mocked_measure.call_args.kwargs[
+                    "write_load_generated_resolver_provenance_sidecars"
+                ]
+
+        self.assertTrue(explicit_call)
+        self.assertFalse(default_call)
 
 
 if __name__ == "__main__":

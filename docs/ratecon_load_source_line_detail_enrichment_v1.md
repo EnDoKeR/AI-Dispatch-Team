@@ -119,3 +119,11 @@ detail availability and resolver-visible detail availability.
 This input explains whether current artifacts are measurable or only
 eval/audit-level and unmeasurable. It remains local-only and redacted by
 default.
+
+## Current-Run Generated Provenance
+
+The generated-provenance current-run summarizer is the next evidence gate after
+generated/resolver sidecars. It records whether generated rows are absent,
+present but missing detail, or present with later loss. If later loss remains,
+the next task is a boundary-specific serialization repair, not a table-neighbor
+or nearby-row behavior change.

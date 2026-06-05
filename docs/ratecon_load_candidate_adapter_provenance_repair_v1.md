@@ -110,3 +110,12 @@ These sidecars do not infer missing metadata, fabricate candidate ids, change
 resolver behavior, or change selected load output. Current eval/audit-only
 artifacts can still be reported as unmeasurable when generated/resolver rows
 are absent.
+
+## Current-Run Verification
+
+`docs/ratecon_load_generated_provenance_current_run_v1.md` adds the next
+current-run evidence gate. It verifies whether an explicit sidecar-enabled
+private measurement emits generated rows before deciding on later boundary
+repair. If generated rows are present but complete roundtrip is still absent,
+the next task must target the exact later loss boundary and must not change
+selection, scoring, source labels, or candidate generation.

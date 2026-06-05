@@ -117,3 +117,16 @@ private selected-load aggregate gate passes. If generated candidates lack
 detail, the next task is candidate provenance generation repair. If generated
 candidates have detail but later rows lose it, the next task is exact boundary
 repair at the reported stage.
+
+## Current-Run Verification
+
+`scripts/summarize_ratecon_load_generated_provenance_current_run.py` is the
+local-only current-run evidence gate for these sidecars. It separates generated
+rows being absent, generated rows being present but missing detail, and
+generated rows being present with later provenance loss.
+
+The current-run gate is reporting-only. It must not make readiness more
+permissive unless generated rows, resolver-visible rows, a complete roundtrip,
+and the existing selected-load gates are all present. When generated rows are
+absent in an explicit sidecar-enabled measurement, the only allowed repair is
+local-only generation-stage sidecar instrumentation.

@@ -1,0 +1,22 @@
+{
+  "summary": {
+    "complete_roundtrip_count": 0,
+    "current_artifacts_measurable": true,
+    "current_artifacts_status": "partial_roundtrip_measurable",
+    "generated_candidate_count": 1,
+    "generated_candidate_detail_available_count": 0,
+    "generated_resolver_roundtrip_status_counts": {
+      "generated_resolver_roundtrip_loss_detected": 1
+    },
+    "model_or_cloud_called": false,
+    "ocr_attempted": false,
+    "pdf_processing_attempted": false,
+    "private_values_included": false,
+    "provenance_candidate_count": 1,
+    "resolver_visible_candidate_count": 0,
+    "resolver_visible_detail_available_count": 0,
+    "stage_loss_bucket_counts": {
+      "generated_detail_missing": 1
+    }
+  }
+}

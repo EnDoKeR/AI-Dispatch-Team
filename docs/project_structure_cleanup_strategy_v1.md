@@ -336,6 +336,15 @@ ranking/scoring, change selected load output, change source labels, change
 confidence values, change evaluator statuses, process PDFs, run OCR, or run
 private measurement.
 
+The next generated/resolver provenance sidecar phase makes adapter and resolver
+visibility measurable on explicit local runs. The follow-up current-run
+verification phase uses
+`scripts/summarize_ratecon_load_generated_provenance_current_run.py` to decide
+whether generated rows are absent, missing detail at generation, or present with
+later loss. If generated rows are present but complete roundtrip is still
+absent, the next cleanup must target that later boundary and must not change
+load selection behavior.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
@@ -354,6 +363,8 @@ Future rate/money consolidation should continue with one narrow target:
   before adaptation but is dropped at the adapter boundary;
 - generated/resolver provenance sidecars if eval/audit-only artifacts cannot
   measure adapter roundtrip at corpus level;
+- generated-provenance current-run verification before any table/nearby-row
+  evidence-quality experiment;
 - serialization boundary repair if detail exists at generation but is dropped
   before diagnostics;
 - stop extraction architecture closeout.

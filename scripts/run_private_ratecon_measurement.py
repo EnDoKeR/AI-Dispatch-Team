@@ -200,6 +200,7 @@ def build_private_ratecon_measurement_report(
     ratecon_shadow_stop_fusion_profile="none",
     strict_ratecon_shadow_ocr=False,
     include_private_eval_values=False,
+    write_load_generated_resolver_provenance_sidecars=False,
 ):
     pdfs = discover_private_pdfs(input_dir, natural_sort=natural_sort_inputs)
     if limit and int(limit) > 0:
@@ -249,6 +250,9 @@ def build_private_ratecon_measurement_report(
             ratecon_shadow_stop_fusion_profile=ratecon_shadow_stop_fusion_profile,
             strict_ratecon_shadow_ocr=strict_ratecon_shadow_ocr,
             include_private_eval_values=include_private_eval_values,
+            write_load_generated_resolver_provenance_sidecars=(
+                write_load_generated_resolver_provenance_sidecars
+            ),
         )
         for path in pdfs
     ]
@@ -589,6 +593,9 @@ def main(argv=None):
             ratecon_shadow_stop_fusion_profile=args.ratecon_shadow_stop_fusion_profile,
             strict_ratecon_shadow_ocr=args.strict_ratecon_shadow_ocr,
             include_private_eval_values=args.include_private_eval_values,
+            write_load_generated_resolver_provenance_sidecars=(
+                args.write_load_generated_resolver_provenance_sidecars
+            ),
         )
 
         for line in format_private_measurement_report(report):
