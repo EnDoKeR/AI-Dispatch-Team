@@ -91,6 +91,7 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     parser.add_argument("--ownership-audit-dir", required=True)
     parser.add_argument("--source-line-audit-dir", required=True)
     parser.add_argument("--aggregate-gate-dir", required=True)
+    parser.add_argument("--detail-inventory-dir")
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--confirm-local-audit-run", action="store_true")
     return parser.parse_args(argv)
@@ -263,6 +264,56 @@ def _aggregate_gate_summary(gate_dir: Path) -> dict[str, Any]:
     }
 
 
+def _detail_inventory_summary(detail_dir: Path | None) -> dict[str, Any]:
+    if detail_dir is None:
+        return {
+            "status": "skipped_not_requested",
+            "path": "",
+            "detail_input_status": "skipped",
+            "candidate_detail_row_count": 0,
+            "complete_source_detail_count": 0,
+            "missing_page_line_count": 0,
+            "missing_source_count": 0,
+            "dropped_detail_count": 0,
+            "unknown_caused_by_missing_detail_count": 0,
+            "missing_page_line_ratio": 0.0,
+            "missing_source_ratio": 0.0,
+            "unknown_caused_by_missing_detail_ratio": 0.0,
+            "private_values_included": False,
+            "values_redacted": True,
+        }
+    payload, status = _read_json_if_present(
+        detail_dir / "load_source_line_detail_inventory_summary.json"
+    )
+    summary = dict(payload.get("summary") or {}) if payload else {}
+    candidate_count = _to_int(summary.get("candidate_detail_row_count"))
+    missing_page_line_count = _to_int(summary.get("missing_page_line_count"))
+    missing_source_count = _to_int(summary.get("missing_source_count"))
+    unknown_missing_count = _to_int(summary.get("unknown_caused_by_missing_detail_count"))
+    return {
+        "status": status if status == "present" else "skipped_missing_optional_dir",
+        "path": str(detail_dir),
+        "detail_input_status": str(summary.get("detail_input_status") or "missing"),
+        "candidate_detail_row_count": candidate_count,
+        "complete_source_detail_count": _to_int(summary.get("complete_source_detail_count")),
+        "missing_page_line_count": missing_page_line_count,
+        "missing_source_count": missing_source_count,
+        "dropped_detail_count": _to_int(summary.get("dropped_detail_count")),
+        "unknown_caused_by_missing_detail_count": unknown_missing_count,
+        "missing_page_line_ratio": (
+            missing_page_line_count / candidate_count if candidate_count else 0.0
+        ),
+        "missing_source_ratio": (
+            missing_source_count / candidate_count if candidate_count else 0.0
+        ),
+        "unknown_caused_by_missing_detail_ratio": (
+            unknown_missing_count / candidate_count if candidate_count else 0.0
+        ),
+        "private_values_included": _as_bool(summary.get("private_values_included")),
+        "values_redacted": not _as_bool(summary.get("private_values_included")),
+    }
+
+
 def _repo_evidence(repo_root: Path) -> dict[str, Any]:
     gates = {path: (repo_root / path).exists() for path in required_repo_gate_paths}
     fixtures = {path: (repo_root / path).exists() for path in required_fixture_paths}
@@ -286,6 +337,18 @@ def _detail_dominates(diagnostics: dict[str, Any]) -> bool:
 
 def _unknown_dominates(diagnostics: dict[str, Any]) -> bool:
     return diagnostics["unknown_ratio"] >= dominance_threshold
+
+
+def _detail_inventory_blocks_readiness(detail_inventory: dict[str, Any]) -> bool:
+    if detail_inventory["status"] != "present":
+        return False
+    if detail_inventory["detail_input_status"] == "detail_input_unavailable":
+        return True
+    return (
+        detail_inventory["missing_page_line_ratio"] >= dominance_threshold
+        or detail_inventory["missing_source_ratio"] >= dominance_threshold
+        or detail_inventory["unknown_caused_by_missing_detail_ratio"] >= dominance_threshold
+    )
 
 
 def _success_criteria(
@@ -359,6 +422,7 @@ def _readiness_rows(
     diagnostics: dict[str, Any],
     gate: dict[str, Any],
     source_line_audit: dict[str, Any],
+    detail_inventory: dict[str, Any],
     repo: dict[str, Any],
 ) -> list[dict[str, Any]]:
     return [
@@ -401,6 +465,17 @@ def _readiness_rows(
                 f"risk_finding_count={source_line_audit['risk_finding_count']}"
             ),
         },
+        {
+            "readiness_check": "detail_inventory_not_dominated_by_missing_detail",
+            "passed": not _detail_inventory_blocks_readiness(detail_inventory),
+            "blocking": detail_inventory["status"] == "present",
+            "evidence": (
+                f"status={detail_inventory['status']} "
+                f"missing_page_line_ratio={detail_inventory['missing_page_line_ratio']:.3f} "
+                f"missing_source_ratio={detail_inventory['missing_source_ratio']:.3f} "
+                f"unknown_caused_by_missing_detail_ratio={detail_inventory['unknown_caused_by_missing_detail_ratio']:.3f}"
+            ),
+        },
     ]
 
 
@@ -434,6 +509,7 @@ def _gate_inventory(
     gate: dict[str, Any],
     ownership_audit: dict[str, Any],
     source_line_audit: dict[str, Any],
+    detail_inventory: dict[str, Any],
 ) -> list[dict[str, Any]]:
     return [
         {
@@ -472,12 +548,24 @@ def _gate_inventory(
             ),
             "evidence": f"risk_finding_count={source_line_audit['risk_finding_count']}",
         },
+        {
+            "gate": "load_source_line_detail_inventory_optional",
+            "status": detail_inventory["status"],
+            "passed": not _detail_inventory_blocks_readiness(detail_inventory),
+            "evidence": (
+                f"candidate_detail_row_count={detail_inventory['candidate_detail_row_count']} "
+                f"missing_page_line_count={detail_inventory['missing_page_line_count']} "
+                f"missing_source_count={detail_inventory['missing_source_count']} "
+                f"dropped_detail_count={detail_inventory['dropped_detail_count']}"
+            ),
+        },
     ]
 
 
 def _closeout_status(
     diagnostics: dict[str, Any],
     gate: dict[str, Any],
+    detail_inventory: dict[str, Any],
     criteria: list[dict[str, Any]],
 ) -> str:
     if diagnostics["private_baseline_skipped"] or diagnostics["status"] == "missing":
@@ -487,6 +575,8 @@ def _closeout_status(
     required_failed = [row for row in criteria if row["required"] and not row["passed"]]
     if required_failed:
         return status_failed_gate
+    if _detail_inventory_blocks_readiness(detail_inventory):
+        return status_incomplete_detail
     if _detail_dominates(diagnostics):
         return status_incomplete_detail
     if _unknown_dominates(diagnostics):
@@ -554,6 +644,7 @@ def summarize_closeout(
     ownership_audit_dir: Path,
     source_line_audit_dir: Path,
     aggregate_gate_dir: Path,
+    detail_inventory_dir: Path | None = None,
     repo_root: Path | None = None,
 ) -> dict[str, Any]:
     repo_root = (repo_root or Path(__file__).resolve().parents[1]).resolve()
@@ -561,10 +652,17 @@ def summarize_closeout(
     ownership_audit = _ownership_audit_summary(ownership_audit_dir)
     source_line_audit = _source_line_audit_summary(source_line_audit_dir)
     aggregate_gate = _aggregate_gate_summary(aggregate_gate_dir)
+    detail_inventory = _detail_inventory_summary(detail_inventory_dir)
     repo = _repo_evidence(repo_root)
     criteria = _success_criteria(diagnostics, aggregate_gate, repo)
-    readiness = _readiness_rows(diagnostics, aggregate_gate, source_line_audit, repo)
-    status = _closeout_status(diagnostics, aggregate_gate, criteria)
+    readiness = _readiness_rows(
+        diagnostics,
+        aggregate_gate,
+        source_line_audit,
+        detail_inventory,
+        repo,
+    )
+    status = _closeout_status(diagnostics, aggregate_gate, detail_inventory, criteria)
     return {
         "schema_version": "ratecon_load_source_line_diagnostics_closeout_v1",
         "closeout_status": status,
@@ -573,6 +671,7 @@ def summarize_closeout(
         "ownership_audit": ownership_audit,
         "source_line_audit": source_line_audit,
         "aggregate_gate": aggregate_gate,
+        "detail_inventory": detail_inventory,
         "repo_evidence": repo,
         "success_criteria": criteria,
         "readiness": readiness,
@@ -582,6 +681,7 @@ def summarize_closeout(
             aggregate_gate,
             ownership_audit,
             source_line_audit,
+            detail_inventory,
         ),
         "next_actions": _next_actions(status),
         "private_values_redacted": True,
@@ -608,6 +708,7 @@ def _write_dict_csv(path: Path, rows: list[dict[str, Any]], fieldnames: list[str
 def _write_report(path: Path, summary: dict[str, Any]) -> None:
     diagnostics = summary["diagnostics"]
     gate = summary["aggregate_gate"]
+    detail_inventory = summary["detail_inventory"]
     lines = [
         "# RateCon Load Source-Line Diagnostics Closeout",
         "",
@@ -620,6 +721,13 @@ def _write_report(path: Path, summary: dict[str, Any]) -> None:
         f"- source_line_unavailable_ratio: {diagnostics['source_line_unavailable_ratio']:.3f}",
         f"- unknown_ratio: {diagnostics['unknown_ratio']:.3f}",
         f"- aggregate_gate_passed: {gate['gate_passed']}",
+        f"- detail_inventory_status: {detail_inventory['status']}",
+        f"- detail_inventory_candidate_detail_row_count: {detail_inventory['candidate_detail_row_count']}",
+        f"- detail_inventory_complete_source_detail_count: {detail_inventory['complete_source_detail_count']}",
+        f"- detail_inventory_missing_page_line_count: {detail_inventory['missing_page_line_count']}",
+        f"- detail_inventory_missing_source_count: {detail_inventory['missing_source_count']}",
+        f"- detail_inventory_dropped_detail_count: {detail_inventory['dropped_detail_count']}",
+        f"- detail_inventory_unknown_caused_by_missing_detail_count: {detail_inventory['unknown_caused_by_missing_detail_count']}",
         "- private_values_redacted: True",
         "- pdf_processing_attempted: False",
         "- ocr_attempted: False",
@@ -692,6 +800,7 @@ def main(argv: list[str] | None = None) -> int:
             _resolve(args.ownership_audit_dir),
             _resolve(args.source_line_audit_dir),
             _resolve(args.aggregate_gate_dir),
+            _resolve(args.detail_inventory_dir) if args.detail_inventory_dir else None,
         )
         write_outputs(output_dir, summary)
     except (OSError, closeout_error, json.JSONDecodeError) as exc:
@@ -709,6 +818,23 @@ def main(argv: list[str] | None = None) -> int:
     )
     print(f"unknown_ratio: {summary['diagnostics']['unknown_ratio']:.3f}")
     print(f"aggregate_gate_passed: {summary['aggregate_gate']['gate_passed']}")
+    print(f"detail_inventory_status: {summary['detail_inventory']['status']}")
+    print(
+        "detail_inventory_candidate_detail_row_count: "
+        f"{summary['detail_inventory']['candidate_detail_row_count']}"
+    )
+    print(
+        "detail_inventory_missing_page_line_count: "
+        f"{summary['detail_inventory']['missing_page_line_count']}"
+    )
+    print(
+        "detail_inventory_missing_source_count: "
+        f"{summary['detail_inventory']['missing_source_count']}"
+    )
+    print(
+        "detail_inventory_dropped_detail_count: "
+        f"{summary['detail_inventory']['dropped_detail_count']}"
+    )
     print("private_values_redacted: True")
     print("pdf_processing_attempted: False")
     print("ocr_attempted: False")
