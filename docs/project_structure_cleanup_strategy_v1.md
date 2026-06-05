@@ -296,6 +296,14 @@ but not selected. It must not change selected load-number output, source labels,
 candidate generation, resolver ranking/scoring, evaluator statuses, extraction,
 private measurement, PDF processing, or OCR behavior.
 
+The next closeout/readiness phase summarizes load source-line diagnostic
+coverage, limitations, required gates, and known debt with
+`scripts/summarize_ratecon_load_source_line_diagnostics_closeout.py`. If
+current diagnostics are mostly `unknown` or source-line detail is unavailable,
+future load evidence experiments are not ready. If actionable, the next
+behavior work must still be shadow-only and gated by the selected-load
+regression harness and private selected-load aggregate gate.
+
 Future rate/money consolidation should continue with one narrow target:
 
 - private full-corpus baseline if the closeout skipped it;
@@ -303,6 +311,9 @@ Future rate/money consolidation should continue with one narrow target:
 - optional shadow-only experimental ranking profile under explicit gates;
 - candidate source/ranking normalization.
 - load source-line/evidence diagnostics closeout;
+- shadow-only table-neighbor/nearby-row evidence-quality experiment if closeout
+  is actionable;
+- audit/eval source-line detail enrichment if closeout is not actionable;
 - stop extraction architecture closeout.
 
 Do not lower thresholds, change scoring, change selected rate output, auto-accept

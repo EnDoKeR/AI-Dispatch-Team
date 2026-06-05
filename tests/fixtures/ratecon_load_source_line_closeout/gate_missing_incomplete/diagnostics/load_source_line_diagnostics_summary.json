@@ -1,0 +1,18 @@
+{
+  "summary": {
+    "detail_status": "available",
+    "document_count": 4,
+    "diagnostic_bucket_counts": {
+      "selected_table_neighbor_wrong_cell": 1,
+      "selected_nearby_row_wrong_pair": 1
+    },
+    "covered_fixture_bucket_count": 2,
+    "private_values_included": false,
+    "values_redacted": true,
+    "pdf_processing_attempted": false,
+    "ocr_attempted": false,
+    "google_called": false,
+    "model_or_cloud_called": false,
+    "private_measurement_run": false
+  }
+}
